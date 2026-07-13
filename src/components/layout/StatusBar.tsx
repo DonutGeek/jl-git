@@ -87,7 +87,7 @@ export function StatusBar() {
       })
       .catch(() => {
         if (!cancelled) {
-          setAppInfo({ name: "JLGit", version: "0.1.0", arch: "" });
+          setAppInfo({ name: "鲸灵Git", version: "0.1.0", arch: "" });
         }
       });
 
@@ -151,7 +151,7 @@ export function StatusBar() {
 
   const versionLabel = useMemo(() => {
     if (!appInfo) {
-      return "JLGit";
+      return "鲸灵Git";
     }
     const arch = appInfo.arch ? ` ${appInfo.arch}` : "";
     return `${appInfo.name} ${appInfo.version}${arch}`;

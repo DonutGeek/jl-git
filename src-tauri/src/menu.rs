@@ -14,17 +14,17 @@ pub fn install_zh_cn_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 }
 
 fn build_zh_cn_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
-    // macOS：第一项会成为应用菜单（jlgit）
-    let app_menu = SubmenuBuilder::new(app, "JLGit")
-        .about_with_text("关于 JLGit", None)
+    // macOS：第一项会成为应用菜单（鲸灵Git）
+    let app_menu = SubmenuBuilder::new(app, "鲸灵Git")
+        .about_with_text("关于 鲸灵Git", None)
         .separator()
         .services_with_text("服务")
         .separator()
-        .hide_with_text("隐藏 JLGit")
+        .hide_with_text("隐藏 鲸灵Git")
         .hide_others_with_text("隐藏其他")
         .show_all_with_text("全部显示")
         .separator()
-        .quit_with_text("退出 JLGit")
+        .quit_with_text("退出 鲸灵Git")
         .build()?;
 
     let file_menu = SubmenuBuilder::new(app, "文件")

@@ -31,7 +31,7 @@ pub struct OkResult {
 /// 应用版本与架构（供状态栏展示）
 pub fn app_info() -> SystemAppInfo {
     SystemAppInfo {
-        name: "JLGit".to_string(),
+        name: "鲸灵Git".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         arch: normalize_arch(std::env::consts::ARCH),
     }
