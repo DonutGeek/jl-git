@@ -4,16 +4,28 @@ use std::path::Path;
 use crate::error::AppError;
 use crate::git::{path::validate_git_ref, runner};
 
+#[derive(Debug, PartialEq, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitAuthor {
+    pub name: String,
+    pub email: String,
+}
+
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitCommitSummary {
     pub id: String,
     pub short_id: String,
     pub author_name: String,
+    pub author_email: String,
     pub authored_at: String,
     pub subject: String,
+    /// 父提交完整 ID；用于历史图谱的分叉与合并连线
+    pub parent_ids: Vec<String>,
     /// 指向该提交的分支 / 标签名（已清洗，不含 HEAD）
     pub refs: Vec<String>,
+    /// 来自 Co-authored-by trailer
+    pub co_authors: Vec<GitCommitAuthor>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -44,12 +56,12 @@ pub fn get_log(
     let fetch_limit = limit + 1;
     let mut args = vec![
         "log".to_string(),
-        // %D = 装饰（HEAD、分支、标签），供历史列表标签列
-        "--format=%H%x00%h%x00%an%x00%aI%x00%s%x00%D".to_string(),
+        // %ae = 作者邮箱；%P = 父提交；trailers 仅取 Co-authored-by，多条用 SOH 分隔
+        "--format=%H%x00%h%x00%an%x00%ae%x00%aI%x00%s%x00%P%x00%D%x00%(trailers:key=Co-authored-by,valueonly,separator=%x01)".to_string(),
         "--decorate=short".to_string(),
-        format!("--skip={skip}"),
-        format!("--max-count={fetch_limit}"),
     ];
+    args.push(format!("--skip={skip}"));
+    args.push(format!("--max-count={fetch_limit}"));
 
     if let Some(ref_name) = ref_name {
         args.push(ref_name.to_string());
@@ -99,14 +111,17 @@ pub fn parse_log(stdout: &str, limit: usize) -> GitLogResult {
     let mut commits: Vec<GitCommitSummary> = stdout
         .lines()
         .filter_map(|line| {
-            let fields: Vec<&str> = line.splitn(6, '\0').collect();
+            let fields: Vec<&str> = line.splitn(9, '\0').collect();
             Some(GitCommitSummary {
                 id: fields.first()?.to_string(),
                 short_id: fields.get(1)?.to_string(),
                 author_name: fields.get(2)?.to_string(),
-                authored_at: fields.get(3)?.to_string(),
-                subject: fields.get(4)?.to_string(),
-                refs: parse_decorations(fields.get(5).copied().unwrap_or("")),
+                author_email: fields.get(3).unwrap_or(&"").to_string(),
+                authored_at: fields.get(4)?.to_string(),
+                subject: fields.get(5)?.to_string(),
+                parent_ids: parse_parent_ids(fields.get(6).copied().unwrap_or("")),
+                refs: parse_decorations(fields.get(7).copied().unwrap_or("")),
+                co_authors: parse_co_authors(fields.get(8).copied().unwrap_or("")),
             })
         })
         .collect();
@@ -117,6 +132,53 @@ pub fn parse_log(stdout: &str, limit: usize) -> GitLogResult {
     }
 
     GitLogResult { commits, has_more }
+}
+
+fn parse_parent_ids(raw: &str) -> Vec<String> {
+    raw.split_whitespace().map(ToString::to_string).collect()
+}
+
+/// 解析 `Name <email>`；格式异常则跳过
+pub fn parse_co_authors(raw: &str) -> Vec<GitCommitAuthor> {
+    if raw.trim().is_empty() {
+        return Vec::new();
+    }
+
+    let mut authors = Vec::new();
+    for part in raw.split('\u{1}') {
+        if let Some(author) = parse_co_author_line(part) {
+            authors.push(author);
+        }
+    }
+    authors
+}
+
+fn parse_co_author_line(raw: &str) -> Option<GitCommitAuthor> {
+    let token = raw.trim();
+    if token.is_empty() {
+        return None;
+    }
+
+    let open = token.rfind('<')?;
+    let close = token.rfind('>')?;
+    if close <= open + 1 {
+        return None;
+    }
+
+    let email = token[open + 1..close].trim();
+    let name = token[..open].trim();
+    if email.is_empty() {
+        return None;
+    }
+
+    Some(GitCommitAuthor {
+        name: if name.is_empty() {
+            email.to_string()
+        } else {
+            name.to_string()
+        },
+        email: email.to_string(),
+    })
 }
 
 /// 解析 `git log --decorate=short` 的 %D，例如：
@@ -171,8 +233,8 @@ mod tests {
     #[test]
     fn truncates_extra_commit_and_sets_has_more() {
         let stdout = "\
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0aaaaaaa\0Alice\02026-07-09T09:00:00+00:00\0first subject\0HEAD -> main, origin/main
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\02026-07-09T10:00:00+00:00\0second subject\0
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0aaaaaaa\0Alice\0alice@example.com\02026-07-09T09:00:00+00:00\0first subject\0bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb cccccccccccccccccccccccccccccccccccccccc\0HEAD -> main, origin/main\0
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07-09T10:00:00+00:00\0second subject\0\0\0
 ";
 
         let result = parse_log(stdout, 1);
@@ -184,11 +246,41 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\02026-07-09T10:00:00+00:0
                 id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
                 short_id: "aaaaaaa".into(),
                 author_name: "Alice".into(),
+                author_email: "alice@example.com".into(),
                 authored_at: "2026-07-09T09:00:00+00:00".into(),
                 subject: "first subject".into(),
+                parent_ids: vec![
+                    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".into(),
+                    "cccccccccccccccccccccccccccccccccccccccc".into(),
+                ],
                 refs: vec!["main".into(), "origin&main".into()],
+                co_authors: vec![],
             }]
         );
+    }
+
+    #[test]
+    fn parses_co_authored_by_trailers() {
+        let raw = "Cursor <cursoragent@cursor.com>\u{1}Bob <bob@example.com>";
+        assert_eq!(
+            parse_co_authors(raw),
+            vec![
+                GitCommitAuthor {
+                    name: "Cursor".into(),
+                    email: "cursoragent@cursor.com".into(),
+                },
+                GitCommitAuthor {
+                    name: "Bob".into(),
+                    email: "bob@example.com".into(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn skips_malformed_co_author_lines() {
+        assert!(parse_co_authors("not-an-email").is_empty());
+        assert!(parse_co_authors("<>").is_empty());
     }
 
     #[test]

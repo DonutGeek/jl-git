@@ -30,6 +30,14 @@ pub enum GitOpEvent {
         label: String,
         started_at: String,
     },
+    /// 单条 git 即将开始（便于前端实时显示「开始: …」）
+    #[serde(rename_all = "camelCase")]
+    CmdStart {
+        op_id: String,
+        repo_path: String,
+        args: Vec<String>,
+        started_at: String,
+    },
     #[serde(rename_all = "camelCase")]
     Cmd {
         op_id: String,
@@ -123,6 +131,26 @@ pub fn run_logged<T>(
     });
 
     result
+}
+
+/// 由 runner 在每次 git 开始前调用（无活动操作时为 no-op）
+pub fn begin_command(args: &[&str]) {
+    CURRENT.with(|cell| {
+        let binding = cell.borrow();
+        let Some(ctx) = binding.as_ref() else {
+            return;
+        };
+
+        emit(
+            &ctx.app,
+            &GitOpEvent::CmdStart {
+                op_id: ctx.op_id.clone(),
+                repo_path: ctx.repo_path.clone(),
+                args: args.iter().map(|s| (*s).to_string()).collect(),
+                started_at: now_clock(),
+            },
+        );
+    });
 }
 
 /// 由 runner 在每次 git 结束后调用（无活动操作时为 no-op）

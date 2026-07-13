@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import {
   Camera,
-  File,
+  ChevronsDownUp,
+  ChevronsUpDown,
   FileDiff,
   GitCommitHorizontal,
   List,
@@ -15,8 +16,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { CommitFileTree, getCommitFileTreeFolderPaths } from "@/components/git/CommitFileTree";
+import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
@@ -27,7 +31,10 @@ import { cn } from "@/lib/utils";
 
 import { useRepoStore } from "@/store/useRepoStore";
 
+import { toUserMessage } from "@/types/error";
 import { GitChangedFile, GitCommitParentDiff, GitCommitSummary } from "@/types/git";
+import { copyToClipboard } from "@/utils/clipboard";
+import { getPathBasename } from "@/utils/getPathBasename";
 import { gitStatusLetterClass } from "@/utils/gitStatusStyle";
 
 function summarizeFiles(files: GitChangedFile[]): {
@@ -55,12 +62,14 @@ interface ParentDiffSectionProps {
   diff: GitCommitParentDiff;
   index: number;
   parentCount: number;
+  rootName: string;
 }
 
-function ParentDiffSection({ diff, index, parentCount }: ParentDiffSectionProps) {
+function ParentDiffSection({ diff, index, parentCount, rootName }: ParentDiffSectionProps) {
   const { t } = useTranslation();
   const [filter, setFilter] = useState("");
   const [view, setView] = useState<"list" | "tree">("list");
+  const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(new Set());
 
   const visible = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -70,6 +79,8 @@ function ParentDiffSection({ diff, index, parentCount }: ParentDiffSectionProps)
     return diff.files.filter((file) => file.path.toLowerCase().includes(q));
   }, [diff.files, filter]);
 
+  const treeFolderPaths = useMemo(() => getCommitFileTreeFolderPaths(visible), [visible]);
+
   const placeholder =
     parentCount > 1 && diff.parentShortId
       ? t("repo.commitDiffWithParent", {
@@ -78,8 +89,25 @@ function ParentDiffSection({ diff, index, parentCount }: ParentDiffSectionProps)
         })
       : t("repo.commitChangedFiles");
 
+  function showTreeView(): void {
+    setView("tree");
+    setExpandedTreePaths(new Set(treeFolderPaths));
+  }
+
+  function toggleTreeFolder(path: string): void {
+    setExpandedTreePaths((current) => {
+      const next = new Set(current);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }
+
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {/* 分隔线只在上方元信息区 border-b，此处不再加 border-t，避免叠成双线 */}
       <div className="flex shrink-0 items-center gap-1 px-2 py-1">
         <Button
@@ -102,15 +130,56 @@ function ParentDiffSection({ diff, index, parentCount }: ParentDiffSectionProps)
           type="button"
           variant="ghost"
           size="sm"
-          className="text-muted-foreground h-6 gap-1 px-1.5 text-xs opacity-60"
-          aria-disabled="true"
-          onClick={() => toast.message(t("repo.treeComingSoon"))}
+          className={cn(
+            "h-6 gap-1 px-1.5 text-xs transition-colors",
+            view === "tree"
+              ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+              : "text-muted-foreground",
+          )}
+          aria-pressed={view === "tree"}
+          onClick={showTreeView}
         >
           <ListTree className="size-3.5" aria-hidden="true" />
           {t("repo.viewTree")}
         </Button>
 
         <div className="ml-auto flex items-center gap-0.5">
+          {view === "tree" ? (
+            <>
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground size-6"
+                    aria-label={t("repo.expandAll")}
+                    onClick={() => setExpandedTreePaths(new Set(treeFolderPaths))}
+                    disabled={treeFolderPaths.length === 0}
+                  >
+                    <ChevronsUpDown className="size-3.5" aria-hidden="true" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("repo.expandAll")}</TooltipContent>
+              </Tooltip>
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground size-6"
+                    aria-label={t("repo.collapseAll")}
+                    onClick={() => setExpandedTreePaths(new Set())}
+                    disabled={treeFolderPaths.length === 0}
+                  >
+                    <ChevronsDownUp className="size-3.5" aria-hidden="true" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("repo.collapseAll")}</TooltipContent>
+              </Tooltip>
+            </>
+          ) : null}
           <Tooltip delayDuration={300}>
             <TooltipTrigger asChild>
               <Button
@@ -164,29 +233,40 @@ function ParentDiffSection({ diff, index, parentCount }: ParentDiffSectionProps)
         </div>
       </div>
 
-      <ul className="min-h-0 flex-1 overflow-auto px-1 pb-1">
-        {visible.length === 0 ? (
-          <li className="text-muted-foreground px-2 py-2 text-xs">{t("repo.commitFilesEmpty")}</li>
-        ) : (
-          visible.map((file) => (
-            <li key={`${diff.parentId}:${file.path}`}>
-              <div className="hover:bg-accent/60 flex h-7 cursor-default items-center gap-1.5 rounded-md px-1.5 transition-colors duration-150">
-                <span
-                  className={cn(
-                    "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
-                    gitStatusLetterClass(file.status),
-                  )}
-                  aria-label={file.status}
-                >
-                  {file.status}
-                </span>
-                <File className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
-                <TruncateStartPath path={file.path} className="font-mono" />
-              </div>
-            </li>
-          ))
-        )}
-      </ul>
+      <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <ScrollArea className="h-full w-full min-w-0 pr-3 pb-1 [&_[data-orientation=vertical]]:!right-1">
+          {visible.length === 0 ? (
+            <p className="text-muted-foreground px-2 py-2 text-xs">{t("repo.commitFilesEmpty")}</p>
+          ) : view === "tree" ? (
+            <CommitFileTree
+              files={visible}
+              rootName={rootName}
+              expandedPaths={expandedTreePaths}
+              onToggleFolder={toggleTreeFolder}
+            />
+          ) : (
+            <ul className="w-full min-w-0">
+              {visible.map((file) => (
+                <li key={`${diff.parentId}:${file.path}`} className="min-w-0">
+                  <div className="hover:bg-accent/60 flex h-7 w-full min-w-0 cursor-default items-center gap-1.5 overflow-hidden rounded-md px-1.5 transition-colors duration-150">
+                    <span
+                      className={cn(
+                        "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
+                        gitStatusLetterClass(file.status),
+                      )}
+                      aria-label={file.status}
+                    >
+                      {file.status}
+                    </span>
+                    <MaterialFileIcon name={file.path} isDir={false} className="size-3.5" />
+                    <TruncateStartPath path={file.path} className="font-mono" />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </ScrollArea>
+      </div>
     </section>
   );
 }
@@ -195,9 +275,12 @@ function ParentDiffSection({ diff, index, parentCount }: ParentDiffSectionProps)
 export function HistoryDetailPane() {
   const { t } = useTranslation();
   const selectedCommitId = useRepoStore((state) => state.selectedCommitId);
+  const repoPath = useRepoStore((state) => state.repoPath);
   const detail = useRepoStore((state) => state.selectedCommitDetail);
   const detailLoading = useRepoStore((state) => state.detailLoading);
   const commits = useRepoStore((state) => state.commits);
+  const [hashCopied, setHashCopied] = useState(false);
+  const [messageCopied, setMessageCopied] = useState(false);
 
   const summary: GitCommitSummary | null = useMemo(() => {
     if (!selectedCommitId) {
@@ -207,6 +290,7 @@ export function HistoryDetailPane() {
   }, [commits, selectedCommitId]);
 
   const refs = summary?.refs ?? [];
+  const rootName = getPathBasename(repoPath ?? "") || t("project.repoLabel");
 
   if (!selectedCommitId) {
     return (
@@ -248,29 +332,82 @@ export function HistoryDetailPane() {
     .filter(({ diff }) => diff.files.length > 0);
 
   const firstSummary = summarizeFiles(changedDiffs.flatMap(({ diff }) => diff.files));
+  const fullCommitId = detail.id;
+  const commitMessage = [detail.subject, detail.body].filter(Boolean).join("\n\n");
+
+  async function copyCommitHash(): Promise<void> {
+    try {
+      await copyToClipboard(fullCommitId);
+      setHashCopied(true);
+      window.setTimeout(() => setHashCopied(false), 1500);
+    } catch (error) {
+      toast.error(toUserMessage(error) || t("repo.copyFailed"));
+    }
+  }
+
+  async function copyCommitMessage(): Promise<void> {
+    try {
+      await copyToClipboard(commitMessage);
+      setMessageCopied(true);
+      window.setTimeout(() => setMessageCopied(false), 1500);
+    } catch (error) {
+      toast.error(toUserMessage(error) || t("repo.copyFailed"));
+    }
+  }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      {/* 顶栏：仅居中 hash 文案，不加边框盒 */}
-      <header className="border-border flex h-10 shrink-0 items-center justify-center border-b px-3">
-        <p className="text-muted-foreground truncate font-mono text-[11px] leading-none">
-          {t("repo.commitLabel", { hash: detail.shortId })}
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+      {/* 顶栏：仅 hash 可点复制；悬停手型 + 下划线，与列表 CopyableHash 一致 */}
+      <header className="border-border flex h-11 shrink-0 items-center justify-center border-b px-3">
+        <p className="text-foreground flex max-w-full items-baseline gap-0 text-sm leading-none">
+          <span className="shrink-0">{t("repo.commitLabelPrefix")}</span>
+          <Tooltip open={hashCopied ? true : undefined} delayDuration={200}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="text-foreground cursor-pointer border-0 border-b border-transparent bg-transparent p-0 pb-px font-mono text-sm leading-none hover:border-current"
+                aria-label={t("repo.copy")}
+                onClick={() => {
+                  void copyCommitHash();
+                }}
+              >
+                {detail.shortId}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {hashCopied ? t("repo.copySuccess") : t("repo.copy")}
+            </TooltipContent>
+          </Tooltip>
         </p>
       </header>
 
       {/* 元信息区固定；外层不滚动 */}
       <div className="border-border shrink-0 space-y-2 border-b px-3 py-2.5">
         {/* 提交文案框：标题+正文作为整体，仅框内滚动 */}
-        <div className="border-border bg-muted/30 max-h-28 space-y-1 overflow-y-auto rounded-md border px-2.5 py-2">
-          <p className="wrap-break-word text-[13px] leading-snug font-semibold">
-            {detail.subject}
-          </p>
-          {detail.body ? (
-            <pre className="text-muted-foreground whitespace-pre-wrap font-sans text-[11px] leading-snug">
-              {detail.body}
-            </pre>
-          ) : null}
-        </div>
+        <ScrollArea className="border-border bg-muted/30 max-h-28 rounded-md border">
+          <Tooltip open={messageCopied ? true : undefined} delayDuration={200}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="hover:bg-accent/50 focus-visible:ring-ring block w-full cursor-pointer space-y-1 px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1"
+                aria-label={t("repo.copy")}
+                onClick={() => void copyCommitMessage()}
+              >
+                <p className="wrap-break-word text-[13px] leading-snug font-semibold">
+                  {detail.subject}
+                </p>
+                {detail.body ? (
+                  <div className="text-muted-foreground whitespace-pre-wrap font-sans text-[11px] leading-snug">
+                    {detail.body}
+                  </div>
+                ) : null}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {messageCopied ? t("repo.copySuccess") : t("repo.copy")}
+            </TooltipContent>
+          </Tooltip>
+        </ScrollArea>
 
         <div className="space-y-1">
           <p className="text-muted-foreground text-[11px] leading-none">
@@ -353,7 +490,7 @@ export function HistoryDetailPane() {
       </div>
 
       {/* 改动文件区独立占满剩余高度并滚动 */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {changedDiffs.length === 0 ? (
           <p className="text-muted-foreground px-3 py-4 text-xs">
             {t("repo.commitNoChanges")}
@@ -365,6 +502,7 @@ export function HistoryDetailPane() {
               diff={diff}
               index={index}
               parentCount={detail.diffs.length}
+              rootName={rootName}
             />
           ))
         )}

@@ -14,7 +14,8 @@ use crate::git::{
         normalize_existing_dir, require_git_toplevel, validate_git_ref,
         validate_repo_relative_paths,
     },
-    remote::{self, GitFetchResult, GitPullResult, GitPushResult},
+    remote::{self, GitFetchResult, GitPullResult, GitPushResult, GitRemote},
+    reset::{self, GitResetResult},
     runner,
     show::{self, GitShowResult},
     status::{self, GitStatusResult},
@@ -36,6 +37,19 @@ pub struct GitBranchesResult {
 #[serde(rename_all = "camelCase")]
 pub struct GitCommitResult {
     commit_id: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitRemotesResult {
+    remotes: Vec<GitRemote>,
+}
+
+#[tauri::command]
+pub fn git_remotes(path: String) -> Result<GitRemotesResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    let remotes = remote::list_remotes(&repo_path)?;
+    Ok(GitRemotesResult { remotes })
 }
 
 #[tauri::command]
@@ -163,7 +177,7 @@ pub fn git_unstage_all(path: String) -> Result<OkResult, AppError> {
 }
 
 #[tauri::command]
-pub fn git_commit(
+pub async fn git_commit(
     app: AppHandle,
     path: String,
     message: String,
@@ -174,12 +188,19 @@ pub fn git_commit(
     let repo_path = resolve_repo_path(&path)?;
     let remove_paths = remove_paths.unwrap_or_default();
     let amend = amend.unwrap_or(false);
+    let repo_key = path;
 
-    let commit_id = oplog::run_logged(&app, &path, "commit", || {
-        crate::git::commit::commit(&repo_path, &message, &paths, &remove_paths, amend)
-    })?;
-
-    Ok(GitCommitResult { commit_id })
+    // 阻塞线程池执行，避免同步 command 卡住事件推送（日志才能实时刷新）
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "commit", || {
+            crate::git::commit::commit(&repo_path, &message, &paths, &remove_paths, amend)
+        })
+        .map(|commit_id| GitCommitResult { commit_id })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "commit 任务失败").with_details(error.to_string())
+    })?
 }
 
 /// 检查更新：fetch 远端（默认 origin），在阻塞线程池执行以免卡住 UI
@@ -253,7 +274,8 @@ pub async fn git_push(
     let repo_key = path;
 
     tauri::async_runtime::spawn_blocking(move || {
-        oplog::run_logged(&app, &repo_key, "push", || {
+        let label = if set_upstream { "publish" } else { "push" };
+        oplog::run_logged(&app, &repo_key, label, || {
             remote::push(
                 &repo_path,
                 remote_name.as_deref(),
@@ -269,66 +291,200 @@ pub async fn git_push(
     })?
 }
 
+/// 撤销最近提交：`git reset --mixed HEAD~1`（变更回到工作区）
 #[tauri::command]
-pub fn git_checkout(path: String, r#ref: String) -> Result<OkResult, AppError> {
+pub async fn git_undo_commit(
+    app: AppHandle,
+    path: String,
+    target: Option<String>,
+) -> Result<GitResetResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    let target = target;
+    let repo_key = path;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "undo", || {
+            if let Some(rev) = target.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                reset::reset_mixed(&repo_path, rev)
+            } else {
+                reset::undo_last_commit(&repo_path)
+            }
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "撤销提交任务失败").with_details(error.to_string())
+    })?
+}
+
+#[tauri::command]
+pub async fn git_checkout(
+    app: AppHandle,
+    path: String,
+    r#ref: String,
+) -> Result<OkResult, AppError> {
     validate_git_ref(&r#ref)?;
 
     let repo_path = resolve_repo_path(&path)?;
-    if branch::local_branch_exists(&repo_path, &r#ref)? {
-        runner::run_git(&repo_path, &["switch", "--", r#ref.as_str()])?;
+    let target = r#ref;
+    let repo_key = path;
 
-        return Ok(OkResult { ok: true });
-    }
-
-    if let Some((remote_name, local_name)) = remote_tracking_parts(&r#ref) {
-        let is_remote_tracking_ref = branch::remote_branch_exists(&repo_path, &r#ref)?
-            || branch::remote_exists(&repo_path, remote_name)?;
-
-        if is_remote_tracking_ref {
-            if branch::local_branch_exists(&repo_path, local_name)? {
-                runner::run_git(&repo_path, &["switch", "--", local_name])?;
-            } else {
-                runner::run_git(
-                    &repo_path,
-                    &["switch", "-c", local_name, "--track", r#ref.as_str()],
-                )?;
-            }
-
-            return Ok(OkResult { ok: true });
-        }
-    }
-
-    runner::run_git(&repo_path, &["switch", "--", r#ref.as_str()])?;
-
-    Ok(OkResult { ok: true })
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "checkout", || {
+            checkout_ref(&repo_path, &target)?;
+            Ok(OkResult { ok: true })
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "切换分支任务失败").with_details(error.to_string())
+    })?
 }
 
 /// 创建本地分支；默认 checkout 到新分支
 #[tauri::command]
-pub fn git_branch_create(
+pub async fn git_branch_create(
+    app: AppHandle,
     path: String,
     name: String,
     checkout: Option<bool>,
     start_point: Option<String>,
 ) -> Result<OkResult, AppError> {
-    let trimmed = name.trim();
+    let trimmed = name.trim().to_string();
     if trimmed.is_empty() {
         return Err(AppError::new("VALIDATION", "分支名不能为空"));
     }
-    validate_git_ref(trimmed)?;
+    validate_git_ref(&trimmed)?;
     if let Some(start) = start_point.as_deref() {
         validate_git_ref(start)?;
     }
 
     let repo_path = resolve_repo_path(&path)?;
-    branch::create_branch(
-        &repo_path,
-        trimmed,
-        start_point.as_deref(),
-        checkout.unwrap_or(true),
-    )?;
+    let do_checkout = checkout.unwrap_or(true);
+    let start = start_point;
+    let repo_key = path;
 
-    Ok(OkResult { ok: true })
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "createBranch", || {
+            branch::create_branch(
+                &repo_path,
+                &trimmed,
+                start.as_deref(),
+                do_checkout,
+            )?;
+            Ok(OkResult { ok: true })
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "创建分支任务失败").with_details(error.to_string())
+    })?
+}
+
+/// 删除本地分支；可选同时删除远端同名分支
+#[tauri::command]
+pub async fn git_branch_delete(
+    app: AppHandle,
+    path: String,
+    name: String,
+    force: Option<bool>,
+    delete_remote: Option<bool>,
+    remote: Option<String>,
+) -> Result<OkResult, AppError> {
+    let trimmed = name.trim().to_string();
+    if trimmed.is_empty() {
+        return Err(AppError::new("VALIDATION", "分支名不能为空"));
+    }
+    validate_git_ref(&trimmed)?;
+
+    let repo_path = resolve_repo_path(&path)?;
+    let force = force.unwrap_or(false);
+    let delete_remote = delete_remote.unwrap_or(false);
+    let remote_name = remote.unwrap_or_else(|| "origin".to_string());
+    if delete_remote {
+        validate_git_ref(&remote_name)?;
+    }
+    let repo_key = path;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "deleteBranch", || {
+            branch::delete_branch(&repo_path, &trimmed, force)?;
+            if delete_remote {
+                branch::delete_remote_branch(&repo_path, &remote_name, &trimmed)?;
+            }
+            Ok(OkResult { ok: true })
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "删除分支任务失败").with_details(error.to_string())
+    })?
+}
+
+/// 重命名本地分支
+#[tauri::command]
+pub async fn git_branch_rename(
+    app: AppHandle,
+    path: String,
+    old_name: String,
+    new_name: String,
+) -> Result<OkResult, AppError> {
+    let old = old_name.trim().to_string();
+    let new = new_name.trim().to_string();
+    if old.is_empty() || new.is_empty() {
+        return Err(AppError::new("VALIDATION", "分支名不能为空"));
+    }
+    validate_git_ref(&old)?;
+    validate_git_ref(&new)?;
+
+    let repo_path = resolve_repo_path(&path)?;
+    let repo_key = path;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "renameBranch", || {
+            branch::rename_branch(&repo_path, &old, &new)?;
+            Ok(OkResult { ok: true })
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "重命名分支任务失败").with_details(error.to_string())
+    })?
+}
+
+fn checkout_ref(repo_path: &std::path::Path, target: &str) -> Result<(), AppError> {
+    if branch::local_branch_exists(repo_path, target)? {
+        branch::checkout_local_branch(repo_path, target)?;
+        return Ok(());
+    }
+
+    if let Some((remote_name, local_name)) = remote_tracking_parts(target) {
+        let is_remote_tracking_ref = branch::remote_branch_exists(repo_path, target)?
+            || branch::remote_exists(repo_path, remote_name)?;
+
+        if is_remote_tracking_ref {
+            if branch::local_branch_exists(repo_path, local_name)? {
+                branch::checkout_local_branch(repo_path, local_name)?;
+            } else {
+                runner::run_git(
+                    repo_path,
+                    &["switch", "-c", local_name, "--track", target],
+                )?;
+                runner::run_git(
+                    repo_path,
+                    &["submodule", "update", "--init", "--recursive"],
+                )?;
+            }
+            return Ok(());
+        }
+    }
+
+    runner::run_git(repo_path, &["checkout", "--progress", target, "--"])?;
+    runner::run_git(
+        repo_path,
+        &["submodule", "update", "--init", "--recursive"],
+    )?;
+    Ok(())
 }
 
 fn remote_tracking_parts(candidate: &str) -> Option<(&str, &str)> {

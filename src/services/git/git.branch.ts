@@ -35,3 +35,29 @@ export async function createBranch(
     startPoint: options?.startPoint ?? null,
   });
 }
+
+export async function deleteBranch(
+  repoPath: string,
+  name: string,
+  options?: { force?: boolean; deleteRemote?: boolean; remote?: string },
+): Promise<void> {
+  await invokeCommand<OkResult>("git_branch_delete", {
+    path: repoPath,
+    name,
+    force: options?.force ?? false,
+    deleteRemote: options?.deleteRemote ?? false,
+    remote: options?.remote ?? "origin",
+  });
+}
+
+export async function renameBranch(
+  repoPath: string,
+  oldName: string,
+  newName: string,
+): Promise<void> {
+  await invokeCommand<OkResult>("git_branch_rename", {
+    path: repoPath,
+    oldName,
+    newName,
+  });
+}

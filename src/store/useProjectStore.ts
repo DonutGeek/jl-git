@@ -19,6 +19,8 @@ interface ProjectStoreActions {
   setCurrent: (project: Project | null) => void;
   addAndOpen: (input: Pick<AddProjectInput, "path" | "name">) => Promise<Project>;
   openExisting: (id: string) => Promise<Project>;
+  removeProject: (id: string) => Promise<void>;
+  updateAlias: (id: string, name: string) => Promise<Project>;
   findById: (id: string) => Project | undefined;
 }
 
@@ -119,6 +121,44 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     } catch (error) {
       const message = toUserMessage(error);
       set({ error: message, loading: false });
+      throw error;
+    }
+  },
+
+  async removeProject(id) {
+    set({ error: null });
+
+    try {
+      await projectService.remove(id);
+      const recent = await projectService.listRecent();
+
+      set((state) => ({
+        projects: state.projects.filter((project) => project.id !== id),
+        recent,
+        current: state.current?.id === id ? null : state.current,
+      }));
+    } catch (error) {
+      const message = toUserMessage(error);
+      set({ error: message });
+      throw error;
+    }
+  },
+
+  async updateAlias(id, name) {
+    set({ error: null });
+
+    try {
+      const project = await projectService.update({ id, name });
+
+      set((state) => ({
+        projects: upsertProject(state.projects, project),
+        current: state.current?.id === id ? project : state.current,
+      }));
+
+      return project;
+    } catch (error) {
+      const message = toUserMessage(error);
+      set({ error: message });
       throw error;
     }
   },

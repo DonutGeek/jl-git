@@ -32,3 +32,18 @@ export async function commit(
 
   return result.commitId;
 }
+
+/** 撤销提交：reset --mixed 到 target（省略则 HEAD~1） */
+export async function undoCommit(
+  repoPath: string,
+  target?: string,
+): Promise<{ target: string; elapsedMs: number }> {
+  const result = await invokeCommand<{ ok: boolean; target: string; elapsedMs: number }>(
+    "git_undo_commit",
+    {
+      path: repoPath,
+      target: target ?? null,
+    },
+  );
+  return { target: result.target, elapsedMs: result.elapsedMs };
+}

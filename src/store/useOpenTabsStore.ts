@@ -7,6 +7,12 @@ interface OpenTabsState {
   openTab: (projectId: string) => void;
   /** 关闭标签；返回关闭后应激活的相邻 id，若无则 null（回工作台） */
   closeTab: (projectId: string) => string | null;
+  /** 仅保留指定标签 */
+  closeOtherTabs: (keepId: string) => void;
+  /** 关闭锚点左侧全部标签 */
+  closeTabsToLeft: (anchorId: string) => void;
+  /** 关闭锚点右侧全部标签 */
+  closeTabsToRight: (anchorId: string) => void;
   /** 拖拽重排标签顺序 */
   reorderTabs: (activeId: string, overId: string) => void;
   /** 去掉已不存在的项目 id（例如被删除后） */
@@ -44,6 +50,35 @@ export const useOpenTabsStore = create<OpenTabsState>()(
 
         // 优先右侧邻居，否则左侧
         return nextTabs[Math.min(index, nextTabs.length - 1)] ?? null;
+      },
+
+      closeOtherTabs(keepId) {
+        const { tabIds } = get();
+        if (!tabIds.includes(keepId)) {
+          return;
+        }
+        if (tabIds.length === 1 && tabIds[0] === keepId) {
+          return;
+        }
+        set({ tabIds: [keepId] });
+      },
+
+      closeTabsToLeft(anchorId) {
+        const { tabIds } = get();
+        const index = tabIds.indexOf(anchorId);
+        if (index <= 0) {
+          return;
+        }
+        set({ tabIds: tabIds.slice(index) });
+      },
+
+      closeTabsToRight(anchorId) {
+        const { tabIds } = get();
+        const index = tabIds.indexOf(anchorId);
+        if (index < 0 || index >= tabIds.length - 1) {
+          return;
+        }
+        set({ tabIds: tabIds.slice(0, index + 1) });
       },
 
       reorderTabs(activeId, overId) {

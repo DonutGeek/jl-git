@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Check, GitBranch as GitBranchIcon, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 import { useRepoStore } from "@/store/useRepoStore";
@@ -28,19 +30,15 @@ interface CreateBranchDialogProps {
 export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogProps) {
   const { t } = useTranslation();
   const branches = useRepoStore((state) => state.branches);
-  const status = useRepoStore((state) => state.status);
   const createBranch = useRepoStore((state) => state.createBranch);
   const loading = useRepoStore((state) => state.loading);
-
-  const currentBranch = status?.branch ?? null;
 
   const [name, setName] = useState("");
   const [filter, setFilter] = useState("");
   const [startPoint, setStartPoint] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const localBranches = useMemo(
+  const allLocalBranches = useMemo(
     () => branches.filter((branch) => !branch.isRemote),
     [branches],
   );
@@ -48,6 +46,25 @@ export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogPro
     () => branches.filter((branch) => branch.isRemote),
     [branches],
   );
+
+  // 默认分支：后端标记 isDefault；无标记时回退 main/master
+  const defaultBranch = useMemo(() => {
+    const marked = allLocalBranches.find((branch) => branch.isDefault);
+    if (marked) {
+      return marked;
+    }
+    return (
+      allLocalBranches.find((branch) => branch.name === "main" || branch.name === "master") ?? null
+    );
+  }, [allLocalBranches]);
+
+  // 本地分支列表排除默认分支，避免与「默认分支」分组重复
+  const localBranches = useMemo(() => {
+    if (!defaultBranch) {
+      return allLocalBranches;
+    }
+    return allLocalBranches.filter((branch) => branch.name !== defaultBranch.name);
+  }, [allLocalBranches, defaultBranch]);
 
   // 仅在打开瞬间重置表单，避免输入时被 branches 引用变化冲掉
   useEffect(() => {
@@ -62,7 +79,6 @@ export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogPro
 
     setName("");
     setFilter("");
-    setError(null);
     setSubmitting(false);
     setStartPoint(current ?? locals[0]?.name ?? remotes[0]?.name ?? "");
   }, [open]);
@@ -83,15 +99,6 @@ export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogPro
     return remoteBranches.filter((branch) => branch.name.toLowerCase().includes(filterLower));
   }, [remoteBranches, filterLower]);
 
-  const defaultBranch = useMemo(() => {
-    if (currentBranch) {
-      return localBranches.find((branch) => branch.name === currentBranch) ?? null;
-    }
-    return (
-      localBranches.find((branch) => branch.name === "main" || branch.name === "master") ?? null
-    );
-  }, [currentBranch, localBranches]);
-
   const canSubmit =
     !submitting && !loading && name.trim().length > 0 && startPoint.trim().length > 0;
 
@@ -108,18 +115,24 @@ export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogPro
       return;
     }
 
-    setSubmitting(true);
-    setError(null);
+    const branchName = name.trim();
+    const start = startPoint.trim();
 
+    // 无论成败都先关弹窗，步骤与结果只看操作日志
+    flushSync(() => {
+      onOpenChange(false);
+    });
+
+    setSubmitting(true);
     try {
-      await createBranch(name.trim(), {
-        startPoint: startPoint.trim(),
+      await createBranch(branchName, {
+        startPoint: start,
         checkout: true,
       });
-      toast.success(t("repo.createBranchSuccess", { name: name.trim() }));
-      onOpenChange(false);
+      toast.success(t("repo.createBranchSuccess", { name: branchName }));
     } catch (submitError) {
-      setError(toUserMessage(submitError));
+      toast.error(toUserMessage(submitError));
+    } finally {
       setSubmitting(false);
     }
   }
@@ -143,14 +156,16 @@ export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogPro
               placeholder={t("repo.branchNamePlaceholder")}
               autoFocus
               disabled={submitting}
-              aria-invalid={Boolean(error)}
             />
           </div>
 
           <div className="border-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border">
             <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
-              <p className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
-                {t("repo.createBranchBasedOn", { branch: startPoint || "—" })}
+              <p className="min-w-0 flex-1 truncate text-xs">
+                <span className="text-muted-foreground">{t("repo.createBranchBasedOn")}</span>{" "}
+                <span className="text-foreground font-medium font-mono">
+                  {startPoint || "—"}
+                </span>
               </p>
               <div className="relative w-[140px] shrink-0">
                 <Search
@@ -168,7 +183,8 @@ export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogPro
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-auto py-1">
+            <div className="min-h-0 flex-1">
+              <ScrollArea className="h-full py-1">
               {defaultBranch &&
               (!filterLower || defaultBranch.name.toLowerCase().includes(filterLower)) ? (
                 <BranchPickSection title={t("repo.defaultBranch")}>
@@ -209,17 +225,17 @@ export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogPro
                 </BranchPickSection>
               ) : null}
 
-              {filteredLocal.length === 0 && filteredRemote.length === 0 ? (
+              {filteredLocal.length === 0 &&
+              filteredRemote.length === 0 &&
+              !(
+                defaultBranch &&
+                (!filterLower || defaultBranch.name.toLowerCase().includes(filterLower))
+              ) ? (
                 <p className="text-muted-foreground px-3 py-4 text-xs">{t("repo.branchesNoMatch")}</p>
               ) : null}
+              </ScrollArea>
             </div>
           </div>
-
-          {error ? (
-            <p className="text-destructive text-sm" role="alert">
-              {error}
-            </p>
-          ) : null}
 
           <DialogFooter>
             <Button
@@ -265,6 +281,8 @@ interface BranchPickRowProps {
 }
 
 function BranchPickRow({ branch, selected, disabled, onSelect }: BranchPickRowProps) {
+  const isCurrent = branch.isCurrent;
+
   return (
     <li>
       <button
@@ -277,8 +295,9 @@ function BranchPickRow({ branch, selected, disabled, onSelect }: BranchPickRowPr
             : "hover:bg-accent/60 text-foreground",
         )}
         onClick={() => onSelect(branch.name)}
+        aria-current={isCurrent ? "true" : undefined}
       >
-        {selected ? (
+        {isCurrent ? (
           <Check className="size-3.5 shrink-0" aria-hidden="true" />
         ) : (
           <GitBranchIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />

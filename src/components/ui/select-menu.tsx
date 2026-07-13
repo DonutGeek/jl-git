@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 export interface SelectMenuOption {
@@ -79,37 +80,36 @@ export function SelectMenu({
       <DropdownMenuContent
         align="start"
         className={cn(
-          "max-h-64 min-w-[var(--radix-dropdown-menu-trigger-width)] overflow-auto",
+          "min-w-[var(--radix-dropdown-menu-trigger-width)] p-0",
           contentClassName,
         )}
       >
-        {options.map((option) => {
-          const selected = option.value === value;
-          return (
-            <DropdownMenuItem
-              key={option.value}
-              className={cn("gap-2", compact ? "text-xs" : "text-sm")}
-              style={option.style}
-              onSelect={() => onChange(option.value)}
-            >
-              <span className="min-w-0 flex-1 truncate">{option.label}</span>
-              {selected ? (
-                <Check
-                  className={cn(
-                    "text-primary shrink-0",
-                    compact ? "size-3" : "size-3.5",
-                  )}
-                  aria-hidden="true"
-                />
-              ) : (
-                <span
-                  className={cn("shrink-0", compact ? "size-3" : "size-3.5")}
-                  aria-hidden="true"
-                />
-              )}
-            </DropdownMenuItem>
-          );
-        })}
+        <ScrollArea className="max-h-64">
+          <div className="p-1">
+            {options.map((option) => {
+              const selected = option.value === value;
+              return (
+                <DropdownMenuItem
+                  key={option.value}
+                  className={cn("gap-2", compact ? "text-xs" : "text-sm")}
+                  style={option.style}
+                  onSelect={() => onChange(option.value)}
+                >
+                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                  {selected ? (
+                    <Check
+                      className={cn(
+                        "text-primary shrink-0",
+                        compact ? "size-3" : "size-3.5",
+                      )}
+                      aria-hidden="true"
+                    />
+                  ) : null}
+                </DropdownMenuItem>
+              );
+            })}
+          </div>
+        </ScrollArea>
       </DropdownMenuContent>
     </DropdownMenu>
   );

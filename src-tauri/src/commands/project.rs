@@ -69,6 +69,27 @@ pub async fn project_touch_opened(
 }
 
 #[tauri::command]
+pub async fn project_remove(
+    pool: State<'_, SqlitePool>,
+    id: String,
+) -> Result<OkResult, AppError> {
+    db::remove_project(&pool, &id).await?;
+
+    Ok(OkResult { ok: true })
+}
+
+#[tauri::command]
+pub async fn project_update(
+    pool: State<'_, SqlitePool>,
+    id: String,
+    name: Option<String>,
+) -> Result<ProjectResult, AppError> {
+    let project = db::update_project(&pool, &id, name).await?;
+
+    Ok(ProjectResult { project })
+}
+
+#[tauri::command]
 pub async fn project_pick_directory(app: AppHandle) -> Result<PickDirectoryResult, AppError> {
     let path = app
         .dialog()

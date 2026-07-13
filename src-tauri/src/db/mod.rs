@@ -159,6 +159,60 @@ pub async fn list_projects(
     rows.into_iter().map(row_to_project).collect()
 }
 
+pub async fn remove_project(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    if id.trim().is_empty() {
+        return Err(AppError::new("VALIDATION", "项目 ID 不能为空"));
+    }
+
+    let result = sqlx::query("DELETE FROM projects WHERE id = ?1")
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(to_db_error)?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::new("NOT_FOUND", "项目不存在"));
+    }
+
+    Ok(())
+}
+
+pub async fn update_project(
+    pool: &SqlitePool,
+    id: &str,
+    name: Option<String>,
+) -> Result<ProjectRow, AppError> {
+    if id.trim().is_empty() {
+        return Err(AppError::new("VALIDATION", "项目 ID 不能为空"));
+    }
+
+    let Some(name) = name.map(|value| value.trim().to_string()).filter(|value| !value.is_empty())
+    else {
+        return Err(AppError::new("VALIDATION", "别名不能为空"));
+    };
+
+    let timestamp = now();
+    let result = sqlx::query(
+        r#"
+        UPDATE projects
+        SET name = ?1, updated_at = ?2
+        WHERE id = ?3
+        "#,
+    )
+    .bind(&name)
+    .bind(&timestamp)
+    .bind(id)
+    .execute(pool)
+    .await
+    .map_err(to_db_error)?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::new("NOT_FOUND", "项目不存在"));
+    }
+
+    get_project_by_id(pool, id).await
+}
+
 pub async fn touch_opened(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
     if id.trim().is_empty() {
         return Err(AppError::new("VALIDATION", "项目 ID 不能为空"));
@@ -255,9 +309,27 @@ async fn get_project_by_path(pool: &SqlitePool, path: &str) -> Result<ProjectRow
         "#,
     )
     .bind(path)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await
-    .map_err(to_db_error)?;
+    .map_err(to_db_error)?
+    .ok_or_else(|| AppError::new("NOT_FOUND", "项目不存在"))?;
+
+    row_to_project(row)
+}
+
+async fn get_project_by_id(pool: &SqlitePool, id: &str) -> Result<ProjectRow, AppError> {
+    let row = sqlx::query(
+        r#"
+        SELECT id, workspace_id, name, path, last_opened_at, pinned, created_at, updated_at
+        FROM projects
+        WHERE id = ?1
+        "#,
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+    .map_err(to_db_error)?
+    .ok_or_else(|| AppError::new("NOT_FOUND", "项目不存在"))?;
 
     row_to_project(row)
 }

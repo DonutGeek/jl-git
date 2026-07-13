@@ -35,14 +35,14 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: "jlgit-theme",
-      version: 1,
+      version: 2,
       migrate: (persisted, version) => {
         const state = persisted as Partial<ThemeState> | undefined;
         if (!state) {
           return { mode: "system" } as ThemeState;
         }
-        // v0 → v1：产品默认改为跟随系统
-        if (version < 1) {
+        // v0/v1 → v2：产品默认改为跟随系统（覆盖旧默认浅色）
+        if (version < 2) {
           state.mode = "system";
         }
         if (state.mode !== "light" && state.mode !== "dark" && state.mode !== "system") {

@@ -2,21 +2,12 @@ import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-/** 相对滚动内容高度的色块（0–1），对齐示例客户端的红删 / 绿增预览条 */
-export interface DiffPreviewChange {
-  topRatio: number;
-  heightRatio: number;
-  kind: "add" | "delete";
-}
-
-interface DiffSidePreviewProps {
-  changes: DiffPreviewChange[];
+interface CodeSidePreviewProps {
+  /** 文件全文，用于绘制代码纹理 */
+  text: string;
   className?: string;
-  /** 明暗切换时触发重绘 */
   dark?: boolean;
-  /** 按预览条纵向比例跳转（0–1） */
   onJumpRatio: (ratio: number) => void;
-  /** 当前视口：scrollTop / scrollHeight / clientHeight */
   viewport: {
     scrollTop: number;
     scrollHeight: number;
@@ -24,20 +15,19 @@ interface DiffSidePreviewProps {
   } | null;
 }
 
-/** 双列预览条：左删 / 右增（略加宽便于辨认） */
-const PREVIEW_WIDTH = 24;
-const COLUMN_GAP = 2;
+/** 文件视图右侧代码缩略图宽度（略宽于差异双列条） */
+const PREVIEW_WIDTH = 72;
 
 /**
- * 差异视图最右侧预览条：左红右绿两列色块 + 淡视口，不画代码纹理。
+ * 文件视图右侧缩略图：绘制代码纹理 + 视口指示，点击可跳转。
  */
-export function DiffSidePreview({
-  changes,
+export function CodeSidePreview({
+  text,
   className,
   dark = false,
   onJumpRatio,
   viewport,
-}: DiffSidePreviewProps) {
+}: CodeSidePreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -65,40 +55,47 @@ export function DiffSidePreview({
 
       const bg = resolveColor(container, "--background", "#ffffff");
       const border = resolveColor(container, "--border", "#e5e5e5");
-      const added = resolveColor(container, "--git-added", "#16a34a");
-      const deleted = resolveColor(container, "--git-deleted", "#dc2626");
+      const ink = resolveColor(container, "--muted-foreground", "#737373");
 
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, width, height);
 
-      // 左列删除、右列新增（与示例双轨一致）
-      const colW = Math.max(1, Math.floor((width - COLUMN_GAP) / 2));
-      const deleteX = 0;
-      const addX = colW + COLUMN_GAP;
+      const lines = text.length === 0 ? [""] : text.split("\n");
+      const lineCount = Math.max(1, lines.length);
+      const rowH = height / lineCount;
+      const barH = Math.max(1, Math.min(2.5, rowH * 0.75));
 
-      for (const change of changes) {
-        const y = Math.max(0, change.topRatio) * height;
-        const h = Math.max(2, change.heightRatio * height);
-        ctx.globalAlpha = 0.8;
-        if (change.kind === "delete") {
-          ctx.fillStyle = deleted;
-          ctx.fillRect(deleteX, y, colW, h);
-        } else {
-          ctx.fillStyle = added;
-          ctx.fillRect(addX, y, colW, h);
+      ctx.fillStyle = ink;
+      ctx.globalAlpha = dark ? 0.45 : 0.35;
+
+      for (let i = 0; i < lines.length; i += 1) {
+        const line = lines[i] ?? "";
+        const y = i * rowH + Math.max(0, (rowH - barH) / 2);
+        let x = 3;
+        for (let c = 0; c < line.length && x < width - 3; c += 1) {
+          const ch = line[c]!;
+          if (ch === "\t") {
+            x += 4;
+            continue;
+          }
+          if (ch === " ") {
+            x += 1.2;
+            continue;
+          }
+          ctx.fillRect(x, y, 1.4, barH);
+          x += 1.5;
         }
-        ctx.globalAlpha = 1;
       }
+      ctx.globalAlpha = 1;
 
-      // 视口指示：半透明灰块（对齐示例，无描边）
       if (viewport && viewport.scrollHeight > 0) {
         const ratio = viewport.clientHeight / viewport.scrollHeight;
-        const thumbH = Math.max(10, height * Math.min(1, ratio));
+        const thumbH = Math.max(12, height * Math.min(1, ratio));
         const maxTop = Math.max(0, height - thumbH);
         const denom = Math.max(1, viewport.scrollHeight - viewport.clientHeight);
         const thumbY = maxTop * (viewport.scrollTop / denom);
         ctx.fillStyle = border;
-        ctx.globalAlpha = 0.35;
+        ctx.globalAlpha = 0.4;
         ctx.fillRect(0, thumbY, width, thumbH);
         ctx.globalAlpha = 1;
       }
@@ -112,7 +109,7 @@ export function DiffSidePreview({
     return () => {
       observer.disconnect();
     };
-  }, [changes, viewport, dark]);
+  }, [text, viewport, dark]);
 
   function handlePointer(clientY: number): void {
     const container = containerRef.current;
@@ -133,7 +130,7 @@ export function DiffSidePreview({
       )}
       style={{ width: PREVIEW_WIDTH }}
       role="slider"
-      aria-label="差异预览图"
+      aria-label="文件缩略图"
       aria-valuemin={0}
       aria-valuemax={100}
       tabIndex={0}

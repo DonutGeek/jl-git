@@ -3,13 +3,12 @@ import { useTranslation } from "react-i18next";
 import {
   ChevronDown,
   ChevronRight,
-  File,
-  Folder,
-  FolderOpen,
 } from "lucide-react";
 
+import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 import { gitService } from "@/services/git";
@@ -90,15 +89,11 @@ function TreeNode({
           <span className="size-3.5 shrink-0" aria-hidden="true" />
         )}
 
-        {entry.isDir ? (
-          isOpen ? (
-            <FolderOpen className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
-          ) : (
-            <Folder className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
-          )
-        ) : (
-          <File className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
-        )}
+        <MaterialFileIcon
+          name={entry.name}
+          isDir={entry.isDir}
+          className="size-3.5"
+        />
 
         <span className="min-w-0 flex-1 truncate text-xs">{entry.name}</span>
       </Button>
@@ -246,32 +241,35 @@ export function FileTree({ repoPath }: FileTreeProps) {
         />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto px-1.5 py-2">
-        {error ? (
-          <p className="text-destructive px-2 py-2 text-sm" role="alert">
-            {error}
-          </p>
-        ) : null}
+      {/* ScrollArea 需明确高度：外层 flex-1 定高，内层 h-full 滚动 */}
+      <div className="min-h-0 flex-1">
+        <ScrollArea className="h-full px-1.5 py-2">
+          {error ? (
+            <p className="text-destructive px-2 py-2 text-sm" role="alert">
+              {error}
+            </p>
+          ) : null}
 
-        {loadingRoot ? (
-          <p className="text-muted-foreground px-2 py-4 text-sm">{t("common.loading")}</p>
-        ) : visibleRoot.length === 0 ? (
-          <p className="text-muted-foreground px-2 py-4 text-sm">{t("repo.fileTreeEmpty")}</p>
-        ) : (
-          visibleRoot.map((entry) => (
-            <TreeNode
-              key={entry.path}
-              entry={entry}
-              depth={0}
-              filter={filter}
-              expanded={expanded}
-              onToggle={toggleExpand}
-              childrenCache={childrenCache}
-              ensureChildren={ensureChildren}
-              loadingPaths={loadingPaths}
-            />
-          ))
-        )}
+          {loadingRoot ? (
+            <p className="text-muted-foreground px-2 py-4 text-sm">{t("common.loading")}</p>
+          ) : visibleRoot.length === 0 ? (
+            <p className="text-muted-foreground px-2 py-4 text-sm">{t("repo.fileTreeEmpty")}</p>
+          ) : (
+            visibleRoot.map((entry) => (
+              <TreeNode
+                key={entry.path}
+                entry={entry}
+                depth={0}
+                filter={filter}
+                expanded={expanded}
+                onToggle={toggleExpand}
+                childrenCache={childrenCache}
+                ensureChildren={ensureChildren}
+                loadingPaths={loadingPaths}
+              />
+            ))
+          )}
+        </ScrollArea>
       </div>
     </div>
   );

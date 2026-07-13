@@ -7,19 +7,26 @@ import {
   Check,
   ChevronDown,
   Clock3,
+  CloudUpload,
   FileCode2,
   Folder,
   FolderGit2,
   GitBranch as GitBranchIcon,
   LayoutDashboard,
   ListTree,
-  Plus,
+  RotateCcw,
   RotateCw,
   Terminal,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +35,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
@@ -42,6 +51,7 @@ import { useRepoStore } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
 import { Project } from "@/types/project";
+import { isLocalBranchPublished } from "@/utils/branchPublish";
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
 
@@ -67,23 +77,40 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
   const checkout = useRepoStore((state) => state.checkout);
   const fetchRemote = useRepoStore((state) => state.fetch);
   const pullRemote = useRepoStore((state) => state.pull);
+  const pushRemote = useRepoStore((state) => state.push);
+  const undoCommit = useRepoStore((state) => state.undoCommit);
 
   const [checkingOut, setCheckingOut] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [pulling, setPulling] = useState(false);
+  const [pushing, setPushing] = useState(false);
+  const [projectFilter, setProjectFilter] = useState("");
 
   const changeCount = useMemo(() => {
     return status?.entries.length ?? 0;
   }, [status?.entries.length]);
 
-  const branchLabel = status?.detached
-    ? t("repo.detached")
-    : (status?.branch ?? t("repo.currentBranch"));
-
+  const ahead = status?.ahead ?? 0;
   const localBranches = useMemo(
     () => branches.filter((branch) => !branch.isRemote),
     [branches],
   );
+  // 当前检出分支尚未发布到远端时，在「推送」右侧显示「发布分支」
+  const needsPublish = useMemo(() => {
+    if (!status?.branch || status.detached) {
+      return false;
+    }
+    const current = localBranches.find((branch) => branch.name === status.branch);
+    if (!current) {
+      return !status.upstream;
+    }
+    return !isLocalBranchPublished(current, branches);
+  }, [branches, localBranches, status?.branch, status?.detached, status?.upstream]);
+  const syncBusy = fetching || pulling || pushing || loading;
+
+  const branchLabel = status?.detached
+    ? t("repo.detached")
+    : (status?.branch ?? t("repo.currentBranch"));
 
   const sortedProjects = useMemo(() => {
     return [...projects].sort((a, b) => {
@@ -92,6 +119,18 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
       return bTime.localeCompare(aTime);
     });
   }, [projects]);
+
+  const filteredProjects = useMemo(() => {
+    const query = projectFilter.trim().toLowerCase();
+    if (!query) {
+      return sortedProjects;
+    }
+    return sortedProjects.filter(
+      (item) =>
+        item.name.toLowerCase().includes(query) ||
+        item.path.toLowerCase().includes(query),
+    );
+  }, [sortedProjects, projectFilter]);
 
   function handleSelectProject(next: Project): void {
     if (next.id === project.id) {
@@ -118,12 +157,8 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     }
   }
 
-  function handleSyncSoon(action: string): void {
-    toast.message(t("repo.syncComingSoon", { action }));
-  }
-
   async function handleCheckUpdate(): Promise<void> {
-    if (fetching || pulling) {
+    if (syncBusy) {
       return;
     }
 
@@ -143,7 +178,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
   }
 
   async function handlePull(): Promise<void> {
-    if (fetching || pulling) {
+    if (syncBusy || needsPublish) {
       return;
     }
 
@@ -165,6 +200,67 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     } finally {
       setPulling(false);
     }
+  }
+
+  async function handlePush(): Promise<void> {
+    if (syncBusy || ahead <= 0) {
+      return;
+    }
+
+    setPushing(true);
+    const toastId = toast.loading(t("repo.pushStart"));
+    try {
+      const result = await pushRemote();
+      const seconds = (result.elapsedMs / 1000).toFixed(3);
+      toast.success(t("repo.pushSuccess", { remote: result.remote, seconds }), {
+        id: toastId,
+      });
+    } catch (error) {
+      toast.error(toUserMessage(error), { id: toastId });
+    } finally {
+      setPushing(false);
+    }
+  }
+
+  async function handlePublish(): Promise<void> {
+    if (syncBusy || !needsPublish || !status?.branch) {
+      return;
+    }
+
+    setPushing(true);
+    const toastId = toast.loading(t("repo.publishStart"));
+    try {
+      const result = await pushRemote({
+        remote: "origin",
+        branch: status.branch,
+        setUpstream: true,
+      });
+      const seconds = (result.elapsedMs / 1000).toFixed(3);
+      toast.success(t("repo.publishSuccess", { remote: result.remote, seconds }), {
+        id: toastId,
+      });
+    } catch (error) {
+      toast.error(toUserMessage(error), { id: toastId });
+    } finally {
+      setPushing(false);
+    }
+  }
+
+  function handleUndoCommit(): void {
+    if (syncBusy || ahead <= 0) {
+      toast.message(t("repo.errors.nothingToUndo"));
+      return;
+    }
+    void (async () => {
+      const toastId = toast.loading(t("repo.undoCommitStart"));
+      try {
+        const result = await undoCommit();
+        const seconds = (result.elapsedMs / 1000).toFixed(3);
+        toast.success(t("repo.undoCommitSuccess", { seconds }), { id: toastId });
+      } catch (error) {
+        toast.error(toUserMessage(error), { id: toastId });
+      }
+    })();
   }
 
   async function handleOpenInEditor(): Promise<void> {
@@ -213,7 +309,13 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
       className="border-border bg-background flex h-11 shrink-0 items-center gap-2 border-b px-2"
     >
       {/* 仓库切换 */}
-      <DropdownMenu>
+      <DropdownMenu
+        onOpenChange={(open) => {
+          if (!open) {
+            setProjectFilter("");
+          }
+        }}
+      >
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
@@ -229,35 +331,47 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
             <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-72">
-          <DropdownMenuLabel>{t("repo.switchProject")}</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {sortedProjects.map((item) => (
-            <DropdownMenuItem
-              key={item.id}
-              className="flex flex-col items-start gap-0.5 py-2"
-              onSelect={() => {
-                handleSelectProject(item);
-              }}
-            >
-              <div className="flex w-full items-center gap-2">
-                <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
-                {item.id === project.id ? (
-                  <Check className="text-primary size-3.5 shrink-0" aria-hidden="true" />
-                ) : null}
-              </div>
-              <span className="text-muted-foreground w-full truncate text-xs">{item.path}</span>
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => {
-              navigate("/");
-            }}
-          >
-            <Plus className="size-3.5" aria-hidden="true" />
-            {t("repo.addProject")}
-          </DropdownMenuItem>
+        <DropdownMenuContent align="start" className="w-72 p-0">
+          <div className="border-border border-b p-2">
+            <Input
+              value={projectFilter}
+              onChange={(event) => setProjectFilter(event.target.value)}
+              placeholder={t("repo.switchProjectFilter")}
+              className="h-7 text-xs"
+              aria-label={t("repo.switchProjectFilter")}
+              autoFocus
+              // 避免方向键/空格被菜单抢走，保证输入框可正常编辑
+              onKeyDown={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+            />
+          </div>
+          <ScrollArea className="max-h-80">
+            <div className="p-1">
+              {filteredProjects.length === 0 ? (
+                <p className="text-muted-foreground px-2 py-3 text-xs">
+                  {t("repo.switchProjectNoMatch")}
+                </p>
+              ) : (
+                filteredProjects.map((item) => (
+                  <DropdownMenuItem
+                    key={item.id}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                    onSelect={() => {
+                      handleSelectProject(item);
+                    }}
+                  >
+                    <div className="flex w-full items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
+                      {item.id === project.id ? (
+                        <Check className="text-primary size-3.5 shrink-0" aria-hidden="true" />
+                      ) : null}
+                    </div>
+                    <span className="text-muted-foreground w-full truncate text-xs">{item.path}</span>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </div>
+          </ScrollArea>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -320,31 +434,35 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
             <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-80 w-72 overflow-auto">
-          <DropdownMenuLabel>{t("repo.local")}</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {localBranches.length === 0 ? (
-            <DropdownMenuItem disabled>{t("repo.branchesEmpty")}</DropdownMenuItem>
-          ) : (
-            localBranches.map((branch) => (
-              <DropdownMenuItem
-                key={branch.name}
-                disabled={branch.isCurrent || checkingOut}
-                onSelect={() => {
-                  void handleCheckout(branch.name);
-                }}
-              >
-                <span className="min-w-0 flex-1 truncate">{branch.name}</span>
-                {branch.isCurrent ? (
-                  <Check className="text-primary size-3.5 shrink-0" aria-hidden="true" />
-                ) : null}
-              </DropdownMenuItem>
-            ))
-          )}
+        <DropdownMenuContent align="start" className="w-72 p-0">
+          <ScrollArea className="max-h-80">
+            <div className="p-1">
+              <DropdownMenuLabel>{t("repo.local")}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {localBranches.length === 0 ? (
+                <DropdownMenuItem disabled>{t("repo.branchesEmpty")}</DropdownMenuItem>
+              ) : (
+                localBranches.map((branch) => (
+                  <DropdownMenuItem
+                    key={branch.name}
+                    disabled={branch.isCurrent || checkingOut}
+                    onSelect={() => {
+                      void handleCheckout(branch.name);
+                    }}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{branch.name}</span>
+                    {branch.isCurrent ? (
+                      <Check className="text-primary size-3.5 shrink-0" aria-hidden="true" />
+                    ) : null}
+                  </DropdownMenuItem>
+                ))
+              )}
+            </div>
+          </ScrollArea>
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* 同步：检查更新 / 更新(pull)；推送仍可占位或已接提交区 */}
+      {/* 同步：检查更新 / 更新(pull) / 推送（右键：撤销提交） */}
       <div className="flex shrink-0 items-center gap-1" style={noDragStyle}>
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
@@ -353,7 +471,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
               variant="ghost"
               size="sm"
               className="h-8"
-              disabled={fetching || pulling || loading}
+              disabled={syncBusy}
               onClick={() => void handleCheckUpdate()}
             >
               <RotateCw
@@ -368,51 +486,99 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
 
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8"
-              disabled={fetching || pulling || loading}
-              onClick={() => void handlePull()}
-            >
-              <ArrowDownToLine
-                className={cn("size-3.5", pulling && "animate-pulse")}
-                aria-hidden="true"
-              />
-              <span>{t("repo.pull")}</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{t("repo.pullHint")}</TooltipContent>
-        </Tooltip>
-
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="relative h-8 gap-1.5"
-              onClick={() => handleSyncSoon(t("repo.push"))}
-            >
-              <ArrowUpFromLine className="size-3.5" aria-hidden="true" />
-              <span>{t("repo.push")}</span>
-              {(status?.ahead ?? 0) > 0 ? (
-                <span
-                  className="bg-primary text-primary-foreground ml-0.5 inline-flex size-4 items-center justify-center rounded-full text-[10px] leading-none font-semibold"
-                  aria-label={t("repo.unpushedCount", { count: status?.ahead ?? 0 })}
-                >
-                  {(status?.ahead ?? 0) > 99 ? "99+" : status?.ahead}
-                </span>
-              ) : null}
-            </Button>
+            <span className="inline-flex">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8"
+                disabled={syncBusy || needsPublish}
+                onClick={() => void handlePull()}
+              >
+                <ArrowDownToLine
+                  className={cn("size-3.5", pulling && "animate-pulse")}
+                  aria-hidden="true"
+                />
+                <span>{t("repo.pull")}</span>
+              </Button>
+            </span>
           </TooltipTrigger>
           <TooltipContent>
-            {(status?.ahead ?? 0) > 0
-              ? t("repo.unpushedCount", { count: status?.ahead ?? 0 })
-              : t("repo.syncComingSoon", { action: t("repo.push") })}
+            {needsPublish ? t("repo.pullNeedsPublish") : t("repo.pullHint")}
           </TooltipContent>
         </Tooltip>
+
+        {needsPublish ? null : (
+          <ContextMenu>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                {/* disabled 时包一层，保证仍能显示「无可推送」提示 */}
+                <span className="inline-flex">
+                  <ContextMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="relative h-8 gap-1.5"
+                      disabled={syncBusy || ahead <= 0}
+                      onClick={() => void handlePush()}
+                    >
+                      <ArrowUpFromLine
+                        className={cn("size-3.5", pushing && "animate-pulse")}
+                        aria-hidden="true"
+                      />
+                      <span>{t("repo.push")}</span>
+                      {ahead > 0 ? (
+                        <span
+                          className="bg-primary text-primary-foreground ml-0.5 inline-flex size-4 items-center justify-center rounded-full text-[10px] leading-none font-semibold"
+                          aria-label={t("repo.unpushedCount", { count: ahead })}
+                        >
+                          {ahead > 99 ? "99+" : ahead}
+                        </span>
+                      ) : null}
+                    </Button>
+                  </ContextMenuTrigger>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {ahead <= 0
+                  ? t("repo.pushNothing")
+                  : t("repo.unpushedCount", { count: ahead })}
+              </TooltipContent>
+            </Tooltip>
+            <ContextMenuContent className="min-w-40">
+              <ContextMenuItem
+                disabled={ahead <= 0}
+                onSelect={handleUndoCommit}
+              >
+                <RotateCcw className="size-3.5" aria-hidden="true" />
+                {t("repo.undoCommitMenu")}
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        )}
+
+        {needsPublish ? (
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="relative h-8 gap-1.5"
+                disabled={syncBusy}
+                onClick={() => void handlePublish()}
+              >
+                <CloudUpload
+                  className={cn("size-3.5", pushing && "animate-pulse")}
+                  aria-hidden="true"
+                />
+                <span>{t("repo.publishBranch")}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("repo.publishBranchHint")}</TooltipContent>
+          </Tooltip>
+        ) : null}
       </div>
 
       {/* 右侧：外部打开 */}

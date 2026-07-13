@@ -1,17 +1,30 @@
-import { memo, useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
+import {
+  Suspense,
+  lazy,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type SyntheticEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import {
   ArrowDownWideNarrow,
+  ArrowUp,
   Check,
   ChevronDown,
   GitCommitHorizontal,
+  Loader2,
   MoreHorizontal,
   Search,
   SearchX,
   SlidersHorizontal,
   Tag,
-  User,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -20,16 +33,16 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { CommitAuthorAvatars } from "@/components/git/CommitAuthorAvatars";
 import { cn } from "@/lib/utils";
 
 import { useRepoStore } from "@/store/useRepoStore";
@@ -40,6 +53,28 @@ import { GitCommitSummary } from "@/types/git";
 import { copyToClipboard } from "@/utils/clipboard";
 
 type DatePreset = "all" | "7d" | "30d" | "90d";
+
+const HISTORY_GRAPH_WIDTH_STORAGE_KEY = "jlgit:history-graph-width";
+const HISTORY_GRAPH_DEFAULT_WIDTH = 104;
+const HISTORY_GRAPH_MIN_WIDTH = 88;
+const HISTORY_GRAPH_MAX_WIDTH = 320;
+
+function readHistoryGraphWidth(): number {
+  try {
+    const value = Number(localStorage.getItem(HISTORY_GRAPH_WIDTH_STORAGE_KEY));
+    if (Number.isFinite(value) && value >= HISTORY_GRAPH_MIN_WIDTH && value <= HISTORY_GRAPH_MAX_WIDTH) {
+      return value;
+    }
+  } catch {
+    // 存储不可用时使用默认宽度
+  }
+  return HISTORY_GRAPH_DEFAULT_WIDTH;
+}
+
+const HistoryGraph = lazy(async () => {
+  const module = await import("@/components/git/HistoryGraph");
+  return { default: module.HistoryGraph };
+});
 
 interface CopyableHashProps {
   fullId: string;
@@ -72,7 +107,7 @@ function CopyableHash({ fullId, shortId }: CopyableHashProps) {
         <span
           role="button"
           tabIndex={0}
-          className="text-muted-foreground hover:text-foreground w-[58px] shrink-0 cursor-pointer text-right font-mono text-xs underline-offset-2 hover:underline"
+          className="text-muted-foreground hover:text-foreground inline-block w-[58px] shrink-0 cursor-pointer border-b border-transparent pb-px text-right font-mono text-xs leading-none hover:border-current"
           aria-label={t("repo.copy")}
           onClick={(event) => {
             stopRowSelect(event);
@@ -124,25 +159,27 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
         role="option"
         aria-selected={isSelected}
         className={cn(
-          "flex w-full cursor-pointer items-center gap-2 rounded-md border-0 px-2 py-1.5 text-left shadow-none transition-colors duration-150",
+          // 不在整行 overflow-hidden，否则右侧 hash 悬停下划线会被裁掉
+          "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 px-2 py-1.5 text-left shadow-none transition-colors duration-150",
           isSelected
             ? "bg-primary/10 text-foreground hover:bg-primary/15"
             : "hover:bg-accent/60 text-foreground",
         )}
         onClick={() => onSelect(commit.id)}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        {/* 文案区可收缩；过长只省略 subject，右侧时间/作者/hash 固定 */}
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
           {isTip ? (
             <span className="bg-primary size-1.5 shrink-0 rounded-full" aria-hidden="true" />
           ) : (
             <span className="size-1.5 shrink-0" aria-hidden="true" />
           )}
-          <span className="min-w-0 truncate text-sm" title={commit.subject}>
+          <span className="min-w-0 flex-1 truncate text-sm" title={commit.subject}>
             {commit.subject}
           </span>
           {primaryRef ? (
             <span
-              className="text-primary inline-flex max-w-[140px] shrink-0 items-center gap-1 overflow-hidden"
+              className="text-primary inline-flex max-w-[7.5rem] shrink-0 items-center gap-1 overflow-hidden"
               title={refs.join(", ")}
             >
               <Tag className="size-3 shrink-0 opacity-80" aria-hidden="true" />
@@ -158,8 +195,12 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
           {authoredLabel}
         </span>
 
-        <div className="text-muted-foreground flex w-[96px] shrink-0 items-center gap-1 overflow-hidden">
-          <User className="size-3 shrink-0 opacity-70" aria-hidden="true" />
+        <div className="text-muted-foreground flex w-[108px] shrink-0 items-center gap-1.5 overflow-hidden">
+          <CommitAuthorAvatars
+            authorName={commit.authorName}
+            authorEmail={commit.authorEmail ?? ""}
+            coAuthors={commit.coAuthors ?? []}
+          />
           <span className="min-w-0 truncate text-xs" title={commit.authorName}>
             {commit.authorName}
           </span>
@@ -212,10 +253,18 @@ export function HistoryList() {
   const loadMoreLog = useRepoStore((state) => state.loadMoreLog);
 
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreFailed, setLoadMoreFailed] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const [query, setQuery] = useState("");
   const [author, setAuthor] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [branchScope, setBranchScope] = useState<"all" | string>("all");
+  const [graphWidth, setGraphWidth] = useState(readHistoryGraphWidth);
+  const [draggingGraphDivider, setDraggingGraphDivider] = useState(false);
+  const historyScrollRef = useRef<HTMLDivElement>(null);
+  const historyContentRef = useRef<HTMLDivElement>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
+  const loadingMoreRef = useRef(false);
 
   const selectedCommitId = useRepoStore((state) => state.selectedCommitId);
   const selectCommit = useRepoStore((state) => state.selectCommit);
@@ -293,16 +342,153 @@ export function HistoryList() {
     });
   }, [commits, author, datePreset, query]);
 
-  async function handleLoadMore(): Promise<void> {
+  const hasActiveFilters =
+    query.trim().length > 0 ||
+    author !== null ||
+    datePreset !== "all" ||
+    branchScope !== "all";
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HISTORY_GRAPH_WIDTH_STORAGE_KEY, String(graphWidth));
+    } catch {
+      // 存储不可用不影响拖拽体验
+    }
+  }, [graphWidth]);
+
+  const handleLoadMore = useCallback(async (): Promise<void> => {
+    if (!hasMore || loading || loadingMoreRef.current) {
+      return;
+    }
+
+    loadingMoreRef.current = true;
     setLoadingMore(true);
+    setLoadMoreFailed(false);
 
     try {
       await loadMoreLog();
     } catch (error) {
+      setLoadMoreFailed(true);
       toast.error(toUserMessage(error));
     } finally {
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
+  }, [hasMore, loadMoreLog, loading]);
+
+  useEffect(() => {
+    if (
+      !hasMore ||
+      loading ||
+      loadingMore ||
+      loadMoreFailed ||
+      hasActiveFilters ||
+      !historyScrollRef.current ||
+      !loadMoreSentinelRef.current
+    ) {
+      return;
+    }
+
+    const viewport = historyScrollRef.current.querySelector(
+      "[data-radix-scroll-area-viewport]",
+    );
+    if (!(viewport instanceof HTMLElement)) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          void handleLoadMore();
+        }
+      },
+      {
+        root: viewport,
+        rootMargin: "0px 0px 240px",
+      },
+    );
+
+    observer.observe(loadMoreSentinelRef.current);
+    return () => observer.disconnect();
+  }, [
+    filteredCommits.length,
+    hasActiveFilters,
+    hasMore,
+    handleLoadMore,
+    loadMoreFailed,
+    loading,
+    loadingMore,
+  ]);
+
+  useEffect(() => {
+    const viewport = historyScrollRef.current?.querySelector(
+      "[data-radix-scroll-area-viewport]",
+    );
+    if (!(viewport instanceof HTMLElement)) {
+      return;
+    }
+    const scrollViewport = viewport;
+
+    function updateBackToTopVisibility(): void {
+      const nextVisible = scrollViewport.scrollTop > 320;
+      setShowBackToTop((visible) => (visible === nextVisible ? visible : nextVisible));
+    }
+
+    updateBackToTopVisibility();
+    scrollViewport.addEventListener("scroll", updateBackToTopVisibility, { passive: true });
+    return () => scrollViewport.removeEventListener("scroll", updateBackToTopVisibility);
+  }, [commits.length, filteredCommits.length]);
+
+  function scrollHistoryToTop(): void {
+    const viewport = historyScrollRef.current?.querySelector(
+      "[data-radix-scroll-area-viewport]",
+    );
+    if (viewport instanceof HTMLElement) {
+      viewport.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  function clampGraphWidth(nextWidth: number): number {
+    const contentWidth = historyContentRef.current?.getBoundingClientRect().width ?? 0;
+    const maxByContent = contentWidth > 0 ? Math.max(HISTORY_GRAPH_MIN_WIDTH, contentWidth - 300) : HISTORY_GRAPH_MAX_WIDTH;
+    return Math.min(Math.min(HISTORY_GRAPH_MAX_WIDTH, maxByContent), Math.max(HISTORY_GRAPH_MIN_WIDTH, nextWidth));
+  }
+
+  function updateGraphWidth(clientX: number): void {
+    const rect = historyContentRef.current?.getBoundingClientRect();
+    if (!rect) {
+      return;
+    }
+    setGraphWidth(clampGraphWidth(clientX - rect.left));
+  }
+
+  function handleGraphDividerPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDraggingGraphDivider(true);
+    updateGraphWidth(event.clientX);
+  }
+
+  function handleGraphDividerPointerMove(event: ReactPointerEvent<HTMLDivElement>): void {
+    if (!draggingGraphDivider) {
+      return;
+    }
+    updateGraphWidth(event.clientX);
+  }
+
+  function handleGraphDividerPointerEnd(event: ReactPointerEvent<HTMLDivElement>): void {
+    setDraggingGraphDivider(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function handleGraphDividerKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+      return;
+    }
+    event.preventDefault();
+    setGraphWidth((width) => clampGraphWidth(width + (event.key === "ArrowLeft" ? -16 : 16)));
   }
 
   function handleSoon(action: string): void {
@@ -322,7 +508,7 @@ export function HistoryList() {
           : t("repo.historyDate90d");
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       {/* 筛选条：替代「提交历史」标题 */}
       <div
         className="border-border flex h-11 shrink-0 items-center gap-1.5 border-b px-2"
@@ -341,32 +527,34 @@ export function HistoryList() {
               <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-h-72 w-56 overflow-auto">
-            <DropdownMenuLabel>{t("repo.historyBranchScope")}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={() => {
-                setBranchScope("all");
-                handleSoon(t("repo.historyAllBranches"));
-              }}
-            >
-              <span className="min-w-0 flex-1 truncate">{t("repo.historyAllBranches")}</span>
-              {branchScope === "all" ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
-            </DropdownMenuItem>
-            {localBranches.map((branch) => (
-              <DropdownMenuItem
-                key={branch.name}
-                onSelect={() => {
-                  setBranchScope(branch.name);
-                  handleSoon(t("repo.historyBranchScope"));
-                }}
-              >
-                <span className="min-w-0 flex-1 truncate">{branch.name}</span>
-                {branchScope === branch.name ? (
-                  <Check className="size-3.5 shrink-0" aria-hidden="true" />
-                ) : null}
-              </DropdownMenuItem>
-            ))}
+          <DropdownMenuContent align="start" className="w-56 p-0">
+            <ScrollArea className="max-h-72">
+              <div className="p-1">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setBranchScope("all");
+                    handleSoon(t("repo.historyAllBranches"));
+                  }}
+                >
+                  <span className="min-w-0 flex-1 truncate">{t("repo.historyAllBranches")}</span>
+                  {branchScope === "all" ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                </DropdownMenuItem>
+                {localBranches.map((branch) => (
+                  <DropdownMenuItem
+                    key={branch.name}
+                    onSelect={() => {
+                      setBranchScope(branch.name);
+                      handleSoon(t("repo.historyBranchScope"));
+                    }}
+                  >
+                    <span className="min-w-0 flex-1 truncate">{branch.name}</span>
+                    {branchScope === branch.name ? (
+                      <Check className="size-3.5 shrink-0" aria-hidden="true" />
+                    ) : null}
+                  </DropdownMenuItem>
+                ))}
+              </div>
+            </ScrollArea>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -414,19 +602,21 @@ export function HistoryList() {
               <ChevronDown className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-h-72 w-48 overflow-auto">
-            <DropdownMenuLabel>{t("repo.historyAuthor")}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => setAuthor(null)}>
-              <span className="min-w-0 flex-1 truncate">{t("repo.historyAuthorAll")}</span>
-              {author == null ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
-            </DropdownMenuItem>
-            {authors.map((name) => (
-              <DropdownMenuItem key={name} onSelect={() => setAuthor(name)}>
-                <span className="min-w-0 flex-1 truncate">{name}</span>
-                {author === name ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
-              </DropdownMenuItem>
-            ))}
+          <DropdownMenuContent align="start" className="w-48 p-0">
+            <ScrollArea className="max-h-72">
+              <div className="p-1">
+                <DropdownMenuItem onSelect={() => setAuthor(null)}>
+                  <span className="min-w-0 flex-1 truncate">{t("repo.historyAuthorAll")}</span>
+                  {author == null ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                </DropdownMenuItem>
+                {authors.map((name) => (
+                  <DropdownMenuItem key={name} onSelect={() => setAuthor(name)}>
+                    <span className="min-w-0 flex-1 truncate">{name}</span>
+                    {author === name ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                  </DropdownMenuItem>
+                ))}
+              </div>
+            </ScrollArea>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -446,8 +636,6 @@ export function HistoryList() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-40">
-            <DropdownMenuLabel>{t("repo.historyDate")}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
             {(
               [
                 ["all", t("repo.historyDateAll")],
@@ -509,7 +697,8 @@ export function HistoryList() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+        <ScrollArea ref={historyScrollRef} className="h-full w-full">
         {commits.length === 0 ? (
           <div className="flex h-full min-h-[12rem] flex-col items-center justify-center gap-3 px-6 text-center">
             <GitCommitHorizontal
@@ -537,39 +726,106 @@ export function HistoryList() {
             </div>
           </div>
         ) : (
-          <ul className="px-1.5 py-1.5" role="listbox" aria-label={t("repo.history")}>
-            {filteredCommits.map((commit) => {
-              const refs = commit.refs ?? [];
-              const isTip =
-                currentBranch != null &&
-                refs.some((ref) => ref === currentBranch || ref.endsWith(`&${currentBranch}`));
-
-              return (
-                <HistoryCommitRow
-                  key={commit.id}
-                  commit={commit}
-                  isSelected={selectedCommitId === commit.id}
-                  isTip={isTip}
-                  onSelect={handleSelectCommit}
+          <div ref={historyContentRef} className="relative min-h-full">
+            {/*
+             * 提交数量较少时，内容区也需占满滚动视口；图谱分隔线才会自然延伸到底部，
+             * 而不是只跟随两三条提交的内容高度。
+             */}
+            {!hasActiveFilters ? (
+              <>
+                <Suspense fallback={null}>
+                  <HistoryGraph commits={commits} width={graphWidth} />
+                </Suspense>
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-valuemin={HISTORY_GRAPH_MIN_WIDTH}
+                  aria-valuemax={HISTORY_GRAPH_MAX_WIDTH}
+                  aria-valuenow={Math.round(graphWidth)}
+                  tabIndex={0}
+                  className={cn(
+                    "bg-[var(--git-modified)] hover:opacity-80 focus-visible:ring-ring absolute top-0 bottom-0 z-20 w-1 cursor-col-resize transition-opacity focus-visible:ring-1 focus-visible:outline-none",
+                    draggingGraphDivider && "opacity-100",
+                  )}
+                  style={{ left: `${graphWidth}px` }}
+                  onPointerDown={handleGraphDividerPointerDown}
+                  onPointerMove={handleGraphDividerPointerMove}
+                  onPointerUp={handleGraphDividerPointerEnd}
+                  onPointerCancel={handleGraphDividerPointerEnd}
+                  onKeyDown={handleGraphDividerKeyDown}
                 />
-              );
-            })}
-          </ul>
+              </>
+            ) : null}
+
+            <ul
+              className={cn(
+                "relative w-full min-w-0 py-1.5 pr-1.5",
+                hasActiveFilters ? "pl-1.5" : "",
+              )}
+              style={hasActiveFilters ? undefined : { paddingLeft: `${graphWidth + 8}px` }}
+              role="listbox"
+              aria-label={t("repo.history")}
+            >
+              {filteredCommits.map((commit) => {
+                const refs = commit.refs ?? [];
+                const isTip =
+                  currentBranch != null &&
+                  refs.some((ref) => ref === currentBranch || ref.endsWith(`&${currentBranch}`));
+
+                return (
+                  <HistoryCommitRow
+                    key={commit.id}
+                    commit={commit}
+                    isSelected={selectedCommitId === commit.id}
+                    isTip={isTip}
+                    onSelect={handleSelectCommit}
+                  />
+                );
+              })}
+            </ul>
+          </div>
         )}
 
         {hasMore ? (
-          <div className="px-2 py-2">
+          <div
+            ref={loadMoreSentinelRef}
+            className="flex min-h-9 items-center justify-center px-2 py-2"
+            aria-live="polite"
+          >
+            {loadingMore ? (
+              <Loader2 className="text-muted-foreground size-4 animate-spin" aria-label={t("common.loading")} />
+            ) : hasActiveFilters || loadMoreFailed ? (
             <Button
               type="button"
               variant="outline"
               size="sm"
               className="w-full"
               onClick={() => void handleLoadMore()}
-              disabled={loading || loadingMore}
+              disabled={loading}
             >
-              {loadingMore ? t("common.loading") : t("repo.loadMore")}
+              {t("repo.loadMore")}
             </Button>
+            ) : null}
           </div>
+        ) : null}
+        </ScrollArea>
+
+        {showBackToTop ? (
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                className="absolute right-3 bottom-3 z-10 size-10 rounded-full shadow-sm"
+                aria-label={t("repo.backToTop")}
+                onClick={scrollHistoryToTop}
+              >
+                <ArrowUp className="size-4" aria-hidden="true" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left">{t("repo.backToTop")}</TooltipContent>
+          </Tooltip>
         ) : null}
       </div>
     </div>

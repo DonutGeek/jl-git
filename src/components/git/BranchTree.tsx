@@ -1,19 +1,39 @@
 import { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Check,
   ChevronDown,
   ChevronRight,
   Cloud,
+  CloudOff,
   Folder,
   FolderOpen,
   GitBranch as GitBranchIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
 
 import { BranchTreeNode } from "@/utils/branchTree";
 import { GitBranch } from "@/types/git";
+
+/** 分支行右键菜单动作 */
+export interface BranchContextActions {
+  onCheckout: (branch: GitBranch) => void;
+  onPull: (branch: GitBranch) => void;
+  onPush: (branch: GitBranch) => void;
+  onPublish: (branch: GitBranch) => void;
+  onRename: (branch: GitBranch) => void;
+  onCopyName: (branch: GitBranch) => void;
+  onDelete: (branch: GitBranch) => void;
+}
 
 /** 与折叠箭头同宽，保证虚线落在父级箭头中轴下 */
 const INDENT_PX = 12;
@@ -76,9 +96,16 @@ interface BranchTreeProps {
   treeId: string;
   collapsedPaths: Set<string>;
   onToggleCollapse: (key: string) => void;
+  onSelect: (branch: GitBranch) => void;
   onCheckout: (branch: GitBranch) => void;
+  contextActions: BranchContextActions;
+  selectedName: string | null;
   checkingOutName: string | null;
   disabled: boolean;
+  /** 当前分支相对 upstream 超前提交数；与工具栏推送禁用条件对齐 */
+  aheadCount?: number;
+  /** 判断本地分支是否已发布；仅 local 树使用 */
+  isPublished?: (branch: GitBranch) => boolean;
 }
 
 /** 左侧虚线引导列：落在父级折叠箭头正下方 */
@@ -106,9 +133,14 @@ export function BranchTree({
   treeId,
   collapsedPaths,
   onToggleCollapse,
+  onSelect,
   onCheckout,
+  contextActions,
+  selectedName,
   checkingOutName,
   disabled,
+  aheadCount = 0,
+  isPublished,
 }: BranchTreeProps) {
   return (
     <ul className="flex flex-col">
@@ -117,6 +149,8 @@ export function BranchTree({
         const isFolder = node.children.length > 0;
 
         if (!isFolder && node.branch) {
+          const published =
+            variant === "remote" ? true : (isPublished?.(node.branch) ?? true);
           return (
             <li key={key}>
               <BranchLeaf
@@ -125,7 +159,12 @@ export function BranchTree({
                 depth={depth}
                 isBusy={checkingOutName === node.branch.name}
                 disabled={disabled}
+                published={published}
+                selected={selectedName === node.branch.name}
+                aheadCount={aheadCount}
+                onSelect={onSelect}
                 onCheckout={onCheckout}
+                contextActions={contextActions}
               />
             </li>
           );
@@ -167,9 +206,14 @@ export function BranchTree({
                 treeId={treeId}
                 collapsedPaths={collapsedPaths}
                 onToggleCollapse={onToggleCollapse}
+                onSelect={onSelect}
                 onCheckout={onCheckout}
+                contextActions={contextActions}
+                selectedName={selectedName}
                 checkingOutName={checkingOutName}
                 disabled={disabled}
+                aheadCount={aheadCount}
+                isPublished={isPublished}
               />
             ) : null}
           </li>
@@ -185,43 +229,151 @@ interface BranchLeafProps {
   depth: number;
   isBusy: boolean;
   disabled: boolean;
+  published: boolean;
+  selected: boolean;
+  aheadCount: number;
+  onSelect: (branch: GitBranch) => void;
   onCheckout: (branch: GitBranch) => void;
+  contextActions: BranchContextActions;
 }
 
-function BranchLeaf({ branch, label, depth, isBusy, disabled, onCheckout }: BranchLeafProps) {
+function BranchLeaf({
+  branch,
+  label,
+  depth,
+  isBusy,
+  disabled,
+  published,
+  selected,
+  aheadCount,
+  onSelect,
+  onCheckout,
+  contextActions,
+}: BranchLeafProps) {
+  const { t } = useTranslation();
   const isCurrent = branch.isCurrent;
+  const isRemote = branch.isRemote;
   const isDisabled = disabled || isBusy;
+  const canCheckout = !isCurrent && !isDisabled;
+  // 与工具栏对齐：已发布才可更新；有超前提交才可推送；未发布显示发布
+  const canPull = isCurrent && !isRemote && published && !isDisabled;
+  const canPublish = isCurrent && !isRemote && !published && !isDisabled;
+  const canPush = isCurrent && !isRemote && published && aheadCount > 0 && !isDisabled;
+  const canRename = !isRemote && !isDisabled;
+  const canDelete = !isRemote && !isCurrent && !isDisabled;
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      className={cn(
-        "h-7 w-full justify-start gap-1 rounded-md px-1.5 text-left text-xs transition-colors [&_svg]:size-3",
-        // 当前分支高亮，不走 disabled（避免 opacity 置灰）
-        isCurrent
-          ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-          : "text-foreground",
-        isCurrent && "pointer-events-none cursor-default",
-        isBusy && "cursor-wait",
-      )}
-      onClick={() => {
-        if (isCurrent || isDisabled) {
-          return;
-        }
-        onCheckout(branch);
-      }}
-      disabled={isDisabled && !isCurrent}
-      aria-current={isCurrent ? "true" : undefined}
-    >
-      <IndentGuides depth={depth} />
-      <span className="size-3 shrink-0" aria-hidden="true" />
-      {isCurrent ? (
-        <Check className="shrink-0" aria-hidden="true" />
-      ) : (
-        <GitBranchIcon className="text-muted-foreground shrink-0" aria-hidden="true" />
-      )}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-    </Button>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          className={cn(
+            "h-7 w-full justify-start gap-1 rounded-md px-1.5 text-left text-xs transition-colors [&_svg]:size-3",
+            isCurrent
+              ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+              : selected
+                ? "bg-accent text-foreground hover:bg-accent"
+                : "text-foreground",
+            isBusy && "cursor-wait",
+          )}
+          onClick={() => {
+            if (isDisabled) {
+              return;
+            }
+            onSelect(branch);
+          }}
+          onContextMenu={() => {
+            if (!isDisabled) {
+              onSelect(branch);
+            }
+          }}
+          onDoubleClick={() => {
+            if (!canCheckout) {
+              return;
+            }
+            onCheckout(branch);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && selected && canCheckout) {
+              event.preventDefault();
+              onCheckout(branch);
+            }
+          }}
+          disabled={isDisabled && !isCurrent}
+          aria-current={isCurrent ? "true" : undefined}
+          aria-selected={selected}
+          title={isCurrent ? undefined : t("repo.checkoutHint")}
+        >
+          <IndentGuides depth={depth} />
+          <span className="size-3 shrink-0" aria-hidden="true" />
+          {isCurrent ? (
+            <Check className="shrink-0" aria-hidden="true" />
+          ) : published ? (
+            <GitBranchIcon className="text-muted-foreground shrink-0" aria-hidden="true" />
+          ) : (
+            <CloudOff className="text-muted-foreground shrink-0" aria-hidden="true" />
+          )}
+          <span className="min-w-0 flex-1 truncate">{label}</span>
+          {!published && !isRemote ? (
+            <span className="text-muted-foreground shrink-0 text-[10px]">
+              {t("repo.branchUnpublished")}
+            </span>
+          ) : null}
+        </Button>
+      </ContextMenuTrigger>
+
+      <ContextMenuContent className="min-w-40">
+        <ContextMenuItem
+          disabled={!canCheckout}
+          onSelect={() => contextActions.onCheckout(branch)}
+        >
+          {t("repo.checkoutBranch")}
+        </ContextMenuItem>
+
+        <ContextMenuSeparator />
+
+        <ContextMenuItem
+          disabled={!canPull}
+          onSelect={() => contextActions.onPull(branch)}
+        >
+          {t("repo.pull")}
+        </ContextMenuItem>
+        {canPublish ? (
+          <ContextMenuItem onSelect={() => contextActions.onPublish(branch)}>
+            {t("repo.publishBranch")}
+          </ContextMenuItem>
+        ) : (
+          <ContextMenuItem
+            disabled={!canPush}
+            onSelect={() => contextActions.onPush(branch)}
+          >
+            {t("repo.push")}
+          </ContextMenuItem>
+        )}
+
+        <ContextMenuSeparator />
+
+        <ContextMenuItem
+          disabled={!canRename}
+          onSelect={() => contextActions.onRename(branch)}
+        >
+          {t("repo.renameBranch")}
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => contextActions.onCopyName(branch)}>
+          {t("repo.copyBranchName")}
+        </ContextMenuItem>
+
+        <ContextMenuSeparator />
+
+        <ContextMenuItem
+          disabled={!canDelete}
+          className="text-destructive focus:text-destructive"
+          onSelect={() => contextActions.onDelete(branch)}
+        >
+          {t("repo.deleteBranch")}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

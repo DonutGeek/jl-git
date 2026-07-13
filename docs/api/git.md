@@ -38,6 +38,7 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 ### `getLog(repoPath, options?: { skip?; limit?; ref? }): Promise<{ commits; hasMore }>`
 
 - **Command：** `git_log`
+- **说明：** 每条 `GitCommitSummary` 含 `authorEmail`、`parentIds`（用于历史图谱）与 `coAuthors`（来自 `Co-authored-by` trailer）
 
 ### `getCommit(repoPath, rev: string): Promise<GitCommitDetail>`
 
@@ -70,8 +71,11 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 | `unstageAll(repoPath)` | `git_unstage_all` |
 | `discard(repoPath, paths: string[])` | `git_discard` |
 | `commit(repoPath, message, options: { paths; removePaths?; amend? })` | `git_commit` |
+| `undoCommit(repoPath, target?)` | `git_undo_commit` |
 
 `commit` 按 ugit 流程：`reset` → `update-index`（`paths` / `removePaths`）→ `commit -F -`。调用方应传入当前「待提交」路径列表。
+
+`undoCommit`：`git reset --mixed` 到父提交（或传入的 `target`）；变更回到工作区。UI 仅在有未推送提交（`ahead > 0`）时启用。
 
 `discard` 调用前 UI 必须确认。成功后调用方应 `getStatus` 刷新 Store。
 
@@ -83,7 +87,8 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 |------|---------|
 | `listBranches(repoPath, includeRemote?: boolean)` | `git_branches` |
 | `createBranch(repoPath, name, options?: { checkout?; startPoint? })` | `git_branch_create` |
-| `deleteBranch(repoPath, name, force?: boolean)` | `git_branch_delete` |
+| `deleteBranch(repoPath, name, options?: { force?; deleteRemote?; remote? })` | `git_branch_delete` |
+| `renameBranch(repoPath, oldName, newName)` | `git_branch_rename` |
 | `checkout(repoPath, ref: string)` | `git_checkout` |
 
 `createBranch` 默认 `checkout: true`（创建后切换到新分支）。
@@ -100,6 +105,7 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 | `push(repoPath, options?: { remote?; branch?; setUpstream?; force? })` | `git_push` | 返回 `{ ok, remote, elapsedMs }` |
 
 `pull` 默认由调用方传 `origin` + 当前分支；成功后应刷新 status / branches / log。  
+`push` 默认 `origin` + 当前分支，命令形如 `push --progress origin main:main`；成功后应刷新 status / branches / log。  
 `force: true` 仅在 UI 确认后传入。
 
 ---

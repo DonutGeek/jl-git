@@ -3,6 +3,9 @@ import { useTranslation } from "react-i18next";
 import { FolderGit2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
+
 import { useProjectStore } from "@/store/useProjectStore";
 
 import { toUserMessage } from "@/types/error";
@@ -57,7 +60,7 @@ interface RecentProjectListProps {
   onOpened?: (projectId: string) => void;
 }
 
-/** 最近项目列表：主工作台内容，点击直接进入仓库 */
+/** 最近项目列表：单击选中，双击进入仓库 */
 export function RecentProjectList({ onOpened }: RecentProjectListProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -66,6 +69,7 @@ export function RecentProjectList({ onOpened }: RecentProjectListProps) {
   const loading = useProjectStore((state) => state.loading);
   const openExisting = useProjectStore((state) => state.openExisting);
 
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,6 +77,7 @@ export function RecentProjectList({ onOpened }: RecentProjectListProps) {
 
   async function handleOpenProject(id: string): Promise<void> {
     setOpeningId(id);
+    setSelectedId(id);
     setError(null);
 
     try {
@@ -118,36 +123,59 @@ export function RecentProjectList({ onOpened }: RecentProjectListProps) {
         </p>
       ) : null}
 
-      <ul className="min-h-0 flex-1 space-y-1 overflow-auto pb-4">
-        {rows.map((project) => {
-          const openedAt = formatOpenedAt(project.lastOpenedAt);
-          const isOpening = openingId === project.id;
+      <div className="min-h-0 flex-1">
+        <ScrollArea className="h-full pb-4">
+          <ul className="space-y-1" role="listbox" aria-label={t("dashboard.recentTitle")}>
+            {rows.map((project) => {
+              const openedAt = formatOpenedAt(project.lastOpenedAt);
+              const isOpening = openingId === project.id;
+              const isSelected = selectedId === project.id;
 
-          return (
-            <li key={project.id}>
-              <button
-                type="button"
-                className="hover:bg-accent focus-visible:ring-ring flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-wait disabled:opacity-60"
-                onClick={() => void handleOpenProject(project.id)}
-                disabled={Boolean(openingId)}
-              >
-                <span className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
-                  <FolderGit2 className="size-4" aria-hidden="true" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{project.name}</span>
-                  <span className="text-muted-foreground mt-0.5 block truncate text-xs">
-                    {project.path}
-                  </span>
-                </span>
-                <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-                  {isOpening ? t("common.loading") : (openedAt ?? t("dashboard.recentOpenedUnknown"))}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+              return (
+                <li key={project.id} role="option" aria-selected={isSelected}>
+                  <button
+                    type="button"
+                    className={cn(
+                      "focus-visible:ring-ring flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-wait disabled:opacity-60",
+                      isSelected
+                        ? "bg-primary/10 hover:bg-primary/15"
+                        : "hover:bg-accent",
+                    )}
+                    onClick={() => setSelectedId(project.id)}
+                    onDoubleClick={() => {
+                      if (!openingId) {
+                        void handleOpenProject(project.id);
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && isSelected && !openingId) {
+                        event.preventDefault();
+                        void handleOpenProject(project.id);
+                      }
+                    }}
+                    disabled={Boolean(openingId)}
+                  >
+                    <span className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
+                      <FolderGit2 className="size-4" aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{project.name}</span>
+                      <span className="text-muted-foreground mt-0.5 block truncate text-xs">
+                        {project.path}
+                      </span>
+                    </span>
+                    <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                      {isOpening
+                        ? t("common.loading")
+                        : (openedAt ?? t("dashboard.recentOpenedUnknown"))}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </ScrollArea>
+      </div>
     </div>
   );
 }

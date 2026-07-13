@@ -21,6 +21,13 @@
     font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
   }
 
+  /* 交互控件禁止选中文字，避免右键菜单时拖出文本选区；放全局以免被 shadcn CLI 覆盖 ui/button */
+  button,
+  [role="button"] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   code,
   kbd,
   pre,

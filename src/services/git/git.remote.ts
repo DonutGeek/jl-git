@@ -1,6 +1,31 @@
 import { invokeCommand } from "@/services/invoke";
 
-import { GitFetchResult, GitPullResult, GitPushResult } from "@/types/git";
+import {
+  GitFetchResult,
+  GitPullResult,
+  GitPushResult,
+  GitRemote,
+  GitRemotesResult,
+} from "@/types/git";
+
+/** 列出远端及其 URL */
+export async function listRemotes(repoPath: string): Promise<GitRemote[]> {
+  const result = await invokeCommand<GitRemotesResult>("git_remotes", {
+    path: repoPath,
+  });
+  return result.remotes;
+}
+
+/** 优先 origin 的 fetch URL，否则第一个远端 */
+export function pickPrimaryRemoteUrl(remotes: GitRemote[]): string | null {
+  const preferred =
+    remotes.find((remote) => remote.name === "origin") ?? remotes[0];
+  if (!preferred) {
+    return null;
+  }
+  const url = preferred.fetchUrl.trim() || preferred.pushUrl.trim();
+  return url.length > 0 ? url : null;
+}
 
 /** 检查更新：fetch 远端跟踪引用（默认 origin） */
 export async function fetch(

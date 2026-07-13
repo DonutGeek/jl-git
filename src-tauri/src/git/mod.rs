@@ -7,6 +7,7 @@ pub mod log;
 pub mod oplog;
 pub mod path;
 pub mod remote;
+pub mod reset;
 pub mod runner;
 pub mod show;
 pub mod status;

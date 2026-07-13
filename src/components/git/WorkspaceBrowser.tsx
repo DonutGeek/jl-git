@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronRight, LayoutGrid, List } from "lucide-react";
 import { toast } from "sonner";
@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
@@ -180,6 +181,15 @@ export function WorkspaceBrowser({ repoPath, repoName }: WorkspaceBrowserProps) 
     setSelectedPath(null);
   }
 
+  /** 第一击选中；系统双击阈值内的第二击直接进入目录。 */
+  function handleEntryClick(event: MouseEvent<HTMLButtonElement>, entry: FsEntry): void {
+    if (event.detail === 2) {
+      enterEntry(entry);
+      return;
+    }
+    selectEntry(entry);
+  }
+
   return (
     <section className="flex h-full min-h-0 flex-col overflow-hidden">
       <header className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
@@ -301,7 +311,8 @@ export function WorkspaceBrowser({ repoPath, repoName }: WorkspaceBrowserProps) 
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-auto p-4">
+      <div className="min-h-0 flex-1">
+        <ScrollArea className="h-full p-4">
         {error ? (
           <p className="text-destructive text-sm" role="alert">
             {error}
@@ -322,11 +333,10 @@ export function WorkspaceBrowser({ repoPath, repoName }: WorkspaceBrowserProps) 
                     type="button"
                     title={entry.name}
                     className={cn(
-                      "hover:bg-accent flex w-full cursor-pointer flex-col items-center gap-2 rounded-md px-2 py-3 text-center",
-                      selected && "bg-accent ring-ring ring-1",
+                      "hover:bg-accent/60 focus-visible:ring-ring flex w-full cursor-pointer flex-col items-center gap-2 rounded-md px-2 py-3 text-center transition-colors focus-visible:ring-2 focus-visible:outline-none",
+                      selected && "bg-primary/10 hover:bg-primary/15",
                     )}
-                    onClick={() => selectEntry(entry)}
-                    onDoubleClick={() => enterEntry(entry)}
+                    onClick={(event) => handleEntryClick(event, entry)}
                   >
                     <MaterialFileIcon name={entry.name} isDir={entry.isDir} className="size-10" />
                     <span className="line-clamp-2 w-full break-all text-xs leading-tight">
@@ -346,11 +356,10 @@ export function WorkspaceBrowser({ repoPath, repoName }: WorkspaceBrowserProps) 
                   <button
                     type="button"
                     className={cn(
-                      "hover:bg-accent flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
-                      selected && "bg-accent",
+                      "hover:bg-accent/60 focus-visible:ring-ring flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none",
+                      selected && "bg-primary/10 hover:bg-primary/15",
                     )}
-                    onClick={() => selectEntry(entry)}
-                    onDoubleClick={() => enterEntry(entry)}
+                    onClick={(event) => handleEntryClick(event, entry)}
                   >
                     <MaterialFileIcon
                       name={entry.name}
@@ -364,6 +373,7 @@ export function WorkspaceBrowser({ repoPath, repoName }: WorkspaceBrowserProps) 
             })}
           </ul>
         )}
+        </ScrollArea>
       </div>
     </section>
   );

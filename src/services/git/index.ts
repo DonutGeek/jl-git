@@ -8,11 +8,12 @@ export * from "./git.remote";
 export * from "./git.show";
 export * from "./git.status";
 
-import { checkout, createBranch, listBranches } from "./git.branch";
+import { checkout, createBranch, deleteBranch, listBranches, renameBranch } from "./git.branch";
 import {
   commit,
   stage,
   stageAll,
+  undoCommit,
   unstage,
   unstageAll,
 } from "./git.commit";
@@ -20,7 +21,7 @@ import { getDiff } from "./git.diff";
 import { getFileSize, listDir } from "./git.fs";
 import { getGlobalIdentity, getIdentity, setGlobalIdentity } from "./git.identity";
 import { getLog } from "./git.log";
-import { fetch, pull, push } from "./git.remote";
+import { fetch, listRemotes, pull, push } from "./git.remote";
 import { getCommit } from "./git.show";
 import { getStatus } from "./git.status";
 
@@ -40,9 +41,13 @@ export const gitService = {
   stageAll,
   unstageAll,
   commit,
+  undoCommit,
   checkout,
   createBranch,
+  deleteBranch,
+  renameBranch,
   fetch,
   pull,
   push,
+  listRemotes,
 };

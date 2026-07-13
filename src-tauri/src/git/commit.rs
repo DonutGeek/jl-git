@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::Path;
 
 use crate::error::AppError;
@@ -39,32 +40,38 @@ pub fn commit(
     // 1. 清空暂存区，避免 index 与 UI「待提交」不一致
     runner::run_git(repo_path, &["reset", "--", "."])?;
 
-    // 2. 按待提交列表重建 index（增/改/删候选）
-    runner::run_git_with_stdin(
-        repo_path,
-        &[
-            "update-index",
-            "--add",
-            "--remove",
-            "--replace",
-            "--verbose",
-            "-z",
-            "--stdin",
-        ],
-        &encode_nul_paths(paths),
-    )?;
+    let remove_set: HashSet<&str> = remove_paths.iter().map(String::as_str).collect();
+    // 删除项只走 force-remove；避免与 --add 同批导致 update-index 失败 / 卡住
+    let add_paths: Vec<String> = paths
+        .iter()
+        .filter(|path| !remove_set.contains(path.as_str()))
+        .cloned()
+        .collect();
 
-    // 3. 删除项单独 force-remove（工作区文件已不存在时必须）
-    if !remove_paths.is_empty() {
+    // 2. 写入增改路径（不加 --verbose，避免大量输出堵管道）
+    if !add_paths.is_empty() {
         runner::run_git_with_stdin(
             repo_path,
             &[
                 "update-index",
                 "--add",
                 "--remove",
+                "--replace",
+                "-z",
+                "--stdin",
+            ],
+            &encode_nul_paths(&add_paths),
+        )?;
+    }
+
+    // 3. 删除项 / 重命名旧路径单独 force-remove
+    if !remove_paths.is_empty() {
+        runner::run_git_with_stdin(
+            repo_path,
+            &[
+                "update-index",
                 "--force-remove",
                 "--replace",
-                "--verbose",
                 "-z",
                 "--stdin",
             ],

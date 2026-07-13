@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { User } from "lucide-react";
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
 import { avatarUrlFromEmail, initialsFromName } from "@/utils/avatarUrl";
@@ -11,14 +12,17 @@ interface GitIdentityAvatarProps {
   className?: string;
   /** 无障碍标签 */
   label: string;
+  /** 列表密排：更小字号 / 单字缩写 */
+  compact?: boolean;
 }
 
-/** Git 身份头像：优先远程公开头像，失败则显示姓名缩写 / 默认图标 */
+/** Git 身份头像：shadcn Avatar + Libravatar，失败则缩写 / 默认图标 */
 export function GitIdentityAvatar({
   name,
   email,
   className,
   label,
+  compact = false,
 }: GitIdentityAvatarProps) {
   const [remoteUrl, setRemoteUrl] = useState<string | null>(null);
   const [imageFailed, setImageFailed] = useState(false);
@@ -45,29 +49,32 @@ export function GitIdentityAvatar({
 
   const showImage = Boolean(remoteUrl) && !imageFailed;
   const initials = initialsFromName(name);
+  const fallbackText = compact ? initials.slice(0, 1) : initials;
 
   return (
-    <div
+    <Avatar
       className={cn(
-        "bg-muted text-muted-foreground border-border relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md border text-xs font-medium select-none",
+        "border-border size-9 border",
+        compact && "text-[9px]",
         className,
       )}
-      role="img"
       aria-label={label}
       title={name ?? email ?? undefined}
     >
       {showImage ? (
-        <img
+        <AvatarImage
           src={remoteUrl!}
           alt=""
-          className="size-full object-cover"
           onError={() => setImageFailed(true)}
         />
-      ) : name?.trim() ? (
-        <span aria-hidden="true">{initials}</span>
-      ) : (
-        <User className="size-4" aria-hidden="true" />
-      )}
-    </div>
+      ) : null}
+      <AvatarFallback className={compact ? "text-[9px]" : undefined}>
+        {name?.trim() ? (
+          <span aria-hidden="true">{fallbackText}</span>
+        ) : (
+          <User className={cn(compact ? "size-2.5" : "size-3.5")} aria-hidden="true" />
+        )}
+      </AvatarFallback>
+    </Avatar>
   );
 }

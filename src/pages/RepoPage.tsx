@@ -198,7 +198,7 @@ export function RepoPage() {
     <SplitPane
       orientation="horizontal"
       defaultRatio={32}
-      minFirstPx={240}
+      minFirstPx={320}
       minSecondPx={280}
       storageKey="jlgit:split:changes-preview-v2"
       first={
@@ -206,9 +206,10 @@ export function RepoPage() {
           <SplitPane
             orientation="vertical"
             defaultRatio={65}
-            minFirstPx={120}
-            minSecondPx={120}
-            storageKey="jlgit:split:changes-commit"
+            minFirstPx={160}
+            // 提交区：勾选 + 信息框 + 提交按钮 + 可选「已提交」条，不可再压扁
+            minSecondPx={200}
+            storageKey="jlgit:split:changes-commit-v2"
             first={
               <div className="h-full min-h-0 overflow-hidden">
                 <ChangesPanel />

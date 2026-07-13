@@ -32,6 +32,22 @@ export async function touchOpened(id: string): Promise<void> {
   await invokeCommand<OkResult>("project_touch_opened", { id });
 }
 
+export async function remove(id: string): Promise<void> {
+  await invokeCommand<OkResult>("project_remove", { id });
+}
+
+export async function update(input: {
+  id: string;
+  name?: string;
+}): Promise<Project> {
+  const result = await invokeCommand<ProjectResult>("project_update", {
+    id: input.id,
+    name: input.name,
+  });
+
+  return result.project;
+}
+
 export async function pickDirectory(): Promise<string | null> {
   const result = await invokeCommand<PickDirectoryResult>("project_pick_directory");
 
@@ -47,6 +63,8 @@ export async function listRecent(limit?: number): Promise<RecentItem[]> {
 export const projectService = {
   list,
   add,
+  remove,
+  update,
   touchOpened,
   pickDirectory,
   listRecent,

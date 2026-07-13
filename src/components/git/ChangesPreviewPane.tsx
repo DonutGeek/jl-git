@@ -35,6 +35,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { DiffSidePreview, type DiffPreviewChange } from "@/components/git/DiffSidePreview";
+import { CodeSidePreview } from "@/components/git/CodeSidePreview";
 import { cn } from "@/lib/utils";
 
 import {
@@ -299,13 +300,18 @@ function bindDiffScrollSync(diffEditor: Parameters<DiffOnMount>[0]): () => void 
   };
 }
 
-/** 用 callback ref 测量宿主，节点晚挂载也能拿到尺寸 */
-function useMonacoHostSize(): {
+/** 用 callback ref 测量宿主；remeasureKey 变化时强制重测（如文件/差异视图切换） */
+function useMonacoHostSize(remeasureKey: string): {
   setHost: RefCallback<HTMLDivElement>;
   size: HostSize;
 } {
   const [host, setHost] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState<HostSize>({ width: 0, height: 0 });
+
+  useEffect(() => {
+    // 切换视图时先清零，避免沿用更窄侧栏时的旧宽度留下空白
+    setSize({ width: 0, height: 0 });
+  }, [remeasureKey]);
 
   useEffect(() => {
     if (!host) {
@@ -323,10 +329,17 @@ function useMonacoHostSize(): {
     };
 
     update();
+    // 侧栏宽度变化后，等 flex 布局稳定再测一次
+    const raf = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(update);
+    });
     const observer = new ResizeObserver(update);
     observer.observe(host);
-    return () => observer.disconnect();
-  }, [host]);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      observer.disconnect();
+    };
+  }, [host, remeasureKey]);
 
   return { setHost, size };
 }
@@ -393,7 +406,7 @@ export function ChangesPreviewPane() {
   const fileEditorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const scrollSyncDisposeRef = useRef<(() => void) | null>(null);
   const previewDisposeRef = useRef<(() => void) | null>(null);
-  const { setHost, size } = useMonacoHostSize();
+  const { setHost, size } = useMonacoHostSize(`${mode}:${diffLayout}`);
   const [previewChanges, setPreviewChanges] = useState<DiffPreviewChange[]>([]);
   const [previewViewport, setPreviewViewport] = useState<{
     scrollTop: number;
@@ -456,7 +469,7 @@ export function ChangesPreviewPane() {
     applyJlGitMonacoTheme(monaco);
   }
 
-  const handleDiffMount: DiffOnMount = (editor) => {
+  const handleDiffMount: DiffOnMount = (editor, monaco) => {
     diffEditorRef.current = editor;
     if (size.width > 0 && size.height > 0) {
       editor.layout({ width: size.width, height: size.height });
@@ -484,34 +497,49 @@ export function ChangesPreviewPane() {
     };
     const syncChanges = (): void => {
       const lineChanges = editor.getLineChanges() ?? [];
-      setPreviewChanges(
-        lineChanges.map((change) => {
-          const hasModified = change.modifiedEndLineNumber > 0;
-          const hasOriginal = change.originalEndLineNumber > 0;
-          if (hasModified && !hasOriginal) {
-            return {
-              startLine: change.modifiedStartLineNumber,
-              endLine: change.modifiedEndLineNumber,
-              kind: "add" as const,
-            };
-          }
-          if (!hasModified && hasOriginal) {
-            return {
-              startLine: change.modifiedStartLineNumber,
-              endLine: change.modifiedStartLineNumber - 1,
-              kind: "delete" as const,
-            };
-          }
-          return {
-            startLine: change.modifiedStartLineNumber,
-            endLine: Math.max(
-              change.modifiedStartLineNumber,
-              change.modifiedEndLineNumber,
-            ),
-            kind: "modify" as const,
-          };
-        }),
+      const scrollHeight = Math.max(1, modified.getScrollHeight());
+      const lineHeight = Math.max(
+        1,
+        modified.getOption(monaco.editor.EditorOption.lineHeight),
       );
+      const markers: DiffPreviewChange[] = [];
+
+      for (const change of lineChanges) {
+        const hasModified = change.modifiedEndLineNumber > 0;
+        const hasOriginal = change.originalEndLineNumber > 0;
+        const originalCount = hasOriginal
+          ? change.originalEndLineNumber - change.originalStartLineNumber + 1
+          : 0;
+
+        // 删除：在 modified 锚点画红块（高度按删除行数，贴近示例）
+        if (hasOriginal) {
+          const anchorLine = Math.max(1, change.modifiedStartLineNumber || 1);
+          const top = modified.getTopForLineNumber(anchorLine);
+          markers.push({
+            topRatio: top / scrollHeight,
+            heightRatio: Math.max(
+              2 / scrollHeight,
+              (originalCount * lineHeight) / scrollHeight,
+            ),
+            kind: "delete",
+          });
+        }
+
+        // 新增：绿块对齐 modified 行区间
+        if (hasModified) {
+          const start = change.modifiedStartLineNumber;
+          const end = change.modifiedEndLineNumber;
+          const top = modified.getTopForLineNumber(start);
+          const bottom = modified.getTopForLineNumber(end) + lineHeight;
+          markers.push({
+            topRatio: top / scrollHeight,
+            heightRatio: Math.max(2 / scrollHeight, (bottom - top) / scrollHeight),
+            kind: "add",
+          });
+        }
+      }
+
+      setPreviewChanges(markers);
     };
     syncViewport();
     syncChanges();
@@ -528,6 +556,21 @@ export function ChangesPreviewPane() {
     if (size.width > 0 && size.height > 0) {
       editor.layout({ width: size.width, height: size.height });
     }
+
+    previewDisposeRef.current?.();
+    const syncViewport = (): void => {
+      const layout = editor.getLayoutInfo();
+      setPreviewViewport({
+        scrollTop: editor.getScrollTop(),
+        scrollHeight: editor.getScrollHeight(),
+        clientHeight: layout.height,
+      });
+    };
+    syncViewport();
+    const scrollSub = editor.onDidScrollChange(syncViewport);
+    previewDisposeRef.current = () => {
+      scrollSub.dispose();
+    };
   };
 
   // 切换文件时恢复显示差异
@@ -652,7 +695,7 @@ export function ChangesPreviewPane() {
   return (
     <div className="bg-background flex h-full min-h-0 flex-col overflow-hidden">
       {/* 路径行：眼睛切换显示/隐藏差异 + 状态字母 + 可点击复制路径 */}
-      <div className="border-border flex h-7 shrink-0 items-center gap-1.5 border-b px-2">
+      <div className="border-border flex h-8 shrink-0 items-center gap-1.5 border-b px-2">
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <Button
@@ -691,7 +734,6 @@ export function ChangesPreviewPane() {
             <button
               type="button"
               className="hover:text-foreground min-w-0 flex-1 cursor-pointer truncate text-left font-mono text-xs underline-offset-2 hover:underline"
-              title={selectedChange.path}
               aria-label={t("repo.copyPath")}
               onClick={() => {
                 void copyPath();
@@ -700,7 +742,8 @@ export function ChangesPreviewPane() {
               {selectedChange.path}
             </button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">{t("repo.copyPath")}</TooltipContent>
+          {/* 顶栏下方是工具行，tooltip 放上方避免遮挡 */}
+          <TooltipContent side="top">{t("repo.copyPath")}</TooltipContent>
         </Tooltip>
       </div>
 
@@ -954,48 +997,69 @@ export function ChangesPreviewPane() {
                 </div>
                 {/* 仅最右侧：本地修改侧代码预览图 */}
                 <DiffSidePreview
-                  text={diff.newText}
                   changes={previewChanges}
                   viewport={previewViewport}
                   dark={dark}
-                  onJumpToLine={(lineNumber) => {
+                  onJumpRatio={(ratio) => {
                     const modified =
                       diffEditorRef.current?.getModifiedEditor();
                     if (!modified) {
                       return;
                     }
-                    modified.revealLineInCenter(lineNumber);
-                    modified.setPosition({ lineNumber, column: 1 });
+                    const maxScroll = Math.max(
+                      0,
+                      modified.getScrollHeight() - modified.getLayoutInfo().height,
+                    );
+                    modified.setScrollTop(ratio * maxScroll);
                     modified.focus();
                   }}
                 />
               </div>
             </>
           ) : (
-            <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-              <div ref={setHost} className="jlgit-monaco-host">
-                {ready ? (
-                  <Editor
-                    key={editorKey}
-                    width={size.width}
-                    height={size.height}
-                    value={diff.newText}
-                    language={language}
-                    theme={monacoTheme}
-                    beforeMount={handleBeforeMount}
-                    onMount={handleFileMount}
-                    options={{
-                      ...monacoCommonOptions,
-                      fontFamily,
-                    }}
-                    loading={
-                      <div className="bg-background text-muted-foreground flex h-full items-center justify-center text-sm">
-                        {t("common.loading")}
-                      </div>
-                    }
-                  />
-                ) : null}
+            <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+              <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+                <div ref={setHost} className="jlgit-monaco-host">
+                  {ready ? (
+                    <Editor
+                      key={editorKey}
+                      width={size.width}
+                      height={size.height}
+                      value={diff.newText}
+                      language={language}
+                      theme={monacoTheme}
+                      beforeMount={handleBeforeMount}
+                      onMount={handleFileMount}
+                      options={{
+                        ...monacoCommonOptions,
+                        fontFamily,
+                      }}
+                      loading={
+                        <div className="bg-background text-muted-foreground flex h-full items-center justify-center text-sm">
+                          {t("common.loading")}
+                        </div>
+                      }
+                    />
+                  ) : null}
+                </div>
               </div>
+              <CodeSidePreview
+                text={diff.newText}
+                viewport={previewViewport}
+                dark={dark}
+                onJumpRatio={(ratio) => {
+                  const editor = fileEditorRef.current;
+                  if (!editor) {
+                    return;
+                  }
+                  const maxScroll = Math.max(
+                    0,
+                    editor.getScrollHeight() - editor.getLayoutInfo().height,
+                  );
+                  editor.setScrollTop(ratio * maxScroll);
+                  editor.focus();
+                }}
+              />
             </div>
           )}
         </div>

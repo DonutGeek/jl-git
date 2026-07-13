@@ -209,6 +209,8 @@ interface GitStatusEntry {
 interface GitBranch {
   name: string;
   isCurrent: boolean;
+  /** 仓库默认分支（通常对应 origin/HEAD） */
+  isDefault: boolean;
   isRemote: boolean;
   upstream?: string;
   ahead?: number;
@@ -222,10 +224,10 @@ interface GitBranch {
 |--|--|
 | **目的** | 提交历史（分页） |
 | **输入** | `{ path: string; skip?: number; limit?: number; ref?: string }` |
-| **输出** | `{ commits: GitCommitSummary[]; hasMore: boolean }`（`GitCommitSummary` 含 `id/shortId/authorName/authoredAt/subject/refs`） |
+| **输出** | `{ commits: GitCommitSummary[]; hasMore: boolean }`（`GitCommitSummary` 含 `id/shortId/authorName/authorEmail/authoredAt/subject/parentIds/refs/coAuthors`） |
 | **错误** | 同 status 类；`VALIDATION`（limit 过大） |
 
-默认 `limit=50`，硬上限建议 200。`refs` 来自 `git log --decorate` 的 `%D`（远端分支展示为 `origin&name`）。
+默认 `limit=50`，硬上限建议 200。`parentIds` 来自 `%P`，用于历史图谱的分叉与合并连线。`refs` 来自 `git log --decorate` 的 `%D`（远端分支展示为 `origin&name`）。`coAuthors` 来自 `Co-authored-by` trailer（`%(trailers:key=Co-authored-by)`）。
 
 ### `git_show`
 
@@ -336,8 +338,18 @@ interface GitBranch {
 | 命令 | 输入 | 输出 |
 |------|------|------|
 | `git_branch_create` | `{ path; name; checkout?: boolean; startPoint?: string }` | `{ ok: true }` |
-| `git_branch_delete` | `{ path; name; force?: boolean }` | `{ ok: true }` |
+| `git_branch_delete` | `{ path; name; force?: boolean; deleteRemote?: boolean; remote?: string }` | `{ ok: true }` |
+| `git_branch_rename` | `{ path; oldName: string; newName: string }` | `{ ok: true }` |
 | `git_checkout` | `{ path; ref: string }` | `{ ok: true }` |
+
+`git_branch_create` / `git_checkout` / `git_branch_delete` / `git_branch_rename` 走阻塞线程池并写入操作日志。
+
+创建分支（`checkout: true`）命令序列：
+1. `git branch --no-track -- <name> [<startPoint>]`
+2. `git checkout --progress <name> --`
+3. `git submodule update --init --recursive`
+
+无 upstream 时工具栏显示「发布分支」，执行 `git push --set-upstream --progress origin <branch>`（oplog label：`publish`）。
 
 ### `git_fetch` / `git_pull` / `git_push`
 
@@ -346,9 +358,14 @@ interface GitBranch {
 | `git_fetch` | `{ path; remote?: string }` | `{ ok: true; remote: string; elapsedMs: number }` |
 | `git_pull` | `{ path; remote?: string; branch?: string; rebase?: boolean }` | `{ ok: true; remote: string; elapsedMs: number }` |
 | `git_push` | `{ path; remote?: string; branch?: string; setUpstream?: boolean; force?: boolean }` | `{ ok: true; remote: string; elapsedMs: number }` |
+| `git_undo_commit` | `{ path; target?: string }` | `{ ok: true; target: string; elapsedMs: number }` |
 
-`git_fetch` / `git_pull` / `git_push` 在阻塞线程池异步执行；fetch/pull 默认 120s、push 180s 超时；超时返回 `GIT_TIMEOUT`。  
+`git_fetch` / `git_pull` / `git_push` / `git_undo_commit` 在阻塞线程池异步执行；fetch/pull 默认 120s、push 180s 超时；超时返回 `GIT_TIMEOUT`。
+
+`git_undo_commit`：`git reset --mixed` 到 `target`（省略则为 `HEAD~1`）。仅用于撤销本地未推送提交；变更回到工作区，不丢文件。首提交无法撤销时返回 `VALIDATION`。  
 `git_pull` 对齐 ugit：`pull --recurse-submodules --progress`，并带 `protocol.version=2`；**不**清空 credential.helper。成功后前端刷新 status / branches / log。
+
+`git_push` 对齐 ugit：`push --progress` + `protocol.version=2`；有分支时使用 `origin main:main` 式 refspec；**不**清空 credential.helper。成功后前端刷新 status / branches / log。
 
 ### `system_app_info` / `system_disk_space` / `system_list_fonts`
 

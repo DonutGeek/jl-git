@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   CheckCircle2,
   HardDrive,
+  Loader2,
   Moon,
   ScrollText,
   Sun,
@@ -46,7 +47,7 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(value >= 100 || exp === 0 ? 0 : 2)}${units[exp]}`;
 }
 
-/** 应用底部状态栏：版本 | 主题 / 磁盘 / Git 身份 / 操作日志 */
+/** 应用底部状态栏：版本 | 语言 / 主题 / 磁盘 / 操作日志 / Git 身份 */
 export function StatusBar() {
   const { t } = useTranslation();
   const mode = useThemeStore((state) => state.mode);
@@ -296,6 +297,36 @@ export function StatusBar() {
 
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "size-6 [&_svg]:size-3.5",
+                panelOpen
+                  ? "bg-accent text-accent-foreground hover:bg-accent/80"
+                  : "text-muted-foreground",
+              )}
+              aria-label={opLogAria}
+              aria-pressed={panelOpen}
+              onClick={togglePanel}
+            >
+              {latestOp?.status === "running" ? (
+                <Loader2 className="text-primary animate-spin" aria-hidden />
+              ) : latestOp?.status === "success" ? (
+                <CheckCircle2 className="text-primary" aria-hidden />
+              ) : latestOp?.status === "error" ? (
+                <XCircle className="text-destructive" aria-hidden />
+              ) : (
+                <ScrollText aria-hidden />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{opLogAria}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
             <div className="flex items-center px-0.5">
               <GitIdentityAvatar
                 name={identity?.name ?? null}
@@ -306,32 +337,6 @@ export function StatusBar() {
             </div>
           </TooltipTrigger>
           <TooltipContent>{identityLabel}</TooltipContent>
-        </Tooltip>
-
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "size-6 [&_svg]:size-3.5",
-                panelOpen && "bg-accent text-accent-foreground",
-              )}
-              aria-label={opLogAria}
-              aria-pressed={panelOpen}
-              onClick={togglePanel}
-            >
-              {latestOp?.status === "success" ? (
-                <CheckCircle2 className="text-primary" aria-hidden />
-              ) : latestOp?.status === "error" ? (
-                <XCircle className="text-destructive" aria-hidden />
-              ) : (
-                <ScrollText className="text-muted-foreground" aria-hidden />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{opLogAria}</TooltipContent>
         </Tooltip>
       </div>
     </footer>

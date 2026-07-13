@@ -14,6 +14,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { SelectMenu } from "@/components/ui/select-menu";
 import {
   Sheet,
@@ -373,7 +374,9 @@ export function SettingsDrawer() {
           <SheetCloseButton className="top-3 right-3" />
         </SheetHeader>
 
-        <div className="min-h-0 flex-1 space-y-8 overflow-y-auto px-4 py-5">
+        <div className="min-h-0 flex-1">
+          <ScrollArea className="h-full px-4 py-5">
+            <div className="space-y-8">
           {/* 1. 外观 */}
           <SettingsSection
             icon={<Palette />}
@@ -662,6 +665,8 @@ export function SettingsDrawer() {
               {t("settings.alsoInStatusBar")}
             </p>
           </SettingsSection>
+            </div>
+          </ScrollArea>
         </div>
       </SheetContent>
     </Sheet>

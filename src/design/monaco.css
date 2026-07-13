@@ -12,6 +12,13 @@
   background-color: var(--background);
 }
 
+/* @monaco-editor/react 外层按 props 写死像素宽高，切换侧栏后可能偏窄；强制铺满宿主 */
+.jlgit-monaco-host > * {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+}
+
 .jlgit-monaco-host .monaco-diff-editor,
 .jlgit-monaco-host .monaco-editor {
   width: 100% !important;

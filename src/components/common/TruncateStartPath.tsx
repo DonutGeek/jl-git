@@ -112,7 +112,8 @@ export function TruncateStartPath({
     <span
       ref={containerRef}
       className={cn(
-        "min-w-0 flex-1 overflow-hidden text-left text-xs whitespace-nowrap",
+        // basis-0：在 flex 行内占满剩余宽度，避免按全文把父级撑开导致无法省略
+        "min-w-0 flex-1 basis-0 overflow-hidden text-left text-xs whitespace-nowrap",
         className,
       )}
       title={title ?? path}

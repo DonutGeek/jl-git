@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import i18n from "@/i18n";
 import { gitService } from "@/services/git";
+import { useOpLogStore } from "@/store/useOpLogStore";
 
 import { AppError, toUserMessage } from "@/types/error";
 import {
@@ -12,6 +13,14 @@ import {
   GitStatusEntry,
   GitStatusResult,
 } from "@/types/git";
+
+/** 先打开操作日志并让出一帧，保证按钮点击后立刻可见 */
+async function revealOpLogBeforeInvoke(): Promise<void> {
+  useOpLogStore.getState().openPanelNow();
+  await new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
 
 const LOG_PAGE_SIZE = 50;
 const COMMIT_DETAIL_CACHE_MAX = 24;
@@ -151,11 +160,18 @@ interface RepoStoreActions {
   stageAll: () => Promise<void>;
   unstageAll: () => Promise<void>;
   commit: () => Promise<string>;
+  /** 撤销最近未推送提交：reset --mixed，变更回到工作区 */
+  undoCommit: () => Promise<{ target: string; elapsedMs: number }>;
   checkout: (ref: string) => Promise<void>;
   createBranch: (
     name: string,
     options?: { startPoint?: string; checkout?: boolean },
   ) => Promise<void>;
+  deleteBranch: (
+    name: string,
+    options?: { force?: boolean; deleteRemote?: boolean; remote?: string },
+  ) => Promise<void>;
+  renameBranch: (oldName: string, newName: string) => Promise<void>;
   /** 检查更新：fetch 远端后刷新 status / branches */
   fetch: (remote?: string) => Promise<{ remote: string; elapsedMs: number }>;
   /** 更新：pull 后刷新 status / branches / log */
@@ -552,6 +568,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         return removed;
       });
 
+      await revealOpLogBeforeInvoke();
       const commitId = await gitService.commit(repoPath, message, {
         paths,
         removePaths,
@@ -577,11 +594,52 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     }
   },
 
+  async undoCommit() {
+    set({ error: null });
+
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      const ahead = get().status?.ahead ?? 0;
+      if (ahead <= 0) {
+        throwValidationError(i18n.t("repo.errors.nothingToUndo"));
+      }
+
+      const commits = get().commits;
+      const undone = commits[0] ?? null;
+      // 回退到父提交；无父则交给后端（首提交会返回明确错误）
+      const target = commits[1]?.id;
+
+      await revealOpLogBeforeInvoke();
+      const result = await gitService.undoCommit(repoPath, target);
+      const [status, log] = await Promise.all([
+        gitService.getStatus(repoPath),
+        gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+      ]);
+
+      set({
+        status,
+        selectedChange: resolveSelectedChange(status, get().selectedChange),
+        commits: log.commits,
+        hasMore: log.hasMore,
+        // 把撤销的提交说明填回输入框，便于改完再提交
+        commitMessage: undone?.subject ?? get().commitMessage,
+        selectedCommitId: null,
+        selectedCommitDetail: null,
+      });
+
+      return result;
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
+  },
+
   async checkout(ref) {
     set({ loading: true, error: null });
 
     try {
       const repoPath = requireRepoPath(get().repoPath);
+      await revealOpLogBeforeInvoke();
       await gitService.checkout(repoPath, ref);
       const [status, branches, log] = await Promise.all([
         gitService.getStatus(repoPath),
@@ -613,6 +671,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         throwValidationError(i18n.t("repo.errors.emptyBranchName"));
       }
 
+      await revealOpLogBeforeInvoke();
       await gitService.createBranch(repoPath, trimmed, {
         checkout: options?.checkout ?? true,
         startPoint: options?.startPoint,
@@ -638,12 +697,73 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     }
   },
 
+  async deleteBranch(name, options) {
+    set({ error: null });
+
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      const trimmed = name.trim();
+      if (!trimmed) {
+        throwValidationError(i18n.t("repo.errors.emptyBranchName"));
+      }
+
+      await revealOpLogBeforeInvoke();
+      await gitService.deleteBranch(repoPath, trimmed, options);
+      const [status, branches] = await Promise.all([
+        gitService.getStatus(repoPath),
+        gitService.listBranches(repoPath, true),
+      ]);
+
+      set({
+        status,
+        selectedChange: resolveSelectedChange(status, get().selectedChange),
+        branches,
+      });
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
+  },
+
+  async renameBranch(oldName, newName) {
+    set({ error: null });
+
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      const from = oldName.trim();
+      const to = newName.trim();
+      if (!from || !to) {
+        throwValidationError(i18n.t("repo.errors.emptyBranchName"));
+      }
+
+      await revealOpLogBeforeInvoke();
+      await gitService.renameBranch(repoPath, from, to);
+      const [status, branches, log] = await Promise.all([
+        gitService.getStatus(repoPath),
+        gitService.listBranches(repoPath, true),
+        gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+      ]);
+
+      set({
+        status,
+        selectedChange: resolveSelectedChange(status, get().selectedChange),
+        branches,
+        commits: log.commits,
+        hasMore: log.hasMore,
+      });
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
+  },
+
   async fetch(remote) {
     // 不拉全局 loading，避免变更区悬停按钮闪烁；由工具栏本地 busy 控制
     set({ error: null });
 
     try {
       const repoPath = requireRepoPath(get().repoPath);
+      await revealOpLogBeforeInvoke();
       const result = await gitService.fetch(repoPath, remote);
       const [status, branches] = await Promise.all([
         gitService.getStatus(repoPath),
@@ -667,6 +787,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
     try {
       const repoPath = requireRepoPath(get().repoPath);
+      await revealOpLogBeforeInvoke();
       const result = await gitService.pull(repoPath, options);
       // 对齐 ugit：pull 后刷新 status / branches / log
       const [status, branches, log] = await Promise.all([
@@ -694,15 +815,28 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
     try {
       const repoPath = requireRepoPath(get().repoPath);
-      const result = await gitService.push(repoPath, options);
-      const [status, log] = await Promise.all([
+      await revealOpLogBeforeInvoke();
+      // 对齐 ugit：默认 origin + 当前分支 → push --progress origin main:main
+      const status = get().status;
+      const remote = options?.remote ?? "origin";
+      const branch =
+        options?.branch ??
+        (status?.detached ? undefined : (status?.branch ?? undefined));
+      const result = await gitService.push(repoPath, {
+        ...options,
+        remote,
+        branch,
+      });
+      const [nextStatus, branches, log] = await Promise.all([
         gitService.getStatus(repoPath),
+        gitService.listBranches(repoPath, true),
         gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
       ]);
 
       set({
-        status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
+        status: nextStatus,
+        selectedChange: resolveSelectedChange(nextStatus, get().selectedChange),
+        branches,
         commits: log.commits,
         hasMore: log.hasMore,
       });

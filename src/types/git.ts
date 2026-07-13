@@ -23,18 +23,30 @@ export interface GitStatusEntry {
 export interface GitBranch {
   name: string;
   isCurrent: boolean;
+  /** 仓库默认分支（通常对应 origin/HEAD） */
+  isDefault: boolean;
   isRemote: boolean;
   upstream?: string;
+}
+
+export interface GitCommitAuthor {
+  name: string;
+  email: string;
 }
 
 export interface GitCommitSummary {
   id: string;
   shortId: string;
   authorName: string;
+  authorEmail: string;
   authoredAt: string;
   subject: string;
+  /** 父提交完整 ID；历史图谱用以连接分叉与合并 */
+  parentIds: string[];
   /** 指向该提交的分支 / 标签（已清洗） */
   refs: string[];
+  /** Co-authored-by trailer */
+  coAuthors: GitCommitAuthor[];
 }
 
 export interface GitChangedFile {
@@ -90,6 +102,16 @@ export interface GitPushResult {
   ok: boolean;
   remote: string;
   elapsedMs: number;
+}
+
+export interface GitRemote {
+  name: string;
+  fetchUrl: string;
+  pushUrl: string;
+}
+
+export interface GitRemotesResult {
+  remotes: GitRemote[];
 }
 
 export interface GitBranchesResult {
