@@ -6,7 +6,7 @@ use std::process::Command;
 use encoding_rs::Encoding;
 
 use crate::error::AppError;
-use crate::git::path::validate_repo_relative_paths;
+use crate::git::path::{validate_git_ref, validate_repo_relative_paths};
 use crate::git::runner;
 
 const DEFAULT_MAX_BYTES: usize = 1_048_576;
@@ -80,6 +80,93 @@ pub fn get_diff(
         binary: false,
         truncated: old_trunc || new_trunc || patch.truncated,
     })
+}
+
+/// 历史提交内单文件相对 parent 的前后对比（Monaco 两侧文本）
+///
+/// `parent_rev` 为 `None` 表示根提交（无父，相对空树）；
+/// 新增 / 删除文件时 old / new 侧会因 `read_blob` 找不到对应路径而自然为空，无需额外按状态特判。
+pub fn get_commit_file_diff(
+    repo_path: &Path,
+    file_path: &str,
+    commit_rev: &str,
+    parent_rev: Option<&str>,
+    max_bytes: Option<usize>,
+    encoding: Option<&str>,
+) -> Result<GitDiffResult, AppError> {
+    let file_path = file_path.trim();
+    if file_path.is_empty() {
+        return Err(AppError::new("VALIDATION", "缺少文件路径"));
+    }
+    validate_repo_relative_paths(&[file_path.to_string()])?;
+    validate_git_ref(commit_rev)?;
+    if let Some(parent) = parent_rev {
+        validate_git_ref(parent)?;
+    }
+
+    let limit = max_bytes.unwrap_or(DEFAULT_MAX_BYTES).max(1024);
+    let encoding_id = encoding.unwrap_or(DEFAULT_ENCODING);
+
+    let old_raw = match parent_rev {
+        Some(parent) => read_blob(repo_path, &format!("{parent}:{file_path}"))?,
+        None => None,
+    };
+    let new_raw = read_blob(repo_path, &format!("{commit_rev}:{file_path}"))?;
+
+    let binary = looks_binary(old_raw.as_deref()) || looks_binary(new_raw.as_deref());
+    if binary {
+        let patch = read_commit_patch(repo_path, file_path, commit_rev, parent_rev, limit)?;
+        return Ok(GitDiffResult {
+            old_text: String::new(),
+            new_text: String::new(),
+            patch: patch.text,
+            binary: true,
+            truncated: patch.truncated,
+        });
+    }
+
+    let (old_text, old_trunc) = bytes_to_text(old_raw.unwrap_or_default(), limit, encoding_id);
+    let (new_text, new_trunc) = bytes_to_text(new_raw.unwrap_or_default(), limit, encoding_id);
+    let patch = read_commit_patch(repo_path, file_path, commit_rev, parent_rev, limit)?;
+
+    Ok(GitDiffResult {
+        old_text,
+        new_text,
+        patch: patch.text,
+        binary: false,
+        truncated: old_trunc || new_trunc || patch.truncated,
+    })
+}
+
+/// 生成提交内单文件的统一 diff 文本；根提交（无 parent）相对空树生成
+fn read_commit_patch(
+    repo_path: &Path,
+    file_path: &str,
+    commit_rev: &str,
+    parent_rev: Option<&str>,
+    limit: usize,
+) -> Result<PatchOut, AppError> {
+    let args: Vec<&str> = match parent_rev {
+        Some(parent) => vec!["diff", parent, commit_rev, "--", file_path],
+        None => vec![
+            "diff-tree",
+            "-p",
+            "--no-commit-id",
+            "--root",
+            commit_rev,
+            "--",
+            file_path,
+        ],
+    };
+
+    let output = runner::run_git_allow_nonzero(repo_path, &args)?;
+    let mut text = output.stdout;
+    let mut truncated = false;
+    if text.len() > limit {
+        text.truncate(limit);
+        truncated = true;
+    }
+    Ok(PatchOut { text, truncated })
 }
 
 struct PatchOut {

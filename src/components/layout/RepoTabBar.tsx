@@ -145,7 +145,7 @@ function TabChrome({
               <X className="size-3" aria-hidden="true" />
             </button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">{closeLabel}</TooltipContent>
+          <TooltipContent>{closeLabel}</TooltipContent>
         </Tooltip>
       ) : (
         <span className="mr-1 inline-flex size-4 shrink-0" aria-hidden="true" />
@@ -552,7 +552,7 @@ export function RepoTabBar() {
                   <FolderPlus className="size-3.5" aria-hidden="true" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">{t("dashboard.openRepoAction")}</TooltipContent>
+              <TooltipContent>{t("dashboard.openRepoAction")}</TooltipContent>
             </Tooltip>
 
             <div className="bg-border h-3.5 w-px shrink-0 self-center" aria-hidden="true" />
@@ -598,7 +598,7 @@ export function RepoTabBar() {
                     <Plus className="size-3.5" aria-hidden="true" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">{t("repo.addTab")}</TooltipContent>
+                <TooltipContent>{t("repo.addTab")}</TooltipContent>
               </Tooltip>
 
               <div data-tauri-drag-region className="h-7 min-w-4 flex-1" />

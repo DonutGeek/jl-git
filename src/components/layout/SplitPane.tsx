@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -20,6 +21,8 @@ interface SplitPaneProps {
   minSecondPx?: number;
   storageKey?: string;
   className?: string;
+  /** 分隔条额外 class（如弹层打开时抬高 z-index） */
+  separatorClassName?: string;
   first: ReactNode;
   second: ReactNode;
 }
@@ -54,6 +57,7 @@ export function SplitPane({
   minSecondPx = 200,
   storageKey,
   className,
+  separatorClassName,
   first,
   second,
 }: SplitPaneProps) {
@@ -65,8 +69,8 @@ export function SplitPane({
 
   const isHorizontal = orientation === "horizontal";
 
-  // storageKey / 默认比例变更时重新读取，避免 HMR 或换 key 后仍沿用旧 state
-  useEffect(() => {
+  // storageKey / 默认比例变更时重新读取；用 layout 阶段同步，避免首帧错宽导致邻栏抖动
+  useLayoutEffect(() => {
     const next = readRatio(storageKey, defaultRatio);
     setRatio(next);
     ratioRef.current = next;
@@ -135,6 +139,16 @@ export function SplitPane({
           // ignore
         }
       }
+      // 吞掉拖拽结束后的残影 click，避免点到下层列表误切换提交
+      const suppressGhostClick = (clickEvent: MouseEvent): void => {
+        clickEvent.preventDefault();
+        clickEvent.stopPropagation();
+        document.removeEventListener("click", suppressGhostClick, true);
+      };
+      document.addEventListener("click", suppressGhostClick, true);
+      window.setTimeout(() => {
+        document.removeEventListener("click", suppressGhostClick, true);
+      }, 0);
     },
     [storageKey],
   );
@@ -214,6 +228,7 @@ export function SplitPane({
           isHorizontal
             ? "after:inset-y-0 after:left-1/2 after:w-3 after:-translate-x-1/2"
             : "after:inset-x-0 after:top-1/2 after:h-3 after:-translate-y-1/2",
+          separatorClassName,
         )}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

@@ -125,7 +125,7 @@ function CopyableHash({ fullId, shortId }: CopyableHashProps) {
           {shortId}
         </span>
       </TooltipTrigger>
-      <TooltipContent side="bottom">
+      <TooltipContent>
         {copied ? t("repo.copySuccess") : t("repo.copy")}
       </TooltipContent>
     </Tooltip>

@@ -164,6 +164,17 @@ export interface GitDiffResult {
   truncated: boolean;
 }
 
+/** 历史提交内单文件相对 parent 的前后对比 */
+export interface GitCommitFileDiffOptions {
+  filePath: string;
+  commitRev: string;
+  /** 缺省或空字符串表示根提交（无父，相对空树） */
+  parentRev?: string;
+  maxBytes?: number;
+  /** 文本解码编码 id，见 TEXT_ENCODING_OPTIONS */
+  encoding?: string;
+}
+
 export interface GitLogOptions {
   skip?: number;
   limit?: number;

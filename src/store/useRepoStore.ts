@@ -35,6 +35,15 @@ export interface SelectedChange {
   side: ChangeSide;
 }
 
+/** 历史详情中选中的改动文件：用于左侧整区切到文件前后对比 */
+export interface SelectedCommitFile {
+  commitId: string;
+  /** 对比的父提交完整 ID；根提交（无父）为空字符串 */
+  parentId: string;
+  path: string;
+  status: string;
+}
+
 /** 提交详情短缓存，减少来回点击时的 git_show 与重渲染 */
 const commitDetailCache = new Map<string, GitCommitDetail>();
 
@@ -140,6 +149,8 @@ interface RepoStoreState {
   detailLoading: boolean;
   /** 变更 / 待提交列表当前选中文件 */
   selectedChange: SelectedChange | null;
+  /** 历史详情中选中的改动文件（左侧整区切换为文件前后对比） */
+  selectedCommitFile: SelectedCommitFile | null;
   loading: boolean;
   error: string | null;
 }
@@ -149,6 +160,7 @@ interface RepoStoreActions {
   setRepoPath: (path: string) => void;
   setCommitMessage: (msg: string) => void;
   selectChange: (selection: SelectedChange | null) => void;
+  selectCommitFile: (file: SelectedCommitFile | null) => void;
   loadAll: (repoPath: string) => Promise<void>;
   refreshStatus: () => Promise<void>;
   refreshBranches: () => Promise<void>;
@@ -203,6 +215,7 @@ const initialState: RepoStoreState = {
   selectedCommitDetail: null,
   detailLoading: false,
   selectedChange: null,
+  selectedCommitFile: null,
   loading: false,
   error: null,
 };
@@ -246,6 +259,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     set({ selectedChange: selection });
   },
 
+  selectCommitFile(file) {
+    set({ selectedCommitFile: file });
+  },
+
   async loadAll(repoPath) {
     const cached = repoSessionCache.get(repoPath);
 
@@ -263,6 +280,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         selectedCommitDetail: null,
         detailLoading: false,
         selectedChange: cached.selectedChange,
+        selectedCommitFile: null,
         loading: true,
         error: null,
       });
@@ -316,6 +334,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       selectedCommitDetail: null,
       detailLoading: false,
       selectedChange: null,
+      selectedCommitFile: null,
       loading: true,
       error: null,
     });
@@ -415,6 +434,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         selectedCommitId: null,
         selectedCommitDetail: null,
         detailLoading: false,
+        selectedCommitFile: null,
       });
       return;
     }
@@ -423,9 +443,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       return;
     }
 
-    // 先只改选中 id，列表高亮立刻响应
+    // 先只改选中 id，列表高亮立刻响应；切换提交清空文件对比选中
     set({
       selectedCommitId: commitId,
+      selectedCommitFile: null,
       error: null,
     });
 
@@ -625,6 +646,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         commitMessage: undone?.subject ?? get().commitMessage,
         selectedCommitId: null,
         selectedCommitDetail: null,
+        selectedCommitFile: null,
       });
 
       return result;

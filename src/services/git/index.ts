@@ -17,7 +17,7 @@ import {
   unstage,
   unstageAll,
 } from "./git.commit";
-import { getDiff } from "./git.diff";
+import { getCommitFileDiff, getDiff } from "./git.diff";
 import { getFileSize, listDir } from "./git.fs";
 import { getGlobalIdentity, getIdentity, setGlobalIdentity } from "./git.identity";
 import { getLog } from "./git.log";
@@ -39,6 +39,7 @@ export const gitService = {
   getContainingBranches,
   getCommitChangeSize,
   getDiff,
+  getCommitFileDiff,
   stage,
   unstage,
   stageAll,

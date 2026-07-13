@@ -110,7 +110,7 @@ function CopyableRefTag({ refName }: CopyableRefTagProps) {
           <span className="truncate">{refName}</span>
         </button>
       </TooltipTrigger>
-      <TooltipContent side="bottom">
+      <TooltipContent>
         {copied ? t("repo.copySuccess") : t("repo.copy")}
       </TooltipContent>
     </Tooltip>
@@ -156,6 +156,8 @@ function ParentDiffSection({
   repoPath,
 }: ParentDiffSectionProps) {
   const { t } = useTranslation();
+  const selectedCommitFile = useRepoStore((state) => state.selectedCommitFile);
+  const selectCommitFile = useRepoStore((state) => state.selectCommitFile);
   const [filter, setFilter] = useState("");
   const [view, setView] = useState<"list" | "tree">("list");
   const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(new Set());
@@ -219,6 +221,35 @@ function ParentDiffSection({
   }, [sourceFiles, filter]);
 
   const treeFolderPaths = useMemo(() => getCommitFileTreeFolderPaths(visible), [visible]);
+
+  /** 仅有实际改动状态的文件可点击；再点已选中项则关闭对比弹层 */
+  function handleFileClick(file: GitChangedFile): void {
+    if (!file.status) {
+      return;
+    }
+    if (
+      selectedCommitFile?.commitId === commitId &&
+      selectedCommitFile.parentId === diff.parentId &&
+      selectedCommitFile.path === file.path
+    ) {
+      selectCommitFile(null);
+      return;
+    }
+    selectCommitFile({
+      commitId,
+      parentId: diff.parentId,
+      path: file.path,
+      status: file.status,
+    });
+  }
+
+  function isFileSelected(file: GitChangedFile): boolean {
+    return (
+      selectedCommitFile?.commitId === commitId &&
+      selectedCommitFile?.parentId === diff.parentId &&
+      selectedCommitFile?.path === file.path
+    );
+  }
 
   const placeholder = showAllFiles
     ? t("repo.commitAllFilesFilter")
@@ -463,14 +494,14 @@ function ParentDiffSection({
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-        <ScrollArea className="h-full w-full min-w-0 pr-3 pb-1 [&_[data-orientation=vertical]]:!right-1">
+        <ScrollArea className="h-full w-full min-w-0 px-2 pb-1 [&_[data-orientation=vertical]]:right-0.5 [&_[data-orientation=vertical]]:left-auto">
           {allFilesLoading ? (
-            <div className="text-muted-foreground flex items-center gap-2 px-2 py-3 text-xs">
+            <div className="text-muted-foreground flex items-center gap-2 px-0.5 py-3 text-xs">
               <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
               {t("common.loading")}
             </div>
           ) : visible.length === 0 ? (
-            <p className="text-muted-foreground px-2 py-2 text-xs">
+            <p className="text-muted-foreground px-0.5 py-2 text-xs">
               {showAllFiles
                 ? t("repo.commitFilesEmpty")
                 : diff.files.length === 0
@@ -485,29 +516,48 @@ function ParentDiffSection({
               onToggleFolder={toggleTreeFolder}
               showStatus
               showLineStats={showLineStats}
+              onFileClick={handleFileClick}
+              selectedPath={
+                selectedCommitFile?.commitId === commitId &&
+                selectedCommitFile?.parentId === diff.parentId
+                  ? selectedCommitFile.path
+                  : null
+              }
             />
           ) : (
             <ul className="w-full min-w-0">
-              {visible.map((file) => (
-                <li key={`${diff.parentId}:${file.path}`} className="min-w-0">
-                  <div className="hover:bg-accent/60 flex h-7 w-full min-w-0 cursor-default items-center gap-1.5 overflow-hidden rounded-md px-1.5 transition-colors duration-150">
-                    <span
+              {visible.map((file) => {
+                const clickable = Boolean(file.status);
+                const selected = isFileSelected(file);
+                return (
+                  <li key={`${diff.parentId}:${file.path}`} className="min-w-0">
+                    <div
+                      data-commit-file-row={clickable ? "" : undefined}
                       className={cn(
-                        "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
-                        gitStatusLetterClass(file.status),
+                        "flex h-7 w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-md px-1.5 transition-colors duration-150",
+                        clickable ? "cursor-pointer hover:bg-accent/60" : "cursor-default",
+                        selected && "bg-primary/10 hover:bg-primary/15",
                       )}
-                      aria-label={file.status}
+                      onClick={clickable ? () => handleFileClick(file) : undefined}
                     >
-                      {file.status}
-                    </span>
-                    <MaterialFileIcon name={file.path} isDir={false} className="size-3.5" />
-                    <TruncateStartPath path={file.path} className="min-w-0 flex-1 font-mono" />
-                    {showLineStats ? (
-                      <DiffLineStats additions={file.additions} deletions={file.deletions} />
-                    ) : null}
-                  </div>
-                </li>
-              ))}
+                      <span
+                        className={cn(
+                          "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
+                          gitStatusLetterClass(file.status),
+                        )}
+                        aria-label={file.status}
+                      >
+                        {file.status}
+                      </span>
+                      <MaterialFileIcon name={file.path} isDir={false} className="size-3.5" />
+                      <TruncateStartPath path={file.path} className="min-w-0 flex-1 font-mono" />
+                      {showLineStats ? (
+                        <DiffLineStats additions={file.additions} deletions={file.deletions} />
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </ScrollArea>
@@ -668,7 +718,7 @@ export function HistoryDetailPane() {
                 {detail.shortId}
               </button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">
+            <TooltipContent>
               {hashCopied ? t("repo.copySuccess") : t("repo.copy")}
             </TooltipContent>
           </Tooltip>
@@ -697,7 +747,7 @@ export function HistoryDetailPane() {
                 ) : null}
               </button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">
+            <TooltipContent>
               {messageCopied ? t("repo.copySuccess") : t("repo.copy")}
             </TooltipContent>
           </Tooltip>

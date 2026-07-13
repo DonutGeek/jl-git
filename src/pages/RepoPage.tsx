@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { BranchList } from "@/components/git/BranchList";
 import { ChangesPanel } from "@/components/git/ChangesPanel";
 import { ChangesPreviewPane } from "@/components/git/ChangesPreviewPane";
 import { CommitBox } from "@/components/git/CommitBox";
+import { CommitFileDiffPane } from "@/components/git/CommitFileDiffPane";
 import { FileTree } from "@/components/git/FileTree";
 import { HistoryDetailPane } from "@/components/git/HistoryDetailPane";
 import { HistoryList } from "@/components/git/HistoryList";
@@ -25,10 +26,17 @@ import { hasRepoSession, useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import { Project } from "@/types/project";
 
+const SIDEBAR_MAIN_SPLIT_KEY = "jlgit:split:sidebar-main";
+const HISTORY_DETAIL_SPLIT_KEY = "jlgit:split:history-detail-v9";
+/** 历史详情栏标记：弹层右缘相对此元素左缘对齐 */
+const HISTORY_DETAIL_PANE_ATTR = "data-history-detail-pane";
+/** SplitPane 水平分隔条为 w-1.5（6px）；弹层右缘让出，露出拖拽线 */
+const HISTORY_SPLIT_SEPARATOR_PX = 6;
+
 // 清理历史分栏旧 key，避免读到过期比例
 try {
   for (const key of Object.keys(localStorage)) {
-    if (key.startsWith("jlgit:split:history-detail") && key !== "jlgit:split:history-detail-v9") {
+    if (key.startsWith("jlgit:split:history-detail") && key !== HISTORY_DETAIL_SPLIT_KEY) {
       localStorage.removeItem(key);
     }
   }
@@ -47,6 +55,7 @@ export function RepoPage() {
 
   const loadAll = useRepoStore((state) => state.loadAll);
   const reset = useRepoStore((state) => state.reset);
+  const selectedCommitFile = useRepoStore((state) => state.selectedCommitFile);
 
   const [project, setProject] = useState<Project | null>(null);
   const [bootstrapping, setBootstrapping] = useState(true);
@@ -58,12 +67,59 @@ export function RepoPage() {
   const [visitedViews, setVisitedViews] = useState<ReadonlySet<RepoMainView>>(
     () => new Set<RepoMainView>(["changes"]),
   );
+  /**
+   * 文件对比弹层宽度：实测历史详情左缘，与右侧贴齐，不留缝。
+   */
+  const [commitFileDiffLeftPx, setCommitFileDiffLeftPx] = useState(0);
+  const mainAreaRef = useRef<HTMLDivElement>(null);
+  const commitFileDiffOverlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     return () => {
       reset();
     };
   }, [reset]);
+
+  const showCommitFileDiff = mainView === "history" && Boolean(selectedCommitFile);
+
+  // 弹层右缘：详情左缘再让出分隔条宽度，露出可拖拽线
+  useLayoutEffect(() => {
+    if (!showCommitFileDiff) {
+      return;
+    }
+
+    function measureOverlayWidth(): void {
+      const main = mainAreaRef.current;
+      if (!main) {
+        return;
+      }
+      const detail = main.querySelector<HTMLElement>(`[${HISTORY_DETAIL_PANE_ATTR}]`);
+      if (!detail) {
+        return;
+      }
+      const next = Math.round(
+        detail.getBoundingClientRect().left -
+          main.getBoundingClientRect().left -
+          HISTORY_SPLIT_SEPARATOR_PX,
+      );
+      if (next > 0) {
+        setCommitFileDiffLeftPx((prev) => (prev === next ? prev : next));
+      }
+    }
+
+    measureOverlayWidth();
+    const main = mainAreaRef.current;
+    if (!main) {
+      return;
+    }
+    const observer = new ResizeObserver(measureOverlayWidth);
+    observer.observe(main);
+    const detail = main.querySelector<HTMLElement>(`[${HISTORY_DETAIL_PANE_ATTR}]`);
+    if (detail) {
+      observer.observe(detail);
+    }
+    return () => observer.disconnect();
+  }, [showCommitFileDiff]);
 
   useEffect(() => {
     let active = true;
@@ -237,14 +293,22 @@ export function RepoPage() {
       defaultRatio={68}
       minFirstPx={420}
       minSecondPx={280}
-      storageKey="jlgit:split:history-detail-v9"
+      storageKey={HISTORY_DETAIL_SPLIT_KEY}
+      // 弹层打开时抬高分隔条，保证拖拽线可点且不被盖住
+      separatorClassName={showCommitFileDiff ? "z-40" : undefined}
       first={
-        <aside className="h-full min-h-0 overflow-hidden">
+        <aside
+          className={cn(
+            "h-full min-h-0 overflow-hidden",
+            // 避免拖拽结束后的残影 click 点到历史列表 → selectCommit 清空文件对比
+            showCommitFileDiff && "pointer-events-none",
+          )}
+        >
           <HistoryList />
         </aside>
       }
       second={
-        <aside className="h-full min-h-0 overflow-hidden">
+        <aside className="h-full min-h-0 overflow-hidden" data-history-detail-pane="">
           <HistoryDetailPane />
         </aside>
       }
@@ -291,7 +355,13 @@ export function RepoPage() {
           </div>
         ) : null}
 
-        <div className={cn("flex min-h-0 min-w-0 flex-1", switching && "pointer-events-none opacity-60")}>
+        <div
+          ref={mainAreaRef}
+          className={cn(
+            "relative flex min-h-0 min-w-0 flex-1",
+            switching && "pointer-events-none opacity-60",
+          )}
+        >
           <ActivityBar active={sidebarView} onChange={setSidebarView} />
 
           <SplitPane
@@ -299,7 +369,7 @@ export function RepoPage() {
             defaultRatio={22}
             minFirstPx={160}
             minSecondPx={320}
-            storageKey="jlgit:split:sidebar-main"
+            storageKey={SIDEBAR_MAIN_SPLIT_KEY}
             first={sidebar}
             second={
               <div className="h-full min-h-0 min-w-0 overflow-hidden">
@@ -309,6 +379,20 @@ export function RepoPage() {
               </div>
             }
           />
+
+          {/* 文件对比弹层：右缘贴齐历史详情；Esc / 顶栏关闭在 CommitFileDiffPane */}
+          {showCommitFileDiff && commitFileDiffLeftPx > 0 ? (
+            <div
+              ref={commitFileDiffOverlayRef}
+              className="bg-background absolute inset-y-0 left-0 z-30 overflow-hidden"
+              style={{ width: commitFileDiffLeftPx }}
+              role="dialog"
+              aria-modal="true"
+              aria-label={t("repo.commitFileDiffDialog")}
+            >
+              <CommitFileDiffPane />
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

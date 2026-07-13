@@ -309,7 +309,7 @@ export function BranchList() {
                   <Plus aria-hidden="true" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">{t("repo.newBranch")}</TooltipContent>
+              <TooltipContent>{t("repo.newBranch")}</TooltipContent>
             </Tooltip>
 
             <Tooltip delayDuration={300}>
@@ -329,7 +329,7 @@ export function BranchList() {
                   />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">{t("repo.refresh")}</TooltipContent>
+              <TooltipContent>{t("repo.refresh")}</TooltipContent>
             </Tooltip>
 
             <Tooltip delayDuration={300}>
@@ -345,7 +345,7 @@ export function BranchList() {
                   <ListFilter aria-hidden="true" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">{t("repo.branchFilterActions")}</TooltipContent>
+              <TooltipContent>{t("repo.branchFilterActions")}</TooltipContent>
             </Tooltip>
 
             <Tooltip delayDuration={300}>
@@ -361,7 +361,7 @@ export function BranchList() {
                   <Settings aria-hidden="true" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">{t("repo.branchSettings")}</TooltipContent>
+              <TooltipContent>{t("repo.branchSettings")}</TooltipContent>
             </Tooltip>
           </div>
         </div>
@@ -426,7 +426,7 @@ export function BranchList() {
                         <Plus aria-hidden="true" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom">{t("repo.newBranch")}</TooltipContent>
+                    <TooltipContent>{t("repo.newBranch")}</TooltipContent>
                   </Tooltip>
                 }
               >

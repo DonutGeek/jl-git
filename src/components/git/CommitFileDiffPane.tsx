@@ -7,18 +7,11 @@ import {
   type Monaco,
   type OnMount,
 } from "@monaco-editor/react";
-import {
-  Eye,
-  EyeOff,
-  FileText,
-} from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CodeSidePreview } from "@/components/git/CodeSidePreview";
 import { CopyablePathLabel } from "@/components/git/CopyablePathLabel";
 import { DiffSidePreview, type DiffPreviewChange } from "@/components/git/DiffSidePreview";
@@ -47,28 +40,62 @@ import {
 import { gitService } from "@/services/git";
 import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
-import type { GitDiffResult, GitStatusEntry } from "@/types/git";
-import {
-  gitStatusLetterClass,
-  normalizeGitStatusLetter,
-} from "@/utils/gitStatusStyle";
+import type { GitDiffResult } from "@/types/git";
+import { copyToClipboard } from "@/utils/clipboard";
+import { gitStatusLetterClass, normalizeGitStatusLetter } from "@/utils/gitStatusStyle";
 import { DEFAULT_TEXT_ENCODING } from "@/utils/textEncodings";
 
-/** 稳定空数组：避免 selector 每次返回新 [] */
-const EMPTY_ENTRIES: GitStatusEntry[] = [];
+/** 差异顶栏可复制完整 rev：悬停提示复制，点击写入剪贴板 */
+function CopyableDiffRev({ hash }: { hash: string }) {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
 
-/** 变更主区右侧：文件视图 / 差异视图（Monaco） */
-export function ChangesPreviewPane() {
+  async function copyHash(): Promise<void> {
+    try {
+      await copyToClipboard(hash);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch (error) {
+      toast.error(toUserMessage(error) || t("repo.copyFailed"));
+    }
+  }
+
+  return (
+    <Tooltip open={copied ? true : undefined} delayDuration={200}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="text-primary min-w-0 cursor-pointer truncate border-0 border-b border-transparent bg-transparent p-0 pb-px font-mono text-[11px] leading-none hover:border-current"
+          aria-label={t("repo.copy")}
+          title={hash}
+          onClick={() => {
+            void copyHash();
+          }}
+        >
+          {hash}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" align="center">
+        {copied ? t("repo.copySuccess") : t("repo.copy")}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * 历史详情左侧：点击改动文件后整区切到该文件相对 parent 的前后对比。
+ * 工具行与 ChangesPreviewPane 共用 DiffPreviewToolbar。
+ */
+export function CommitFileDiffPane() {
   const { t } = useTranslation();
   const repoPath = useRepoStore((state) => state.repoPath);
-  const selectedChange = useRepoStore((state) => state.selectedChange);
-  const entries = useRepoStore((state) => state.status?.entries ?? EMPTY_ENTRIES);
+  const selectedCommitFile = useRepoStore((state) => state.selectedCommitFile);
+  const selectCommitFile = useRepoStore((state) => state.selectCommitFile);
 
   const [mode, setMode] = useState<DiffPreviewMode>("diff");
   const [diffLayout, setDiffLayout] = useState<DiffPreviewLayout>("sideBySide");
   const [foldUnchanged, setFoldUnchanged] = useState(false);
   const [encoding, setEncoding] = useState(DEFAULT_TEXT_ENCODING);
-  const [diffHidden, setDiffHidden] = useState(false);
   const [diff, setDiff] = useState<GitDiffResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,16 +124,14 @@ export function ChangesPreviewPane() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const sync = (): void => {
-      setDark(root.classList.contains("dark"));
-    };
+    const sync = (): void => setDark(root.classList.contains("dark"));
     sync();
     const observer = new MutationObserver(sync);
     observer.observe(root, { attributes: true, attributeFilter: ["class"] });
     return () => observer.disconnect();
   }, []);
 
-  // 明暗切换：等 CSS 变量生效后再刷 Monaco + 强制重绘（否则要滚动才变色）
+  // 明暗切换：等 CSS 变量生效后再刷 Monaco + 强制重绘
   useEffect(() => {
     let cancelled = false;
     const frame = window.requestAnimationFrame(() => {
@@ -118,7 +143,6 @@ export function ChangesPreviewPane() {
           applyJlGitMonacoTheme(monacoRef.current);
         }
         forceMonacoThemeRepaint(diffEditorRef.current, fileEditorRef.current);
-        // 触发右侧预览图按新 token 重绘
         setPreviewViewport((prev) => (prev ? { ...prev } : prev));
       });
     });
@@ -147,12 +171,12 @@ export function ChangesPreviewPane() {
       editor.layout({ width: size.width, height: size.height });
     }
 
-    // 两侧都关闭内置 minimap，预览图改用右侧独立组件
     editor.getOriginalEditor().updateOptions({ minimap: { enabled: false } });
     editor.getModifiedEditor().updateOptions({ minimap: { enabled: false } });
 
     scrollSyncDisposeRef.current?.();
     scrollSyncDisposeRef.current = null;
+    // 仅多栏时同步左右滚动；单栏内联视图无需双向绑定
     if (diffLayout === "sideBySide") {
       scrollSyncDisposeRef.current = bindDiffScrollSync(editor);
     }
@@ -183,7 +207,6 @@ export function ChangesPreviewPane() {
           ? change.originalEndLineNumber - change.originalStartLineNumber + 1
           : 0;
 
-        // 删除：在 modified 锚点画红块（高度按删除行数，贴近示例）
         if (hasOriginal) {
           const anchorLine = Math.max(1, change.modifiedStartLineNumber || 1);
           const top = modified.getTopForLineNumber(anchorLine);
@@ -197,7 +220,6 @@ export function ChangesPreviewPane() {
           });
         }
 
-        // 新增：绿块对齐 modified 行区间
         if (hasModified) {
           const start = change.modifiedStartLineNumber;
           const end = change.modifiedEndLineNumber;
@@ -245,15 +267,18 @@ export function ChangesPreviewPane() {
     };
   };
 
-  // 切换文件时恢复显示差异
+  // 切换选中文件时复位预览图状态
   useEffect(() => {
-    setDiffHidden(false);
     setPreviewChanges([]);
     setPreviewViewport(null);
-  }, [selectedChange?.path, selectedChange?.side]);
+  }, [
+    selectedCommitFile?.commitId,
+    selectedCommitFile?.parentId,
+    selectedCommitFile?.path,
+  ]);
 
   useEffect(() => {
-    if (!repoPath || !selectedChange) {
+    if (!repoPath || !selectedCommitFile) {
       setDiff(null);
       setError(null);
       setLoading(false);
@@ -265,9 +290,10 @@ export function ChangesPreviewPane() {
     setError(null);
 
     void gitService
-      .getDiff(repoPath, {
-        filePath: selectedChange.path,
-        staged: selectedChange.side === "index",
+      .getCommitFileDiff(repoPath, {
+        filePath: selectedCommitFile.path,
+        commitRev: selectedCommitFile.commitId,
+        parentRev: selectedCommitFile.parentId,
         encoding,
       })
       .then((result) => {
@@ -290,51 +316,30 @@ export function ChangesPreviewPane() {
     return () => {
       cancelled = true;
     };
-  }, [repoPath, selectedChange, encoding]);
+  }, [repoPath, selectedCommitFile, encoding]);
 
-  if (!selectedChange) {
-    return (
-      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 px-6 text-center">
-        <FileText className="text-muted-foreground size-10 opacity-50" aria-hidden="true" />
-        <div className="space-y-1">
-          <p className="text-sm font-medium">{t("repo.diffPreviewTitle")}</p>
-          <p className="text-muted-foreground max-w-sm text-xs">
-            {t("repo.diffPreviewHint")}
-          </p>
-        </div>
-      </div>
-    );
+  if (!selectedCommitFile) {
+    return null;
   }
 
-  const language = languageFromPath(selectedChange.path);
+  const language = languageFromPath(selectedCommitFile.path);
   const fontFamily = readMonoFont();
-  const baseLabel =
-    selectedChange.side === "index"
-      ? t("repo.diffBaseStaged")
-      : t("repo.diffBaseUnstaged");
-  const localLabel =
-    selectedChange.side === "index"
-      ? t("repo.diffLocalStaged")
-      : t("repo.diffLocalUnstaged");
+  const statusLetter = normalizeGitStatusLetter(selectedCommitFile.status);
+  const filePath = selectedCommitFile.path;
 
-  const statusEntry = entries.find((entry) => entry.path === selectedChange.path);
-  const statusLetter = statusEntry
-    ? normalizeGitStatusLetter(
-        selectedChange.side === "index"
-          ? statusEntry.indexStatus
-          : statusEntry.worktreeStatus,
-      )
-    : null;
+  const parentFullId =
+    selectedCommitFile.parentId === "" ? null : selectedCommitFile.parentId;
+  const commitFullId = selectedCommitFile.commitId;
+  const isRootCommit = selectedCommitFile.parentId === "";
 
-  const editorKey = `${selectedChange.side}:${selectedChange.path}:${mode}:${diffLayout}:${foldUnchanged ? "fold" : "full"}`;
+  const editorKey = `${selectedCommitFile.commitId}:${selectedCommitFile.parentId}:${selectedCommitFile.path}:${mode}:${diffLayout}:${foldUnchanged ? "fold" : "full"}`;
   const ready = size.width > 0 && size.height > 0;
   const baseEol = diff ? detectLineEnding(diff.oldText) : "LF";
   const localEol = diff ? detectLineEnding(diff.newText) : "LF";
   const diffToolsDisabled = mode !== "diff";
   const sideBySide = diffLayout === "sideBySide";
+  const canNavigateHunk = mode === "diff" && !loading && Boolean(diff) && !diff?.binary;
   const monacoTheme = getJlGitMonacoThemeName(dark);
-  const canNavigateHunk =
-    mode === "diff" && !loading && Boolean(diff) && !diff?.binary;
 
   function goPrevHunk(): void {
     if (!diffEditorRef.current || !canNavigateHunk) {
@@ -352,8 +357,8 @@ export function ChangesPreviewPane() {
 
   return (
     <div className="bg-background flex h-full min-h-0 flex-col overflow-hidden">
-      {/* 路径行：眼睛切换显示/隐藏差异 + 状态字母 + 可点击复制路径 */}
-      <div className="border-border flex h-8 shrink-0 items-center gap-1.5 border-b px-2">
+      {/* 顶栏：与右侧 HistoryDetail 顶栏同高 h-11，分隔线对齐 */}
+      <div className="border-border flex h-11 shrink-0 items-center gap-1.5 border-b px-2">
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <Button
@@ -361,20 +366,13 @@ export function ChangesPreviewPane() {
               variant="ghost"
               size="icon"
               className="text-muted-foreground size-6 shrink-0 [&_svg]:size-3.5"
-              aria-label={diffHidden ? t("repo.diffShow") : t("repo.diffHide")}
-              aria-pressed={diffHidden}
-              onClick={() => setDiffHidden((prev) => !prev)}
+              aria-label={t("repo.commitDiffBack")}
+              onClick={() => selectCommitFile(null)}
             >
-              {diffHidden ? (
-                <EyeOff aria-hidden="true" />
-              ) : (
-                <Eye aria-hidden="true" />
-              )}
+              <ArrowLeft aria-hidden="true" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent align="center">
-            {diffHidden ? t("repo.diffShow") : t("repo.diffHide")}
-          </TooltipContent>
+          <TooltipContent>{t("repo.commitDiffBack")}</TooltipContent>
         </Tooltip>
         {statusLetter ? (
           <span
@@ -387,23 +385,25 @@ export function ChangesPreviewPane() {
             {statusLetter}
           </span>
         ) : null}
-        <CopyablePathLabel
-          path={selectedChange.path}
-          className="hover:text-foreground"
-        />
+        {/* 提示相对路径文字居中（非整行弹层宽度） */}
+        <CopyablePathLabel path={filePath} />
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground size-6 shrink-0 [&_svg]:size-3.5"
+              aria-label={t("repo.diffClosePreview")}
+              onClick={() => selectCommitFile(null)}
+            >
+              <X aria-hidden="true" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t("repo.diffClosePreview")}</TooltipContent>
+        </Tooltip>
       </div>
 
-      {diffHidden ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          <EyeOff
-            className="text-muted-foreground size-12 opacity-40"
-            aria-hidden="true"
-          />
-          <p className="text-muted-foreground text-sm">{t("repo.diffHide")}</p>
-        </div>
-      ) : (
-        <>
-      {/* 工具行：与历史提交对比共用 DiffPreviewToolbar */}
       <DiffPreviewToolbar
         encoding={encoding}
         onEncodingChange={setEncoding}
@@ -448,20 +448,38 @@ export function ChangesPreviewPane() {
           {mode === "diff" ? (
             <>
               {sideBySide ? (
-                <div className="border-border text-muted-foreground grid shrink-0 grid-cols-2 border-b text-[11px]">
+                <div className="border-border grid shrink-0 grid-cols-2 border-b text-[11px]">
                   <div className="border-border flex items-center justify-between gap-2 border-r px-3 py-1">
-                    <span className="truncate">{baseLabel}</span>
+                    <div className="flex min-w-0 items-baseline gap-1.5">
+                      {isRootCommit || !parentFullId ? (
+                        <span className="text-foreground truncate font-mono">
+                          {t("repo.diffEmptyTree")}
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-muted-foreground shrink-0">
+                            {t("repo.diffParentLabel")}
+                          </span>
+                          <CopyableDiffRev hash={parentFullId} />
+                        </>
+                      )}
+                    </div>
                     <span
-                      className="shrink-0 tabular-nums opacity-70"
+                      className="text-muted-foreground shrink-0 tabular-nums opacity-70"
                       title={t("repo.diffLineEnding")}
                     >
                       {baseEol}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2 px-3 py-1">
-                    <span className="truncate">{localLabel}</span>
+                    <div className="flex min-w-0 items-baseline gap-1.5">
+                      <span className="text-muted-foreground shrink-0">
+                        {t("repo.diffCommitLabel")}
+                      </span>
+                      <CopyableDiffRev hash={commitFullId} />
+                    </div>
                     <span
-                      className="shrink-0 tabular-nums opacity-70"
+                      className="text-muted-foreground shrink-0 tabular-nums opacity-70"
                       title={t("repo.diffLineEnding")}
                     >
                       {localEol}
@@ -469,10 +487,15 @@ export function ChangesPreviewPane() {
                   </div>
                 </div>
               ) : (
-                <div className="border-border text-muted-foreground flex shrink-0 items-center justify-between gap-2 border-b px-3 py-1 text-[11px]">
-                  <span className="truncate">{localLabel}</span>
+                <div className="border-border flex shrink-0 items-center justify-between gap-2 border-b px-3 py-1 text-[11px]">
+                  <div className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="text-muted-foreground shrink-0">
+                      {t("repo.diffCommitLabel")}
+                    </span>
+                    <CopyableDiffRev hash={commitFullId} />
+                  </div>
                   <span
-                    className="shrink-0 tabular-nums opacity-70"
+                    className="text-muted-foreground shrink-0 tabular-nums opacity-70"
                     title={t("repo.diffLineEnding")}
                   >
                     {localEol}
@@ -508,23 +531,24 @@ export function ChangesPreviewPane() {
                             },
                           } as Parameters<typeof editor.updateOptions>[0]);
                         }}
-                        options={{
-                          ...monacoCommonOptions,
-                          minimap: { enabled: false },
-                          renderOverviewRuler: false,
-                          fontFamily,
-                          renderSideBySide: sideBySide,
-                          originalEditable: false,
-                          renderIndicators: true,
-                          enableSplitViewResizing: sideBySide,
-                          // Monaco 运行时支持；当前 @monaco-editor/react 类型未收录
-                          hideUnchangedRegions: {
-                            enabled: foldUnchanged,
-                            revealLineCount: 1,
-                            minimumLineCount: 3,
-                            contextLineCount: 3,
-                          },
-                        } as ComponentProps<typeof DiffEditor>["options"]}
+                        options={
+                          {
+                            ...monacoCommonOptions,
+                            minimap: { enabled: false },
+                            renderOverviewRuler: false,
+                            fontFamily,
+                            renderSideBySide: sideBySide,
+                            originalEditable: false,
+                            renderIndicators: true,
+                            enableSplitViewResizing: sideBySide,
+                            hideUnchangedRegions: {
+                              enabled: foldUnchanged,
+                              revealLineCount: 1,
+                              minimumLineCount: 3,
+                              contextLineCount: 3,
+                            },
+                          } as ComponentProps<typeof DiffEditor>["options"]
+                        }
                         loading={
                           <div className="bg-background text-muted-foreground flex h-full items-center justify-center text-sm">
                             {t("common.loading")}
@@ -534,14 +558,12 @@ export function ChangesPreviewPane() {
                     ) : null}
                   </div>
                 </div>
-                {/* 仅最右侧：本地修改侧代码预览图 */}
                 <DiffSidePreview
                   changes={previewChanges}
                   viewport={previewViewport}
                   dark={dark}
                   onJumpRatio={(ratio) => {
-                    const modified =
-                      diffEditorRef.current?.getModifiedEditor();
+                    const modified = diffEditorRef.current?.getModifiedEditor();
                     if (!modified) {
                       return;
                     }
@@ -603,8 +625,6 @@ export function ChangesPreviewPane() {
           )}
         </div>
       ) : null}
-        </>
-      )}
     </div>
   );
 }

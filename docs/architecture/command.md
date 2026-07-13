@@ -282,6 +282,20 @@ interface GitBranch {
 - `maxBytes` 默认约 1MB；二进制不返回文本内容（`binary=true`）
 - `encoding`：文本解码编码 id（默认 `utf-8`；见前端 `TEXT_ENCODING_OPTIONS`），由 `encoding_rs` 解码
 
+### `git_commit_file_diff`
+
+| | |
+|--|--|
+| **目的** | 历史提交内单文件相对 parent 的前后对比（含 Monaco 两侧文本），供历史详情点击改动文件后展示 |
+| **输入** | `{ path: string; filePath: string; commitRev: string; parentRev?: string; maxBytes?: number; encoding?: string }` |
+| **输出** | `{ oldText; newText; patch; truncated: boolean; binary: boolean }` |
+| **错误** | 同 status；超限时 `truncated=true` 而非失败 |
+
+- `parentRev` 缺省或空字符串表示根提交（无父，相对空树）
+- old 侧读 `parentRev:filePath`，new 侧读 `commitRev:filePath`；文件新增 / 删除时对应侧因 blob 不存在自然为空文本，无需按状态特判
+- 文本 patch：有 parent 用 `git diff parentRev commitRev -- filePath`；根提交用 `git diff-tree -p --no-commit-id --root commitRev -- filePath`
+- 其余行为（`maxBytes` / `encoding` / 二进制判定）与 `git_diff` 一致
+
 ### `git_remotes`
 
 | | |

@@ -32,6 +32,10 @@ interface CommitFileTreeProps {
   showStatus?: boolean;
   /** 显示增加 / 减少行数 */
   showLineStats?: boolean;
+  /** 点击改动文件（仅有状态字母的文件可点，用于打开前后对比） */
+  onFileClick?: (file: GitChangedFile) => void;
+  /** 当前选中路径，用于高亮 */
+  selectedPath?: string | null;
 }
 
 /** 返回提交文件目录树全部路径，供外层控制展开与折叠。 */
@@ -57,6 +61,8 @@ export function CommitFileTree({
   onToggleFolder,
   showStatus = true,
   showLineStats = false,
+  onFileClick,
+  selectedPath = null,
 }: CommitFileTreeProps) {
   const nodes = useMemo(() => buildCommitFileTree(files), [files]);
   return (
@@ -74,6 +80,8 @@ export function CommitFileTree({
           onToggleFolder={onToggleFolder}
           showStatus={showStatus}
           showLineStats={showLineStats}
+          onFileClick={onFileClick}
+          selectedPath={selectedPath}
         />
       </RepositoryTreeRoot>
     </ul>
@@ -87,6 +95,8 @@ interface CommitFileTreeNodesProps {
   onToggleFolder: (path: string) => void;
   showStatus: boolean;
   showLineStats: boolean;
+  onFileClick?: (file: GitChangedFile) => void;
+  selectedPath: string | null;
 }
 
 function CommitFileTreeNodes({
@@ -96,16 +106,27 @@ function CommitFileTreeNodes({
   onToggleFolder,
   showStatus,
   showLineStats,
+  onFileClick,
+  selectedPath,
 }: CommitFileTreeNodesProps) {
   return (
     <>
       {nodes.map((node) => {
         if (node.kind === "file") {
+          // 仅有实际改动状态的文件可点（showAllFiles 下未改动文件 status 为空）
+          const clickable = Boolean(node.file.status) && Boolean(onFileClick);
+          const selected = selectedPath === node.file.path;
           return (
             <li key={node.file.path} role="treeitem">
               <div
-                className="hover:bg-accent/60 flex h-7 w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-md pr-1.5 transition-colors duration-150"
+                data-commit-file-row={clickable ? "" : undefined}
+                className={cn(
+                  "flex h-7 w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-md pr-1.5 transition-colors duration-150",
+                  clickable ? "cursor-pointer hover:bg-accent/60" : "cursor-default",
+                  selected && "bg-primary/10 hover:bg-primary/15",
+                )}
                 style={{ paddingLeft: `${6 + depth * 14}px` }}
+                onClick={clickable ? () => onFileClick?.(node.file) : undefined}
               >
                 {showStatus ? (
                   <span
@@ -160,6 +181,8 @@ function CommitFileTreeNodes({
                   onToggleFolder={onToggleFolder}
                   showStatus={showStatus}
                   showLineStats={showLineStats}
+                  onFileClick={onFileClick}
+                  selectedPath={selectedPath}
                 />
               </ul>
             ) : null}

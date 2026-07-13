@@ -178,6 +178,30 @@ pub fn git_diff(
     )
 }
 
+/// 历史提交内单文件相对 parent 的前后对比（Monaco 两侧文本）
+///
+/// `parent_rev` 传空字符串或缺省表示根提交（无父，相对空树）
+#[tauri::command]
+pub fn git_commit_file_diff(
+    path: String,
+    file_path: String,
+    commit_rev: String,
+    parent_rev: Option<String>,
+    max_bytes: Option<usize>,
+    encoding: Option<String>,
+) -> Result<GitDiffResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    let parent = parent_rev.filter(|value| !value.is_empty());
+    diff::get_commit_file_diff(
+        &repo_path,
+        &file_path,
+        &commit_rev,
+        parent.as_deref(),
+        max_bytes,
+        encoding.as_deref(),
+    )
+}
+
 #[tauri::command]
 pub fn git_stage(path: String, paths: Vec<String>) -> Result<OkResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;

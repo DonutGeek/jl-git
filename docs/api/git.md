@@ -68,6 +68,14 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 
 `staged=true` 读暂存区相对 HEAD；否则读工作区相对 HEAD。`encoding` 控制两侧文本解码（默认 UTF-8）。Monaco DiffEditor 使用 `oldText` / `newText`。
 
+### `getCommitFileDiff(repoPath, options: GitCommitFileDiffOptions): Promise<GitDiffResult>`
+
+- **Command：** `git_commit_file_diff`
+- **GitCommitFileDiffOptions：** `filePath` `commitRev` `parentRev?` `maxBytes?` `encoding?`
+- **GitDiffResult：** `oldText` `newText` `patch` `binary` `truncated`
+
+历史详情中点击改动文件后使用：对比该文件在 `parentRev` 与 `commitRev` 两个版本的内容。`parentRev` 缺省或空字符串表示根提交（相对空树）。行为与 `getDiff` 一致（`maxBytes` / `encoding` / 二进制判定）。
+
 ### `getGraph(repoPath, limit?: number): Promise<GraphPayload>`
 
 - **Command：** `git_graph_commits`
