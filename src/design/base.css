@@ -1,0 +1,38 @@
+/**
+ * 全局基础样式（依赖 tokens 已加载）
+ */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    margin: 0;
+    /* 避免窗口圆角处透出背后内容；字体可由设置覆盖 */
+    background-color: var(--background);
+    font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  }
+
+  code,
+  kbd,
+  pre,
+  .font-mono {
+    font-family: var(
+      --font-mono,
+      ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      Monaco,
+      Consolas,
+      monospace
+    );
+  }
+}

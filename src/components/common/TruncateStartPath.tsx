@@ -1,0 +1,123 @@
+import { useLayoutEffect, useRef, useState } from "react";
+
+import { cn } from "@/lib/utils";
+
+interface TruncateStartPathProps {
+  path: string;
+  className?: string;
+  /** 悬停完整路径；默认等于 path */
+  title?: string;
+}
+
+const ELLIPSIS = "…";
+
+let measureCanvas: HTMLCanvasElement | null = null;
+
+/** 用 canvas 测量文本像素宽度（与 DOM 字体一致时足够准） */
+function measureTextWidth(text: string, font: string): number {
+  if (typeof document === "undefined") {
+    return text.length * 7;
+  }
+  if (!measureCanvas) {
+    measureCanvas = document.createElement("canvas");
+  }
+  const context = measureCanvas.getContext("2d");
+  if (!context) {
+    return text.length * 7;
+  }
+  context.font = font;
+  return context.measureText(text).width;
+}
+
+function readElementFont(element: HTMLElement): string {
+  const style = getComputedStyle(element);
+  return `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+}
+
+/**
+ * 优先在路径分隔符处截断（…/views/file.ts），避免出现 …ext/src 这种难读残段；
+ * 仍放不下时再按字符二分。
+ */
+function truncatePathStart(
+  path: string,
+  available: number,
+  font: string,
+): string {
+  if (measureTextWidth(path, font) <= available) {
+    return path;
+  }
+
+  const segments = path.split("/");
+  // 从保留更多尾部段开始试：…/c/d → …/b/c/d → …
+  for (let start = 1; start < segments.length; start += 1) {
+    const candidate = `${ELLIPSIS}/${segments.slice(start).join("/")}`;
+    if (measureTextWidth(candidate, font) <= available) {
+      return candidate;
+    }
+  }
+
+  // 单段过长或极窄：字符级二分
+  let low = 0;
+  let high = path.length;
+  while (low < high) {
+    const mid = low + Math.ceil((high - low) / 2);
+    const candidate = `${ELLIPSIS}${path.slice(path.length - mid)}`;
+    if (measureTextWidth(candidate, font) <= available) {
+      low = mid;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  return low <= 0 ? ELLIPSIS : `${ELLIPSIS}${path.slice(path.length - low)}`;
+}
+
+/**
+ * 路径过长时从左侧省略，优先露出文件名 / 尾部路径段。
+ */
+export function TruncateStartPath({
+  path,
+  className,
+  title,
+}: TruncateStartPathProps) {
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const [display, setDisplay] = useState(path);
+
+  useLayoutEffect(() => {
+    const element = containerRef.current;
+    if (!element) {
+      return;
+    }
+
+    const update = (): void => {
+      const available = element.clientWidth;
+      if (available <= 0) {
+        setDisplay(path);
+        return;
+      }
+      setDisplay(truncatePathStart(path, available, readElementFont(element)));
+    };
+
+    update();
+    const observer = new ResizeObserver(() => {
+      update();
+    });
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, [path]);
+
+  return (
+    <span
+      ref={containerRef}
+      className={cn(
+        "min-w-0 flex-1 overflow-hidden text-left text-xs whitespace-nowrap",
+        className,
+      )}
+      title={title ?? path}
+    >
+      {display}
+    </span>
+  );
+}

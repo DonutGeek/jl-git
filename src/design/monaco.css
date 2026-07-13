@@ -1,0 +1,32 @@
+/**
+ * Monaco Diff / Editor 布局修复：在 flex + overflow 容器内必须显式宽高，
+ * 否则 side-by-side 会塌成「双行号 + 单栏代码」。
+ */
+
+.jlgit-monaco-host {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--background);
+}
+
+.jlgit-monaco-host .monaco-diff-editor,
+.jlgit-monaco-host .monaco-editor {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 避免全局 * 边框规则干扰 Monaco 内部测量 */
+.jlgit-monaco-host .monaco-editor *,
+.jlgit-monaco-host .monaco-diff-editor * {
+  border-color: transparent;
+}
+
+/* 预览图改用右侧独立组件，彻底隐藏 Monaco 内置 minimap（含左侧占位灰条） */
+.jlgit-monaco-host .minimap {
+  display: none !important;
+  width: 0 !important;
+  max-width: 0 !important;
+}

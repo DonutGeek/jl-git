@@ -1,0 +1,471 @@
+# Tauri Command 清单
+
+> **相关文档：** [tauri](tauri.md) · [git](git.md) · [database](database.md) · [api/git](../api/git.md) · [api/project](../api/project.md)
+
+本文是 **Command 契约的唯一真相源**。前端 Service 必须与此对齐；字段变更需同步 API 文档与 CHANGELOG。
+
+通用错误形状：
+
+```ts
+interface AppError {
+  code:
+    | "INVALID_PATH"
+    | "NOT_A_REPO"
+    | "GIT_FAILED"
+    | "GIT_NOT_FOUND"
+    | "GIT_TIMEOUT"
+    | "GIT_AUTH"
+    | "DB_ERROR"
+    | "NOT_FOUND"
+    | "VALIDATION"
+    | "CANCELLED"
+    | "INTERNAL";
+  message: string;
+  details?: string;
+}
+```
+
+未额外说明时，失败均返回 `AppError`。
+
+---
+
+## 系统
+
+### `git_version`
+
+| | |
+|--|--|
+| **目的** | 探测本机 Git 是否可用及版本 |
+| **输入** | `{ executable?: string }` |
+| **输出** | `{ version: string; path: string }` |
+| **错误** | `GIT_NOT_FOUND` |
+
+### `app_paths`
+
+| | |
+|--|--|
+| **目的** | 返回应用数据目录等标准路径 |
+| **输入** | `{}` |
+| **输出** | `{ appData: string; dbUrl: string }` |
+| **错误** | `INTERNAL` |
+
+---
+
+## 项目 / 工作区
+
+### `project_list`
+
+| | |
+|--|--|
+| **目的** | 列出已登记项目 |
+| **输入** | `{ workspaceId?: string }` |
+| **输出** | `{ projects: ProjectRow[] }` |
+| **错误** | `DB_ERROR` |
+
+### `project_add`
+
+| | |
+|--|--|
+| **目的** | 登记本地仓库路径 |
+| **输入** | `{ path: string; workspaceId?: string; name?: string }` |
+| **输出** | `{ project: ProjectRow }` |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `DB_ERROR` `VALIDATION` |
+
+### `project_remove`
+
+| | |
+|--|--|
+| **目的** | 从应用移除登记（不删磁盘仓库） |
+| **输入** | `{ id: string }` |
+| **输出** | `{ ok: true }` |
+| **错误** | `NOT_FOUND` `DB_ERROR` |
+
+### `project_update`
+
+| | |
+|--|--|
+| **目的** | 更新显示名 / 工作区 / 置顶 |
+| **输入** | `{ id: string; name?: string; workspaceId?: string | null; pinned?: boolean }` |
+| **输出** | `{ project: ProjectRow }` |
+| **错误** | `NOT_FOUND` `DB_ERROR` `VALIDATION` |
+
+### `project_touch_opened`
+
+| | |
+|--|--|
+| **目的** | 记录打开，维护 recent |
+| **输入** | `{ id: string }` |
+| **输出** | `{ ok: true }` |
+| **错误** | `NOT_FOUND` `DB_ERROR` |
+
+### `project_pick_directory`
+
+| | |
+|--|--|
+| **目的** | 系统对话框选择目录并返回路径（不自动入库） |
+| **输入** | `{}` |
+| **输出** | `{ path: string | null }` |
+| **错误** | `CANCELLED`（可映射为 path null）`INTERNAL` |
+
+### `workspace_list` / `workspace_create` / `workspace_update` / `workspace_delete`
+
+| 命令 | 目的 | 输入 | 输出 | 错误 |
+|------|------|------|------|------|
+| `workspace_list` | 列出工作区 | `{}` | `{ workspaces: WorkspaceRow[] }` | `DB_ERROR` |
+| `workspace_create` | 创建 | `{ name: string }` | `{ workspace: WorkspaceRow }` | `VALIDATION` `DB_ERROR` |
+| `workspace_update` | 改名/排序 | `{ id; name?; sortOrder? }` | `{ workspace }` | `NOT_FOUND` `DB_ERROR` |
+| `workspace_delete` | 删除（项目 workspace_id 置空） | `{ id }` | `{ ok: true }` | `NOT_FOUND` `DB_ERROR` |
+
+### `favorite_set` / `favorite_list`
+
+| 命令 | 目的 | 输入 | 输出 |
+|------|------|------|------|
+| `favorite_set` | 设置/取消收藏 | `{ projectId: string; favorite: boolean }` | `{ ok: true }` |
+| `favorite_list` | 收藏列表 | `{}` | `{ projectIds: string[] }` |
+
+### `recent_list`
+
+| | |
+|--|--|
+| **目的** | 最近打开 |
+| **输入** | `{ limit?: number }` 默认 20 |
+| **输出** | `{ items: { projectId: string; openedAt: string }[] }` |
+
+`ProjectRow` / `WorkspaceRow` 字段与 [database.md](database.md) 一致（camelCase 序列化）。
+
+---
+
+## Git：只读
+
+### `fs_list_dir`
+
+| | |
+|--|--|
+| **目的** | 列出仓库内相对目录一层子项（目录树懒加载） |
+| **输入** | `{ path: string; relative?: string }`（`relative` 空或省略表示仓库根） |
+| **输出** | `{ entries: { name: string; path: string; isDir: boolean }[] }` |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` |
+| **安全** | 路径须相对仓库根；canonicalize 后必须落在仓库根下；跳过 `.git` |
+
+### `fs_file_size`
+
+| | |
+|--|--|
+| **目的** | 读取仓库内相对文件大小（变更列表悬停展示） |
+| **输入** | `{ path: string; filePath: string }` |
+| **输出** | `{ size: number \| null }`（字节；无法取得时为 null） |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` |
+| **说明** | 优先工作区文件；已删除则回退 `HEAD:path` / `:path` blob |
+
+### `git_status`
+
+| | |
+|--|--|
+| **目的** | 工作区与暂存区状态 |
+| **输入** | `{ path: string }` |
+| **输出** | `GitStatusResult`（见下） |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `GIT_FAILED` |
+| **说明** | `status --porcelain=v2 --branch --untracked-files=all`（展开未跟踪目录内文件） |
+
+```ts
+interface GitStatusResult {
+  branch: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  detached: boolean;
+  entries: GitStatusEntry[];
+}
+
+interface GitStatusEntry {
+  path: string;
+  indexStatus: string;   // porcelain 语义
+  worktreeStatus: string;
+  renamedFrom?: string;
+}
+```
+
+### `git_identity`
+
+| | |
+|--|--|
+| **目的** | 读取当前仓库生效的提交身份（`user.name` / `user.email`，含全局配置） |
+| **输入** | `{ path: string }` |
+| **输出** | `{ name: string \| null; email: string \| null }` |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `GIT_FAILED` |
+
+未配置时对应字段为 `null`，不视为错误。
+
+### `git_branches`
+
+| | |
+|--|--|
+| **目的** | 本地/远程分支列表 |
+| **输入** | `{ path: string; includeRemote?: boolean }` |
+| **输出** | `{ branches: GitBranch[] }` |
+| **错误** | 同 status 类 |
+
+```ts
+interface GitBranch {
+  name: string;
+  isCurrent: boolean;
+  isRemote: boolean;
+  upstream?: string;
+  ahead?: number;
+  behind?: number;
+}
+```
+
+### `git_log`
+
+| | |
+|--|--|
+| **目的** | 提交历史（分页） |
+| **输入** | `{ path: string; skip?: number; limit?: number; ref?: string }` |
+| **输出** | `{ commits: GitCommitSummary[]; hasMore: boolean }`（`GitCommitSummary` 含 `id/shortId/authorName/authoredAt/subject/refs`） |
+| **错误** | 同 status 类；`VALIDATION`（limit 过大） |
+
+默认 `limit=50`，硬上限建议 200。`refs` 来自 `git log --decorate` 的 `%D`（远端分支展示为 `origin&name`）。
+
+### `git_show`
+
+| | |
+|--|--|
+| **目的** | 单提交元数据 + 相对各 parent 的改动文件（name-status） |
+| **输入** | `{ path: string; rev: string }` |
+| **输出** | `{ commit: GitCommitDetail }`（含 `parents` / `parentShortIds` / `diffs[]`） |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `GIT_FAILED` |
+
+### `git_diff`
+
+| | |
+|--|--|
+| **目的** | 工作区 / 暂存区单文件 Diff（含 Monaco 两侧文本） |
+| **输入** | `{ path: string; filePath: string; staged?: boolean; maxBytes?: number; encoding?: string }` |
+| **输出** | `{ oldText; newText; patch; truncated: boolean; binary: boolean }` |
+| **错误** | 同 status；超限时 `truncated=true` 而非失败 |
+
+- `staged=false`（默认）：对比 `HEAD:file` 与工作区文件  
+- `staged=true`：对比 `HEAD:file` 与索引 `:file`  
+- `maxBytes` 默认约 1MB；二进制不返回文本内容（`binary=true`）
+- `encoding`：文本解码编码 id（默认 `utf-8`；见前端 `TEXT_ENCODING_OPTIONS`），由 `encoding_rs` 解码
+
+### `git_remotes`
+
+| | |
+|--|--|
+| **目的** | 远程列表 |
+| **输入** | `{ path: string }` |
+| **输出** | `{ remotes: { name: string; fetchUrl: string; pushUrl: string }[] }` |
+
+### `git_tags`
+
+| | |
+|--|--|
+| **目的** | 标签列表 |
+| **输入** | `{ path: string }` |
+| **输出** | `{ tags: { name: string; peel?: string }[] }` |
+
+### `git_stash_list`
+
+| | |
+|--|--|
+| **目的** | Stash 列表 |
+| **输入** | `{ path: string }` |
+| **输出** | `{ entries: { index: number; message: string }[] }` |
+
+### `git_graph_commits`
+
+| | |
+|--|--|
+| **目的** | 供提交图使用的精简拓扑数据 |
+| **输入** | `{ path: string; limit?: number }` |
+| **输出** | `{ nodes: GraphNode[]; edges: GraphEdge[] }` |
+
+具体 `GraphNode` 在实现时与前端 Graph 库对齐，变更记入 CHANGELOG。
+
+---
+
+## Git：写操作
+
+### `git_stage` / `git_unstage`
+
+| 命令 | 目的 | 输入 | 输出 |
+|------|------|------|------|
+| `git_stage` | 暂存路径 | `{ path; paths: string[] }` | `{ ok: true }` |
+| `git_unstage` | 取消暂存 | `{ path; paths: string[] }` | `{ ok: true }` |
+
+路径必须相对仓库根；拒绝 `..` 与绝对路径逃逸 → `VALIDATION`。
+
+### `git_stage_all` / `git_unstage_all`
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `git_stage_all` | `{ path }` | `{ ok: true }` |
+| `git_unstage_all` | `{ path }` | `{ ok: true }` |
+
+### `git_discard`
+
+| | |
+|--|--|
+| **目的** | 丢弃工作区未提交修改（危险） |
+| **输入** | `{ path: string; paths: string[] }` |
+| **输出** | `{ ok: true }` |
+| **错误** | `VALIDATION`；UI 必须二次确认 |
+
+### `git_commit`
+
+| | |
+|--|--|
+| **目的** | 创建提交（ugit 式：按路径列表重建 index 后 commit） |
+| **输入** | `{ path: string; message: string; paths: string[]; removePaths?: string[]; amend?: boolean }` |
+| **输出** | `{ commitId: string }` |
+| **错误** | `VALIDATION`（空 message / 空 paths）；`GIT_FAILED`（hooks 失败等） |
+
+执行顺序：
+
+1. `git reset -- .` — 清空暂存区
+2. `git update-index --add --remove --replace -z --stdin` — 写入 `paths`
+3. 若有 `removePaths`：`git update-index --force-remove ... -z --stdin`
+4. `git commit -F -`（stdin 为 message；可选 `--amend`）
+
+默认不传 `--no-verify`。
+
+### `git_branch_create` / `git_branch_delete` / `git_checkout`
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `git_branch_create` | `{ path; name; checkout?: boolean; startPoint?: string }` | `{ ok: true }` |
+| `git_branch_delete` | `{ path; name; force?: boolean }` | `{ ok: true }` |
+| `git_checkout` | `{ path; ref: string }` | `{ ok: true }` |
+
+### `git_fetch` / `git_pull` / `git_push`
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `git_fetch` | `{ path; remote?: string }` | `{ ok: true; remote: string; elapsedMs: number }` |
+| `git_pull` | `{ path; remote?: string; branch?: string; rebase?: boolean }` | `{ ok: true; remote: string; elapsedMs: number }` |
+| `git_push` | `{ path; remote?: string; branch?: string; setUpstream?: boolean; force?: boolean }` | `{ ok: true; remote: string; elapsedMs: number }` |
+
+`git_fetch` / `git_pull` / `git_push` 在阻塞线程池异步执行；fetch/pull 默认 120s、push 180s 超时；超时返回 `GIT_TIMEOUT`。  
+`git_pull` 对齐 ugit：`pull --recurse-submodules --progress`，并带 `protocol.version=2`；**不**清空 credential.helper。成功后前端刷新 status / branches / log。
+
+### `system_app_info` / `system_disk_space` / `system_list_fonts`
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `system_app_info` | — | `{ name; version; arch }` |
+| `system_list_fonts` | — | `string[]`（本机字体族，已排序去重） |
+| `system_disk_space` | `{ path?: string }` | `{ path; totalBytes; availableBytes }` |
+| `system_open_terminal` | `{ path }` | `{ ok: true }` |
+| `system_reveal_in_file_manager` | `{ path }` | `{ ok: true }` |
+| `system_open_in_editor` | `{ path }` | `{ ok: true }` |
+
+`system_list_fonts` 经 `font-kit` 枚举系统字体族，供设置中客户端 / 编辑器字体下拉使用。
+
+`path` 须为已存在目录。终端 / 访达 / 编辑器均用参数数组调用系统命令，不拼 shell。
+
+### `git_identity_global`
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `git_identity_global` | — | `{ name; email }` |
+
+`force` 默认 false；UI 对 force 二次确认。凭据失败 → `GIT_AUTH` / `GIT_FAILED`。
+
+### `git_merge` / `git_rebase` / `git_cherry_pick`
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `git_merge` | `{ path; ref: string; noFf?: boolean }` | `{ ok: true }` 或冲突信息结构 |
+| `git_rebase` | `{ path; upstream: string }` | 同上 |
+| `git_cherry_pick` | `{ path; revs: string[] }` | 同上 |
+
+冲突时不要伪造成功；返回明确冲突状态供 UI。
+
+### `git_tag_create` / `git_tag_delete`
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `git_tag_create` | `{ path; name; message?: string; ref?: string }` | `{ ok: true }` |
+| `git_tag_delete` | `{ path; name }` | `{ ok: true }` |
+
+### `git_stash_push` / `git_stash_apply` / `git_stash_drop` / `git_stash_pop`
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `git_stash_push` | `{ path; message?: string; includeUntracked?: boolean }` | `{ ok: true }` |
+| `git_stash_apply` | `{ path; index?: number }` | `{ ok: true }` |
+| `git_stash_pop` | `{ path; index?: number }` | `{ ok: true }` |
+| `git_stash_drop` | `{ path; index: number }` | `{ ok: true }` |
+
+### `git_worktree_list` / `git_worktree_add` / `git_worktree_remove`
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `git_worktree_list` | `{ path }` | `{ worktrees: { path; head; branch? }[] }` |
+| `git_worktree_add` | `{ path; targetPath; branch }` | `{ ok: true }` |
+| `git_worktree_remove` | `{ path; targetPath; force?: boolean }` | `{ ok: true }` |
+
+---
+
+## 设置
+
+### `settings_get` / `settings_set` / `settings_get_all`
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `settings_get` | `{ key: string }` | `{ value: unknown \| null }`（JSON 解析后） |
+| `settings_set` | `{ key: string; value: unknown }` | `{ ok: true }` |
+| `settings_get_all` | `{}` | `{ settings: Record<string, unknown> }` |
+
+错误：`DB_ERROR` `VALIDATION`。
+
+---
+
+## 通知（应用层封装）
+
+系统通知主要走插件 API；若需统一权限探测：
+
+### `notification_permission` / `notification_send`
+
+| 命令 | 目的 | 输入 | 输出 |
+|------|------|------|------|
+| `notification_permission` | 查询/请求权限 | `{}` | `{ granted: boolean }` |
+| `notification_send` | 发送通知 | `{ title: string; body?: string }` | `{ ok: true }` |
+
+也可由前端直接调插件；若直接调用，须仍经 `NotificationService` 门面，本表作可选 Rust 封装。
+
+---
+
+## AI（预留）
+
+### `ai_history_list` / `ai_history_add` / `ai_history_clear`
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `ai_history_list` | `{ projectId?; limit? }` | `{ items: AiHistoryRow[] }` |
+| `ai_history_add` | `{ projectId?; kind; inputSummary; output; model? }` | `{ item }` |
+| `ai_history_clear` | `{ projectId? }` | `{ ok: true }` |
+
+模型推理可在前端 SDK 或后续 `ai_complete` Command 中代理；密钥不落 SQLite。见 [ai](../product/ai.md)。
+
+---
+
+## 实现状态约定
+
+| 标记（在 feature-list） | 含义 |
+|-------------------------|------|
+| Planned | 契约已定，代码未实现 |
+| In Progress | 部分实现 |
+| Done | 前后端对齐并可用 |
+
+当前仓库脚手架仅含示例 `greet`；上表为目标契约，实现时按 roadmap 分批替换 `greet`。
+
+---
+
+## 命名规则
+
+- `snake_case`
+- 域前缀：`project_` `git_` `settings_` `workspace_` `favorite_` `recent_` `ai_` `notification_`
+- 动词在后：`git_branch_create` 而非 `create_git_branch`（与现有表风格一致，便于按前缀搜索）

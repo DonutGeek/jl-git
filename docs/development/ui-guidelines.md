@@ -1,0 +1,259 @@
+# UI 指南
+
+> **相关文档：** [theme](theme.md) · [frontend](../architecture/frontend.md) · [AGENTS.md](../../AGENTS.md)
+
+灵感来源：**GitHub Desktop、VS Code、Linear、SourceGit**。  
+关键词：Minimal · Professional · Developer-first · Fast · Clean · Consistent。
+
+---
+
+## 总体原则
+
+1. 信息密度适中：侧栏导航清晰，主区聚焦当前任务
+2. 一层主操作 + 一层次要操作；避免工具条按钮墙
+3. 用排版与留白分层，而不是重阴影与渐变
+4. 所有颜色来自 Tokens（[theme](theme.md)）
+5. UI 图标仅 `lucide-react`；工作区文件/目录类型图标用 `material-icon-theme`（VS Code Material Icon Theme），禁止用 lucide 冒充文件类型
+6. 基础控件优先用 **shadcn/ui 官方组件**，按需引入，不手写第二套 Button/Dialog/Input
+
+---
+
+## shadcn/ui
+
+JLGit 以 [shadcn/ui](https://ui.shadcn.com/) 作为基础组件来源（代码生成进仓库，而非运行时依赖整包 UI 库）。
+
+| 资源 | 链接 |
+|------|------|
+| 官网 / 文档 | https://ui.shadcn.com/ |
+| 组件目录 | https://ui.shadcn.com/docs/components |
+| 安装与 CLI | https://ui.shadcn.com/docs/cli |
+| 主题 / CSS Variables | https://ui.shadcn.com/docs/theming |
+
+本仓库已配置 `components.json`（style: `new-york`，输出目录 `@/components/ui`，图标 `lucide`）。
+
+### 按需引入
+
+需要 Dialog、Dropdown、Tabs、Tooltip、Command 等时，用官方 CLI **按需添加**，不要从零实现等价基础件：
+
+```bash
+pnpm dlx shadcn@latest add button
+pnpm dlx shadcn@latest add dialog
+pnpm dlx shadcn@latest add dropdown-menu
+# 其余组件名见官方组件目录
+```
+
+规则：
+
+1. 生成文件落在 `src/components/ui/`，可按项目 Tokens 微调，保持与 [theme](theme.md) 一致
+2. 业务组件（`components/git` 等）**组合** ui 层，不复制其视觉实现
+3. 只添加当前功能用到的组件，避免一次性 `add` 全量目录
+4. 新增官方组件若引入额外 Radix / 依赖，在 PR 中说明用途；仍遵守「不引入第二套 UI 体系」
+5. 官方没有、且属于领域 UI 的控件，放 `components/common` 或对应域目录，而不是硬塞进 `ui/`
+
+---
+
+## 布局骨架
+
+```
+┌──────────────────────────────────────────────┐
+│ Header（仓库名 / 分支 / 全局操作）              │
+├────────────┬─────────────────────────────────┤
+│ Sidebar    │ Main                             │
+│ 导航/文件  │ Toolbar                          │
+│            │ Content（列表 / Diff / 表单）     │
+│            │                                  │
+└────────────┴─────────────────────────────────┘
+```
+
+- **Dashboard**：无仓库侧栏时，用项目网格/列表 + 最近
+- **Repo**：左导航（Changes / History / Branches…）+ 主区
+
+---
+
+## Header
+
+- 高度紧凑（约 40–48px）
+- 左：仓库名、当前分支切换
+- 右：Fetch / Pull / Push、更多菜单
+- 不放营销文案或大 Logo 墙
+
+---
+
+## Sidebar
+
+- 背景 `--sidebar`，右边框 `--sidebar-border`
+- 激活项：清晰但不刺眼的 `accent`
+- 可拖拽调宽；宽度写入设置
+- 文件列表：状态色点 + 路径；长路径中间省略
+
+---
+
+## Toolbar
+
+- 主区顶部一条；分组：选择操作 | 视图切换 | 溢出菜单
+- 主按钮最多一个 Primary（如 Commit）
+- 危险操作（Discard）用 destructive，且需确认
+
+---
+
+## 按钮
+
+| 变体 | 场景 |
+|------|------|
+| Primary | 提交、确认主流程 |
+| Secondary / Outline | 次要 |
+| Ghost | 工具条图标、密集区 |
+| Destructive | 删除、丢弃 |
+
+- 图标按钮必须有 `aria-label` 或 Tooltip
+- 加载态：禁用 + spinner，防止重复提交
+
+---
+
+## 输入
+
+- 统一高度与 `--radius-md`
+- Commit message：主输入用 textarea；标题/正文可分（产品决定）
+- 校验错误：输入框下短文案，红色用 `--destructive`
+
+---
+
+## 表格与列表
+
+- 提交历史、分支表：TanStack Table 可选
+- 大列表：TanStack Virtual
+- 行悬停态轻量；选中态明确
+- 数字/hash 等宽字体
+
+---
+
+## 对话框
+
+- 用于：确认危险操作、创建分支、设置片段
+- 焦点陷阱、Esc 关闭、主按钮明确
+- 完整应用设置用右侧 **Sheet 抽屉**（保留当前仓库工作区），不要用 Dialog 堆完整设置；也不强制跳转 `/settings` 路由页
+
+---
+
+## 设置抽屉
+
+- 入口：活动栏底部「设置」
+- 形态：`Sheet` `side="right"`，遮罩可点关闭，Esc 关闭
+- 分组：外观 / Git / 通知…；内容增多时可在抽屉内加左侧小导航
+- 瞬时开合状态进 Zustand，不进 URL
+
+---
+
+## Diff
+
+- 增删行使用 `--diff-add` / `--diff-del`
+- 可切换 unified / split（实现阶段）
+- 二进制文件明确提示，不尝试渲染乱码
+- 超大 patch 截断并提示（与 `git_diff` 的 `truncated` 对齐）
+
+---
+
+## 空状态与错误
+
+- 空状态：一句话 + 一个主操作（如「添加仓库」）
+- 错误：可读、可重试；技术细节折叠或仅日志
+- 加载中：骨架或短文案，避免空白闪烁；异步按钮禁用防重复提交
+- 成功反馈：短 toast；破坏性操作成功也要可感知
+
+---
+
+## 动效预算
+
+- 允许 2–3 种全局一致的过渡（侧栏、对话框、toast）
+- 列表重排可用轻量 layout 动画；默认关闭花哨
+- 颜色 / 透明度过渡优先 `transition-colors`（约 150–200ms）
+- 分隔线悬停、图标激活态必须有视觉变化，不可「点了没反应」
+
+---
+
+## 用户体验硬规则（JLGit 特别重视）
+
+本产品是**工具型桌面客户端**，体验对标 GitHub Desktop / VS Code / Linear。下列细节**不是可选项**，实现与 Code Review 时必须检查。
+
+### 1. 纯图标必须可理解
+
+| 要求 | 说明 |
+|------|------|
+| Tooltip | 无文字的图标按钮悬停必须出现 Tooltip（shadcn `Tooltip`），文案走 i18n |
+| aria-label | 与 Tooltip 文案一致，保证键盘与读屏 |
+| 延迟 | 默认约 300ms，避免鼠标划过刷屏 |
+| 位置 | 活动栏靠右；顶栏靠下；不遮挡关键内容 |
+
+**禁止**：仅靠「大家应该认识这个图标」省略提示。
+
+### 2. 交互反馈
+
+| 交互 | 期望 |
+|------|------|
+| 悬停 | 可点控件有背景/颜色变化；分隔线悬停变色加粗（不改布局占位） |
+| 光标 | 见下表「光标约定」；悬停即可从光标判断能否点、能否拖 |
+| 点击 / 按下 | 激活态明确（`aria-pressed` / 选中背景）；主按钮有禁用与加载态 |
+| 双击 | 若支持（如打开文件、checkout），必须与单击区分，并在文档/注释标明 |
+| 拖拽 | 分隔线悬停即 `col-resize` / `row-resize`；拖拽中保持高亮；**悬停加粗不得改变布局占位宽度**；**拖拽结束后若残留 focus，不得继续高亮整条线**（仅 hover/active 高亮，focus 用细环） |
+| 焦点 | 键盘可达；可见 focus ring（勿 `outline-none` 后不补替代样式） |
+
+### 2.1 光标约定（必须）
+
+| 区域 / 控件 | 光标 | 说明 |
+|-------------|------|------|
+| 按钮、可点击列表行、标签、活动栏图标 | `cursor-pointer` | 明确「可点」 |
+| 禁用按钮 / 不可点 | `cursor-not-allowed` 或保持默认且无 pointer | 与 `disabled` 一致 |
+| 异步进行中（整行打开中） | `cursor-wait` 可选用 | 防重复点 |
+| 面板分隔线（左右拖） | `cursor-col-resize` | 悬停即显示，不必等按下 |
+| 面板分隔线（上下拖） | `cursor-row-resize` | 同上 |
+| 文本输入 / 可选中正文 | `cursor-text`（浏览器默认即可） | 勿强行 pointer |
+| 仅展示、暂不可点的列表行 | `cursor-default` | 可有轻悬停底，但不要假 pointer |
+| 顶栏仓库标签 | 整标签拖拽排序（无独立手柄，Chrome/VS Code 惯例）；关闭按钮在右侧且不参与拖拽；间距紧凑统一 `gap-1` |
+
+**禁止**：可点区域悬停仍是箭头；可拖分隔线悬停仍是箭头；用改布局宽度制造「加粗」反馈。
+
+### 3. 加载与异步
+
+- 切换仓库：保留顶栏/工具栏/分栏壳，只刷新 Git 数据；禁止用整页 loading 替换导致「闪一下」
+- 首屏 / 切仓库：首次进入可整页占位；标签切换用轻量遮罩或面板内空态，不拆壳
+- 列表懒加载（目录树展开）：节点内短占位（如 `…`），失败可重试或 toast
+- 写操作（stage / commit / checkout）：按钮 `disabled` + 文案或 spinner；失败 toast，成功短提示
+
+### 4. 空状态
+
+- 每个主面板（最近项目、变更、分支、历史、目录树）都要有空状态文案
+- 空状态优先给**一个**明确下一步（打开仓库、暂存、切换分支等）
+- 区分「真的空」与「加载失败」
+
+### 5. 过渡与动效
+
+- 面板切换、对话框开关、Tooltip 出现：短淡入/缩放即可
+- 不使用夸张弹跳、长时动画、干扰阅读的动效
+- 布局宽度变化跟手；记住用户拖拽结果（localStorage / 设置）
+
+### 6. 文案与 i18n
+
+- 用户可见文案（含 Tooltip、空状态、toast、aria-label）一律走 i18n
+- 品牌名 `JLGit` 可硬编码；路径、分支名、hash 等数据不翻译
+
+### 7. 验收清单（功能合入前）
+
+- [ ] 所有纯图标按钮有 Tooltip + `aria-label`
+- [ ] 悬停 / 激活 / 禁用态可区分；**光标符合约定**（可点 pointer、分隔线 col/row-resize）
+- [ ] 空状态与加载态已覆盖主路径
+- [ ] 异步操作有防重复与错误提示
+- [ ] 分隔线悬停有视觉反馈且**不挤动布局**
+- [ ] 无硬编码产品文案（除品牌名）
+
+---
+
+## 反模式
+
+- 英雄区营销布局套在工具型 App
+- 卡片套卡片
+- 紫粉渐变主题、玻璃光晕堆叠
+- 同一屏多个 Primary 按钮争夺注意力
+- 纯图标无提示、点击无反馈、空面板无说明
+- 可点区域光标仍是默认箭头；可拖分隔线无 `col-resize`
+- 悬停加粗导致内容左右抖动
+- 为「炫技」加入与任务无关的长动画

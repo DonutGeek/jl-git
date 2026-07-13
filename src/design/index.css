@@ -1,0 +1,14 @@
+/**
+ * Design 入口：Tailwind + Tokens + 基础样式
+ * 应用侧请从 src/index.css 引入（shadcn 约定路径）。
+ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@import "./tokens.css";
+@import "./theme-map.css";
+@import "./base.css";
+@import "./monaco.css";
+
+@custom-variant dark (&:is(.dark *));

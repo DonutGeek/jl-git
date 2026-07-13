@@ -1,0 +1,152 @@
+# GitService API
+
+> **相关文档：** [command](../architecture/command.md) · [git](../architecture/git.md) · [architecture/overview](../architecture/overview.md)
+
+Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`、`git.commit.ts`、`git.diff.ts`、`git.remote.ts`、`git.stash.ts`、`git.tag.ts`、`git.worktree.ts`，由 `services/git/index.ts` 聚合导出。
+
+---
+
+## 通用
+
+每个方法的第一个语义参数均为仓库工作树路径 `repoPath: string`（来自 `Project.path`）。
+
+错误：映射 `AppError`；UI 侧统一 `toUserMessage`。
+
+---
+
+## 状态与历史
+
+### `listDir(repoPath: string, relative?: string): Promise<FsListResult>`
+
+- **Command：** `fs_list_dir`
+- **说明：** 列出相对目录一层子项；目录树懒加载用
+
+### `getFileSize(repoPath: string, filePath: string): Promise<FsFileSizeResult>`
+
+- **Command：** `fs_file_size`
+- **说明：** 读取相对文件大小（变更列表悬停展示）；工作区优先，已删回退 HEAD / index
+
+### `getStatus(repoPath: string): Promise<GitStatusResult>`
+
+- **Command：** `git_status`
+
+### `getIdentity(repoPath: string): Promise<GitIdentity>`
+
+- **Command：** `git_identity`
+- **说明：** 返回生效的 `user.name` / `user.email`；未配置时字段为 `null`
+
+### `getLog(repoPath, options?: { skip?; limit?; ref? }): Promise<{ commits; hasMore }>`
+
+- **Command：** `git_log`
+
+### `getCommit(repoPath, rev: string): Promise<GitCommitDetail>`
+
+- **Command：** `git_show`
+- **说明：** 返回提交元数据，以及相对每个 parent 的 `name-status` 文件列表（合并提交会有多组）
+
+### `getDiff(repoPath, options: DiffOptions): Promise<DiffResult>`
+
+- **Command：** `git_diff`
+- **DiffOptions：** `filePath` `staged?` `maxBytes?` `encoding?`
+- **DiffResult：** `oldText` `newText` `patch` `binary` `truncated`
+
+`staged=true` 读暂存区相对 HEAD；否则读工作区相对 HEAD。`encoding` 控制两侧文本解码（默认 UTF-8）。Monaco DiffEditor 使用 `oldText` / `newText`。
+
+### `getGraph(repoPath, limit?: number): Promise<GraphPayload>`
+
+- **Command：** `git_graph_commits`
+
+类型定义以 `src/types/git.ts` 为准，并与 command 文档同步。
+
+---
+
+## 暂存与提交
+
+| 方法 | Command |
+|------|---------|
+| `stage(repoPath, paths: string[])` | `git_stage` |
+| `unstage(repoPath, paths: string[])` | `git_unstage` |
+| `stageAll(repoPath)` | `git_stage_all` |
+| `unstageAll(repoPath)` | `git_unstage_all` |
+| `discard(repoPath, paths: string[])` | `git_discard` |
+| `commit(repoPath, message, options: { paths; removePaths?; amend? })` | `git_commit` |
+
+`commit` 按 ugit 流程：`reset` → `update-index`（`paths` / `removePaths`）→ `commit -F -`。调用方应传入当前「待提交」路径列表。
+
+`discard` 调用前 UI 必须确认。成功后调用方应 `getStatus` 刷新 Store。
+
+---
+
+## 分支
+
+| 方法 | Command |
+|------|---------|
+| `listBranches(repoPath, includeRemote?: boolean)` | `git_branches` |
+| `createBranch(repoPath, name, options?: { checkout?; startPoint? })` | `git_branch_create` |
+| `deleteBranch(repoPath, name, force?: boolean)` | `git_branch_delete` |
+| `checkout(repoPath, ref: string)` | `git_checkout` |
+
+`createBranch` 默认 `checkout: true`（创建后切换到新分支）。
+
+---
+
+## 远程
+
+| 方法 | Command |
+|------|---------|
+| `listRemotes(repoPath)` | `git_remotes` |
+| `fetch(repoPath, remote?: string)` | `git_fetch` | 返回 `{ ok, remote, elapsedMs }` |
+| `pull(repoPath, options?: { remote?; branch?; rebase? })` | `git_pull` | 返回 `{ ok, remote, elapsedMs }` |
+| `push(repoPath, options?: { remote?; branch?; setUpstream?; force? })` | `git_push` | 返回 `{ ok, remote, elapsedMs }` |
+
+`pull` 默认由调用方传 `origin` + 当前分支；成功后应刷新 status / branches / log。  
+`force: true` 仅在 UI 确认后传入。
+
+---
+
+## Tag / Stash / Worktree / Merge 族
+
+| 方法 | Command |
+|------|---------|
+| `listTags` / `createTag` / `deleteTag` | `git_tags` / `git_tag_create` / `git_tag_delete` |
+| `listStash` / `stashPush` / `stashApply` / `stashPop` / `stashDrop` | 对应 `git_stash_*` |
+| `listWorktrees` / `addWorktree` / `removeWorktree` | `git_worktree_*` |
+| `merge` / `rebase` / `cherryPick` | `git_merge` / `git_rebase` / `git_cherry_pick` |
+
+冲突结果不得被当成成功；类型中应区分 `ok` 与 `conflict`。
+
+---
+
+## 系统探测
+
+### `getGitVersion(executable?: string): Promise<{ version: string; path: string }>`
+
+- **Command：** `git_version`
+
+---
+
+## 聚合导出示例
+
+```ts
+// src/services/git/index.ts
+export const gitService = {
+  getStatus,
+  stage,
+  unstage,
+  commit,
+  listBranches,
+  fetch,
+  pull,
+  push,
+  getDiff,
+  // ...
+};
+```
+
+---
+
+## 非职责
+
+- 不写 SQLite 项目表
+- 不弹系统对话框（选目录属 ProjectService）
+- 不直接改 DOM / Store（由 Hook 编排）
