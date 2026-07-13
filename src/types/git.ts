@@ -18,6 +18,12 @@ export interface GitStatusEntry {
   indexStatus: string;
   worktreeStatus: string;
   renamedFrom?: string;
+  /** 工作区相对 index 的增删行 */
+  worktreeAdditions?: number | null;
+  worktreeDeletions?: number | null;
+  /** 暂存区相对 HEAD 的增删行 */
+  indexAdditions?: number | null;
+  indexDeletions?: number | null;
 }
 
 export interface GitBranch {
@@ -52,6 +58,10 @@ export interface GitCommitSummary {
 export interface GitChangedFile {
   path: string;
   status: string;
+  /** 新增行数；二进制或未统计时为 undefined */
+  additions?: number | null;
+  /** 删除行数；二进制或未统计时为 undefined */
+  deletions?: number | null;
 }
 
 export interface GitCommitParentDiff {
@@ -74,6 +84,22 @@ export interface GitCommitDetail {
 
 export interface GitShowResult {
   commit: GitCommitDetail;
+}
+
+/** `git ls-tree -r --name-only`：某提交树下全部文件路径 */
+export interface GitLsTreeResult {
+  paths: string[];
+}
+
+/** 包含该提交的分支名（可含 HEAD） */
+export interface GitContainingBranchesResult {
+  branches: string[];
+}
+
+/** 改动文件数与 blob 总字节 */
+export interface GitCommitChangeSizeResult {
+  fileCount: number;
+  totalBytes: number;
 }
 
 export interface GitLogResult {

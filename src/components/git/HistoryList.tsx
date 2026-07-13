@@ -18,6 +18,7 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
+  Circle,
   GitCommitHorizontal,
   Loader2,
   MoreHorizontal,
@@ -54,9 +55,10 @@ import { copyToClipboard } from "@/utils/clipboard";
 
 type DatePreset = "all" | "7d" | "30d" | "90d";
 
-const HISTORY_GRAPH_WIDTH_STORAGE_KEY = "jlgit:history-graph-width";
-const HISTORY_GRAPH_DEFAULT_WIDTH = 104;
-const HISTORY_GRAPH_MIN_WIDTH = 88;
+const HISTORY_GRAPH_WIDTH_STORAGE_KEY = "jlgit:history-graph-width:v3";
+/** 单列图谱略留边距；复杂分支可再拖宽 */
+const HISTORY_GRAPH_DEFAULT_WIDTH = 52;
+const HISTORY_GRAPH_MIN_WIDTH = 40;
 const HISTORY_GRAPH_MAX_WIDTH = 320;
 
 function readHistoryGraphWidth(): number {
@@ -133,6 +135,8 @@ function CopyableHash({ fullId, shortId }: CopyableHashProps) {
 interface HistoryCommitRowProps {
   commit: GitCommitSummary;
   isSelected: boolean;
+  /** 图谱悬停同步高亮（未选中时） */
+  isHovered: boolean;
   isTip: boolean;
   onSelect: (commitId: string) => void;
 }
@@ -141,6 +145,7 @@ interface HistoryCommitRowProps {
 const HistoryCommitRow = memo(function HistoryCommitRow({
   commit,
   isSelected,
+  isHovered,
   isTip,
   onSelect,
 }: HistoryCommitRowProps) {
@@ -162,17 +167,24 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
           // 不在整行 overflow-hidden，否则右侧 hash 悬停下划线会被裁掉
           "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 px-2 py-1.5 text-left shadow-none transition-colors duration-150",
           isSelected
-            ? "bg-primary/10 text-foreground hover:bg-primary/15"
-            : "hover:bg-accent/60 text-foreground",
+            ? "bg-primary/15 text-foreground hover:bg-primary/20"
+            : isHovered
+              ? // 图谱悬停：左侧主色条 + 浅底，与选中态明显区分
+                "bg-muted text-foreground shadow-[inset_2px_0_0_0_var(--primary)]"
+              : "hover:bg-accent/60 text-foreground",
         )}
         onClick={() => onSelect(commit.id)}
       >
         {/* 文案区可收缩；过长只省略 subject，右侧时间/作者/hash 固定 */}
         <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+          {/* 当前分支 tip：空心圆，对齐参考客户端 HEAD 标记 */}
           {isTip ? (
-            <span className="bg-primary size-1.5 shrink-0 rounded-full" aria-hidden="true" />
+            <Circle
+              className="text-primary size-3 shrink-0 stroke-[2.5]"
+              aria-hidden="true"
+            />
           ) : (
-            <span className="size-1.5 shrink-0" aria-hidden="true" />
+            <span className="size-3 shrink-0" aria-hidden="true" />
           )}
           <span className="min-w-0 flex-1 truncate text-sm" title={commit.subject}>
             {commit.subject}
@@ -261,8 +273,11 @@ export function HistoryList() {
   const [branchScope, setBranchScope] = useState<"all" | string>("all");
   const [graphWidth, setGraphWidth] = useState(readHistoryGraphWidth);
   const [draggingGraphDivider, setDraggingGraphDivider] = useState(false);
+  /** 图谱圆点悬停 → 同步高亮对应历史行 */
+  const [hoveredCommitId, setHoveredCommitId] = useState<string | null>(null);
   const historyScrollRef = useRef<HTMLDivElement>(null);
-  const historyContentRef = useRef<HTMLDivElement>(null);
+  /** 历史列视口：用于拖拽宽度计算；分隔线挂在此层以保证视口等高 */
+  const historyPaneRef = useRef<HTMLDivElement>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const loadingMoreRef = useRef(false);
 
@@ -449,13 +464,13 @@ export function HistoryList() {
   }
 
   function clampGraphWidth(nextWidth: number): number {
-    const contentWidth = historyContentRef.current?.getBoundingClientRect().width ?? 0;
-    const maxByContent = contentWidth > 0 ? Math.max(HISTORY_GRAPH_MIN_WIDTH, contentWidth - 300) : HISTORY_GRAPH_MAX_WIDTH;
-    return Math.min(Math.min(HISTORY_GRAPH_MAX_WIDTH, maxByContent), Math.max(HISTORY_GRAPH_MIN_WIDTH, nextWidth));
+    const paneWidth = historyPaneRef.current?.getBoundingClientRect().width ?? 0;
+    const maxByPane = paneWidth > 0 ? Math.max(HISTORY_GRAPH_MIN_WIDTH, paneWidth - 300) : HISTORY_GRAPH_MAX_WIDTH;
+    return Math.min(Math.min(HISTORY_GRAPH_MAX_WIDTH, maxByPane), Math.max(HISTORY_GRAPH_MIN_WIDTH, nextWidth));
   }
 
   function updateGraphWidth(clientX: number): void {
-    const rect = historyContentRef.current?.getBoundingClientRect();
+    const rect = historyPaneRef.current?.getBoundingClientRect();
     if (!rect) {
       return;
     }
@@ -697,7 +712,10 @@ export function HistoryList() {
         </div>
       </div>
 
-      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div
+        ref={historyPaneRef}
+        className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+      >
         <ScrollArea ref={historyScrollRef} className="h-full w-full">
         {commits.length === 0 ? (
           <div className="flex h-full min-h-[12rem] flex-col items-center justify-center gap-3 px-6 text-center">
@@ -726,35 +744,16 @@ export function HistoryList() {
             </div>
           </div>
         ) : (
-          <div ref={historyContentRef} className="relative min-h-full">
-            {/*
-             * 提交数量较少时，内容区也需占满滚动视口；图谱分隔线才会自然延伸到底部，
-             * 而不是只跟随两三条提交的内容高度。
-             */}
+          <div className="relative">
             {!hasActiveFilters ? (
-              <>
-                <Suspense fallback={null}>
-                  <HistoryGraph commits={commits} width={graphWidth} />
-                </Suspense>
-                <div
-                  role="separator"
-                  aria-orientation="vertical"
-                  aria-valuemin={HISTORY_GRAPH_MIN_WIDTH}
-                  aria-valuemax={HISTORY_GRAPH_MAX_WIDTH}
-                  aria-valuenow={Math.round(graphWidth)}
-                  tabIndex={0}
-                  className={cn(
-                    "bg-[var(--git-modified)] hover:opacity-80 focus-visible:ring-ring absolute top-0 bottom-0 z-20 w-1 cursor-col-resize transition-opacity focus-visible:ring-1 focus-visible:outline-none",
-                    draggingGraphDivider && "opacity-100",
-                  )}
-                  style={{ left: `${graphWidth}px` }}
-                  onPointerDown={handleGraphDividerPointerDown}
-                  onPointerMove={handleGraphDividerPointerMove}
-                  onPointerUp={handleGraphDividerPointerEnd}
-                  onPointerCancel={handleGraphDividerPointerEnd}
-                  onKeyDown={handleGraphDividerKeyDown}
+              <Suspense fallback={null}>
+                <HistoryGraph
+                  commits={commits}
+                  width={graphWidth}
+                  onHoverCommit={setHoveredCommitId}
+                  onSelectCommit={handleSelectCommit}
                 />
-              </>
+              </Suspense>
             ) : null}
 
             <ul
@@ -777,6 +776,7 @@ export function HistoryList() {
                     key={commit.id}
                     commit={commit}
                     isSelected={selectedCommitId === commit.id}
+                    isHovered={hoveredCommitId === commit.id}
                     isTip={isTip}
                     onSelect={handleSelectCommit}
                   />
@@ -809,6 +809,35 @@ export function HistoryList() {
           </div>
         ) : null}
         </ScrollArea>
+
+        {/*
+         * 分隔线挂在滚动视口外，始终占满历史列高度（一根长线），
+         * 样式与 SplitPane / ResizableHandle 一致：默认 border，悬停/拖拽 primary。
+         */}
+        {!hasActiveFilters && filteredCommits.length > 0 ? (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-valuemin={HISTORY_GRAPH_MIN_WIDTH}
+            aria-valuemax={HISTORY_GRAPH_MAX_WIDTH}
+            aria-valuenow={Math.round(graphWidth)}
+            tabIndex={0}
+            className={cn(
+              "absolute inset-y-0 z-20 w-1.5 cursor-col-resize bg-transparent",
+              "before:bg-border before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:transition-[background-color,width]",
+              "after:absolute after:inset-y-0 after:left-1/2 after:w-3 after:-translate-x-1/2",
+              "hover:before:bg-primary hover:before:w-0.5",
+              "focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none",
+              draggingGraphDivider && "before:bg-primary before:w-0.5",
+            )}
+            style={{ left: `${graphWidth}px` }}
+            onPointerDown={handleGraphDividerPointerDown}
+            onPointerMove={handleGraphDividerPointerMove}
+            onPointerUp={handleGraphDividerPointerEnd}
+            onPointerCancel={handleGraphDividerPointerEnd}
+            onKeyDown={handleGraphDividerKeyDown}
+          />
+        ) : null}
 
         {showBackToTop ? (
           <Tooltip delayDuration={300}>

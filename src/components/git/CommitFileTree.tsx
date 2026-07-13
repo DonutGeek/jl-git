@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
+import { DiffLineStats } from "@/components/git/DiffLineStats";
 import { RepositoryTreeRoot } from "@/components/git/RepositoryTreeRoot";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,10 @@ interface CommitFileTreeProps {
   rootName: string;
   expandedPaths: ReadonlySet<string>;
   onToggleFolder: (path: string) => void;
+  /** 改动文件显示状态字母 */
+  showStatus?: boolean;
+  /** 显示增加 / 减少行数 */
+  showLineStats?: boolean;
 }
 
 /** 返回提交文件目录树全部路径，供外层控制展开与折叠。 */
@@ -45,7 +50,14 @@ export function getCommitFileTreeFolderPaths(files: GitChangedFile[]): string[] 
 }
 
 /** 提交改动文件按路径组织为目录树。 */
-export function CommitFileTree({ files, rootName, expandedPaths, onToggleFolder }: CommitFileTreeProps) {
+export function CommitFileTree({
+  files,
+  rootName,
+  expandedPaths,
+  onToggleFolder,
+  showStatus = true,
+  showLineStats = false,
+}: CommitFileTreeProps) {
   const nodes = useMemo(() => buildCommitFileTree(files), [files]);
   return (
     <ul className="flex flex-col" role="tree">
@@ -60,6 +72,8 @@ export function CommitFileTree({ files, rootName, expandedPaths, onToggleFolder 
           depth={1}
           expandedPaths={expandedPaths}
           onToggleFolder={onToggleFolder}
+          showStatus={showStatus}
+          showLineStats={showLineStats}
         />
       </RepositoryTreeRoot>
     </ul>
@@ -71,9 +85,18 @@ interface CommitFileTreeNodesProps {
   depth: number;
   expandedPaths: ReadonlySet<string>;
   onToggleFolder: (path: string) => void;
+  showStatus: boolean;
+  showLineStats: boolean;
 }
 
-function CommitFileTreeNodes({ nodes, depth, expandedPaths, onToggleFolder }: CommitFileTreeNodesProps) {
+function CommitFileTreeNodes({
+  nodes,
+  depth,
+  expandedPaths,
+  onToggleFolder,
+  showStatus,
+  showLineStats,
+}: CommitFileTreeNodesProps) {
   return (
     <>
       {nodes.map((node) => {
@@ -84,19 +107,28 @@ function CommitFileTreeNodes({ nodes, depth, expandedPaths, onToggleFolder }: Co
                 className="hover:bg-accent/60 flex h-7 w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-md pr-1.5 transition-colors duration-150"
                 style={{ paddingLeft: `${6 + depth * 14}px` }}
               >
-                <span
-                  className={cn(
-                    "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
-                    gitStatusLetterClass(node.file.status),
-                  )}
-                  aria-label={node.file.status}
-                >
-                  {node.file.status}
-                </span>
+                {showStatus ? (
+                  <span
+                    className={cn(
+                      "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
+                      node.file.status ? gitStatusLetterClass(node.file.status) : "text-transparent",
+                    )}
+                    aria-label={node.file.status || undefined}
+                    aria-hidden={!node.file.status}
+                  >
+                    {node.file.status || "·"}
+                  </span>
+                ) : null}
                 <MaterialFileIcon name={node.file.path} isDir={false} className="size-3.5 shrink-0" />
                 <span className="min-w-0 flex-1 truncate font-mono text-xs">
                   {node.file.path.split("/").pop()}
                 </span>
+                {showLineStats ? (
+                  <DiffLineStats
+                    additions={node.file.additions}
+                    deletions={node.file.deletions}
+                  />
+                ) : null}
               </div>
             </li>
           );
@@ -126,6 +158,8 @@ function CommitFileTreeNodes({ nodes, depth, expandedPaths, onToggleFolder }: Co
                   depth={depth + 1}
                   expandedPaths={expandedPaths}
                   onToggleFolder={onToggleFolder}
+                  showStatus={showStatus}
+                  showLineStats={showLineStats}
                 />
               </ul>
             ) : null}

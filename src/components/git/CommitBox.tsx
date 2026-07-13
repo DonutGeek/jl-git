@@ -19,6 +19,12 @@ import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import { GitStatusEntry } from "@/types/git";
 
+/** 提交信息历史只展示最近几条去重后的 subject */
+const COMMIT_MESSAGE_HISTORY_LIMIT = 5;
+const HISTORY_POPOVER_WIDTH = 320;
+const HISTORY_POPOVER_MAX_HEIGHT = 200;
+const HISTORY_VIEWPORT_PADDING = 12;
+
 /** 已暂存：index 侧存在实际变更（非 "." 且非未跟踪的 "?"） */
 function isStagedEntry(entry: GitStatusEntry): boolean {
   return entry.indexStatus !== "." && entry.indexStatus !== "?";
@@ -43,7 +49,11 @@ export function CommitBox() {
   const [pushAfterCommit, setPushAfterCommit] = useState(false);
   const [busy, setBusy] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [historyPosition, setHistoryPosition] = useState({ left: 0, top: 0 });
+  const [historyPosition, setHistoryPosition] = useState({
+    left: 0,
+    top: 0,
+    maxHeight: HISTORY_POPOVER_MAX_HEIGHT,
+  });
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
 
   const stagedCount = status?.entries.filter(isStagedEntry).length ?? 0;
@@ -56,14 +66,16 @@ export function CommitBox() {
   const tipCommit = hasUnpushed ? (commits[0] ?? null) : null;
   const commitMessageHistory = useMemo(() => {
     const seen = new Set<string>();
-    return commits.flatMap((commit) => {
-      const message = commit.subject.trim();
-      if (!message || seen.has(message)) {
-        return [];
-      }
-      seen.add(message);
-      return [message];
-    }).slice(0, 12);
+    return commits
+      .flatMap((item) => {
+        const message = item.subject.trim();
+        if (!message || seen.has(message)) {
+          return [];
+        }
+        seen.add(message);
+        return [message];
+      })
+      .slice(0, COMMIT_MESSAGE_HISTORY_LIMIT);
   }, [commits]);
 
   function updateHistoryPosition(): void {
@@ -72,15 +84,23 @@ export function CommitBox() {
       return;
     }
 
-    const width = 320;
-    const viewportPadding = 12;
-    setHistoryPosition({
-      left: Math.max(
-        viewportPadding,
-        Math.min(rect.right + 8, window.innerWidth - width - viewportPadding),
+    const left = Math.max(
+      HISTORY_VIEWPORT_PADDING,
+      Math.min(
+        rect.right + 8,
+        window.innerWidth - HISTORY_POPOVER_WIDTH - HISTORY_VIEWPORT_PADDING,
       ),
-      top: rect.top,
-    });
+    );
+
+    // 可用高度：输入框顶到视口底；不够时上移，避免底部被裁切
+    const spaceBelow = window.innerHeight - HISTORY_VIEWPORT_PADDING - rect.top;
+    const maxHeight = Math.max(120, Math.min(HISTORY_POPOVER_MAX_HEIGHT, spaceBelow));
+    const top = Math.max(
+      HISTORY_VIEWPORT_PADDING,
+      Math.min(rect.top, window.innerHeight - HISTORY_VIEWPORT_PADDING - maxHeight),
+    );
+
+    setHistoryPosition({ left, top, maxHeight });
   }
 
   function openCommitMessageHistory(): void {
@@ -183,9 +203,13 @@ export function CommitBox() {
             role="dialog"
             aria-label={t("repo.commitMessageHistory")}
             className="border-border bg-popover text-popover-foreground fixed z-50 w-80 overflow-hidden rounded-md border shadow-lg"
-            style={historyPosition}
+            style={{
+              left: historyPosition.left,
+              top: historyPosition.top,
+              maxHeight: historyPosition.maxHeight,
+            }}
           >
-            <div className="border-border flex h-8 items-center justify-between border-b px-2.5">
+            <div className="border-border flex h-8 shrink-0 items-center justify-between border-b px-2.5">
               <p className="text-xs font-medium">{t("repo.commitMessageHistory")}</p>
               <Button
                 type="button"
@@ -199,7 +223,10 @@ export function CommitBox() {
                 <X className="size-3.5" aria-hidden="true" />
               </Button>
             </div>
-            <ScrollArea className="max-h-56">
+            <ScrollArea
+              className="min-h-0"
+              style={{ maxHeight: Math.max(88, historyPosition.maxHeight - 32) }}
+            >
               <ul className="p-1" role="listbox" aria-label={t("repo.commitMessageHistory")}>
                 {commitMessageHistory.map((message) => (
                   <li key={message}>

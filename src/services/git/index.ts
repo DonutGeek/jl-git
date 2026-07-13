@@ -22,7 +22,7 @@ import { getFileSize, listDir } from "./git.fs";
 import { getGlobalIdentity, getIdentity, setGlobalIdentity } from "./git.identity";
 import { getLog } from "./git.log";
 import { fetch, listRemotes, pull, push } from "./git.remote";
-import { getCommit } from "./git.show";
+import { getCommit, getCommitChangeSize, getContainingBranches, listTree } from "./git.show";
 import { getStatus } from "./git.status";
 
 export const gitService = {
@@ -35,6 +35,9 @@ export const gitService = {
   getFileSize,
   getLog,
   getCommit,
+  listTree,
+  getContainingBranches,
+  getCommitChangeSize,
   getDiff,
   stage,
   unstage,

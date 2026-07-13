@@ -45,6 +45,21 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 - **Command：** `git_show`
 - **说明：** 返回提交元数据，以及相对每个 parent 的 `name-status` 文件列表（合并提交会有多组）
 
+### `listTree(repoPath, rev: string): Promise<GitLsTreeResult>`
+
+- **Command：** `git_ls_tree`
+- **说明：** 返回该提交树下全部文件路径（`paths: string[]`），供历史详情「显示所有文件」树形浏览
+
+### `getContainingBranches(repoPath, rev: string): Promise<GitContainingBranchesResult>`
+
+- **Command：** `git_commit_containing_branches`
+- **说明：** 返回包含该提交的分支名列表（`branches: string[]`）；若 HEAD 指向该提交则含 `HEAD`
+
+### `getCommitChangeSize(repoPath, rev: string): Promise<GitCommitChangeSizeResult>`
+
+- **Command：** `git_commit_change_size`
+- **说明：** 返回改动文件数 `fileCount` 与非删除文件在该提交中的 blob 总字节 `totalBytes`
+
 ### `getDiff(repoPath, options: DiffOptions): Promise<DiffResult>`
 
 - **Command：** `git_diff`

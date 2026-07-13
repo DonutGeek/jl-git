@@ -17,7 +17,10 @@ use crate::git::{
     remote::{self, GitFetchResult, GitPullResult, GitPushResult, GitRemote},
     reset::{self, GitResetResult},
     runner,
-    show::{self, GitShowResult},
+    show::{
+        self, GitCommitChangeSizeResult, GitContainingBranchesResult, GitLsTreeResult,
+        GitShowResult,
+    },
     status::{self, GitStatusResult},
 };
 
@@ -127,6 +130,33 @@ pub fn git_log(
 pub fn git_show(path: String, rev: String) -> Result<GitShowResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
     show::get_commit(&repo_path, &rev)
+}
+
+/// 列出某提交下全部文件路径（用于历史详情「显示所有文件」）
+#[tauri::command]
+pub fn git_ls_tree(path: String, rev: String) -> Result<GitLsTreeResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    show::list_tree_paths(&repo_path, &rev)
+}
+
+/// 包含该提交的分支列表（历史详情「显示分支」）
+#[tauri::command]
+pub fn git_commit_containing_branches(
+    path: String,
+    rev: String,
+) -> Result<GitContainingBranchesResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    show::containing_branches(&repo_path, &rev)
+}
+
+/// 改动文件数与 blob 总大小（历史详情「显示大小」）
+#[tauri::command]
+pub fn git_commit_change_size(
+    path: String,
+    rev: String,
+) -> Result<GitCommitChangeSizeResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    show::change_size(&repo_path, &rev)
 }
 
 /// 工作区 / 暂存区单文件 Diff（含 Monaco 两侧文本）

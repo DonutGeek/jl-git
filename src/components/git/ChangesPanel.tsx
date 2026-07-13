@@ -20,11 +20,13 @@ import { toast } from "sonner";
 
 import { EmptyState } from "@/components/common/EmptyState";
 import { ChangeTree, getChangeTreeFolderKeys } from "@/components/git/ChangeTree";
+import { DiffLineStats } from "@/components/git/DiffLineStats";
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import { SplitPane } from "@/components/layout/SplitPane";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
@@ -103,6 +105,8 @@ interface ChangeRowProps {
   indented?: boolean;
   /** 树形视图中按层级缩进 */
   indentDepth?: number;
+  /** 显示增加 / 减少行数 */
+  showLineStats?: boolean;
 }
 
 function ChangeRow({
@@ -115,6 +119,7 @@ function ChangeRow({
   toggleLabel,
   indented = false,
   indentDepth,
+  showLineStats = false,
 }: ChangeRowProps) {
   const label = entryLabel(entry, side);
   const repoPath = useRepoStore((state) => state.repoPath);
@@ -139,6 +144,8 @@ function ChangeRow({
   }
 
   const showSize = (hovered || selected) && sizeLabel != null;
+  const additions = side === "index" ? entry.indexAdditions : entry.worktreeAdditions;
+  const deletions = side === "index" ? entry.indexDeletions : entry.worktreeDeletions;
 
   return (
     <li>
@@ -189,6 +196,7 @@ function ChangeRow({
           {label}
         </span>
         <TruncateStartPath
+          className="min-w-0 flex-1"
           path={
             entry.renamedFrom
               ? `${entry.renamedFrom} → ${entry.path}`
@@ -201,6 +209,9 @@ function ChangeRow({
           }
         />
         <div className="ml-auto flex shrink-0 items-center gap-0.5">
+          {showLineStats ? (
+            <DiffLineStats additions={additions} deletions={deletions} className="ml-0" />
+          ) : null}
           {showSize ? (
             <span className="text-muted-foreground px-0.5 font-mono text-[10px] tabular-nums">
               {sizeLabel}
@@ -265,6 +276,7 @@ interface ChangeGroupProps {
   view: "list" | "tree";
   expandedTreePaths: ReadonlySet<string>;
   onToggleTreeFolder: (key: string) => void;
+  showLineStats?: boolean;
 }
 
 /** 变更 / 待提交分区；变更区有 Default，待提交为扁平列表 */
@@ -292,6 +304,7 @@ function ChangeGroup({
   view,
   expandedTreePaths,
   onToggleTreeFolder,
+  showLineStats = false,
 }: ChangeGroupProps) {
   const isEmpty = entries.length === 0;
 
@@ -309,6 +322,7 @@ function ChangeGroup({
             disabled={disabled}
             toggleLabel={toggleLabelFor(entry.path)}
             indented={showDefaultGroup}
+            showLineStats={showLineStats}
           />
         ))}
       </ul>
@@ -364,6 +378,7 @@ function ChangeGroup({
                   disabled={disabled}
                   toggleLabel={toggleLabelFor(entry.path)}
                   indentDepth={depth}
+                  showLineStats={showLineStats}
                 />
               )}
             />
@@ -433,6 +448,7 @@ export function ChangesPanel() {
 
   const [view, setView] = useState<"list" | "tree">("list");
   const [sortMode, setSortMode] = useState<ChangeSortMode>("default");
+  const [showLineStats, setShowLineStats] = useState(false);
   const [unstagedGroupOpen, setUnstagedGroupOpen] = useState(true);
   const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(() => new Set());
   const [mutating, setMutating] = useState(false);
@@ -664,21 +680,32 @@ export function ChangesPanel() {
               <TooltipContent>{t("repo.changesSearch")}</TooltipContent>
             </Tooltip>
           ) : null}
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground size-6"
-                aria-label={t("repo.historyMore")}
-                onClick={() => handleSoon(t("repo.historyMore"))}
+          <DropdownMenu>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground size-6 data-[state=open]:bg-accent"
+                    aria-label={t("repo.historyMore")}
+                  >
+                    <MoreVertical className="size-3.5" aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>{t("repo.historyMore")}</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="min-w-[11rem]">
+              <DropdownMenuCheckboxItem
+                checked={showLineStats}
+                onCheckedChange={(checked) => setShowLineStats(checked === true)}
               >
-                <MoreVertical className="size-3.5" aria-hidden="true" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t("repo.historyMore")}</TooltipContent>
-          </Tooltip>
+                {t("repo.commitShowLineStats")}
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -724,6 +751,7 @@ export function ChangesPanel() {
               view={view}
               expandedTreePaths={expandedTreePaths}
               onToggleTreeFolder={toggleTreeFolder}
+              showLineStats={showLineStats}
             />
           }
           second={
@@ -756,6 +784,7 @@ export function ChangesPanel() {
               view={view}
               expandedTreePaths={expandedTreePaths}
               onToggleTreeFolder={toggleTreeFolder}
+              showLineStats={showLineStats}
             />
           }
         />

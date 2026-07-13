@@ -10,6 +10,12 @@ pub struct GitChangedFile {
     pub path: String,
     /// A / M / D / R / C 等 name-status 状态
     pub status: String,
+    /// 新增行数；二进制为 None
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additions: Option<u32>,
+    /// 删除行数；二进制为 None
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deletions: Option<u32>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Clone)]
@@ -38,6 +44,25 @@ pub struct GitCommitDetail {
 #[serde(rename_all = "camelCase")]
 pub struct GitShowResult {
     pub commit: GitCommitDetail,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitLsTreeResult {
+    pub paths: Vec<String>,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitContainingBranchesResult {
+    pub branches: Vec<String>,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitChangeSizeResult {
+    pub file_count: u32,
+    pub total_bytes: u64,
 }
 
 /// 读取单提交元数据，并对每个 parent 列出 name-status 改动文件
@@ -96,6 +121,168 @@ pub fn get_commit(repo_path: &Path, rev: &str) -> Result<GitShowResult, AppError
     })
 }
 
+/// 列出某提交树下全部文件路径（`git ls-tree -r --name-only`）
+pub fn list_tree_paths(repo_path: &Path, rev: &str) -> Result<GitLsTreeResult, AppError> {
+    validate_git_ref(rev)?;
+
+    let output = runner::run_git_allow_nonzero(
+        repo_path,
+        &["ls-tree", "-r", "--name-only", "-z", rev],
+    )?;
+
+    if output.code != 0 {
+        let message = output
+            .stderr
+            .lines()
+            .next()
+            .unwrap_or("无法列出提交文件树")
+            .to_string();
+        return Err(AppError::new("GIT_FAILED", message).with_details(output.stderr));
+    }
+
+    let paths: Vec<String> = output
+        .stdout
+        .split('\0')
+        .filter(|path| !path.is_empty())
+        .map(str::to_string)
+        .collect();
+
+    Ok(GitLsTreeResult { paths })
+}
+
+/// 包含该提交的本地 / 远端分支名；若 HEAD 指向该提交则前置 `HEAD`
+pub fn containing_branches(
+    repo_path: &Path,
+    rev: &str,
+) -> Result<GitContainingBranchesResult, AppError> {
+    validate_git_ref(rev)?;
+
+    let head = runner::run_git_allow_nonzero(repo_path, &["rev-parse", "HEAD"])?;
+    let target = runner::run_git_allow_nonzero(repo_path, &["rev-parse", rev])?;
+    if head.code != 0 || target.code != 0 {
+        let message = target
+            .stderr
+            .lines()
+            .chain(head.stderr.lines())
+            .next()
+            .unwrap_or("无法解析提交")
+            .to_string();
+        return Err(AppError::new("GIT_FAILED", message));
+    }
+
+    let head_id = head.stdout.trim();
+    let target_id = target.stdout.trim();
+    let includes_head = !head_id.is_empty() && head_id == target_id;
+
+    let output = runner::run_git_allow_nonzero(
+        repo_path,
+        &[
+            "branch",
+            "-a",
+            "--contains",
+            rev,
+            "--format=%(refname:short)",
+        ],
+    )?;
+
+    if output.code != 0 {
+        let message = output
+            .stderr
+            .lines()
+            .next()
+            .unwrap_or("无法列出包含该提交的分支")
+            .to_string();
+        return Err(AppError::new("GIT_FAILED", message).with_details(output.stderr));
+    }
+
+    let mut branches: Vec<String> = output
+        .stdout
+        .lines()
+        .map(str::trim)
+        .filter(|name| !name.is_empty() && *name != "HEAD")
+        .map(str::to_string)
+        .collect();
+    branches.sort();
+    branches.dedup();
+
+    if includes_head {
+        branches.insert(0, "HEAD".to_string());
+    }
+
+    Ok(GitContainingBranchesResult { branches })
+}
+
+/// 改动文件数 + 非删除文件在该提交中的 blob 总大小
+pub fn change_size(repo_path: &Path, rev: &str) -> Result<GitCommitChangeSizeResult, AppError> {
+    validate_git_ref(rev)?;
+
+    let meta = get_commit(repo_path, rev)?;
+    let mut paths = std::collections::BTreeMap::<String, String>::new();
+    for diff in &meta.commit.diffs {
+        for file in &diff.files {
+            paths.insert(file.path.clone(), file.status.clone());
+        }
+    }
+
+    let file_count = paths.len() as u32;
+    if file_count == 0 {
+        return Ok(GitCommitChangeSizeResult {
+            file_count: 0,
+            total_bytes: 0,
+        });
+    }
+
+    let tree = runner::run_git_allow_nonzero(
+        repo_path,
+        &["ls-tree", "-r", "-l", "-z", &meta.commit.id],
+    )?;
+
+    if tree.code != 0 {
+        let message = tree
+            .stderr
+            .lines()
+            .next()
+            .unwrap_or("无法读取提交文件大小")
+            .to_string();
+        return Err(AppError::new("GIT_FAILED", message).with_details(tree.stderr));
+    }
+
+    let sizes = parse_ls_tree_sizes_z(&tree.stdout);
+    let mut total_bytes: u64 = 0;
+    for (path, status) in &paths {
+        if status == "D" {
+            continue;
+        }
+        if let Some(size) = sizes.get(path) {
+            total_bytes += size;
+        }
+    }
+
+    Ok(GitCommitChangeSizeResult {
+        file_count,
+        total_bytes,
+    })
+}
+
+/// 解析 `git ls-tree -r -l -z`：`<mode> <type> <object> <size>\t<path>\0`
+fn parse_ls_tree_sizes_z(stdout: &str) -> std::collections::HashMap<String, u64> {
+    let mut map = std::collections::HashMap::new();
+    for entry in stdout.split('\0').filter(|p| !p.is_empty()) {
+        let Some((meta, path)) = entry.split_once('\t') else {
+            continue;
+        };
+        if path.is_empty() {
+            continue;
+        }
+        // meta: "100644 blob <oid> <size>"；size 前可能有空格对齐
+        let size_token = meta.split_whitespace().nth(3);
+        if let Some(size) = size_token.and_then(|raw| raw.parse::<u64>().ok()) {
+            map.insert(path.to_string(), size);
+        }
+    }
+    map
+}
+
 fn parse_show_meta(stdout: &str) -> Result<GitCommitDetail, AppError> {
     // body 可能含换行，用 \0 分隔前 6 段后剩余为 body
     let mut parts = stdout.splitn(7, '\0');
@@ -143,7 +330,7 @@ fn list_diff_files(
     parent: &str,
     commit: &str,
 ) -> Result<Vec<GitChangedFile>, AppError> {
-    let output = runner::run_git_allow_nonzero(
+    let status_out = runner::run_git_allow_nonzero(
         repo_path,
         &[
             "diff-tree",
@@ -156,21 +343,27 @@ fn list_diff_files(
         ],
     )?;
 
-    if output.code != 0 {
-        let message = output
+    if status_out.code != 0 {
+        let message = status_out
             .stderr
             .lines()
             .next()
             .unwrap_or("无法列出改动文件")
             .to_string();
-        return Err(AppError::new("GIT_FAILED", message).with_details(output.stderr));
+        return Err(AppError::new("GIT_FAILED", message).with_details(status_out.stderr));
     }
 
-    Ok(parse_name_status_z(&output.stdout))
+    let mut files = parse_name_status_z(&status_out.stdout);
+    attach_numstat(
+        repo_path,
+        &mut files,
+        &["diff-tree", "--no-commit-id", "--numstat", "-r", "-z", parent, commit],
+    )?;
+    Ok(files)
 }
 
 fn list_root_files(repo_path: &Path, commit: &str) -> Result<Vec<GitChangedFile>, AppError> {
-    let output = runner::run_git_allow_nonzero(
+    let status_out = runner::run_git_allow_nonzero(
         repo_path,
         &[
             "diff-tree",
@@ -183,17 +376,78 @@ fn list_root_files(repo_path: &Path, commit: &str) -> Result<Vec<GitChangedFile>
         ],
     )?;
 
-    if output.code != 0 {
-        let message = output
+    if status_out.code != 0 {
+        let message = status_out
             .stderr
             .lines()
             .next()
             .unwrap_or("无法列出改动文件")
             .to_string();
-        return Err(AppError::new("GIT_FAILED", message).with_details(output.stderr));
+        return Err(AppError::new("GIT_FAILED", message).with_details(status_out.stderr));
     }
 
-    Ok(parse_name_status_z(&output.stdout))
+    let mut files = parse_name_status_z(&status_out.stdout);
+    attach_numstat(
+        repo_path,
+        &mut files,
+        &[
+            "diff-tree",
+            "--no-commit-id",
+            "--numstat",
+            "-r",
+            "-z",
+            "--root",
+            commit,
+        ],
+    )?;
+    Ok(files)
+}
+
+/// 将 `--numstat` 增删行数合并进已有 name-status 列表
+fn attach_numstat(
+    repo_path: &Path,
+    files: &mut [GitChangedFile],
+    args: &[&str],
+) -> Result<(), AppError> {
+    let output = runner::run_git_allow_nonzero(repo_path, args)?;
+    if output.code != 0 {
+        // 行数失败不阻断文件列表
+        return Ok(());
+    }
+    let stats = parse_numstat_z(&output.stdout);
+    for file in files.iter_mut() {
+        if let Some((additions, deletions)) = stats.get(&file.path) {
+            file.additions = *additions;
+            file.deletions = *deletions;
+        }
+    }
+    Ok(())
+}
+
+/// 解析 `git diff-tree -z --numstat` / `git diff -z --numstat`：added\\tdeleted\\tpath\\0
+pub(crate) fn parse_numstat_z(stdout: &str) -> std::collections::HashMap<String, (Option<u32>, Option<u32>)> {
+    let mut map = std::collections::HashMap::new();
+    for entry in stdout.split('\0').filter(|p| !p.is_empty()) {
+        let mut cols = entry.splitn(3, '\t');
+        let added_raw = cols.next().unwrap_or("");
+        let deleted_raw = cols.next().unwrap_or("");
+        let path = cols.next().unwrap_or("").to_string();
+        if path.is_empty() {
+            continue;
+        }
+        let additions = if added_raw == "-" {
+            None
+        } else {
+            added_raw.parse::<u32>().ok()
+        };
+        let deletions = if deleted_raw == "-" {
+            None
+        } else {
+            deleted_raw.parse::<u32>().ok()
+        };
+        map.insert(path, (additions, deletions));
+    }
+    map
 }
 
 /// 解析 `git diff-tree -z --name-status`：status\0path\0 或 R100\0old\0new\0
@@ -214,12 +468,16 @@ fn parse_name_status_z(stdout: &str) -> Vec<GitChangedFile> {
                 files.push(GitChangedFile {
                     path: new_path.to_string(),
                     status: status_letter,
+                    additions: None,
+                    deletions: None,
                 });
             }
         } else if let Some(path) = parts.next() {
             files.push(GitChangedFile {
                 path: path.to_string(),
                 status: status_letter,
+                additions: None,
+                deletions: None,
             });
         }
     }
@@ -256,16 +514,38 @@ mod tests {
                 GitChangedFile {
                     path: "package.json".into(),
                     status: "M".into(),
+                    additions: None,
+                    deletions: None,
                 },
                 GitChangedFile {
                     path: "src/new.js".into(),
                     status: "A".into(),
+                    additions: None,
+                    deletions: None,
                 },
                 GitChangedFile {
                     path: "new.txt".into(),
                     status: "R".into(),
+                    additions: None,
+                    deletions: None,
                 },
             ]
         );
+    }
+
+    #[test]
+    fn parses_numstat_z() {
+        let raw = "12\t3\tpackage.json\0-\t-\tphoto.png\0";
+        let stats = parse_numstat_z(raw);
+        assert_eq!(stats.get("package.json"), Some(&(Some(12), Some(3))));
+        assert_eq!(stats.get("photo.png"), Some(&(None, None)));
+    }
+
+    #[test]
+    fn parses_ls_tree_sizes_z() {
+        let raw = "100644 blob abcdef0123456789abcdef0123456789abcdef01   128\tREADME.md\0100644 blob abcdef0123456789abcdef0123456789abcdef02    42\tsrc/a.ts\0";
+        let sizes = parse_ls_tree_sizes_z(raw);
+        assert_eq!(sizes.get("README.md"), Some(&128));
+        assert_eq!(sizes.get("src/a.ts"), Some(&42));
     }
 }

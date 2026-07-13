@@ -238,6 +238,36 @@ interface GitBranch {
 | **输出** | `{ commit: GitCommitDetail }`（含 `parents` / `parentShortIds` / `diffs[]`） |
 | **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `GIT_FAILED` |
 
+### `git_ls_tree`
+
+| | |
+|--|--|
+| **目的** | 列出某提交树下全部文件路径（历史详情「显示所有文件」） |
+| **输入** | `{ path: string; rev: string }` |
+| **输出** | `{ paths: string[] }` |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `GIT_FAILED` |
+| **说明** | `git ls-tree -r --name-only -z <rev>` |
+
+### `git_commit_containing_branches`
+
+| | |
+|--|--|
+| **目的** | 列出包含该提交的本地 / 远端分支（历史详情「显示分支」） |
+| **输入** | `{ path: string; rev: string }` |
+| **输出** | `{ branches: string[] }`（若 `HEAD` 指向该提交则含 `HEAD`） |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `GIT_FAILED` |
+| **说明** | `git branch -a --contains <rev> --format=%(refname:short)` |
+
+### `git_commit_change_size`
+
+| | |
+|--|--|
+| **目的** | 改动文件数与 blob 总大小（历史详情「显示大小」） |
+| **输入** | `{ path: string; rev: string }` |
+| **输出** | `{ fileCount: number; totalBytes: number }` |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `GIT_FAILED` |
+| **说明** | 改动文件去重；删除不计大小；其余路径用 `ls-tree -l` 汇总 |
+
 ### `git_diff`
 
 | | |

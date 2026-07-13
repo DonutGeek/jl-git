@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::path::Path;
 
 use crate::error::AppError;
-use crate::git::runner;
+use crate::git::{runner, show};
 
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -23,6 +23,29 @@ pub struct GitStatusEntry {
     pub worktree_status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub renamed_from: Option<String>,
+    /// 工作区相对 index 的新增行数
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub worktree_additions: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub worktree_deletions: Option<u32>,
+    /// 暂存区相对 HEAD 的新增行数
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub index_additions: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub index_deletions: Option<u32>,
+}
+
+fn empty_entry(path: String, index_status: String, worktree_status: String, renamed_from: Option<String>) -> GitStatusEntry {
+    GitStatusEntry {
+        path,
+        index_status,
+        worktree_status,
+        renamed_from,
+        worktree_additions: None,
+        worktree_deletions: None,
+        index_additions: None,
+        index_deletions: None,
+    }
 }
 
 pub fn get_status(repo_path: &Path) -> Result<GitStatusResult, AppError> {
@@ -41,7 +64,49 @@ pub fn get_status(repo_path: &Path) -> Result<GitStatusResult, AppError> {
         ],
     )?;
 
-    Ok(parse_status(&output.stdout))
+    let mut result = parse_status(&output.stdout);
+    attach_status_numstat(repo_path, &mut result);
+    Ok(result)
+}
+
+/// 附加工作区 / 暂存区 numstat（失败不影响 status 主结果）
+fn attach_status_numstat(repo_path: &Path, result: &mut GitStatusResult) {
+    if let Ok(output) = runner::run_git_allow_nonzero(
+        repo_path,
+        &["-c", "core.quotepath=false", "diff", "--numstat", "-z"],
+    ) {
+        if output.code == 0 {
+            let stats = show::parse_numstat_z(&output.stdout);
+            for entry in &mut result.entries {
+                if let Some((additions, deletions)) = stats.get(&entry.path) {
+                    entry.worktree_additions = *additions;
+                    entry.worktree_deletions = *deletions;
+                }
+            }
+        }
+    }
+
+    if let Ok(output) = runner::run_git_allow_nonzero(
+        repo_path,
+        &[
+            "-c",
+            "core.quotepath=false",
+            "diff",
+            "--cached",
+            "--numstat",
+            "-z",
+        ],
+    ) {
+        if output.code == 0 {
+            let stats = show::parse_numstat_z(&output.stdout);
+            for entry in &mut result.entries {
+                if let Some((additions, deletions)) = stats.get(&entry.path) {
+                    entry.index_additions = *additions;
+                    entry.index_deletions = *deletions;
+                }
+            }
+        }
+    }
 }
 
 pub fn parse_status(stdout: &str) -> GitStatusResult {
@@ -76,12 +141,12 @@ pub fn parse_status(stdout: &str) -> GitStatusResult {
         }
 
         if let Some(path) = line.strip_prefix("? ") {
-            result.entries.push(GitStatusEntry {
-                path: path.to_string(),
-                index_status: "?".to_string(),
-                worktree_status: "?".to_string(),
-                renamed_from: None,
-            });
+            result.entries.push(empty_entry(
+                path.to_string(),
+                "?".to_string(),
+                "?".to_string(),
+                None,
+            ));
             continue;
         }
 
@@ -125,12 +190,12 @@ fn parse_ordinary_entry(line: &str) -> Option<GitStatusEntry> {
     let parts: Vec<&str> = line.splitn(9, ' ').collect();
     let (index_status, worktree_status) = parse_status_pair(parts.get(1)?)?;
 
-    Some(GitStatusEntry {
-        path: parts.get(8)?.to_string(),
+    Some(empty_entry(
+        parts.get(8)?.to_string(),
         index_status,
         worktree_status,
-        renamed_from: None,
-    })
+        None,
+    ))
 }
 
 fn parse_renamed_entry(line: &str) -> Option<GitStatusEntry> {
@@ -144,24 +209,19 @@ fn parse_renamed_entry(line: &str) -> Option<GitStatusEntry> {
     let path = path_parts.next()?.to_string();
     let renamed_from = path_parts.next().map(str::to_string);
 
-    Some(GitStatusEntry {
-        path,
-        index_status,
-        worktree_status,
-        renamed_from,
-    })
+    Some(empty_entry(path, index_status, worktree_status, renamed_from))
 }
 
 fn parse_unmerged_entry(line: &str) -> Option<GitStatusEntry> {
     let parts: Vec<&str> = line.splitn(11, ' ').collect();
     let (index_status, worktree_status) = parse_status_pair(parts.get(1)?)?;
 
-    Some(GitStatusEntry {
-        path: parts.get(10)?.to_string(),
+    Some(empty_entry(
+        parts.get(10)?.to_string(),
         index_status,
         worktree_status,
-        renamed_from: None,
-    })
+        None,
+    ))
 }
 
 #[cfg(test)]
@@ -191,30 +251,15 @@ u UU N... 100644 100644 100644 100644 eeeee fffff ggggg conflict.txt
         assert_eq!(
             result.entries,
             vec![
-                GitStatusEntry {
-                    path: "file.txt".into(),
-                    index_status: "M".into(),
-                    worktree_status: ".".into(),
-                    renamed_from: None,
-                },
-                GitStatusEntry {
-                    path: "new-file.txt".into(),
-                    index_status: "?".into(),
-                    worktree_status: "?".into(),
-                    renamed_from: None,
-                },
-                GitStatusEntry {
-                    path: "new-name.txt".into(),
-                    index_status: "R".into(),
-                    worktree_status: ".".into(),
-                    renamed_from: Some("old-name.txt".into()),
-                },
-                GitStatusEntry {
-                    path: "conflict.txt".into(),
-                    index_status: "U".into(),
-                    worktree_status: "U".into(),
-                    renamed_from: None,
-                },
+                empty_entry("file.txt".into(), "M".into(), ".".into(), None),
+                empty_entry("new-file.txt".into(), "?".into(), "?".into(), None),
+                empty_entry(
+                    "new-name.txt".into(),
+                    "R".into(),
+                    ".".into(),
+                    Some("old-name.txt".into()),
+                ),
+                empty_entry("conflict.txt".into(), "U".into(), "U".into(), None),
             ]
         );
     }
