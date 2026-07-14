@@ -43,7 +43,7 @@
 | 顶栏二级工具条 | Done | 仓库切换 / 工作区·变更·历史 / 分支 / 同步占位 |
 | 主区三视图骨架 | In Progress | 工作区可浏览目录；变更/历史右侧为占位，Diff/详情未接 |
 | 外部打开仓库 | Done | Finder / 终端已可用；外部编辑器依赖本机应用 |
-| 侧栏活动栏（目录树 / 分支） | Done | 最左图标栏切换 |
+| 侧栏活动栏（目录树 / 分支 / Agent） | Done | 最左图标栏切换；Agent 对话列表使用虚拟滚动 |
 | 目录树 | Done | 懒加载；叠加 status 字母 |
 | 显示当前分支 / ahead-behind | In Progress | 已显示当前分支；ahead/behind 未在 UI 呈现 |
 | 刷新 status | Done | stage/unstage/commit/checkout 后自动刷新 |
@@ -145,6 +145,7 @@
 | DeepSeek API Key | Done | 设置抽屉可创建、启用/禁用、编辑名称、删除；仅允许一个启用、删除二次确认，列表仅显示脱敏 Key，Tauri Store，不进 SQLite |
 | AI Git 指令 | Done | 可配置提交指令与拉取请求指令；提交指令已接入提交文案生成 |
 | AI Commit Message | Done | 根据限长、脱敏后的暂存区 Diff 生成 Conventional Commit 文案，用户确认后提交 |
+| Agent 对话入口 | In Progress | 左侧 Agent 面板、虚拟消息列表、输入框与可新建/删除的对话标签已就绪；会话按项目 ID 隔离并仅在当前应用会话中保留，模型调用与仓库上下文后续接入 |
 | AI Diff Explain | Planned | |
 | AI Review | Planned | |
 | AI Branch Naming | Planned | |

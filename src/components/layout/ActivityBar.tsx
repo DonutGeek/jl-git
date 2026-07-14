@@ -1,4 +1,4 @@
-import { FolderTree, GitBranch, Settings, type LucideIcon } from "lucide-react";
+import { FolderTree, GitBranch, Settings, Sparkles, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
 
-export type SidebarView = "files" | "branches";
+export type SidebarView = "files" | "branches" | "agent";
 
 interface ActivityBarProps {
   active: SidebarView;
@@ -21,15 +21,16 @@ interface ActivityBarProps {
 interface ActivityItem {
   id: SidebarView;
   icon: LucideIcon;
-  labelKey: "repo.fileTree" | "repo.branches";
+  labelKey: "repo.fileTree" | "repo.branches" | "agent.title";
 }
 
 const ITEMS: ActivityItem[] = [
   { id: "files", icon: FolderTree, labelKey: "repo.fileTree" },
   { id: "branches", icon: GitBranch, labelKey: "repo.branches" },
+  { id: "agent", icon: Sparkles, labelKey: "agent.title" },
 ];
 
-/** 左侧活动栏：切换目录树 / 分支；底部为应用设置入口 */
+/** 左侧活动栏：切换目录树、分支或 Agent；底部为应用设置入口 */
 export function ActivityBar({ active, onChange }: ActivityBarProps) {
   const { t } = useTranslation();
   const openDrawer = useSettingsDrawerStore((state) => state.openDrawer);

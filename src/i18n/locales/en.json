@@ -172,6 +172,16 @@
       "timeout": "Generating the commit message timed out. Try again."
     }
   },
+  "agent": {
+    "title": "Agent",
+    "emptyState": "Start a new conversation",
+    "emptyStateDescription": "Enter a message to start a conversation for this project",
+    "newConversation": "New chat",
+    "createConversation": "Create new chat",
+    "deleteConversation": "Delete chat",
+    "inputPlaceholder": "Ask, search, or create anything…",
+    "sendMessage": "Send message"
+  },
   "repo": {
     "title": "Repository",
     "notFound": "Project not found",

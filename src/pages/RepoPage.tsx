@@ -9,6 +9,7 @@ import { RepoTabBar } from "@/components/layout/RepoTabBar";
 import { RepoToolbar, type RepoMainView } from "@/components/layout/RepoToolbar";
 import { SplitPane } from "@/components/layout/SplitPane";
 import { BranchList } from "@/components/git/BranchList";
+import { AgentChatPanel } from "@/components/ai/AgentChatPanel";
 import { ChangesPanel } from "@/components/git/ChangesPanel";
 import { ChangesPreviewPane } from "@/components/git/ChangesPreviewPane";
 import { CommitBox } from "@/components/git/CommitBox";
@@ -27,6 +28,8 @@ import { toUserMessage } from "@/types/error";
 import { Project } from "@/types/project";
 
 const SIDEBAR_MAIN_SPLIT_KEY = "jlgit:split:sidebar-main";
+/** 目录树、分支与 Agent 共用的侧栏最小可拖拽宽度。 */
+const SIDEBAR_MIN_WIDTH_PX = 320;
 const HISTORY_DETAIL_SPLIT_KEY = "jlgit:split:history-detail-v9";
 /** 历史详情栏标记：弹层右缘相对此元素左缘对齐 */
 const HISTORY_DETAIL_PANE_ATTR = "data-history-detail-pane";
@@ -234,11 +237,11 @@ export function RepoPage() {
 
   const sidebar = (
     <aside className="h-full min-h-0 overflow-hidden">
-      {sidebarView === "files" ? (
-        <FileTree key={project.path} repoPath={project.path} />
-      ) : (
-        <BranchList />
-      )}
+      {sidebarView === "files" ? <FileTree key={project.path} repoPath={project.path} /> : null}
+      {sidebarView === "branches" ? <BranchList /> : null}
+      {sidebarView === "agent" ? (
+        <AgentChatPanel projectId={project.id} />
+      ) : null}
     </aside>
   );
 
@@ -262,7 +265,7 @@ export function RepoPage() {
           <SplitPane
             orientation="vertical"
             defaultRatio={65}
-            minFirstPx={160}
+            minFirstPx={SIDEBAR_MIN_WIDTH_PX}
             // 提交区：勾选 + 信息框 + 提交按钮 + 可选「已提交」条，不可再压扁
             minSecondPx={200}
             storageKey="jlgit:split:changes-commit-v2"

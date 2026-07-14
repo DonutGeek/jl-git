@@ -289,9 +289,9 @@ export function BranchList() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 space-y-1.5 px-2.5 pt-2.5">
-        <div className="flex items-center gap-1">
-          <h2 className="text-muted-foreground min-w-0 flex-1 text-[11px] font-semibold tracking-wide uppercase">
+      <div className="shrink-0">
+        <div className="flex h-10 items-center gap-1 px-3">
+          <h2 className="text-muted-foreground min-w-0 flex-1 text-xs font-semibold">
             {t("repo.branches")}
           </h2>
 
@@ -302,7 +302,7 @@ export function BranchList() {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground size-6 [&_svg]:size-3.5"
+                  className="text-muted-foreground size-7 [&_svg]:size-3.5"
                   aria-label={t("repo.newBranch")}
                   onClick={() => setCreateOpen(true)}
                 >
@@ -318,7 +318,7 @@ export function BranchList() {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground size-6 [&_svg]:size-3.5"
+                  className="text-muted-foreground size-7 [&_svg]:size-3.5"
                   aria-label={t("repo.refresh")}
                   disabled={refreshing || loading}
                   onClick={() => void handleRefresh()}
@@ -338,7 +338,7 @@ export function BranchList() {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground size-6 [&_svg]:size-3.5"
+                  className="text-muted-foreground size-7 [&_svg]:size-3.5"
                   aria-label={t("repo.branchFilterActions")}
                   onClick={() => handleSoon(t("repo.branchFilterActions"))}
                 >
@@ -354,7 +354,7 @@ export function BranchList() {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="text-muted-foreground size-6 [&_svg]:size-3.5"
+                  className="text-muted-foreground size-7 [&_svg]:size-3.5"
                   aria-label={t("repo.branchSettings")}
                   onClick={() => handleSoon(t("repo.branchSettings"))}
                 >
@@ -366,13 +366,15 @@ export function BranchList() {
           </div>
         </div>
 
-        <Input
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-          placeholder={t("repo.filter")}
-          className="h-7 text-xs"
-          aria-label={t("repo.filter")}
-        />
+        <div className="px-3 pb-2">
+          <Input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder={t("repo.filter")}
+            className="h-8 text-xs"
+            aria-label={t("repo.filter")}
+          />
+        </div>
       </div>
 
       <div className="min-h-0 flex-1">

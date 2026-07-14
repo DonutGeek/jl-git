@@ -172,6 +172,16 @@
       "timeout": "生成提交文案超时，请重试"
     }
   },
+  "agent": {
+    "title": "Agent",
+    "emptyState": "开始新的对话",
+    "emptyStateDescription": "输入消息以开始当前项目的对话",
+    "newConversation": "新对话",
+    "createConversation": "创建新对话",
+    "deleteConversation": "删除对话",
+    "inputPlaceholder": "提问、搜索或创建任何内容…",
+    "sendMessage": "发送消息"
+  },
   "repo": {
     "title": "仓库",
     "notFound": "未找到该项目",

@@ -228,17 +228,19 @@ export function FileTree({ repoPath }: FileTreeProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 space-y-2 px-3 pt-3">
-        <h2 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-          {t("repo.fileTree")}
-        </h2>
-        <Input
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-          placeholder={t("repo.filter")}
-          className="h-8 text-xs"
-          aria-label={t("repo.filter")}
-        />
+      <div className="shrink-0">
+        <div className="flex h-10 items-center px-3">
+          <h2 className="text-muted-foreground text-xs font-semibold">{t("repo.fileTree")}</h2>
+        </div>
+        <div className="px-3 pb-2">
+          <Input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder={t("repo.filter")}
+            className="h-8 text-xs"
+            aria-label={t("repo.filter")}
+          />
+        </div>
       </div>
 
       {/* ScrollArea 需明确高度：外层 flex-1 定高，内层 h-full 滚动 */}
