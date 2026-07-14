@@ -15,17 +15,53 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 
 import { generateCommitMessage } from "@/services/ai";
+import { getCommit } from "@/services/git";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
-import { GitStatusEntry } from "@/types/git";
+import { GitCommitSummary, GitStatusEntry } from "@/types/git";
 
-/** 提交信息历史只展示最近几条去重后的 subject */
+/** 提交信息历史展示最近几条标题；选择后填入完整提交文案。 */
 const COMMIT_MESSAGE_HISTORY_LIMIT = 5;
 const HISTORY_POPOVER_WIDTH = 320;
 const HISTORY_POPOVER_MAX_HEIGHT = 200;
 const HISTORY_VIEWPORT_PADDING = 12;
+
+interface CommitMessageHistoryItem {
+  id: string;
+  preview: string;
+  message: string;
+}
+
+async function loadFullCommitMessage(
+  repoPath: string,
+  commit: GitCommitSummary,
+): Promise<CommitMessageHistoryItem> {
+  const fallback = {
+    id: commit.id,
+    preview: commit.subject.trim(),
+    message: commit.subject.trim(),
+  };
+
+  try {
+    const detail = await getCommit(repoPath, commit.id);
+    const message = [detail.commit.subject.trim(), detail.commit.body.trim()]
+      .filter((part) => part.length > 0)
+      .join("\n\n");
+
+    return message
+      ? {
+          id: commit.id,
+          preview: detail.commit.subject.trim(),
+          message,
+        }
+      : fallback;
+  } catch {
+    console.warn("[CommitBox] Failed to load full commit message", commit.id);
+    return fallback;
+  }
+}
 
 /** 已暂存：index 侧存在实际变更（非 "." 且非未跟踪的 "?"） */
 function isStagedEntry(entry: GitStatusEntry): boolean {
@@ -58,6 +94,7 @@ export function CommitBox() {
     top: 0,
     maxHeight: HISTORY_POPOVER_MAX_HEIGHT,
   });
+  const [commitMessageHistory, setCommitMessageHistory] = useState<CommitMessageHistoryItem[]>([]);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
 
   const stagedCount = status?.entries.filter(isStagedEntry).length ?? 0;
@@ -68,19 +105,46 @@ export function CommitBox() {
   const ahead = status?.ahead ?? 0;
   const hasUnpushed = ahead > 0;
   const tipCommit = hasUnpushed ? (commits[0] ?? null) : null;
-  const commitMessageHistory = useMemo(() => {
+  const commitMessageHistoryCandidates = useMemo(() => {
     const seen = new Set<string>();
     return commits
       .flatMap((item) => {
         const message = item.subject.trim();
-        if (!message || seen.has(message)) {
+        if (!message || seen.has(item.id)) {
           return [];
         }
-        seen.add(message);
-        return [message];
+        seen.add(item.id);
+        return [item];
       })
       .slice(0, COMMIT_MESSAGE_HISTORY_LIMIT);
   }, [commits]);
+
+  useEffect(() => {
+    const fallback = commitMessageHistoryCandidates.map((commit) => ({
+      id: commit.id,
+      preview: commit.subject.trim(),
+      message: commit.subject.trim(),
+    }));
+    setCommitMessageHistory(fallback);
+
+    if (!repoPath || commitMessageHistoryCandidates.length === 0) {
+      return;
+    }
+
+    let active = true;
+    void Promise.all(
+      commitMessageHistoryCandidates.map((commit) => loadFullCommitMessage(repoPath, commit)),
+    ).then((items) => {
+      if (!active) {
+        return;
+      }
+      setCommitMessageHistory(items);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [commitMessageHistoryCandidates, repoPath]);
 
   function updateHistoryPosition(): void {
     const rect = messageInputRef.current?.getBoundingClientRect();
@@ -252,16 +316,18 @@ export function CommitBox() {
               style={{ maxHeight: Math.max(88, historyPosition.maxHeight - 32) }}
             >
               <ul className="p-1" role="listbox" aria-label={t("repo.commitMessageHistory")}>
-                {commitMessageHistory.map((message) => (
-                  <li key={message}>
+                {commitMessageHistory.map((item) => (
+                  <li key={item.id}>
                     <button
                       type="button"
                       role="option"
                       className="hover:bg-accent focus-visible:ring-ring flex w-full cursor-pointer rounded-sm px-2 py-1.5 text-left text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
                       onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => fillCommitMessage(message)}
+                      onClick={() => fillCommitMessage(item.message)}
                     >
-                      <span className="truncate">{message}</span>
+                      <span className="truncate" title={item.preview}>
+                        {item.preview}
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -314,22 +380,32 @@ export function CommitBox() {
         </Tooltip>
       </div>
 
-      <Textarea
-        ref={messageInputRef}
-        value={commitMessage}
-        onChange={(event) => setCommitMessage(event.target.value)}
-        onFocus={openCommitMessageHistory}
-        onBlur={() => setHistoryOpen(false)}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            setHistoryOpen(false);
-          }
-        }}
-        aria-label={t("repo.commitMessage")}
-        placeholder={t("repo.commitMessageRequired")}
-        className="min-h-0 flex-1 resize-none px-2.5 py-1.5 text-xs md:text-xs"
-        disabled={working}
-      />
+      <div className="relative min-h-0 flex-1">
+        <Textarea
+          ref={messageInputRef}
+          value={commitMessage}
+          onChange={(event) => setCommitMessage(event.target.value)}
+          onFocus={openCommitMessageHistory}
+          onBlur={() => setHistoryOpen(false)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setHistoryOpen(false);
+            }
+          }}
+          aria-label={t("repo.commitMessage")}
+          placeholder=""
+          className="h-full min-h-0 resize-none px-2.5 py-1.5 text-xs md:text-xs"
+          disabled={working}
+        />
+        {commitMessage.trim().length === 0 ? (
+          <span
+            aria-hidden="true"
+            className="text-muted-foreground pointer-events-none absolute top-1.5 left-2.5 text-xs"
+          >
+            {t("repo.commitMessagePlaceholder")}
+          </span>
+        ) : null}
+      </div>
 
       <div className="shrink-0 space-y-2">
         <div className="flex items-center gap-1.5">

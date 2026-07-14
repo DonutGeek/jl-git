@@ -11,6 +11,13 @@ interface AgentChatState {
   setActiveConversation: (projectId: string, conversationId: string) => void;
   deleteConversation: (projectId: string, conversationId: string) => void;
   appendMessage: (projectId: string, conversationId: string, message: AgentChatMessage) => void;
+  updateMessage: (
+    projectId: string,
+    conversationId: string,
+    messageId: string,
+    update: Partial<Pick<AgentChatMessage, "content" | "isStreaming">>,
+  ) => void;
+  removeMessage: (projectId: string, conversationId: string, messageId: string) => void;
 }
 
 /** 按项目隔离的多 Agent 会话；仅在当前应用会话中保留，避免写入通用设置。 */
@@ -101,6 +108,46 @@ export const useAgentChatStore = create<AgentChatState>((set) => ({
           [projectId]: conversations.map((conversation) =>
             conversation.id === conversationId
               ? { ...conversation, title: nextTitle, messages: [...conversation.messages, message] }
+              : conversation,
+          ),
+        },
+      };
+    });
+  },
+
+  updateMessage(projectId, conversationId, messageId, update) {
+    set((state) => {
+      const conversations = state.conversationsByProjectId[projectId] ?? EMPTY_CONVERSATIONS;
+      return {
+        conversationsByProjectId: {
+          ...state.conversationsByProjectId,
+          [projectId]: conversations.map((conversation) =>
+            conversation.id === conversationId
+              ? {
+                  ...conversation,
+                  messages: conversation.messages.map((message) =>
+                    message.id === messageId ? { ...message, ...update } : message,
+                  ),
+                }
+              : conversation,
+          ),
+        },
+      };
+    });
+  },
+
+  removeMessage(projectId, conversationId, messageId) {
+    set((state) => {
+      const conversations = state.conversationsByProjectId[projectId] ?? EMPTY_CONVERSATIONS;
+      return {
+        conversationsByProjectId: {
+          ...state.conversationsByProjectId,
+          [projectId]: conversations.map((conversation) =>
+            conversation.id === conversationId
+              ? {
+                  ...conversation,
+                  messages: conversation.messages.filter((message) => message.id !== messageId),
+                }
               : conversation,
           ),
         },

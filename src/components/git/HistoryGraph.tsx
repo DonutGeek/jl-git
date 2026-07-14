@@ -179,7 +179,7 @@ export const HistoryGraph = memo(function HistoryGraph({
 
   return (
     <div
-      className="text-muted-foreground pointer-events-auto absolute top-0 left-1.5 z-10 overflow-visible [&_svg]:block"
+      className="text-muted-foreground pointer-events-auto absolute top-0 left-1.5 z-10 overflow-hidden [&_svg]:block"
       style={{ width }}
       aria-hidden="true"
     >

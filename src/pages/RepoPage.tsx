@@ -29,7 +29,9 @@ import { Project } from "@/types/project";
 
 const SIDEBAR_MAIN_SPLIT_KEY = "jlgit:split:sidebar-main";
 /** 目录树、分支与 Agent 共用的侧栏最小可拖拽宽度。 */
-const SIDEBAR_MIN_WIDTH_PX = 320;
+const SIDEBAR_MIN_WIDTH_PX = 280;
+/** 变更列表在纵向分栏中的最小高度。 */
+const CHANGES_LIST_MIN_HEIGHT_PX = 320;
 const HISTORY_DETAIL_SPLIT_KEY = "jlgit:split:history-detail-v9";
 /** 历史详情栏标记：弹层右缘相对此元素左缘对齐 */
 const HISTORY_DETAIL_PANE_ATTR = "data-history-detail-pane";
@@ -265,7 +267,7 @@ export function RepoPage() {
           <SplitPane
             orientation="vertical"
             defaultRatio={65}
-            minFirstPx={SIDEBAR_MIN_WIDTH_PX}
+            minFirstPx={CHANGES_LIST_MIN_HEIGHT_PX}
             // 提交区：勾选 + 信息框 + 提交按钮 + 可选「已提交」条，不可再压扁
             minSecondPx={200}
             storageKey="jlgit:split:changes-commit-v2"
@@ -370,7 +372,7 @@ export function RepoPage() {
           <SplitPane
             orientation="horizontal"
             defaultRatio={22}
-            minFirstPx={160}
+            minFirstPx={SIDEBAR_MIN_WIDTH_PX}
             minSecondPx={320}
             storageKey={SIDEBAR_MAIN_SPLIT_KEY}
             first={sidebar}

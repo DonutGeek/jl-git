@@ -4,6 +4,7 @@ export interface AgentChatMessage {
   id: string;
   role: AgentChatMessageRole;
   content: string;
+  isStreaming?: boolean;
 }
 
 export interface AgentConversation {

@@ -5,6 +5,7 @@ import {
   Camera,
   ChevronsDownUp,
   ChevronsUpDown,
+  Copy,
   EllipsisVertical,
   FileDiff,
   GitCommitHorizontal,
@@ -21,6 +22,14 @@ import { CommitFileTree, getCommitFileTreeFolderPaths } from "@/components/git/C
 import { DiffLineStats } from "@/components/git/DiffLineStats";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -576,6 +585,7 @@ export function HistoryDetailPane() {
   const commits = useRepoStore((state) => state.commits);
   const [hashCopied, setHashCopied] = useState(false);
   const [messageCopied, setMessageCopied] = useState(false);
+  const [messagePreviewOpen, setMessagePreviewOpen] = useState(false);
   /** 点击「显示分支」后展示；切换提交时复位 */
   const [containingBranches, setContainingBranches] = useState<string[] | null>(null);
   const [branchesLoading, setBranchesLoading] = useState(false);
@@ -601,6 +611,8 @@ export function HistoryDetailPane() {
     setChangeSize(null);
     setBranchesLoading(false);
     setSizeLoading(false);
+    setMessagePreviewOpen(false);
+    setMessageCopied(false);
   }, [selectedCommitId]);
 
   if (!selectedCommitId) {
@@ -727,31 +739,24 @@ export function HistoryDetailPane() {
 
       {/* 元信息区固定；外层不滚动 */}
       <div className="border-border shrink-0 space-y-2 border-b px-3 py-2.5">
-        {/* 提交文案框：标题+正文作为整体，仅框内滚动 */}
-        <ScrollArea className="border-border bg-muted/30 max-h-28 rounded-md border">
-          <Tooltip open={messageCopied ? true : undefined} delayDuration={200}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="hover:bg-accent/50 focus-visible:ring-ring block w-full cursor-pointer space-y-1 px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1"
-                aria-label={t("repo.copy")}
-                onClick={() => void copyCommitMessage()}
-              >
-                <p className="wrap-break-word text-[13px] leading-snug font-semibold">
-                  {detail.subject}
+        <Tooltip delayDuration={200}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="border-border bg-muted/30 hover:bg-accent/50 focus-visible:ring-ring block w-full cursor-pointer rounded-md border px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1"
+              aria-label={t("repo.previewCommitMessage")}
+              onClick={() => setMessagePreviewOpen(true)}
+            >
+              <p className="truncate text-[13px] leading-snug font-semibold">{detail.subject}</p>
+              {detail.body ? (
+                <p className="text-muted-foreground truncate mt-1 text-[11px] leading-snug">
+                  {detail.body.replace(/\s+/g, " ")}
                 </p>
-                {detail.body ? (
-                  <div className="text-muted-foreground whitespace-pre-wrap font-sans text-[11px] leading-snug">
-                    {detail.body}
-                  </div>
-                ) : null}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {messageCopied ? t("repo.copySuccess") : t("repo.copy")}
-            </TooltipContent>
-          </Tooltip>
-        </ScrollArea>
+              ) : null}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{t("repo.previewCommitMessage")}</TooltipContent>
+        </Tooltip>
 
         <div className="space-y-1">
           <p className="text-muted-foreground text-[11px] leading-none">
@@ -877,6 +882,31 @@ export function HistoryDetailPane() {
           ))
         )}
       </div>
+
+      <Dialog open={messagePreviewOpen} onOpenChange={setMessagePreviewOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("repo.commitMessagePreview")}</DialogTitle>
+            <DialogDescription>{t("repo.commitMessagePreviewDescription")}</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="border-border max-h-[min(60vh,30rem)] rounded-md border">
+            <div className="space-y-3 px-3 py-2.5">
+              <p className="wrap-break-word text-sm leading-relaxed font-semibold">{detail.subject}</p>
+              {detail.body ? (
+                <p className="text-muted-foreground whitespace-pre-wrap wrap-break-word text-xs leading-relaxed">
+                  {detail.body}
+                </p>
+              ) : null}
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => void copyCommitMessage()}>
+              <Copy className="size-3.5" aria-hidden="true" />
+              {messageCopied ? t("repo.copySuccess") : t("repo.copy")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

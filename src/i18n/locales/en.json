@@ -61,7 +61,7 @@
     "sectionGit": "Git",
     "sectionGitHint": "Global commit identity (git config --global)",
     "sectionSsh": "SSH keys",
-    "sectionAi": "AI",
+    "sectionAi": "鲸灵",
     "sectionTools": "External tools",
     "sectionToolsHint": "External editor and terminal",
     "sectionGeneral": "General",
@@ -99,7 +99,7 @@
     "apiKeyCreatedAt": "Created",
     "apiKeyStatus": "Status",
     "apiKeyActions": "Actions",
-    "apiKeyEmpty": "No API keys yet. Create one to use Agent.",
+    "apiKeyEmpty": "No API keys yet. Create one to use 鲸灵.",
     "apiKeyRequired": "Enter a name and API Key",
     "apiKeyCreated": "API Key created and enabled",
     "apiKeyDeleted": "API Key deleted",
@@ -173,14 +173,17 @@
     }
   },
   "agent": {
-    "title": "Agent",
+    "title": "鲸灵",
     "emptyState": "Start a new conversation",
     "emptyStateDescription": "Enter a message to start a conversation for this project",
     "newConversation": "New chat",
     "createConversation": "Create new chat",
     "deleteConversation": "Delete chat",
     "inputPlaceholder": "Ask, search, or create anything…",
-    "sendMessage": "Send message"
+    "sendMessage": "Send message",
+    "thinking": "鲸灵 is thinking…",
+    "replyFailed": "鲸灵 failed to reply. Please try again.",
+    "replyTimeout": "鲸灵 timed out. Please try again."
   },
   "repo": {
     "title": "Repository",
@@ -386,6 +389,10 @@
     "commitTo": "Commit to {{branch}}",
     "commitMessage": "Commit message",
     "commitMessageRequired": "Commit message (required)",
+    "commitMessagePlaceholder": "Enter a commit message",
+    "previewCommitMessage": "Preview commit message",
+    "commitMessagePreview": "Commit message preview",
+    "commitMessagePreviewDescription": "View the full commit message and copy it to the clipboard",
     "commitMessageHistory": "Commit message history",
     "commitMessageHistoryClose": "Close commit message history",
     "aiGenerate": "Generate commit message",

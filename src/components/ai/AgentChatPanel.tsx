@@ -1,7 +1,15 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowUp, Plus, Sparkles, X } from "lucide-react";
+import { ArrowUp, LoaderCircle, Plus, Sparkles, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
@@ -9,8 +17,11 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { streamAgentReply } from "@/services/ai";
 import { EMPTY_CONVERSATIONS, useAgentChatStore } from "@/store/useAgentChatStore";
+import { useLocaleStore } from "@/store/useLocaleStore";
 
+import { toUserMessage } from "@/types/error";
 import type { AgentChatMessage } from "@/types/ai";
 
 const EMPTY_MESSAGES: readonly AgentChatMessage[] = [];
@@ -23,10 +34,15 @@ interface AgentChatPanelProps {
 export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
   const { t } = useTranslation();
   const messageScrollAreaRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const replyAbortControllerRef = useRef<AbortController | null>(null);
   const messageSequence = useRef(0);
   const conversationSequence = useRef(0);
   const [draft, setDraft] = useState("");
+  const [isReplying, setIsReplying] = useState(false);
+  const [messageViewport, setMessageViewport] = useState<HTMLDivElement | null>(null);
+  const locale = useLocaleStore((state) => state.locale);
   const conversations = useAgentChatStore(
     (state) => state.conversationsByProjectId[projectId] ?? EMPTY_CONVERSATIONS,
   );
@@ -37,18 +53,13 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
   const setActiveConversation = useAgentChatStore((state) => state.setActiveConversation);
   const deleteConversation = useAgentChatStore((state) => state.deleteConversation);
   const appendMessage = useAgentChatStore((state) => state.appendMessage);
+  const updateMessage = useAgentChatStore((state) => state.updateMessage);
+  const removeMessage = useAgentChatStore((state) => state.removeMessage);
   const activeConversation =
     conversations.find((conversation) => conversation.id === activeConversationId) ??
     conversations[0] ??
     null;
   const messages = activeConversation?.messages ?? EMPTY_MESSAGES;
-
-  function getMessageViewport(): HTMLDivElement | null {
-    const viewport = messageScrollAreaRef.current?.querySelector(
-      "[data-radix-scroll-area-viewport]",
-    );
-    return viewport instanceof HTMLDivElement ? viewport : null;
-  }
 
   useEffect(() => {
     if (conversations.length > 0) {
@@ -62,22 +73,68 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
     });
   }, [conversations.length, createConversation, projectId]);
 
+  useEffect(() => {
+    return () => {
+      replyAbortControllerRef.current?.abort();
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const viewport = messageScrollAreaRef.current?.querySelector(
+      "[data-radix-scroll-area-viewport]",
+    );
+    setMessageViewport(viewport instanceof HTMLDivElement ? viewport : null);
+  }, []);
+
   const virtualizer = useVirtualizer({
     count: messages.length,
-    getScrollElement: getMessageViewport,
+    getScrollElement: () => messageViewport,
     estimateSize: () => 72,
+    measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 8,
   });
 
+  useLayoutEffect(() => {
+    virtualizer.measure();
+  }, [messageViewport, messages, virtualizer]);
+
   useEffect(() => {
-    if (messages.length === 0) {
+    if (!messageViewport) {
+      return;
+    }
+    const updateStickiness = (): void => {
+      const remaining =
+        messageViewport.scrollHeight - messageViewport.scrollTop - messageViewport.clientHeight;
+      stickToBottomRef.current = remaining < 32;
+    };
+    updateStickiness();
+    messageViewport.addEventListener("scroll", updateStickiness, { passive: true });
+    return () => messageViewport.removeEventListener("scroll", updateStickiness);
+  }, [messageViewport]);
+
+  const lastMessage = messages[messages.length - 1];
+  useEffect(() => {
+    stickToBottomRef.current = true;
+  }, [activeConversation?.id]);
+
+  useEffect(() => {
+    if (!messageViewport || messages.length === 0 || !stickToBottomRef.current) {
       return;
     }
     const frameId = window.requestAnimationFrame(() => {
-      virtualizer.scrollToIndex(messages.length - 1, { align: "end" });
+      virtualizer.measure();
+      messageViewport.scrollTo({ top: messageViewport.scrollHeight });
     });
     return () => window.cancelAnimationFrame(frameId);
-  }, [activeConversation?.id, messages.length, virtualizer]);
+  }, [
+    activeConversation?.id,
+    lastMessage?.content,
+    lastMessage?.id,
+    lastMessage?.isStreaming,
+    messageViewport,
+    messages.length,
+    virtualizer,
+  ]);
 
   function handleCreateConversation(): void {
     conversationSequence.current += 1;
@@ -94,24 +151,79 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
     deleteConversation(projectId, conversationId);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const content = draft.trim();
-    if (!content) {
+    if (!content || !activeConversation || isReplying) {
       return;
     }
 
     messageSequence.current += 1;
-    const message: AgentChatMessage = {
+    const userMessage: AgentChatMessage = {
       id: `user-${Date.now()}-${messageSequence.current}`,
       role: "user",
       content,
     };
-    if (!activeConversation) {
-      return;
-    }
-    appendMessage(projectId, activeConversation.id, message);
+    messageSequence.current += 1;
+    const assistantMessage: AgentChatMessage = {
+      id: `assistant-${Date.now()}-${messageSequence.current}`,
+      role: "assistant",
+      content: "",
+      isStreaming: true,
+    };
+    const conversationId = activeConversation.id;
+    appendMessage(projectId, conversationId, userMessage);
+    appendMessage(projectId, conversationId, assistantMessage);
     setDraft("");
+
+    const controller = new AbortController();
+    replyAbortControllerRef.current = controller;
+    setIsReplying(true);
+    let contentBuffer = "";
+    let animationFrameId: number | null = null;
+    const flushReply = (): void => {
+      animationFrameId = null;
+      updateMessage(projectId, conversationId, assistantMessage.id, {
+        content: contentBuffer,
+      });
+    };
+
+    try {
+      await streamAgentReply({
+        messages: [...messages, userMessage],
+        locale,
+        signal: controller.signal,
+        onDelta: (delta) => {
+          contentBuffer += delta;
+          if (animationFrameId == null) {
+            animationFrameId = window.requestAnimationFrame(flushReply);
+          }
+        },
+      });
+      if (animationFrameId != null) {
+        window.cancelAnimationFrame(animationFrameId);
+        flushReply();
+      }
+      updateMessage(projectId, conversationId, assistantMessage.id, { isStreaming: false });
+    } catch (error) {
+      if (animationFrameId != null) {
+        window.cancelAnimationFrame(animationFrameId);
+        flushReply();
+      }
+      if (contentBuffer) {
+        updateMessage(projectId, conversationId, assistantMessage.id, { isStreaming: false });
+      } else {
+        removeMessage(projectId, conversationId, assistantMessage.id);
+      }
+      if (!controller.signal.aborted) {
+        toast.error(toUserMessage(error) || t("agent.replyFailed"));
+      }
+    } finally {
+      if (replyAbortControllerRef.current === controller) {
+        replyAbortControllerRef.current = null;
+      }
+      setIsReplying(false);
+    }
   }
 
   function handleInputKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
@@ -215,16 +327,28 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
                   className="absolute top-0 left-0 w-full pb-3"
                   style={{ transform: `translateY(${virtualItem.start}px)` }}
                 >
-                  <div className={isUser ? "ml-auto max-w-[88%]" : "max-w-[92%]"}>
-                    <p
-                      className={
+                  <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
+                    <div
+                      className={cn(
+                        "w-fit max-w-[88%] whitespace-pre-wrap wrap-break-word rounded-lg px-3 py-2 text-xs leading-relaxed",
                         isUser
-                          ? "bg-primary text-primary-foreground whitespace-pre-wrap wrap-break-word rounded-lg px-3 py-2 text-xs leading-relaxed"
-                          : "bg-muted text-foreground whitespace-pre-wrap wrap-break-word rounded-lg px-3 py-2 text-xs leading-relaxed"
-                      }
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-foreground",
+                      )}
                     >
-                      {message.content}
-                    </p>
+                      {message.content ? <span>{message.content}</span> : null}
+                      {message.isStreaming ? (
+                        <span
+                          className={cn(
+                            "items-center gap-1.5",
+                            message.content ? "ml-1 inline-flex" : "flex",
+                          )}
+                        >
+                          <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
+                          {!message.content ? <span>{t("agent.thinking")}</span> : null}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               );
@@ -233,7 +357,7 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
         </div>
       </ScrollArea>
 
-      <form className="absolute inset-x-3 bottom-3 z-10" onSubmit={handleSubmit}>
+      <form className="bg-background absolute inset-x-3 bottom-3 z-10 rounded-md" onSubmit={handleSubmit}>
         <div className="relative">
           <Textarea
             ref={inputRef}
@@ -243,15 +367,20 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
             aria-label={t("agent.inputPlaceholder")}
             placeholder={t("agent.inputPlaceholder")}
             className="h-28 min-h-28 resize-none px-3 py-2 pr-11 text-xs"
+            disabled={isReplying}
           />
           <Button
             type="submit"
             size="icon"
             className="absolute right-2 bottom-2 size-8"
             aria-label={t("agent.sendMessage")}
-            disabled={!activeConversation || draft.trim().length === 0}
+            disabled={!activeConversation || draft.trim().length === 0 || isReplying}
           >
-            <ArrowUp aria-hidden="true" />
+            {isReplying ? (
+              <LoaderCircle className="animate-spin" aria-hidden="true" />
+            ) : (
+              <ArrowUp aria-hidden="true" />
+            )}
           </Button>
         </div>
       </form>

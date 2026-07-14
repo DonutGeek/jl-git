@@ -61,7 +61,7 @@
     "sectionGit": "Git",
     "sectionGitHint": "全局提交身份（写入 git config --global）",
     "sectionSsh": "SSH 密钥",
-    "sectionAi": "AI",
+    "sectionAi": "鲸灵",
     "sectionTools": "外部工具",
     "sectionToolsHint": "外部编辑器与终端",
     "sectionGeneral": "通用",
@@ -99,7 +99,7 @@
     "apiKeyCreatedAt": "创建日期",
     "apiKeyStatus": "状态",
     "apiKeyActions": "操作",
-    "apiKeyEmpty": "还没有 API Key，创建一个后即可使用 Agent。",
+    "apiKeyEmpty": "还没有 API Key，创建一个后即可使用鲸灵。",
     "apiKeyRequired": "请填写名称和 API Key",
     "apiKeyCreated": "API Key 已创建并启用",
     "apiKeyDeleted": "API Key 已删除",
@@ -173,14 +173,17 @@
     }
   },
   "agent": {
-    "title": "Agent",
+    "title": "鲸灵",
     "emptyState": "开始新的对话",
     "emptyStateDescription": "输入消息以开始当前项目的对话",
     "newConversation": "新对话",
     "createConversation": "创建新对话",
     "deleteConversation": "删除对话",
     "inputPlaceholder": "提问、搜索或创建任何内容…",
-    "sendMessage": "发送消息"
+    "sendMessage": "发送消息",
+    "thinking": "鲸灵正在思考…",
+    "replyFailed": "鲸灵回复失败，请重试",
+    "replyTimeout": "鲸灵回复超时，请重试"
   },
   "repo": {
     "title": "仓库",
@@ -386,6 +389,10 @@
     "commitTo": "提交到 {{branch}}",
     "commitMessage": "提交信息",
     "commitMessageRequired": "提交信息（必填）",
+    "commitMessagePlaceholder": "请输入提交信息",
+    "previewCommitMessage": "预览提交文案",
+    "commitMessagePreview": "提交文案预览",
+    "commitMessagePreviewDescription": "查看完整提交文案，并可复制到剪贴板",
     "commitMessageHistory": "提交信息历史",
     "commitMessageHistoryClose": "关闭提交信息历史",
     "aiGenerate": "生成提交信息",
