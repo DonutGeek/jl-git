@@ -23,6 +23,7 @@ use crate::git::{
         GitLsTreeResult, GitShowResult,
     },
     status::{self, GitStatusResult},
+    tag::{self, GitTag},
 };
 
 #[derive(Serialize)]
@@ -35,6 +36,21 @@ pub struct OkResult {
 #[serde(rename_all = "camelCase")]
 pub struct GitBranchesResult {
     branches: Vec<GitBranch>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitTagsResult {
+    tags: Vec<GitTag>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitTagCreateResult {
+    ok: bool,
+    pushed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    push_error: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -111,6 +127,98 @@ pub fn git_branches(
     Ok(GitBranchesResult {
         branches: branch::list_branches(&repo_path, include_remote)?,
     })
+}
+
+#[tauri::command]
+pub fn git_tags(path: String) -> Result<GitTagsResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    Ok(GitTagsResult {
+        tags: tag::list_tags(&repo_path)?,
+    })
+}
+
+#[tauri::command]
+pub async fn git_tag_create(
+    app: AppHandle,
+    path: String,
+    name: String,
+    message: Option<String>,
+    r#ref: Option<String>,
+    push: Option<bool>,
+    remote: Option<String>,
+) -> Result<GitTagCreateResult, AppError> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::new("VALIDATION", "标签名称不能为空"));
+    }
+    let message = message.filter(|value| !value.trim().is_empty());
+    let target = r#ref.filter(|value| !value.trim().is_empty());
+    if let Some(target) = target.as_deref() {
+        validate_git_ref(target)?;
+    }
+    let should_push = push.unwrap_or(false);
+    let remote = remote.filter(|value| !value.trim().is_empty());
+    if should_push && remote.is_none() {
+        return Err(AppError::new("VALIDATION", "未配置可推送的远端"));
+    }
+
+    let repo_path = resolve_repo_path(&path)?;
+    let repo_key = path;
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "createTag", || {
+            tag::create_tag(&repo_path, &name, message.as_deref(), target.as_deref())?;
+            if !should_push {
+                return Ok(GitTagCreateResult {
+                    ok: true,
+                    pushed: false,
+                    push_error: None,
+                });
+            }
+
+            let push_result =
+                tag::push_tag(&repo_path, remote.as_deref().unwrap_or_default(), &name);
+            match push_result {
+                Ok(()) => Ok(GitTagCreateResult {
+                    ok: true,
+                    pushed: true,
+                    push_error: None,
+                }),
+                Err(error) => Ok(GitTagCreateResult {
+                    ok: true,
+                    pushed: false,
+                    push_error: Some(error.message),
+                }),
+            }
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "创建标签任务失败").with_details(error.to_string())
+    })?
+}
+
+#[tauri::command]
+pub async fn git_tag_delete(
+    app: AppHandle,
+    path: String,
+    name: String,
+) -> Result<OkResult, AppError> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::new("VALIDATION", "标签名称不能为空"));
+    }
+    let repo_path = resolve_repo_path(&path)?;
+    let repo_key = path;
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "deleteTag", || {
+            tag::delete_tag(&repo_path, &name)?;
+            Ok(OkResult { ok: true })
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "删除标签任务失败").with_details(error.to_string())
+    })?
 }
 
 #[tauri::command]

@@ -331,7 +331,7 @@ interface GitBranch {
 |--|--|
 | **目的** | 标签列表 |
 | **输入** | `{ path: string }` |
-| **输出** | `{ tags: { name: string; peel?: string }[] }` |
+| **输出** | `{ tags: { name: string; target: string; message?: string }[] }` |
 
 ### `git_stash_list`
 
@@ -469,8 +469,10 @@ interface GitBranch {
 
 | 命令 | 输入 | 输出 |
 |------|------|------|
-| `git_tag_create` | `{ path; name; message?: string; ref?: string }` | `{ ok: true }` |
+| `git_tag_create` | `{ path; name; message?: string; ref?: string; push?: boolean; remote?: string }` | `{ ok: true; pushed: boolean; pushError?: string }` |
 | `git_tag_delete` | `{ path; name }` | `{ ok: true }` |
+
+`git_tag_create` 的 `message` 非空时创建附注标签，否则创建轻量标签；缺省 `ref` 时以 `HEAD` 为基准。`push=true` 时必须传入已配置的 `remote`；本地创建成功但推送失败时仍返回 `ok: true`、`pushed: false` 与安全错误文案，调用方必须刷新标签列表并告知用户本地标签已创建。
 
 ### `git_stash_push` / `git_stash_apply` / `git_stash_drop` / `git_stash_pop`
 

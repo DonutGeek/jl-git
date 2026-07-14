@@ -12,3 +12,4 @@ pub mod reset;
 pub mod runner;
 pub mod show;
 pub mod status;
+pub mod tag;
