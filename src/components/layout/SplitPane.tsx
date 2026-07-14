@@ -68,6 +68,8 @@ export function SplitPane({
   const dragRef = useRef<{ startPos: number; startRatio: number } | null>(null);
 
   const isHorizontal = orientation === "horizontal";
+  const [containerSize, setContainerSize] = useState(0);
+  const separatorPx = 6;
 
   // storageKey / 默认比例变更时重新读取；用 layout 阶段同步，避免首帧错宽导致邻栏抖动
   useLayoutEffect(() => {
@@ -79,6 +81,46 @@ export function SplitPane({
   useEffect(() => {
     ratioRef.current = ratio;
   }, [ratio]);
+
+  // 实测容器尺寸：窗口过窄时按比例缩小两侧 min，并夹紧 ratio
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) {
+      return;
+    }
+    const update = (): void => {
+      const rect = el.getBoundingClientRect();
+      setContainerSize(isHorizontal ? rect.width : rect.height);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isHorizontal]);
+
+  const available = Math.max(0, containerSize - separatorPx);
+  const totalMin = minFirstPx + minSecondPx;
+  const minScale =
+    available > 0 && totalMin > available ? available / totalMin : 1;
+  const effMinFirst = Math.max(0, Math.floor(minFirstPx * minScale));
+  const effMinSecond = Math.max(0, Math.floor(minSecondPx * minScale));
+
+  // 容器变窄后夹紧 ratio，保证次栏至少留下 effMinSecond，避免右缘被 overflow 裁掉
+  useLayoutEffect(() => {
+    if (containerSize <= 0 || available <= 0) {
+      return;
+    }
+    const minFirstRatio = (effMinFirst / containerSize) * 100;
+    const maxFirstRatio = ((available - effMinSecond) / containerSize) * 100;
+    const clamped = Math.min(
+      Math.max(minFirstRatio, ratioRef.current),
+      Math.max(minFirstRatio, maxFirstRatio),
+    );
+    if (Math.abs(clamped - ratioRef.current) > 0.05) {
+      ratioRef.current = clamped;
+      setRatio(clamped);
+    }
+  }, [available, containerSize, effMinFirst, effMinSecond]);
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -112,9 +154,16 @@ export function SplitPane({
       const deltaRatio = (deltaPx / size) * 100;
       let next = dragRef.current.startRatio + deltaRatio;
 
-      const minFirstRatio = (minFirstPx / size) * 100;
-      const minSecondRatio = (minSecondPx / size) * 100;
-      next = Math.min(100 - minSecondRatio, Math.max(minFirstRatio, next));
+      const avail = Math.max(0, size - separatorPx);
+      const scale =
+        avail > 0 && minFirstPx + minSecondPx > avail
+          ? avail / (minFirstPx + minSecondPx)
+          : 1;
+      const effFirst = minFirstPx * scale;
+      const effSecond = minSecondPx * scale;
+      const minFirstRatio = (effFirst / size) * 100;
+      const maxFirstRatio = ((avail - effSecond) / size) * 100;
+      next = Math.min(Math.max(minFirstRatio, next), Math.max(minFirstRatio, maxFirstRatio));
       setRatio(next);
     },
     [isHorizontal, minFirstPx, minSecondPx],
@@ -167,30 +216,31 @@ export function SplitPane({
     };
   }, [dragging, isHorizontal]);
 
-  // 首块按百分比；次块吃剩余空间，避免双百分比 + minWidth 互相顶死
+  // 首块按比例但允许收缩（flex-shrink:1）；次栏 minWidth 用 0，空间靠首块 maxWidth 预留
+  // 避免「两侧都硬顶 minWidth」时总宽溢出、右栏边距被 overflow 裁掉
   const firstStyle: CSSProperties = isHorizontal
     ? {
-        flex: `0 0 ${ratio}%`,
+        flex: `0 1 ${ratio}%`,
         width: `${ratio}%`,
-        minWidth: minFirstPx,
-        maxWidth: `calc(100% - ${minSecondPx}px)`,
+        minWidth: 0,
+        maxWidth: `calc(100% - ${effMinSecond + separatorPx}px)`,
       }
     : {
-        flex: `0 0 ${ratio}%`,
+        flex: `0 1 ${ratio}%`,
         height: `${ratio}%`,
-        minHeight: minFirstPx,
-        maxHeight: `calc(100% - ${minSecondPx}px)`,
+        minHeight: 0,
+        maxHeight: `calc(100% - ${effMinSecond + separatorPx}px)`,
       };
 
   const secondStyle: CSSProperties = isHorizontal
     ? {
         flex: "1 1 0%",
-        minWidth: minSecondPx,
+        minWidth: 0,
         width: 0,
       }
     : {
         flex: "1 1 0%",
-        minHeight: minSecondPx,
+        minHeight: 0,
         height: 0,
       };
 
@@ -205,7 +255,10 @@ export function SplitPane({
         className,
       )}
     >
-      <div className="min-h-0 overflow-hidden" style={firstStyle}>
+      <div
+        className={cn("min-h-0 overflow-hidden", isHorizontal && "min-w-0")}
+        style={firstStyle}
+      >
         {first}
       </div>
 
@@ -236,7 +289,10 @@ export function SplitPane({
         onPointerCancel={endDrag}
       />
 
-      <div className="min-h-0 overflow-hidden" style={secondStyle}>
+      <div
+        className={cn("min-h-0 overflow-hidden", isHorizontal && "min-w-0")}
+        style={secondStyle}
+      >
         {second}
       </div>
     </div>

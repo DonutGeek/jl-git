@@ -28,6 +28,13 @@
     user-select: none;
   }
 
+  /* 灰底面板上 shadow-xs 过显眼；不改 components/ui，在设计层盖掉 */
+  [data-slot="input"],
+  [data-slot="textarea"],
+  [data-slot="button"][data-variant="outline"] {
+    box-shadow: none;
+  }
+
   code,
   kbd,
   pre,

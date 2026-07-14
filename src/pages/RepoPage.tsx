@@ -32,7 +32,7 @@ const SIDEBAR_MAIN_SPLIT_KEY = "jlgit:split:sidebar-main";
 const SIDEBAR_MIN_WIDTH_PX = 280;
 /** 变更列表在纵向分栏中的最小高度。 */
 const CHANGES_LIST_MIN_HEIGHT_PX = 320;
-const HISTORY_DETAIL_SPLIT_KEY = "jlgit:split:history-detail-v9";
+const HISTORY_DETAIL_SPLIT_KEY = "jlgit:split:history-detail-v10";
 /** 历史详情栏标记：弹层右缘相对此元素左缘对齐 */
 const HISTORY_DETAIL_PANE_ATTR = "data-history-detail-pane";
 /** SplitPane 水平分隔条为 w-1.5（6px）；弹层右缘让出，露出拖拽线 */
@@ -351,7 +351,7 @@ export function RepoPage() {
       first={
         <aside
           className={cn(
-            "h-full min-h-0 overflow-hidden",
+            "h-full min-h-0 min-w-0 overflow-hidden",
             // 避免拖拽结束后的残影 click 点到历史列表 → selectCommit 清空文件对比
             showCommitFileDiff && "pointer-events-none",
           )}
@@ -360,7 +360,7 @@ export function RepoPage() {
         </aside>
       }
       second={
-        <aside className="h-full min-h-0 overflow-hidden" data-history-detail-pane="">
+        <aside className="h-full min-h-0 min-w-0 overflow-hidden" data-history-detail-pane="">
           <HistoryDetailPane />
         </aside>
       }

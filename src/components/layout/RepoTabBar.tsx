@@ -25,7 +25,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { FolderPlus, Loader2, Plus, X } from "lucide-react";
+import { FolderPlus, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { OpenRepoDialog } from "@/components/project/OpenRepoDialog";
@@ -54,7 +54,6 @@ import { cn } from "@/lib/utils";
 
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { useProjectStore } from "@/store/useProjectStore";
-import { useRepoStore } from "@/store/useRepoStore";
 
 import { gitService } from "@/services/git";
 import { pickPrimaryRemoteUrl } from "@/services/git/git.remote";
@@ -74,8 +73,6 @@ function resolveActiveProjectId(pathname: string): string | null {
 interface TabChromeProps {
   project: Project;
   isActive: boolean;
-  /** 切换仓库加载中：标签内显示转圈 */
-  loading?: boolean;
   dragging?: boolean;
   onSelect?: (projectId: string) => void;
   onClose?: (event: MouseEvent | KeyboardEvent, projectId: string) => void;
@@ -86,7 +83,6 @@ interface TabChromeProps {
 function TabChrome({
   project,
   isActive,
-  loading = false,
   dragging = false,
   onSelect,
   onClose,
@@ -101,16 +97,8 @@ function TabChrome({
           ? "bg-primary/10 text-primary"
           : "text-muted-foreground hover:bg-accent/60",
         dragging && "bg-primary/10 text-primary ring-1 ring-border",
-        loading && "opacity-90",
       )}
-      aria-busy={loading || undefined}
     >
-      {loading ? (
-        <Loader2
-          className="text-primary mr-0.5 size-3 shrink-0 animate-spin"
-          aria-hidden="true"
-        />
-      ) : null}
       <button
         type="button"
         className={cn(
@@ -131,14 +119,11 @@ function TabChrome({
               type="button"
               className={cn(
                 "hover:bg-muted mr-1 inline-flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm",
-                loading
-                  ? "opacity-0"
-                  : isActive
-                    ? "opacity-70"
-                    : "opacity-0 group-hover:opacity-70 focus-visible:opacity-70",
+                isActive
+                  ? "opacity-70"
+                  : "opacity-0 group-hover:opacity-70 focus-visible:opacity-70",
               )}
               aria-label={closeLabel}
-              disabled={loading}
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => onClose(event, project.id)}
             >
@@ -157,7 +142,6 @@ function TabChrome({
 interface SortableRepoTabProps {
   project: Project;
   isActive: boolean;
-  loading?: boolean;
   tabIndex: number;
   tabCount: number;
   onSelect: (projectId: string) => void;
@@ -186,7 +170,6 @@ interface SortableRepoTabProps {
 function SortableRepoTab({
   project,
   isActive,
-  loading = false,
   tabIndex,
   tabCount,
   onSelect,
@@ -226,7 +209,6 @@ function SortableRepoTab({
           <TabChrome
             project={project}
             isActive={isActive}
-            loading={loading}
             onSelect={onSelect}
             onClose={onClose}
             closeLabel={closeLabel}
@@ -281,12 +263,9 @@ export function RepoTabBar() {
   const loadProjects = useProjectStore((state) => state.loadProjects);
   const removeProject = useProjectStore((state) => state.removeProject);
   const updateAlias = useProjectStore((state) => state.updateAlias);
-  const repoLoading = useRepoStore((state) => state.loading);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  /** 点击后、仓库数据就绪前：目标标签显示 loading */
-  const [pendingId, setPendingId] = useState<string | null>(null);
   const [aliasTarget, setAliasTarget] = useState<Project | null>(null);
   const [aliasValue, setAliasValue] = useState("");
   const [aliasBusy, setAliasBusy] = useState(false);
@@ -338,16 +317,6 @@ export function RepoTabBar() {
     // openTab 幂等；tabIds 变化后若已包含则不再写入
   }, [activeId, tabIds, openTab]);
 
-  // 目标仓库加载结束后清除标签 loading
-  useEffect(() => {
-    if (!pendingId) {
-      return;
-    }
-    if (activeId === pendingId && !repoLoading) {
-      setPendingId(null);
-    }
-  }, [pendingId, activeId, repoLoading]);
-
   const tabs = useMemo(() => {
     const byId = new Map(projects.map((project) => [project.id, project]));
     return tabIds
@@ -375,7 +344,6 @@ export function RepoTabBar() {
         : (remaining[0] ?? null);
 
     if (next) {
-      setPendingId(next);
       navigate(`/repo/${next}`);
       return;
     }
@@ -388,17 +356,11 @@ export function RepoTabBar() {
       return;
     }
 
-    // 立刻在目标标签上反馈 loading，再导航
-    setPendingId(projectId);
     openTab(projectId);
     navigate(`/repo/${projectId}`);
   }
 
   function closeOneTab(projectId: string): void {
-    if (projectId === pendingId) {
-      setPendingId(null);
-    }
-
     const nextId = closeTab(projectId);
 
     if (projectId !== activeId) {
@@ -406,7 +368,6 @@ export function RepoTabBar() {
     }
 
     if (nextId) {
-      setPendingId(nextId);
       navigate(`/repo/${nextId}`);
       return;
     }
@@ -565,7 +526,6 @@ export function RepoTabBar() {
                       key={project.id}
                       project={project}
                       isActive={project.id === activeId}
-                      loading={project.id === pendingId}
                       tabIndex={index}
                       tabCount={tabs.length}
                       onSelect={handleSelect}

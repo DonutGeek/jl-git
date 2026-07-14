@@ -232,7 +232,7 @@ export function FileTree({ repoPath }: FileTreeProps) {
         <div className="flex h-10 items-center px-3">
           <h2 className="text-muted-foreground text-xs font-semibold">{t("repo.fileTree")}</h2>
         </div>
-        <div className="px-3 pb-2">
+        <div className="px-3 pb-1">
           <Input
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
@@ -245,7 +245,7 @@ export function FileTree({ repoPath }: FileTreeProps) {
 
       {/* ScrollArea 需明确高度：外层 flex-1 定高，内层 h-full 滚动 */}
       <div className="min-h-0 flex-1">
-        <ScrollArea className="h-full px-1.5 py-2">
+        <ScrollArea className="h-full px-1.5 py-1">
           {error ? (
             <p className="text-destructive px-2 py-2 text-sm" role="alert">
               {error}

@@ -503,72 +503,74 @@ function ParentDiffSection({
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-        <ScrollArea className="h-full w-full min-w-0 px-2 pb-1 [&_[data-orientation=vertical]]:right-0.5 [&_[data-orientation=vertical]]:left-auto">
-          {allFilesLoading ? (
-            <div className="text-muted-foreground flex items-center gap-2 px-0.5 py-3 text-xs">
-              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-              {t("common.loading")}
-            </div>
-          ) : visible.length === 0 ? (
-            <p className="text-muted-foreground px-0.5 py-2 text-xs">
-              {showAllFiles
-                ? t("repo.commitFilesEmpty")
-                : diff.files.length === 0
-                  ? t("repo.commitNoChanges")
-                  : t("repo.commitFilesEmpty")}
-            </p>
-          ) : view === "tree" ? (
-            <CommitFileTree
-              files={visible}
-              rootName={rootName}
-              expandedPaths={expandedTreePaths}
-              onToggleFolder={toggleTreeFolder}
-              showStatus
-              showLineStats={showLineStats}
-              onFileClick={handleFileClick}
-              selectedPath={
-                selectedCommitFile?.commitId === commitId &&
-                selectedCommitFile?.parentId === diff.parentId
-                  ? selectedCommitFile.path
-                  : null
-              }
-            />
-          ) : (
-            <ul className="w-full min-w-0">
-              {visible.map((file) => {
-                const clickable = Boolean(file.status);
-                const selected = isFileSelected(file);
-                return (
-                  <li key={`${diff.parentId}:${file.path}`} className="min-w-0">
-                    <div
-                      data-commit-file-row={clickable ? "" : undefined}
-                      className={cn(
-                        "flex h-7 w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-md px-1.5 transition-colors duration-150",
-                        clickable ? "cursor-pointer hover:bg-accent/60" : "cursor-default",
-                        selected && "bg-primary/10 hover:bg-primary/15",
-                      )}
-                      onClick={clickable ? () => handleFileClick(file) : undefined}
-                    >
-                      <span
+        <ScrollArea className="h-full w-full min-w-0 [&_[data-orientation=vertical]]:right-0.5 [&_[data-orientation=vertical]]:left-auto [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+          <div className="min-w-0 px-2 pr-3 pb-1">
+            {allFilesLoading ? (
+              <div className="text-muted-foreground flex items-center gap-2 px-0.5 py-3 text-xs">
+                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                {t("common.loading")}
+              </div>
+            ) : visible.length === 0 ? (
+              <p className="text-muted-foreground px-0.5 py-2 text-xs">
+                {showAllFiles
+                  ? t("repo.commitFilesEmpty")
+                  : diff.files.length === 0
+                    ? t("repo.commitNoChanges")
+                    : t("repo.commitFilesEmpty")}
+              </p>
+            ) : view === "tree" ? (
+              <CommitFileTree
+                files={visible}
+                rootName={rootName}
+                expandedPaths={expandedTreePaths}
+                onToggleFolder={toggleTreeFolder}
+                showStatus
+                showLineStats={showLineStats}
+                onFileClick={handleFileClick}
+                selectedPath={
+                  selectedCommitFile?.commitId === commitId &&
+                  selectedCommitFile?.parentId === diff.parentId
+                    ? selectedCommitFile.path
+                    : null
+                }
+              />
+            ) : (
+              <ul className="w-full min-w-0">
+                {visible.map((file) => {
+                  const clickable = Boolean(file.status);
+                  const selected = isFileSelected(file);
+                  return (
+                    <li key={`${diff.parentId}:${file.path}`} className="min-w-0">
+                      <div
+                        data-commit-file-row={clickable ? "" : undefined}
                         className={cn(
-                          "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
-                          gitStatusLetterClass(file.status),
+                          "flex h-7 w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-md px-1.5 transition-colors duration-150",
+                          clickable ? "cursor-pointer hover:bg-accent/60" : "cursor-default",
+                          selected && "bg-primary/10 hover:bg-primary/15",
                         )}
-                        aria-label={file.status}
+                        onClick={clickable ? () => handleFileClick(file) : undefined}
                       >
-                        {file.status}
-                      </span>
-                      <MaterialFileIcon name={file.path} isDir={false} className="size-3.5" />
-                      <TruncateStartPath path={file.path} className="min-w-0 flex-1 font-mono" />
-                      {showLineStats ? (
-                        <DiffLineStats additions={file.additions} deletions={file.deletions} />
-                      ) : null}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                        <span
+                          className={cn(
+                            "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
+                            gitStatusLetterClass(file.status),
+                          )}
+                          aria-label={file.status}
+                        >
+                          {file.status}
+                        </span>
+                        <MaterialFileIcon name={file.path} isDir={false} className="size-3.5" />
+                        <TruncateStartPath path={file.path} className="min-w-0 flex-1 font-mono" />
+                        {showLineStats ? (
+                          <DiffLineStats additions={file.additions} deletions={file.deletions} />
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </ScrollArea>
       </div>
     </section>
@@ -738,29 +740,32 @@ export function HistoryDetailPane() {
       </header>
 
       {/* 元信息区固定；外层不滚动 */}
-      <div className="border-border shrink-0 space-y-2 border-b px-3 py-2.5">
-        <Tooltip delayDuration={200}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className="border-border bg-muted/30 hover:bg-accent/50 focus-visible:ring-ring block w-full cursor-pointer rounded-md border px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1"
-              aria-label={t("repo.previewCommitMessage")}
-              onClick={() => setMessagePreviewOpen(true)}
-            >
-              <ScrollArea className="h-28 pr-2">
-                <p className="wrap-break-word text-[13px] leading-snug font-semibold">
-                  {detail.subject}
-                </p>
-                {detail.body ? (
-                  <p className="text-muted-foreground mt-1 whitespace-pre-wrap wrap-break-word text-[11px] leading-snug">
-                    {detail.body}
+      <div className="border-border min-w-0 shrink-0 space-y-2 overflow-x-hidden border-b px-3 py-2.5">
+        <div className="min-w-0 w-full">
+          <Tooltip delayDuration={200}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="border-border bg-muted/30 hover:bg-accent/50 focus-visible:ring-ring block w-full max-w-full min-w-0 cursor-pointer rounded-md border px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1"
+                aria-label={t("repo.previewCommitMessage")}
+                onClick={() => setMessagePreviewOpen(true)}
+              >
+                {/* 小高度预览用原生滚动，避免 ScrollArea 内层 table 把卡片撑出右缘 */}
+                <div className="h-28 w-full min-w-0 overflow-x-hidden overflow-y-auto">
+                  <p className="wrap-break-word break-words text-[13px] leading-snug font-semibold">
+                    {detail.subject}
                   </p>
-                ) : null}
-              </ScrollArea>
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{t("repo.previewCommitMessage")}</TooltipContent>
-        </Tooltip>
+                  {detail.body ? (
+                    <p className="text-muted-foreground mt-1 whitespace-pre-wrap wrap-break-word break-words text-[11px] leading-snug">
+                      {detail.body}
+                    </p>
+                  ) : null}
+                </div>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("repo.previewCommitMessage")}</TooltipContent>
+          </Tooltip>
+        </div>
 
         <div className="space-y-1">
           <p className="text-muted-foreground text-[11px] leading-none">

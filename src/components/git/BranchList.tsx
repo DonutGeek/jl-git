@@ -366,7 +366,7 @@ export function BranchList() {
           </div>
         </div>
 
-        <div className="px-3 pb-2">
+        <div className="px-3 pb-1">
           <Input
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
@@ -378,7 +378,7 @@ export function BranchList() {
       </div>
 
       <div className="min-h-0 flex-1">
-        <ScrollArea className="h-full px-1 py-1">
+        <ScrollArea className="h-full px-1 py-0.5">
           {isEmpty ? (
             <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.branchesEmpty")}</p>
           ) : noMatch ? (

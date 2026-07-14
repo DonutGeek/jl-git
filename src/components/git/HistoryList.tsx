@@ -715,7 +715,11 @@ export function HistoryList() {
         ref={historyPaneRef}
         className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
       >
-        <ScrollArea ref={historyScrollRef} className="h-full w-full">
+        <ScrollArea
+          ref={historyScrollRef}
+          // Radix viewport 内层 display:table 会撑开宽度导致 truncate 失效；在用法处覆盖，不改 ui/scroll-area
+          className="h-full w-full [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
+        >
         {commits.length === 0 ? (
           <div className="flex h-full min-h-[12rem] flex-col items-center justify-center gap-3 px-6 text-center">
             <GitCommitHorizontal
