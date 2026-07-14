@@ -8,6 +8,8 @@ interface AgentChatState {
   conversationsByProjectId: Readonly<Record<string, readonly AgentConversation[]>>;
   activeConversationIdByProjectId: Readonly<Record<string, string>>;
   createConversation: (projectId: string, conversation: AgentConversation) => void;
+  /** 项目尚无会话时原子地补一个，避免 Strict Mode 双 effect 建出两条 */
+  ensureDefaultConversation: (projectId: string) => void;
   setActiveConversation: (projectId: string, conversationId: string) => void;
   deleteConversation: (projectId: string, conversationId: string) => void;
   appendMessage: (projectId: string, conversationId: string, message: AgentChatMessage) => void;
@@ -15,7 +17,7 @@ interface AgentChatState {
     projectId: string,
     conversationId: string,
     messageId: string,
-    update: Partial<Pick<AgentChatMessage, "content" | "isStreaming">>,
+    update: Partial<Pick<AgentChatMessage, "content" | "isStreaming" | "createdAt">>,
   ) => void;
   removeMessage: (projectId: string, conversationId: string, messageId: string) => void;
 }
@@ -35,6 +37,39 @@ export const useAgentChatStore = create<AgentChatState>((set) => ({
         conversationsByProjectId: {
           ...state.conversationsByProjectId,
           [projectId]: [...conversations, conversation],
+        },
+        activeConversationIdByProjectId: {
+          ...state.activeConversationIdByProjectId,
+          [projectId]: conversation.id,
+        },
+      };
+    });
+  },
+
+  ensureDefaultConversation(projectId) {
+    set((state) => {
+      const conversations = state.conversationsByProjectId[projectId] ?? EMPTY_CONVERSATIONS;
+      if (conversations.length > 0) {
+        const activeId = state.activeConversationIdByProjectId[projectId];
+        if (activeId && conversations.some((item) => item.id === activeId)) {
+          return state;
+        }
+        return {
+          activeConversationIdByProjectId: {
+            ...state.activeConversationIdByProjectId,
+            [projectId]: conversations[0].id,
+          },
+        };
+      }
+      const conversation: AgentConversation = {
+        id: `conversation-${projectId}-default`,
+        title: "",
+        messages: [],
+      };
+      return {
+        conversationsByProjectId: {
+          ...state.conversationsByProjectId,
+          [projectId]: [conversation],
         },
         activeConversationIdByProjectId: {
           ...state.activeConversationIdByProjectId,

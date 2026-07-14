@@ -8,10 +8,12 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useVirtualizer, type ReactVirtualizer } from "@tanstack/react-virtual";
+import dayjs from "dayjs";
 import { ArrowUp, LoaderCircle, Plus, Sparkles, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import { AgentMessageCopyButton } from "@/components/ai/AgentMessageCopyButton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -21,7 +23,6 @@ import { cn } from "@/lib/utils";
 import { streamAgentReply } from "@/services/ai";
 import { EMPTY_CONVERSATIONS, useAgentChatStore } from "@/store/useAgentChatStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
-
 import { toUserMessage } from "@/types/error";
 import type { AgentChatMessage } from "@/types/ai";
 
@@ -31,6 +32,18 @@ const EMPTY_MESSAGES: readonly AgentChatMessage[] = [];
 const COMPOSER_BOTTOM_OFFSET_PX = 12;
 /** 输入框高度尚未测到时的兜底 padding */
 const COMPOSER_PAD_FALLBACK_PX = 144;
+
+/** 当天只显示时分秒，跨天带上日期 */
+function formatMessageTime(iso: string): string {
+  const time = dayjs(iso);
+  if (!time.isValid()) {
+    return "";
+  }
+  if (time.isSame(dayjs(), "day")) {
+    return time.format("HH:mm:ss");
+  }
+  return time.format("YYYY-MM-DD HH:mm:ss");
+}
 
 interface AgentChatPanelProps {
   projectId: string;
@@ -65,6 +78,9 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
     (state) => state.activeConversationIdByProjectId[projectId],
   );
   const createConversation = useAgentChatStore((state) => state.createConversation);
+  const ensureDefaultConversation = useAgentChatStore(
+    (state) => state.ensureDefaultConversation,
+  );
   const setActiveConversation = useAgentChatStore((state) => state.setActiveConversation);
   const deleteConversation = useAgentChatStore((state) => state.deleteConversation);
   const appendMessage = useAgentChatStore((state) => state.appendMessage);
@@ -88,16 +104,8 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
   }, []);
 
   useEffect(() => {
-    if (conversations.length > 0) {
-      return;
-    }
-    conversationSequence.current += 1;
-    createConversation(projectId, {
-      id: `conversation-${Date.now()}-${conversationSequence.current}`,
-      title: "",
-      messages: [],
-    });
-  }, [conversations.length, createConversation, projectId]);
+    ensureDefaultConversation(projectId);
+  }, [ensureDefaultConversation, projectId]);
 
   useEffect(() => {
     return () => {
@@ -319,16 +327,20 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
     }
 
     messageSequence.current += 1;
+    const askedAt = new Date().toISOString();
     const userMessage: AgentChatMessage = {
       id: `user-${Date.now()}-${messageSequence.current}`,
       role: "user",
       content,
+      createdAt: askedAt,
     };
     messageSequence.current += 1;
     const assistantMessage: AgentChatMessage = {
       id: `assistant-${Date.now()}-${messageSequence.current}`,
       role: "assistant",
       content: "",
+      // 流式结束时再写成完成时间
+      createdAt: askedAt,
       isStreaming: true,
     };
     const conversationId = activeConversation.id;
@@ -364,14 +376,20 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
         window.cancelAnimationFrame(animationFrameId);
         flushReply();
       }
-      updateMessage(projectId, conversationId, assistantMessage.id, { isStreaming: false });
+      updateMessage(projectId, conversationId, assistantMessage.id, {
+        isStreaming: false,
+        createdAt: new Date().toISOString(),
+      });
     } catch (error) {
       if (animationFrameId != null) {
         window.cancelAnimationFrame(animationFrameId);
         flushReply();
       }
       if (contentBuffer) {
-        updateMessage(projectId, conversationId, assistantMessage.id, { isStreaming: false });
+        updateMessage(projectId, conversationId, assistantMessage.id, {
+          isStreaming: false,
+          createdAt: new Date().toISOString(),
+        });
       } else {
         removeMessage(projectId, conversationId, assistantMessage.id);
       }
@@ -486,7 +504,12 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
                     className="absolute top-0 left-0 w-full pb-3"
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
-                    <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
+                    <div
+                      className={cn(
+                        "flex flex-col gap-1",
+                        isUser ? "items-end" : "items-start",
+                      )}
+                    >
                       <div
                         className={cn(
                           "w-fit max-w-[88%] whitespace-pre-wrap wrap-break-word rounded-lg px-3 py-2 text-xs leading-relaxed",
@@ -511,6 +534,17 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
                           )
                         ) : null}
                       </div>
+                      {!message.isStreaming && message.content.trim() ? (
+                        <div className="flex items-center gap-1.5 px-0.5">
+                          <time
+                            className="text-muted-foreground text-xs leading-none tabular-nums"
+                            dateTime={message.createdAt}
+                          >
+                            {formatMessageTime(message.createdAt)}
+                          </time>
+                          <AgentMessageCopyButton content={message.content} />
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 );

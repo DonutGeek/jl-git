@@ -183,7 +183,10 @@
     "sendMessage": "Send message",
     "thinking": "鲸灵 is thinking…",
     "replyFailed": "鲸灵 failed to reply. Please try again.",
-    "replyTimeout": "鲸灵 timed out. Please try again."
+    "replyTimeout": "鲸灵 timed out. Please try again.",
+    "copy": "Copy",
+    "copySuccess": "Copied",
+    "copyFailed": "Copy failed"
   },
   "repo": {
     "title": "Repository",

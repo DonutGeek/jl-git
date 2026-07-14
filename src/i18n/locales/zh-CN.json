@@ -183,7 +183,10 @@
     "sendMessage": "发送消息",
     "thinking": "鲸灵正在思考…",
     "replyFailed": "鲸灵回复失败，请重试",
-    "replyTimeout": "鲸灵回复超时，请重试"
+    "replyTimeout": "鲸灵回复超时，请重试",
+    "copy": "复制",
+    "copySuccess": "已复制",
+    "copyFailed": "复制失败"
   },
   "repo": {
     "title": "仓库",
