@@ -154,6 +154,8 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 
 冲突结果不得被当成成功；类型中应区分 `ok` 与 `conflict`。
 
+`listTags` 返回 `{ tags: GitTag[] }`；`GitTag` 包含 `name`、`target` 和可选 `message`。`createTag` 接受 `{ name, message?, ref?, push?, remote? }`；缺省 `ref` 使用 `HEAD`，`message` 为空时创建轻量标签。推送失败不会回滚本地标签，而是返回 `{ ok: true, pushed: false, pushError }`，调用方需刷新列表并提示用户。
+
 ---
 
 ## 系统探测

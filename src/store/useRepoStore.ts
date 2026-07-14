@@ -12,6 +12,9 @@ import {
   GitIdentity,
   GitStatusEntry,
   GitStatusResult,
+  GitTag,
+  GitCreateTagOptions,
+  GitTagCreateResult,
 } from "@/types/git";
 
 /** 先打开操作日志并让出一帧，保证按钮点击后立刻可见 */
@@ -52,8 +55,10 @@ interface RepoSessionSnapshot {
   status: GitStatusResult | null;
   identity: GitIdentity | null;
   branches: GitBranch[];
+  tags: GitTag[];
   commits: GitCommitSummary[];
   hasMore: boolean;
+  logRef: string | null;
   commitMessage: string;
   selectedCommitId: string | null;
   selectedChange: SelectedChange | null;
@@ -84,8 +89,10 @@ function saveRepoSession(repoPath: string, state: RepoStoreState): void {
     status: state.status,
     identity: state.identity,
     branches: state.branches,
+    tags: state.tags,
     commits: state.commits,
     hasMore: state.hasMore,
+    logRef: state.logRef,
     commitMessage: state.commitMessage,
     selectedCommitId: state.selectedCommitId,
     selectedChange: state.selectedChange,
@@ -140,8 +147,11 @@ interface RepoStoreState {
   status: GitStatusResult | null;
   identity: GitIdentity | null;
   branches: GitBranch[];
+  tags: GitTag[];
   commits: GitCommitSummary[];
   hasMore: boolean;
+  /** 历史列表范围；空值表示当前默认历史。 */
+  logRef: string | null;
   commitMessage: string;
   /** 历史列表当前选中的提交 id */
   selectedCommitId: string | null;
@@ -164,7 +174,11 @@ interface RepoStoreActions {
   loadAll: (repoPath: string) => Promise<void>;
   refreshStatus: () => Promise<void>;
   refreshBranches: () => Promise<void>;
+  refreshTags: () => Promise<void>;
   refreshLog: (reset?: boolean) => Promise<void>;
+  selectLogRef: (ref: string | null) => Promise<void>;
+  createTag: (options: GitCreateTagOptions) => Promise<GitTagCreateResult>;
+  deleteTag: (name: string) => Promise<void>;
   loadMoreLog: () => Promise<void>;
   selectCommit: (commitId: string | null) => Promise<void>;
   stage: (paths: string[]) => Promise<void>;
@@ -208,8 +222,10 @@ const initialState: RepoStoreState = {
   status: null,
   identity: null,
   branches: [],
+  tags: [],
   commits: [],
   hasMore: false,
+  logRef: null,
   commitMessage: "",
   selectedCommitId: null,
   selectedCommitDetail: null,
@@ -273,8 +289,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         status: cached.status,
         identity: cached.identity,
         branches: cached.branches,
+        tags: cached.tags,
         commits: cached.commits,
         hasMore: cached.hasMore,
+        logRef: cached.logRef,
         commitMessage: cached.commitMessage,
         selectedCommitId: cached.selectedCommitId,
         selectedCommitDetail: null,
@@ -286,11 +304,12 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       });
 
       try {
-        const [status, identity, branches, log] = await Promise.all([
+        const [status, identity, branches, tags, log] = await Promise.all([
           gitService.getStatus(repoPath),
           gitService.getIdentity(repoPath),
           gitService.listBranches(repoPath, true),
-          gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+          gitService.listTags(repoPath),
+          gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE, ref: cached.logRef ?? undefined }),
         ]);
 
         // 用户已切到其他仓库则丢弃本次结果
@@ -306,6 +325,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           status,
           identity,
           branches,
+          tags: tags.tags,
           commits: log.commits,
           hasMore: log.hasMore,
           selectedChange,
@@ -327,8 +347,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       status: null,
       identity: null,
       branches: [],
+      tags: [],
       commits: [],
       hasMore: false,
+      logRef: null,
       commitMessage: "",
       selectedCommitId: null,
       selectedCommitDetail: null,
@@ -341,10 +363,11 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     clearCommitDetailCache();
 
     try {
-      const [status, identity, branches, log] = await Promise.all([
+      const [status, identity, branches, tags, log] = await Promise.all([
         gitService.getStatus(repoPath),
         gitService.getIdentity(repoPath),
         gitService.listBranches(repoPath, true),
+        gitService.listTags(repoPath),
         gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
       ]);
 
@@ -356,6 +379,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         status,
         identity,
         branches,
+        tags: tags.tags,
         commits: log.commits,
         hasMore: log.hasMore,
         loading: false,
@@ -397,6 +421,18 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     }
   },
 
+  async refreshTags() {
+    set({ loading: true, error: null });
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      const result = await gitService.listTags(repoPath);
+      set({ tags: result.tags, loading: false });
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
+  },
+
   async refreshLog(reset = true) {
     set({ loading: true, error: null });
 
@@ -407,6 +443,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const log = await gitService.getLog(repoPath, {
         skip,
         limit: LOG_PAGE_SIZE,
+        ref: get().logRef ?? undefined,
       });
 
       set({
@@ -414,6 +451,47 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         hasMore: log.hasMore,
         loading: false,
       });
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
+  },
+
+  async selectLogRef(ref) {
+    if (get().logRef === ref) {
+      return;
+    }
+    clearCommitDetailCache();
+    set({
+      logRef: ref,
+      selectedCommitId: null,
+      selectedCommitDetail: null,
+      selectedCommitFile: null,
+    });
+    await get().refreshLog(true);
+  },
+
+  async createTag(options) {
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      const result = await gitService.createTag(repoPath, options);
+      await Promise.all([get().refreshTags(), get().refreshLog(true)]);
+      return result;
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
+  },
+
+  async deleteTag(name) {
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      await gitService.deleteTag(repoPath, name);
+      const deletedSelectedRef = get().logRef === name;
+      await get().refreshTags();
+      if (deletedSelectedRef) {
+        await get().selectLogRef(null);
+      }
     } catch (error) {
       setError(set, error);
       throw error;

@@ -149,6 +149,30 @@ export interface GitBranchesResult {
   branches: GitBranch[];
 }
 
+export interface GitTag {
+  name: string;
+  target: string;
+  message?: string;
+}
+
+export interface GitTagsResult {
+  tags: GitTag[];
+}
+
+export interface GitCreateTagOptions {
+  name: string;
+  message?: string;
+  ref?: string;
+  push?: boolean;
+  remote?: string;
+}
+
+export interface GitTagCreateResult {
+  ok: boolean;
+  pushed: boolean;
+  pushError?: string;
+}
+
 export interface GitCommitResult {
   commitId: string;
 }

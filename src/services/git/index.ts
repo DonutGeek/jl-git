@@ -8,6 +8,7 @@ export * from "./git.log";
 export * from "./git.remote";
 export * from "./git.show";
 export * from "./git.status";
+export * from "./git.tag";
 
 import { checkout, createBranch, deleteBranch, listBranches, renameBranch } from "./git.branch";
 import { getBranchCompare, getBranchFileDiff } from "./git.branch-compare";
@@ -32,6 +33,7 @@ import {
   listTree,
 } from "./git.show";
 import { getStatus } from "./git.status";
+import { createTag, deleteTag, listTags } from "./git.tag";
 
 export const gitService = {
   getStatus,
@@ -39,6 +41,7 @@ export const gitService = {
   getGlobalIdentity,
   setGlobalIdentity,
   listBranches,
+  listTags,
   listDir,
   getFileSize,
   getLog,
@@ -62,6 +65,8 @@ export const gitService = {
   createBranch,
   deleteBranch,
   renameBranch,
+  createTag,
+  deleteTag,
   fetch,
   pull,
   push,
