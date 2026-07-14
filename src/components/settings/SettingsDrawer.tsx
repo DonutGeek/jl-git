@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   GitBranch,
@@ -6,16 +6,30 @@ import {
   Languages,
   Monitor,
   Palette,
+  Pencil,
+  Plus,
   Power,
+  PowerOff,
   Sparkles,
   Terminal,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SelectMenu } from "@/components/ui/select-menu";
+import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Sheet,
   SheetCloseButton,
@@ -26,7 +40,16 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-import { clearAgentKey, hasAgentKey, setAgentKey } from "@/services/ai";
+import {
+  createAiApiKey,
+  deleteAiApiKey,
+  getAiInstructions,
+  listAiApiKeys,
+  renameAiApiKey,
+  setAiApiKeyEnabled,
+  setAiInstructions,
+} from "@/services/ai";
+import type { AiApiKey } from "@/services/ai";
 import { gitService } from "@/services/git";
 import { listSystemFonts } from "@/services/system/system.info";
 import type { ThemeMode } from "@/services/theme/theme.service";
@@ -76,6 +99,29 @@ function FieldLabel({ children }: { children: ReactNode }) {
 /** 设置表单控件：与顶栏分支选择器同系（轻边框、无阴影） */
 const settingsFieldClassName =
   "border-border h-8 px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/40";
+const settingsTextareaClassName =
+  "border-border min-h-28 resize-y px-2.5 py-2 text-xs shadow-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/40";
+
+type SettingsCategory = "appearance" | "git" | "ssh" | "ai" | "tools" | "general";
+
+function maskApiKey(key: string): string {
+  if (key.length <= 12) {
+    return "*".repeat(key.length);
+  }
+  return `${key.slice(0, 8)}${"*".repeat(12)}${key.slice(-4)}`;
+}
+
+function formatApiKeyDate(value: string, locale: AppLocale): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+  return new Intl.DateTimeFormat(locale === "zh-CN" ? "zh-CN" : "en", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
 
 function SegmentedControl<T extends string>({
   value,
@@ -148,16 +194,30 @@ export function SettingsDrawer() {
   const [gitEmail, setGitEmail] = useState("");
   const [identityLoading, setIdentityLoading] = useState(false);
 
-  const [agentKeyInput, setAgentKeyInput] = useState("");
-  const [agentKeyConfigured, setAgentKeyConfigured] = useState(false);
-  const [agentKeyLoading, setAgentKeyLoading] = useState(false);
-  const [agentKeySaving, setAgentKeySaving] = useState(false);
+  const [apiKeys, setApiKeys] = useState<AiApiKey[]>([]);
+  const [apiKeysLoading, setApiKeysLoading] = useState(false);
+  const [apiKeyActionId, setApiKeyActionId] = useState<string | null>(null);
+  const [apiKeyDialogOpen, setApiKeyDialogOpen] = useState(false);
+  const [apiKeyPendingDeletion, setApiKeyPendingDeletion] = useState<AiApiKey | null>(null);
+  const [apiKeyEditing, setApiKeyEditing] = useState<AiApiKey | null>(null);
+  const [editedApiKeyName, setEditedApiKeyName] = useState("");
+  const [apiKeyRenaming, setApiKeyRenaming] = useState(false);
+  const [newApiKeyName, setNewApiKeyName] = useState("");
+  const [newApiKeyValue, setNewApiKeyValue] = useState("");
+  const [apiKeyCreating, setApiKeyCreating] = useState(false);
+  const [commitInstructions, setCommitInstructions] = useState("");
+  const [pullRequestInstructions, setPullRequestInstructions] = useState("");
+  const [instructionsLoading, setInstructionsLoading] = useState(false);
+  const [instructionsReady, setInstructionsReady] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>("appearance");
 
   const [systemFonts, setSystemFonts] = useState<string[]>([]);
   const [fontsLoading, setFontsLoading] = useState(false);
 
   const savedIdentityRef = useRef({ name: "", email: "" });
   const identityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedInstructionsRef = useRef({ commit: "", pullRequest: "" });
+  const instructionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -166,9 +226,10 @@ export function SettingsDrawer() {
 
     let cancelled = false;
     setIdentityLoading(true);
-    setAgentKeyLoading(true);
+    setApiKeysLoading(true);
+    setInstructionsLoading(true);
+    setInstructionsReady(false);
     setFontsLoading(true);
-    setAgentKeyInput("");
 
     void gitService
       .getGlobalIdentity()
@@ -194,20 +255,40 @@ export function SettingsDrawer() {
         }
       });
 
-    void hasAgentKey()
-      .then((configured) => {
+    void listAiApiKeys()
+      .then((keys) => {
         if (!cancelled) {
-          setAgentKeyConfigured(configured);
+          setApiKeys(keys);
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (!cancelled) {
-          setAgentKeyConfigured(false);
+          toast.error(toUserMessage(error));
         }
       })
       .finally(() => {
         if (!cancelled) {
-          setAgentKeyLoading(false);
+          setApiKeysLoading(false);
+        }
+      });
+
+    void getAiInstructions()
+      .then((instructions) => {
+        if (!cancelled) {
+          setCommitInstructions(instructions.commit);
+          setPullRequestInstructions(instructions.pullRequest);
+          savedInstructionsRef.current = instructions;
+          setInstructionsReady(true);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          toast.error(toUserMessage(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setInstructionsLoading(false);
         }
       });
 
@@ -303,37 +384,123 @@ export function SettingsDrawer() {
     };
   }, [gitName, gitEmail, open, identityLoading]);
 
-  async function handleSaveAgentKey(): Promise<void> {
-    const value = agentKeyInput.trim();
-    if (!value) {
-      return;
-    }
-
-    setAgentKeySaving(true);
+  async function persistInstructions(instructions: {
+    commit: string;
+    pullRequest: string;
+  }): Promise<void> {
     try {
-      await setAgentKey(value);
-      const configured = await hasAgentKey();
-      setAgentKeyConfigured(configured);
-      setAgentKeyInput("");
-      toast.success(t("settings.agentKeySaved"));
+      await setAiInstructions(instructions);
+      savedInstructionsRef.current = instructions;
+      toast.success(t("settings.aiInstructionsSaved"));
     } catch (error) {
       toast.error(toUserMessage(error));
-    } finally {
-      setAgentKeySaving(false);
     }
   }
 
-  async function handleClearAgentKey(): Promise<void> {
-    setAgentKeySaving(true);
+  const persistInstructionsRef = useRef(persistInstructions);
+  persistInstructionsRef.current = persistInstructions;
+
+  /** 输入停顿后自动保存 AI Git 指令，首次加载不回写。 */
+  useEffect(() => {
+    if (!open || instructionsLoading || !instructionsReady) {
+      return;
+    }
+
+    const next = {
+      commit: commitInstructions,
+      pullRequest: pullRequestInstructions,
+    };
+    if (
+      next.commit === savedInstructionsRef.current.commit &&
+      next.pullRequest === savedInstructionsRef.current.pullRequest
+    ) {
+      return;
+    }
+
+    if (instructionsTimerRef.current) {
+      clearTimeout(instructionsTimerRef.current);
+    }
+    instructionsTimerRef.current = setTimeout(() => {
+      void persistInstructionsRef.current(next);
+    }, 600);
+
+    return () => {
+      if (instructionsTimerRef.current) {
+        clearTimeout(instructionsTimerRef.current);
+        instructionsTimerRef.current = null;
+      }
+    };
+  }, [commitInstructions, instructionsLoading, instructionsReady, open, pullRequestInstructions]);
+
+  async function handleCreateApiKey(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!newApiKeyName.trim() || !newApiKeyValue.trim()) {
+      toast.error(t("settings.apiKeyRequired"));
+      return;
+    }
+
+    setApiKeyCreating(true);
     try {
-      await clearAgentKey();
-      setAgentKeyConfigured(false);
-      setAgentKeyInput("");
-      toast.success(t("settings.agentKeyCleared"));
+      const keys = await createAiApiKey(newApiKeyName, newApiKeyValue);
+      setApiKeys(keys);
+      setNewApiKeyName("");
+      setNewApiKeyValue("");
+      setApiKeyDialogOpen(false);
+      toast.success(t("settings.apiKeyCreated"));
     } catch (error) {
       toast.error(toUserMessage(error));
     } finally {
-      setAgentKeySaving(false);
+      setApiKeyCreating(false);
+    }
+  }
+
+  async function handleApiKeyEnabled(key: AiApiKey): Promise<void> {
+    setApiKeyActionId(key.id);
+    try {
+      setApiKeys(await setAiApiKeyEnabled(key.id, !key.enabled));
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setApiKeyActionId(null);
+    }
+  }
+
+  async function handleRenameApiKey(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    const key = apiKeyEditing;
+    if (!key || !editedApiKeyName.trim()) {
+      toast.error(t("settings.apiKeyNameRequired"));
+      return;
+    }
+
+    setApiKeyRenaming(true);
+    try {
+      setApiKeys(await renameAiApiKey(key.id, editedApiKeyName));
+      setApiKeyEditing(null);
+      setEditedApiKeyName("");
+      toast.success(t("settings.apiKeyRenamed"));
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setApiKeyRenaming(false);
+    }
+  }
+
+  async function handleDeleteApiKey(): Promise<void> {
+    const key = apiKeyPendingDeletion;
+    if (!key) {
+      return;
+    }
+
+    setApiKeyActionId(key.id);
+    try {
+      setApiKeys(await deleteAiApiKey(key.id));
+      setApiKeyPendingDeletion(null);
+      toast.success(t("settings.apiKeyDeleted"));
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setApiKeyActionId(null);
     }
   }
 
@@ -359,11 +526,24 @@ export function SettingsDrawer() {
     { value: "en", label: t("settings.localeEn") },
   ];
 
+  const categories: Array<{
+    id: SettingsCategory;
+    label: string;
+    icon: ReactNode;
+  }> = [
+    { id: "appearance", label: t("settings.sectionAppearance"), icon: <Palette /> },
+    { id: "git", label: t("settings.sectionGit"), icon: <GitBranch /> },
+    { id: "ssh", label: t("settings.sectionSsh"), icon: <KeyRound /> },
+    { id: "ai", label: t("settings.sectionAi"), icon: <Sparkles /> },
+    { id: "tools", label: t("settings.sectionTools"), icon: <Terminal /> },
+    { id: "general", label: t("settings.sectionGeneral"), icon: <Power /> },
+  ];
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetContent
         side="right"
-        className="flex w-full max-w-md flex-col gap-0 p-0 sm:max-w-md"
+        className="flex w-[min(780px,92vw)] max-w-none flex-col gap-0 p-0 sm:max-w-[780px]"
         showOverlay
       >
         <SheetHeader className="border-border space-y-0 border-b px-4 py-3 pr-10 text-left">
@@ -375,10 +555,37 @@ export function SettingsDrawer() {
         </SheetHeader>
 
         <div className="min-h-0 flex-1">
-          <ScrollArea className="h-full px-4 py-5">
-            <div className="space-y-8">
+          <div className="flex h-full min-h-0">
+            <aside className="border-border bg-muted/20 w-44 shrink-0 border-r px-2 py-3">
+              <nav className="space-y-1" aria-label={t("settings.categoryNavigation")}>
+                {categories.map((category) => {
+                  const active = category.id === activeCategory;
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      aria-pressed={active}
+                      className={cn(
+                        "flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs transition-colors focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none",
+                        active
+                          ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                      )}
+                      onClick={() => setActiveCategory(category.id)}
+                    >
+                      <span className="[&_svg]:size-3.5" aria-hidden>
+                        {category.icon}
+                      </span>
+                      {category.label}
+                    </button>
+                  );
+                })}
+              </nav>
+            </aside>
+            <ScrollArea className="h-full min-w-0 flex-1 px-6 py-5">
+              <div className="mx-auto max-w-xl space-y-8">
           {/* 1. 外观 */}
-          <SettingsSection
+          {activeCategory === "appearance" ? <SettingsSection
             icon={<Palette />}
             title={t("settings.sectionAppearance")}
             description={t("settings.sectionAppearanceHint")}
@@ -471,10 +678,10 @@ export function SettingsDrawer() {
                 ]}
               />
             </div>
-          </SettingsSection>
+          </SettingsSection> : null}
 
           {/* 2. Git */}
-          <SettingsSection
+          {activeCategory === "git" ? <SettingsSection
             icon={<GitBranch />}
             title={t("settings.sectionGit")}
             description={t("settings.sectionGitHint")}
@@ -507,10 +714,10 @@ export function SettingsDrawer() {
                 {t("settings.gitIdentityAutoSaveHint")}
               </p>
             </div>
-          </SettingsSection>
+          </SettingsSection> : null}
 
           {/* 3. SSH */}
-          <SettingsSection
+          {activeCategory === "ssh" ? <SettingsSection
             icon={<KeyRound />}
             title={t("settings.sectionSsh")}
             description={t("settings.sshHint")}
@@ -537,53 +744,325 @@ export function SettingsDrawer() {
                 {t("settings.sshPick")}
               </Button>
             </div>
-          </SettingsSection>
+          </SettingsSection> : null}
 
           {/* 4. AI / Agent */}
-          <SettingsSection
+          {activeCategory === "ai" ? <SettingsSection
             icon={<Sparkles />}
             title={t("settings.sectionAi")}
-            description={t("settings.sectionAiHint")}
           >
-            <div>
-              <FieldLabel>{t("settings.agentKey")}</FieldLabel>
-              <Input
-                className={settingsFieldClassName}
-                type="password"
-                value={agentKeyInput}
-                onChange={(event) => setAgentKeyInput(event.target.value)}
-                onBlur={() => void handleSaveAgentKey()}
-                placeholder={
-                  agentKeyConfigured
-                    ? t("settings.agentKeyConfiguredPlaceholder")
-                    : t("settings.agentKeyPlaceholder")
-                }
-                disabled={agentKeyLoading || agentKeySaving}
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <p className="text-muted-foreground mt-1 text-[11px] leading-relaxed">
-                {agentKeyConfigured
-                  ? t("settings.agentKeyConfiguredHint")
-                  : t("settings.agentKeyHint")}
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-muted-foreground text-xs">
+                {t("settings.apiKeyListHint")}
               </p>
-            </div>
-            {agentKeyConfigured ? (
               <Button
                 type="button"
-                variant="outline"
                 size="sm"
-                className="border-border h-8 shadow-none"
-                disabled={agentKeyLoading || agentKeySaving}
-                onClick={() => void handleClearAgentKey()}
+                className="h-8 shrink-0"
+                onClick={() => setApiKeyDialogOpen(true)}
               >
-                {t("settings.clearAgentKey")}
+                <Plus aria-hidden="true" />
+                {t("settings.createApiKey")}
               </Button>
-            ) : null}
-          </SettingsSection>
+            </div>
+            <div className="border-border overflow-hidden rounded-md border">
+              <div className="bg-muted/40 text-muted-foreground grid grid-cols-[minmax(80px,0.9fr)_minmax(120px,1.35fr)_52px_78px_100px] gap-3 border-b px-3 py-2 text-[11px] font-medium">
+                <span>{t("settings.apiKeyName")}</span>
+                <span>{t("settings.apiKeyValue")}</span>
+                <span>{t("settings.apiKeyStatus")}</span>
+                <span>{t("settings.apiKeyCreatedAt")}</span>
+                <span>{t("settings.apiKeyActions")}</span>
+              </div>
+              {apiKeysLoading ? (
+                <p className="text-muted-foreground px-3 py-6 text-center text-xs">
+                  {t("common.loading")}
+                </p>
+              ) : apiKeys.length === 0 ? (
+                <p className="text-muted-foreground px-3 py-6 text-center text-xs">
+                  {t("settings.apiKeyEmpty")}
+                </p>
+              ) : (
+                <ul>
+                  {apiKeys.map((key) => {
+                    const actionBusy = apiKeyActionId === key.id;
+                    return (
+                      <li
+                        key={key.id}
+                        className="grid grid-cols-[minmax(80px,0.9fr)_minmax(120px,1.35fr)_52px_78px_100px] items-center gap-3 px-3 py-3 [&:not(:last-child)]:border-b"
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="truncate text-xs font-medium">{key.name}</span>
+                          </TooltipTrigger>
+                          <TooltipContent>{key.name}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-muted-foreground truncate font-mono text-[11px]">
+                              {maskApiKey(key.key)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>{maskApiKey(key.key)}</TooltipContent>
+                        </Tooltip>
+                        <span
+                          className={cn(
+                            "justify-self-start rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                            key.enabled
+                              ? "bg-primary/10 text-primary"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {key.enabled ? t("settings.apiKeyEnabled") : t("settings.apiKeyDisabled")}
+                        </span>
+                        <time className="text-muted-foreground text-[11px]" dateTime={key.createdAt}>
+                          {formatApiKeyDate(key.createdAt, locale)}
+                        </time>
+                        <span className="flex items-center gap-1.5">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className={cn(
+                                  "size-7",
+                                  key.enabled
+                                    ? "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    : "border-primary/30 text-primary hover:bg-primary/10 hover:text-primary",
+                                )}
+                                aria-label={
+                                  key.enabled
+                                    ? t("settings.disableApiKey")
+                                    : t("settings.enableApiKey")
+                                }
+                                disabled={actionBusy}
+                                onClick={() => void handleApiKeyEnabled(key)}
+                              >
+                                {key.enabled ? <PowerOff aria-hidden="true" /> : <Power aria-hidden="true" />}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {key.enabled ? t("settings.disableApiKey") : t("settings.enableApiKey")}
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="size-7"
+                                aria-label={t("settings.editApiKeyName", { name: key.name })}
+                                disabled={actionBusy}
+                                onClick={() => {
+                                  setApiKeyEditing(key);
+                                  setEditedApiKeyName(key.name);
+                                }}
+                              >
+                                <Pencil aria-hidden="true" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t("settings.edit")}</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive size-7"
+                                aria-label={t("settings.deleteApiKey", { name: key.name })}
+                                disabled={actionBusy}
+                                onClick={() => setApiKeyPendingDeletion(key)}
+                              >
+                                <Trash2 aria-hidden="true" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t("settings.delete")}</TooltipContent>
+                          </Tooltip>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+            <div>
+              <FieldLabel>{t("settings.commitInstructions")}</FieldLabel>
+              <p className="text-muted-foreground mb-1 text-[11px] leading-relaxed">
+                {t("settings.commitInstructionsHint")}
+              </p>
+              <Textarea
+                className={settingsTextareaClassName}
+                value={commitInstructions}
+                onChange={(event) => setCommitInstructions(event.target.value)}
+                placeholder={t("settings.commitInstructionsPlaceholder")}
+                disabled={instructionsLoading}
+              />
+            </div>
+            <div>
+              <FieldLabel>{t("settings.pullRequestInstructions")}</FieldLabel>
+              <p className="text-muted-foreground mb-1 text-[11px] leading-relaxed">
+                {t("settings.pullRequestInstructionsHint")}
+              </p>
+              <Textarea
+                className={settingsTextareaClassName}
+                value={pullRequestInstructions}
+                onChange={(event) => setPullRequestInstructions(event.target.value)}
+                placeholder={t("settings.pullRequestInstructionsPlaceholder")}
+                disabled={instructionsLoading}
+              />
+            </div>
+          </SettingsSection> : null}
+
+          <Dialog
+            open={apiKeyDialogOpen}
+            onOpenChange={(nextOpen) => {
+              setApiKeyDialogOpen(nextOpen);
+              if (!nextOpen && !apiKeyCreating) {
+                setNewApiKeyName("");
+                setNewApiKeyValue("");
+              }
+            }}
+          >
+            <DialogContent>
+              <form className="space-y-4" onSubmit={(event) => void handleCreateApiKey(event)}>
+                <DialogHeader>
+                  <DialogTitle>{t("settings.createApiKey")}</DialogTitle>
+                  <DialogDescription>{t("settings.createApiKeyDescription")}</DialogDescription>
+                </DialogHeader>
+                <div>
+                  <FieldLabel>{t("settings.apiKeyName")}</FieldLabel>
+                  <Input
+                    className={settingsFieldClassName}
+                    value={newApiKeyName}
+                    onChange={(event) => setNewApiKeyName(event.target.value)}
+                    placeholder={t("settings.apiKeyNamePlaceholder")}
+                    disabled={apiKeyCreating}
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <FieldLabel>{t("settings.apiKeyValue")}</FieldLabel>
+                  <Input
+                    className={settingsFieldClassName}
+                    type="password"
+                    value={newApiKeyValue}
+                    onChange={(event) => setNewApiKeyValue(event.target.value)}
+                    placeholder={t("settings.apiKeyValuePlaceholder")}
+                    disabled={apiKeyCreating}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setApiKeyDialogOpen(false)}
+                    disabled={apiKeyCreating}
+                  >
+                    {t("common.cancel")}
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={
+                      apiKeyCreating || !newApiKeyName.trim() || !newApiKeyValue.trim()
+                    }
+                  >
+                    {t("settings.createApiKey")}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={apiKeyEditing !== null}
+            onOpenChange={(nextOpen) => {
+              if (!nextOpen && !apiKeyRenaming) {
+                setApiKeyEditing(null);
+                setEditedApiKeyName("");
+              }
+            }}
+          >
+            <DialogContent>
+              <form className="space-y-4" onSubmit={(event) => void handleRenameApiKey(event)}>
+                <DialogHeader>
+                  <DialogTitle>{t("settings.editApiKeyTitle")}</DialogTitle>
+                  <DialogDescription>{t("settings.editApiKeyDescription")}</DialogDescription>
+                </DialogHeader>
+                <div>
+                  <FieldLabel>{t("settings.apiKeyName")}</FieldLabel>
+                  <Input
+                    className={settingsFieldClassName}
+                    value={editedApiKeyName}
+                    onChange={(event) => setEditedApiKeyName(event.target.value)}
+                    disabled={apiKeyRenaming}
+                    autoFocus
+                  />
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={apiKeyRenaming}
+                    onClick={() => setApiKeyEditing(null)}
+                  >
+                    {t("common.cancel")}
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={apiKeyRenaming || !editedApiKeyName.trim()}
+                  >
+                    {t("settings.saveApiKeyName")}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={apiKeyPendingDeletion !== null}
+            onOpenChange={(nextOpen) => {
+              if (!nextOpen && apiKeyActionId === null) {
+                setApiKeyPendingDeletion(null);
+              }
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{t("settings.deleteApiKeyTitle")}</DialogTitle>
+                <DialogDescription>
+                  {t("settings.deleteApiKeyDescription", {
+                    name: apiKeyPendingDeletion?.name ?? "",
+                  })}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={apiKeyActionId !== null}
+                  onClick={() => setApiKeyPendingDeletion(null)}
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={apiKeyActionId !== null}
+                  onClick={() => void handleDeleteApiKey()}
+                >
+                  <Trash2 aria-hidden="true" />
+                  {t("settings.delete")}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* 5. 外部工具 */}
-          <SettingsSection
+          {activeCategory === "tools" ? <SettingsSection
             icon={<Terminal />}
             title={t("settings.sectionTools")}
             description={t("settings.sectionToolsHint")}
@@ -636,10 +1115,10 @@ export function SettingsDrawer() {
                 disabled={shell !== "custom"}
               />
             </div>
-          </SettingsSection>
+          </SettingsSection> : null}
 
           {/* 6. 通用 */}
-          <SettingsSection
+          {activeCategory === "general" ? <SettingsSection
             icon={<Power />}
             title={t("settings.sectionGeneral")}
             description={t("settings.sectionGeneralHint")}
@@ -664,9 +1143,10 @@ export function SettingsDrawer() {
               <Monitor className="size-3.5 shrink-0" aria-hidden />
               {t("settings.alsoInStatusBar")}
             </p>
-          </SettingsSection>
+          </SettingsSection> : null}
             </div>
-          </ScrollArea>
+            </ScrollArea>
+          </div>
         </div>
       </SheetContent>
     </Sheet>

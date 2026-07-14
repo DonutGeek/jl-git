@@ -3,6 +3,7 @@ import type {
   GitCommitFileDiffOptions,
   GitDiffOptions,
   GitDiffResult,
+  GitStagedDiffResult,
 } from "@/types/git";
 
 /** 工作区 / 暂存区单文件 Diff（含 Monaco 两侧文本） */
@@ -16,6 +17,17 @@ export async function getDiff(
     staged: options.staged ?? false,
     maxBytes: options.maxBytes,
     encoding: options.encoding,
+  });
+}
+
+/** 暂存区限长 Diff：仅供 AI 提交文案生成，不执行任何 Git 写操作。 */
+export async function getStagedDiff(
+  repoPath: string,
+  maxBytes?: number,
+): Promise<GitStagedDiffResult> {
+  return invokeCommand<GitStagedDiffResult>("git_staged_diff", {
+    path: repoPath,
+    maxBytes,
   });
 }
 

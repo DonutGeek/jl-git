@@ -1,6 +1,12 @@
 export {
-  clearAgentKey,
+  createAiApiKey,
+  deleteAiApiKey,
+  getAiInstructions,
   getAgentKey,
-  hasAgentKey,
-  setAgentKey,
+  listAiApiKeys,
+  renameAiApiKey,
+  setAiApiKeyEnabled,
+  setAiInstructions,
 } from "./ai.settings";
+export type { AiApiKey, AiInstructions } from "./ai.settings";
+export { generateCommitMessage } from "./ai.commit";

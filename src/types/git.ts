@@ -164,6 +164,12 @@ export interface GitDiffResult {
   truncated: boolean;
 }
 
+/** 限长的暂存区 Diff 上下文，供 AI 提交文案建议使用。 */
+export interface GitStagedDiffResult {
+  patch: string;
+  truncated: boolean;
+}
+
 /** 历史提交内单文件相对 parent 的前后对比 */
 export interface GitCommitFileDiffOptions {
   filePath: string;

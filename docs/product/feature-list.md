@@ -142,8 +142,9 @@
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| AI Agent Key | Done | 设置抽屉可保存/清除；Tauri Store，不进 SQLite |
-| AI Commit Message | Planned | 见 [ai](ai.md) |
+| DeepSeek API Key | Done | 设置抽屉可创建、启用/禁用、编辑名称、删除；仅允许一个启用、删除二次确认，列表仅显示脱敏 Key，Tauri Store，不进 SQLite |
+| AI Git 指令 | Done | 可配置提交指令与拉取请求指令；提交指令已接入提交文案生成 |
+| AI Commit Message | Done | 根据限长、脱敏后的暂存区 Diff 生成 Conventional Commit 文案，用户确认后提交 |
 | AI Diff Explain | Planned | |
 | AI Review | Planned | |
 | AI Branch Naming | Planned | |

@@ -68,6 +68,11 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 
 `staged=true` 读暂存区相对 HEAD；否则读工作区相对 HEAD。`encoding` 控制两侧文本解码（默认 UTF-8）。Monaco DiffEditor 使用 `oldText` / `newText`。
 
+### `getStagedDiff(repoPath: string, maxBytes?: number): Promise<GitStagedDiffResult>`
+
+- **Command：** `git_staged_diff`
+- **说明：** 返回限长的暂存区 patch（最大 64 KiB）与 `truncated`。仅供 `AiService` 生成提交文案使用，不执行 Git 写操作。
+
 ### `getCommitFileDiff(repoPath, options: GitCommitFileDiffOptions): Promise<GitDiffResult>`
 
 - **Command：** `git_commit_file_diff`

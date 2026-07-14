@@ -4,15 +4,17 @@ import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
 import "dayjs/locale/en";
-import { X } from "lucide-react";
+import { LoaderCircle, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
+import { generateCommitMessage } from "@/services/ai";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
 
@@ -45,9 +47,11 @@ export function CommitBox() {
   const status = useRepoStore((state) => state.status);
   const identity = useRepoStore((state) => state.identity);
   const commits = useRepoStore((state) => state.commits);
+  const repoPath = useRepoStore((state) => state.repoPath);
 
   const [pushAfterCommit, setPushAfterCommit] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPosition, setHistoryPosition] = useState({
     left: 0,
@@ -189,6 +193,26 @@ export function CommitBox() {
     }
   }
 
+  async function handleGenerateCommitMessage(): Promise<void> {
+    if (!repoPath || stagedCount === 0 || working) {
+      return;
+    }
+
+    setBusy(true);
+    setIsGenerating(true);
+    try {
+      const message = await generateCommitMessage(repoPath, locale);
+      setCommitMessage(message);
+      toast.success(t("repo.aiCommitGenerated"));
+      messageInputRef.current?.focus();
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setIsGenerating(false);
+      setBusy(false);
+    }
+  }
+
   const identityLabel =
     identity?.name || identity?.email
       ? t("repo.gitIdentity", {
@@ -250,16 +274,45 @@ export function CommitBox() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 p-3">
-      <label className="text-foreground flex shrink-0 cursor-pointer items-center gap-2 text-xs select-none">
-        <input
-          type="checkbox"
-          className="border-input text-primary focus-visible:ring-ring size-3.5 shrink-0 rounded-sm border accent-primary"
-          checked={pushAfterCommit}
-          onChange={(event) => setPushAfterCommit(event.target.checked)}
-          disabled={working}
-        />
-        <span>{t("repo.pushToRemote")}</span>
-      </label>
+      <div className="flex shrink-0 items-center justify-between gap-2">
+        <label className="text-foreground flex cursor-pointer items-center gap-2 text-xs select-none">
+          <input
+            type="checkbox"
+            className="border-input text-primary focus-visible:ring-ring size-3.5 shrink-0 rounded-sm border accent-primary"
+            checked={pushAfterCommit}
+            onChange={(event) => setPushAfterCommit(event.target.checked)}
+            disabled={working}
+          />
+          <span>{t("repo.pushToRemote")}</span>
+        </label>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs"
+              aria-label={
+                isGenerating
+                  ? t("repo.generatingCommitMessage")
+                  : t("repo.generateCommitMessage")
+              }
+              disabled={working || stagedCount === 0}
+              onClick={() => void handleGenerateCommitMessage()}
+            >
+              {isGenerating ? (
+                <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Sparkles className="size-3.5" aria-hidden="true" />
+              )}
+              <span>{isGenerating ? t("repo.aiGenerating") : t("repo.aiGenerate")}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {isGenerating ? t("repo.generatingCommitMessage") : t("repo.generateCommitMessage")}
+          </TooltipContent>
+        </Tooltip>
+      </div>
 
       <Textarea
         ref={messageInputRef}

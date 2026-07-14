@@ -5,7 +5,7 @@ use tauri::AppHandle;
 use crate::error::AppError;
 use crate::git::{
     branch::{self, GitBranch},
-    diff::{self, GitDiffResult},
+    diff::{self, GitDiffResult, GitStagedDiffResult},
     fs_list::{self, FsFileSizeResult, FsListResult},
     identity::{self, GitIdentity},
     log::{self, GitLogResult},
@@ -176,6 +176,16 @@ pub fn git_diff(
         max_bytes,
         encoding.as_deref(),
     )
+}
+
+/// 读取有限长度的暂存区 Diff，供 AI 生成提交文案使用。
+#[tauri::command]
+pub fn git_staged_diff(
+    path: String,
+    max_bytes: Option<usize>,
+) -> Result<GitStagedDiffResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    diff::get_staged_diff(&repo_path, max_bytes)
 }
 
 /// 历史提交内单文件相对 parent 的前后对比（Monaco 两侧文本）

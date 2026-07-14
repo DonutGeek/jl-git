@@ -282,6 +282,16 @@ interface GitBranch {
 - `maxBytes` 默认约 1MB；二进制不返回文本内容（`binary=true`）
 - `encoding`：文本解码编码 id（默认 `utf-8`；见前端 `TEXT_ENCODING_OPTIONS`），由 `encoding_rs` 解码
 
+### `git_staged_diff`
+
+| | |
+|--|--|
+| **目的** | 读取限长的暂存区 Diff，供 AI 生成提交文案 |
+| **输入** | `{ path: string; maxBytes?: number }` |
+| **输出** | `{ patch: string; truncated: boolean }` |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `GIT_FAILED` |
+| **说明** | 执行 `git diff --cached --no-ext-diff --unified=3`；服务端最大返回 64 KiB，前端在发送给 DeepSeek 前再做密钥掩码。 |
+
 ### `git_commit_file_diff`
 
 | | |

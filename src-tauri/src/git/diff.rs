@@ -11,6 +11,7 @@ use crate::git::runner;
 
 const DEFAULT_MAX_BYTES: usize = 1_048_576;
 const DEFAULT_ENCODING: &str = "utf-8";
+const DEFAULT_STAGED_CONTEXT_MAX_BYTES: usize = 65_536;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -20,6 +21,35 @@ pub struct GitDiffResult {
     pub patch: String,
     pub binary: bool,
     pub truncated: bool,
+}
+
+/// 供 AI 辅助生成提交文案使用的暂存区 Diff 上下文。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStagedDiffResult {
+    pub patch: String,
+    pub truncated: bool,
+}
+
+/// 读取暂存区相对 HEAD 的 Diff，并限制返回大小，避免将大文件完整交给上层。
+pub fn get_staged_diff(
+    repo_path: &Path,
+    max_bytes: Option<usize>,
+) -> Result<GitStagedDiffResult, AppError> {
+    let limit = max_bytes
+        .unwrap_or(DEFAULT_STAGED_CONTEXT_MAX_BYTES)
+        .clamp(1_024, DEFAULT_STAGED_CONTEXT_MAX_BYTES);
+    let output = runner::run_git_allow_nonzero(
+        repo_path,
+        &["diff", "--cached", "--no-ext-diff", "--unified=3"],
+    )?;
+    let mut patch = output.stdout;
+    let truncated = patch.len() > limit;
+    if truncated {
+        patch.truncate(limit);
+    }
+
+    Ok(GitStagedDiffResult { patch, truncated })
 }
 
 /// 工作区或暂存区单文件 Diff（含 Monaco 所需两侧文本）
