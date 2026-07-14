@@ -194,7 +194,12 @@
     "compareBranchesLoading": "Loading branch differences…",
     "compareBranchesFailed": "Failed to load branch differences",
     "commitsOnlyOn": "Only on {{branch}}",
-    "noUniqueCommits": "No unique commits"
+    "noUniqueCommits": "No unique commits",
+    "branchMentions": "Branches",
+    "noBranchMentions": "No matching branches",
+    "localBranch": "Local",
+    "remoteBranch": "Remote",
+    "removeBranchMention": "Remove branch {{branch}}"
   },
   "repo": {
     "title": "Repository",

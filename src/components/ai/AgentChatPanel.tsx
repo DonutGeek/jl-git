@@ -4,6 +4,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ChangeEvent,
   type FormEvent,
   type KeyboardEvent,
 } from "react";
@@ -31,7 +32,7 @@ import { EMPTY_CONVERSATIONS, useAgentChatStore } from "@/store/useAgentChatStor
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
-import type { AgentChatMessage } from "@/types/ai";
+import type { AgentBranchMention, AgentChatMessage } from "@/types/ai";
 
 const EMPTY_MESSAGES: readonly AgentChatMessage[] = [];
 
@@ -75,6 +76,9 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   const messageSequence = useRef(0);
   const conversationSequence = useRef(0);
   const [draft, setDraft] = useState("");
+  const [branchMentions, setBranchMentions] = useState<readonly AgentBranchMention[]>([]);
+  const [mentionMenuOpen, setMentionMenuOpen] = useState(false);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const [isReplying, setIsReplying] = useState(false);
   const [composerPadPx, setComposerPadPx] = useState(COMPOSER_PAD_FALLBACK_PX);
   const [messageViewport, setMessageViewport] = useState<HTMLDivElement | null>(null);
@@ -101,6 +105,14 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     conversations[0] ??
     null;
   const messages = activeConversation?.messages ?? EMPTY_MESSAGES;
+  const mentionMatch = draft.match(/(?:^|\s)@([^\s@]*)$/);
+  const mentionQuery = mentionMatch?.[1] ?? null;
+  const mentionCandidates =
+    mentionQuery == null
+      ? []
+      : branches
+          .filter((branch) => branch.name.toLowerCase().includes(mentionQuery.toLowerCase()))
+          .slice(0, 8);
   messagesLengthRef.current = messages.length;
   messageViewportRef.current = messageViewport;
 
@@ -331,6 +343,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
       messages: [],
     });
     setDraft("");
+    setBranchMentions([]);
     window.requestAnimationFrame(() => inputRef.current?.focus());
   }
 
@@ -352,6 +365,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
       role: "user",
       content,
       createdAt: askedAt,
+      mentions: branchMentions,
     };
     messageSequence.current += 1;
     const assistantMessage: AgentChatMessage = {
@@ -366,6 +380,8 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     appendMessage(projectId, conversationId, userMessage);
     appendMessage(projectId, conversationId, assistantMessage);
     setDraft("");
+    setBranchMentions([]);
+    setMentionMenuOpen(false);
 
     const controller = new AbortController();
     replyAbortControllerRef.current = controller;
@@ -424,7 +440,60 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     }
   }
 
+  function handleDraftChange(event: ChangeEvent<HTMLTextAreaElement>): void {
+    const nextDraft = event.target.value;
+    setDraft(nextDraft);
+    setBranchMentions((current) =>
+      current.filter((mention) => nextDraft.includes(`@${mention.name}`)),
+    );
+    setMentionMenuOpen(/(?:^|\s)@([^\s@]*)$/.test(nextDraft));
+    setMentionIndex(0);
+  }
+
+  function selectBranchMention(branchName: string): void {
+    if (!mentionMatch || mentionQuery == null) {
+      return;
+    }
+    const mentionStart = (mentionMatch.index ?? 0) + mentionMatch[0].lastIndexOf("@");
+    const nextDraft = `${draft.slice(0, mentionStart)}@${branchName} ${draft.slice(mentionStart + mentionQuery.length + 1)}`;
+    setDraft(nextDraft);
+    setBranchMentions((current) =>
+      current.some((mention) => mention.name === branchName)
+        ? current
+        : [...current, { type: "branch", name: branchName }],
+    );
+    setMentionMenuOpen(false);
+    window.requestAnimationFrame(() => inputRef.current?.focus());
+  }
+
+  function removeBranchMention(branchName: string): void {
+    setDraft((current) => current.replace(`@${branchName}`, "").replace(/ {2,}/g, " "));
+    setBranchMentions((current) => current.filter((mention) => mention.name !== branchName));
+  }
+
   function handleInputKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (mentionMenuOpen && mentionCandidates.length > 0) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setMentionIndex((current) => (current + 1) % mentionCandidates.length);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setMentionIndex((current) => (current - 1 + mentionCandidates.length) % mentionCandidates.length);
+        return;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        selectBranchMention(mentionCandidates[mentionIndex]?.name ?? mentionCandidates[0].name);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMentionMenuOpen(false);
+        return;
+      }
+    }
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
       return;
     }
@@ -532,10 +601,10 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
                     >
                       <div
                         className={cn(
-                          "w-fit max-w-[88%] whitespace-pre-wrap wrap-break-word rounded-lg px-3 py-2 text-xs leading-relaxed",
+                          "w-fit max-w-[88%] wrap-break-word rounded-lg px-3 py-2 text-xs leading-relaxed",
                           isUser
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-foreground",
+                            ? "bg-primary text-primary-foreground whitespace-pre-wrap"
+                            : "bg-muted text-foreground whitespace-normal",
                         )}
                       >
                         {message.content ? (
@@ -590,11 +659,62 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           className="bg-background absolute inset-x-3 bottom-3 z-10 rounded-md"
           onSubmit={handleSubmit}
         >
+          {branchMentions.length > 0 ? (
+            <div className="border-input flex flex-wrap gap-1 rounded-t-md border-x border-t px-2 py-1.5">
+              {branchMentions.map((mention) => (
+                <span
+                  key={mention.name}
+                  className="bg-secondary text-secondary-foreground inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs"
+                >
+                  @{mention.name}
+                  <button
+                    type="button"
+                    className="hover:text-foreground text-muted-foreground"
+                    aria-label={t("agent.removeBranchMention", { branch: mention.name })}
+                    onClick={() => removeBranchMention(mention.name)}
+                  >
+                    <X className="size-3" aria-hidden="true" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
           <div className="relative">
+            {mentionMenuOpen ? (
+              <div className="bg-popover text-popover-foreground border-border absolute right-0 bottom-full left-0 z-20 mb-1 overflow-hidden rounded-md border shadow-md">
+                <p className="text-muted-foreground border-b px-2 py-1.5 text-xs font-medium">
+                  {t("agent.branchMentions")}
+                </p>
+                {mentionCandidates.length > 0 ? (
+                  <ul className="max-h-48 overflow-y-auto p-1">
+                    {mentionCandidates.map((branch, index) => (
+                      <li key={branch.name}>
+                        <button
+                          type="button"
+                          className={cn(
+                            "flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs",
+                            index === mentionIndex ? "bg-accent" : "hover:bg-accent",
+                          )}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => selectBranchMention(branch.name)}
+                        >
+                          <span className="truncate">{branch.name}</span>
+                          <span className="text-muted-foreground ml-2 shrink-0">
+                            {branch.isRemote ? t("agent.remoteBranch") : t("agent.localBranch")}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-muted-foreground px-2 py-3 text-xs">{t("agent.noBranchMentions")}</p>
+                )}
+              </div>
+            ) : null}
             <Textarea
               ref={inputRef}
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={handleDraftChange}
               onKeyDown={handleInputKeyDown}
               aria-label={t("agent.inputPlaceholder")}
               placeholder={t("agent.inputPlaceholder")}

@@ -64,9 +64,10 @@ export function AgentRichMessage({ content, action, onCompareBranches }: AgentRi
                 {children}
               </code>
             ),
-            ul: ({ children }) => <ul className="my-1 list-disc space-y-1 pl-4">{children}</ul>,
-            ol: ({ children }) => <ol className="my-1 list-decimal space-y-1 pl-4">{children}</ol>,
-            p: ({ children }) => <p className="my-1 first:mt-0 last:mb-0">{children}</p>,
+            ul: ({ children }) => <ul className="my-1 list-disc pl-4">{children}</ul>,
+            ol: ({ children }) => <ol className="my-1 list-decimal pl-4">{children}</ol>,
+            li: ({ children }) => <li className="my-0">{children}</li>,
+            p: ({ children }) => <p className="my-0">{children}</p>,
           }}
         >
           {content}

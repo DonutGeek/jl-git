@@ -113,6 +113,9 @@ async function buildRepositoryContext(
   messages: readonly AgentChatMessage[],
 ): Promise<string> {
   const question = messages[messages.length - 1]?.content ?? "";
+  const selectedBranches = messages[messages.length - 1]?.mentions
+    ?.filter((mention) => mention.type === "branch")
+    .map((mention) => mention.name) ?? [];
   const [statusResult, branchesResult, logResult, treeResult] = await Promise.allSettled([
     getStatus(repoPath),
     listBranches(repoPath, true),
@@ -125,6 +128,9 @@ async function buildRepositoryContext(
     formatBranchesContext(branchesResult),
     formatLogContext(logResult, "Recent commits on HEAD"),
     formatTreeContext(treeResult),
+    selectedBranches.length > 0
+      ? `User-selected branch references: ${selectedBranches.join(", ")}.`
+      : null,
   ];
 
   if (branchesResult.status === "fulfilled") {
@@ -150,7 +156,7 @@ async function buildRepositoryContext(
     }
   }
 
-  return redactSecrets(sections.join("\n\n"));
+  return redactSecrets(sections.filter((section): section is string => section !== null).join("\n\n"));
 }
 
 function formatStatusContext(result: PromiseSettledResult<GitStatusResult>): string {

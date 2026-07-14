@@ -194,7 +194,12 @@
     "compareBranchesLoading": "正在读取分支差异…",
     "compareBranchesFailed": "读取分支差异失败",
     "commitsOnlyOn": "仅存在于 {{branch}}",
-    "noUniqueCommits": "没有独有提交"
+    "noUniqueCommits": "没有独有提交",
+    "branchMentions": "分支",
+    "noBranchMentions": "没有匹配的分支",
+    "localBranch": "本地",
+    "remoteBranch": "远程",
+    "removeBranchMention": "移除分支 {{branch}}"
   },
   "repo": {
     "title": "仓库",
