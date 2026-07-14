@@ -28,6 +28,7 @@ import {
   monacoCommonOptions,
   navigateDiffHunk,
   readMonoFont,
+  revealFirstDiffHunk,
   useMonacoHostSize,
 } from "@/components/git/monacoPreviewShared";
 import { cn } from "@/lib/utils";
@@ -105,6 +106,7 @@ export function CommitFileDiffPane() {
   const fileEditorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const scrollSyncDisposeRef = useRef<(() => void) | null>(null);
   const previewDisposeRef = useRef<(() => void) | null>(null);
+  const revealedCommitFileRef = useRef<string | null>(null);
   const { setHost, size } = useMonacoHostSize(`${mode}:${diffLayout}`);
   const [previewChanges, setPreviewChanges] = useState<DiffPreviewChange[]>([]);
   const [previewViewport, setPreviewViewport] = useState<{
@@ -112,6 +114,9 @@ export function CommitFileDiffPane() {
     scrollHeight: number;
     clientHeight: number;
   } | null>(null);
+  const commitFileKey = selectedCommitFile
+    ? `${selectedCommitFile.commitId}:${selectedCommitFile.parentId}:${selectedCommitFile.path}`
+    : null;
 
   useEffect(() => {
     return () => {
@@ -193,6 +198,14 @@ export function CommitFileDiffPane() {
     };
     const syncChanges = (): void => {
       const lineChanges = editor.getLineChanges() ?? [];
+      if (
+        commitFileKey &&
+        lineChanges.length > 0 &&
+        revealedCommitFileRef.current !== commitFileKey
+      ) {
+        revealFirstDiffHunk(editor);
+        revealedCommitFileRef.current = commitFileKey;
+      }
       const scrollHeight = Math.max(1, modified.getScrollHeight());
       const lineHeight = Math.max(
         1,
@@ -271,6 +284,7 @@ export function CommitFileDiffPane() {
   useEffect(() => {
     setPreviewChanges([]);
     setPreviewViewport(null);
+    revealedCommitFileRef.current = null;
   }, [
     selectedCommitFile?.commitId,
     selectedCommitFile?.parentId,

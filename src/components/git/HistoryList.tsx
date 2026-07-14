@@ -535,7 +535,7 @@ export function HistoryList() {
               type="button"
               variant="outline"
               size="sm"
-              className="h-7 max-w-[140px] gap-1 px-2 text-xs font-normal"
+              className="h-7 max-w-[140px] gap-1 px-2 text-xs font-normal shadow-none"
             >
               <span className="min-w-0 truncate">{branchLabel}</span>
               <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
@@ -581,7 +581,7 @@ export function HistoryList() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("repo.historySearchPlaceholder")}
-            className="h-7 pr-8 pl-7 text-xs"
+            className="h-7 pr-8 pl-7 text-xs shadow-none"
             aria-label={t("repo.historySearch")}
           />
           <Tooltip delayDuration={300}>
@@ -608,7 +608,7 @@ export function HistoryList() {
               variant="outline"
               size="sm"
               className={cn(
-                "h-7 max-w-[120px] gap-1 px-2 text-xs font-normal",
+                "h-7 max-w-[120px] gap-1 px-2 text-xs font-normal shadow-none",
                 author && "bg-primary/10 text-primary border-transparent",
               )}
             >
@@ -641,7 +641,7 @@ export function HistoryList() {
               variant="outline"
               size="sm"
               className={cn(
-                "h-7 gap-1 px-2 text-xs font-normal",
+                "h-7 gap-1 px-2 text-xs font-normal shadow-none",
                 datePreset !== "all" && "bg-primary/10 text-primary border-transparent",
               )}
             >

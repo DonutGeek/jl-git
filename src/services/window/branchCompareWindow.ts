@@ -1,4 +1,5 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 
 import type { BranchCompareMode } from "@/types/git";
 
@@ -13,6 +14,8 @@ interface BranchCompareWindowTarget {
   label: string;
   url: string;
 }
+
+const BRANCH_COMPARE_WINDOW_SIZE = new LogicalSize(1180, 760);
 
 /** 为同一项目与 ref 生成可聚焦的稳定子窗口标识。 */
 export function createBranchCompareWindowTarget(
@@ -38,6 +41,8 @@ export async function openBranchCompareWindow(
   const target = createBranchCompareWindowTarget(options);
   const existing = await WebviewWindow.getByLabel(target.label);
   if (existing) {
+    await existing.setSize(BRANCH_COMPARE_WINDOW_SIZE);
+    await existing.center();
     await existing.show();
     await existing.setFocus();
     return;
@@ -46,10 +51,13 @@ export async function openBranchCompareWindow(
   const window = new WebviewWindow(target.label, {
     url: target.url,
     title: "分支比较",
-    width: 1440,
-    height: 900,
-    minWidth: 960,
-    minHeight: 640,
+    width: BRANCH_COMPARE_WINDOW_SIZE.width,
+    height: BRANCH_COMPARE_WINDOW_SIZE.height,
+    minWidth: 860,
+    minHeight: 560,
+    titleBarStyle: "overlay",
+    hiddenTitle: true,
+    trafficLightPosition: new LogicalPosition(16, 16),
   });
   await new Promise<void>((resolve, reject) => {
     void window.once("tauri://created", () => resolve());

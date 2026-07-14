@@ -6,10 +6,15 @@ import {
   ChevronRight,
   Cloud,
   CloudOff,
+  Copy,
+  Download,
   Folder,
   FolderOpen,
   GitCompareArrows,
   GitBranch as GitBranchIcon,
+  Pencil,
+  Trash2,
+  Upload,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -333,6 +338,7 @@ function BranchLeaf({
           disabled={!canCheckout}
           onSelect={() => contextActions.onCheckout(branch)}
         >
+          <GitBranchIcon aria-hidden="true" />
           {t("repo.checkoutBranch")}
         </ContextMenuItem>
 
@@ -342,7 +348,7 @@ function BranchLeaf({
           disabled={!canCompareWithCurrent}
           onSelect={() => contextActions.onCompareWithCurrent(branch)}
         >
-          <GitCompareArrows className="mr-2 size-3.5" aria-hidden="true" />
+          <GitCompareArrows className="size-3.5" aria-hidden="true" />
           {t("repo.compareCurrentWithBranch")}
         </ContextMenuItem>
 
@@ -350,10 +356,12 @@ function BranchLeaf({
           disabled={!canPull}
           onSelect={() => contextActions.onPull(branch)}
         >
+          <Download aria-hidden="true" />
           {t("repo.pull")}
         </ContextMenuItem>
         {canPublish ? (
           <ContextMenuItem onSelect={() => contextActions.onPublish(branch)}>
+            <Upload aria-hidden="true" />
             {t("repo.publishBranch")}
           </ContextMenuItem>
         ) : (
@@ -361,6 +369,7 @@ function BranchLeaf({
             disabled={!canPush}
             onSelect={() => contextActions.onPush(branch)}
           >
+            <Upload aria-hidden="true" />
             {t("repo.push")}
           </ContextMenuItem>
         )}
@@ -371,9 +380,11 @@ function BranchLeaf({
           disabled={!canRename}
           onSelect={() => contextActions.onRename(branch)}
         >
+          <Pencil aria-hidden="true" />
           {t("repo.renameBranch")}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => contextActions.onCopyName(branch)}>
+          <Copy aria-hidden="true" />
           {t("repo.copyBranchName")}
         </ContextMenuItem>
 
@@ -384,6 +395,7 @@ function BranchLeaf({
           className="text-destructive focus:text-destructive"
           onSelect={() => contextActions.onDelete(branch)}
         >
+          <Trash2 aria-hidden="true" />
           {t("repo.deleteBranch")}
         </ContextMenuItem>
       </ContextMenuContent>

@@ -431,12 +431,20 @@ export function CommitBox() {
 
       <div className="shrink-0 space-y-2">
         <div className="flex items-center gap-1.5">
-          <GitIdentityAvatar
-            name={identity?.name ?? null}
-            email={identity?.email ?? null}
-            label={identityLabel}
-            className="size-7 rounded-md text-[10px]"
-          />
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <span className="inline-flex cursor-pointer">
+                <GitIdentityAvatar
+                  name={identity?.name ?? null}
+                  email={identity?.email ?? null}
+                  label={identityLabel}
+                  shape="rounded"
+                  className="size-7 text-[10px]"
+                />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{identityLabel}</TooltipContent>
+          </Tooltip>
           <Button
             type="button"
             size="sm"

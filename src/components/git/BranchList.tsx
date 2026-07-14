@@ -394,7 +394,7 @@ export function BranchList() {
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             placeholder={t("repo.filter")}
-            className="h-8 text-xs"
+            className="h-8 text-xs shadow-none"
             aria-label={t("repo.filter")}
           />
         </div>

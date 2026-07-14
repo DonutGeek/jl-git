@@ -171,6 +171,28 @@ export function navigateDiffHunk(
   modified.focus();
 }
 
+/** 差异加载完成后定位到文件中的首个差异块。 */
+export function revealFirstDiffHunk(
+  editor: Parameters<DiffOnMount>[0],
+): void {
+  const firstChange = editor.getLineChanges()?.[0];
+  if (!firstChange) {
+    return;
+  }
+
+  const modified = editor.getModifiedEditor();
+  const preferredLine =
+    firstChange.modifiedStartLineNumber > 0
+      ? firstChange.modifiedStartLineNumber
+      : firstChange.originalStartLineNumber;
+  const lineCount = modified.getModel()?.getLineCount() ?? 1;
+  const line = Math.min(Math.max(1, preferredLine), lineCount);
+
+  modified.revealLineInCenter(line);
+  modified.setPosition({ lineNumber: line, column: 1 });
+  modified.focus();
+}
+
 export const monacoCommonOptions = {
   readOnly: true,
   minimap: { enabled: false },

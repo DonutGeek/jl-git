@@ -50,6 +50,7 @@ export function CommitAuthorAvatars({
             name={person.name}
             email={person.email || null}
             label={person.name}
+            shape="rounded"
             compact
             className={cn(
               "border-background size-4 rounded-sm border-2",

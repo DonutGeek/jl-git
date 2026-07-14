@@ -28,11 +28,11 @@
     user-select: none;
   }
 
-  /* 灰底面板上 shadow-xs 过显眼；不改 components/ui，在设计层盖掉 */
-  [data-slot="input"],
-  [data-slot="textarea"],
-  [data-slot="button"][data-variant="outline"] {
-    box-shadow: none;
+  /* 灰底面板上 shadow-xs 过显眼；保留键盘 focus ring，不改 components/ui */
+  [data-slot="input"]:not(:focus-visible),
+  [data-slot="textarea"]:not(:focus-visible),
+  [data-slot="button"][data-variant="outline"]:not(:focus-visible) {
+    box-shadow: none !important;
   }
 
   code,

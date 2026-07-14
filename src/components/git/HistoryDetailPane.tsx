@@ -496,7 +496,7 @@ function ParentDiffSection({
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             placeholder={placeholder}
-            className="h-7 pl-8 text-xs"
+            className="h-7 pl-8 text-xs shadow-none"
             aria-label={placeholder}
           />
         </div>
@@ -837,7 +837,7 @@ export function HistoryDetailPane() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 px-2.5 text-[11px]"
+                className="h-7 px-2.5 text-[11px] shadow-none"
                 disabled={branchesLoading || !repoPath}
                 onClick={() => void loadContainingBranches()}
               >
@@ -852,7 +852,7 @@ export function HistoryDetailPane() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 px-2.5 text-[11px]"
+                className="h-7 px-2.5 text-[11px] shadow-none"
                 disabled={sizeLoading || !repoPath}
                 onClick={() => void loadChangeSize()}
               >

@@ -35,6 +35,7 @@ import {
   monacoCommonOptions,
   navigateDiffHunk,
   readMonoFont,
+  revealFirstDiffHunk,
   useMonacoHostSize,
 } from "@/components/git/monacoPreviewShared";
 import { cn } from "@/lib/utils";
@@ -78,6 +79,7 @@ export function ChangesPreviewPane() {
   const fileEditorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const scrollSyncDisposeRef = useRef<(() => void) | null>(null);
   const previewDisposeRef = useRef<(() => void) | null>(null);
+  const revealedSelectionRef = useRef<string | null>(null);
   const { setHost, size } = useMonacoHostSize(`${mode}:${diffLayout}`);
   const [previewChanges, setPreviewChanges] = useState<DiffPreviewChange[]>([]);
   const [previewViewport, setPreviewViewport] = useState<{
@@ -85,6 +87,9 @@ export function ChangesPreviewPane() {
     scrollHeight: number;
     clientHeight: number;
   } | null>(null);
+  const selectionKey = selectedChange
+    ? `${selectedChange.side}:${selectedChange.path}`
+    : null;
 
   useEffect(() => {
     return () => {
@@ -169,6 +174,14 @@ export function ChangesPreviewPane() {
     };
     const syncChanges = (): void => {
       const lineChanges = editor.getLineChanges() ?? [];
+      if (
+        selectionKey &&
+        lineChanges.length > 0 &&
+        revealedSelectionRef.current !== selectionKey
+      ) {
+        revealFirstDiffHunk(editor);
+        revealedSelectionRef.current = selectionKey;
+      }
       const scrollHeight = Math.max(1, modified.getScrollHeight());
       const lineHeight = Math.max(
         1,
@@ -250,6 +263,7 @@ export function ChangesPreviewPane() {
     setDiffHidden(false);
     setPreviewChanges([]);
     setPreviewViewport(null);
+    revealedSelectionRef.current = null;
   }, [selectedChange?.path, selectedChange?.side]);
 
   useEffect(() => {
