@@ -51,6 +51,7 @@
     "react-hook-form": "^7.81.0",
     "react-i18next": "^17.0.8",
     "react-markdown": "^10.1.0",
+    "react-mentions-ts": "^6.0.0",
     "react-resizable-panels": "^4.12.1",
     "react-router-dom": "^7.18.1",
     "remark-gfm": "^4.0.1",

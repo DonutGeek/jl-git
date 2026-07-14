@@ -131,6 +131,9 @@ importers:
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@19.2.17)(react@19.2.7)
+      react-mentions-ts:
+        specifier: ^6.0.0
+        version: 6.0.0(class-variance-authority@0.7.1)(clsx@2.1.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwind-merge@3.6.0)
       react-resizable-panels:
         specifier: ^4.12.1
         version: 4.12.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -2195,6 +2198,16 @@ packages:
     peerDependencies:
       '@types/react': '>=18'
       react: '>=18'
+
+  react-mentions-ts@6.0.0:
+    resolution: {integrity: sha512-uOg1BzedDZXfNJQJ6cuv75euu9SngGbaetrv3SKJFrTIT5000yN7PMNyqlS4gRCNfgT+lpELAuHGvF3qOBJCWQ==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      class-variance-authority: '>=0.6.0'
+      clsx: '>=2.0.0'
+      react: '>=19.0.3 <19.1.0 || >=19.1.4 <19.2.0 || >=19.2.3'
+      react-dom: '>=19.0.0'
+      tailwind-merge: '>=3.0.0'
 
   react-refresh@0.17.0:
     resolution: {integrity: sha512-z6F7K9bV85EfseRCp2bzrpyQ0Gkw1uLoCel9XBVWPg/TjRj94SkJzUTGfOa4bs7iJvBWtQG0Wq7wnI0syw3EBQ==}
@@ -4614,6 +4627,14 @@ snapshots:
       vfile: 6.0.3
     transitivePeerDependencies:
       - supports-color
+
+  react-mentions-ts@6.0.0(class-variance-authority@0.7.1)(clsx@2.1.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(tailwind-merge@3.6.0):
+    dependencies:
+      class-variance-authority: 0.7.1
+      clsx: 2.1.1
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
+      tailwind-merge: 3.6.0
 
   react-refresh@0.17.0: {}
 

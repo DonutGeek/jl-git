@@ -163,13 +163,13 @@ function ChangeRow({
         aria-selected={selected}
         tabIndex={0}
         className={cn(
-          "group flex h-7 w-full min-w-0 cursor-pointer items-center gap-1 rounded-md px-1.5 transition-colors",
+          "group flex h-7 w-full min-w-0 cursor-pointer items-center gap-1 rounded-md px-2 transition-colors",
           selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
         )}
         style={
           indentDepth == null
             ? undefined
-            : { paddingLeft: `${6 + indentDepth * 14}px` }
+            : { paddingLeft: `${8 + indentDepth * 14}px` }
         }
         onClick={() => onSelect(entry.path, side)}
         onDoubleClick={() => {
@@ -209,7 +209,7 @@ function ChangeRow({
           path={displayPath}
           title={fullPath}
         />
-        <div className="ml-auto flex shrink-0 items-center gap-0.5">
+        <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-0.5">
           {showLineStats ? (
             <DiffLineStats additions={additions} deletions={deletions} className="ml-0" />
           ) : null}
@@ -332,7 +332,7 @@ function ChangeGroup({
   return (
     <section className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* 分区标题：悬停高亮，操作按钮悬停才显 */}
-      <div className="group/header hover:bg-accent/60 flex h-7 shrink-0 items-center justify-between gap-1 rounded-md px-1.5 transition-colors">
+      <div className="group/header hover:bg-accent/60 flex h-7 shrink-0 items-center justify-between gap-1 rounded-md px-2 transition-colors">
         <h3 className="text-muted-foreground min-w-0 truncate text-[11px] font-medium">
           {title}
         </h3>
@@ -360,7 +360,8 @@ function ChangeGroup({
       </div>
 
       <div className="min-h-0 flex-1">
-        <ScrollArea className="h-full px-0.5 pb-1">
+        {/* 右侧为滚动条预留槽位，避免盖住行尾暂存按钮 */}
+        <ScrollArea className="h-full pb-1 pl-1.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:pr-3 [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5">
           {view === "tree" ? (
             <ChangeTree
               entries={entries}
@@ -396,7 +397,7 @@ function ChangeGroup({
               <div className="hover:bg-accent/60 group flex h-7 items-center rounded-md transition-colors">
                 <button
                   type="button"
-                  className="text-muted-foreground flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-1.5 text-left text-xs"
+                  className="text-muted-foreground flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-2 text-left text-xs"
                   onClick={onToggleGroup}
                 >
                   {groupOpen ? (

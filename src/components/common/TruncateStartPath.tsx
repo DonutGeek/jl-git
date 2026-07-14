@@ -35,8 +35,8 @@ function readElementFont(element: HTMLElement): string {
 }
 
 /**
- * 优先在路径分隔符处截断（…/views/file.ts），避免出现 …ext/src 这种难读残段；
- * 仍放不下时再按字符二分。
+ * 按实际可用宽度尽量多保留尾部路径。
+ * 先做字符级贴满，再在浪费不大时收成 …/segment，避免按整段跳截导致右侧空洞过大。
  */
 function truncatePathStart(
   path: string,
@@ -47,16 +47,7 @@ function truncatePathStart(
     return path;
   }
 
-  const segments = path.split("/");
-  // 从保留更多尾部段开始试：…/c/d → …/b/c/d → …
-  for (let start = 1; start < segments.length; start += 1) {
-    const candidate = `${ELLIPSIS}/${segments.slice(start).join("/")}`;
-    if (measureTextWidth(candidate, font) <= available) {
-      return candidate;
-    }
-  }
-
-  // 单段过长或极窄：字符级二分
+  // 字符二分：在可用宽度内保留最长后缀
   let low = 0;
   let high = path.length;
   while (low < high) {
@@ -69,7 +60,26 @@ function truncatePathStart(
     }
   }
 
-  return low <= 0 ? ELLIPSIS : `${ELLIPSIS}${path.slice(path.length - low)}`;
+  if (low <= 0) {
+    return ELLIPSIS;
+  }
+
+  const cut = path.length - low;
+  const filled = `${ELLIPSIS}${path.slice(cut)}`;
+
+  // 若截在段中间，尝试收到下一个 '/' 变成 …/xxx；仅当多出来的空白不大时才收
+  const nextSlash = path.indexOf("/", cut);
+  if (nextSlash > cut) {
+    const atSep = `${ELLIPSIS}${path.slice(nextSlash)}`;
+    if (
+      measureTextWidth(atSep, font) <= available &&
+      available - measureTextWidth(atSep, font) <= 24
+    ) {
+      return atSep;
+    }
+  }
+
+  return filled;
 }
 
 /**
