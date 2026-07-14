@@ -47,10 +47,11 @@ function formatMessageTime(iso: string): string {
 
 interface AgentChatPanelProps {
   projectId: string;
+  repoPath: string;
 }
 
 /** Agent 对话入口。模型与仓库上下文会在后续能力中通过 AiService 接入。 */
-export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
+export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   const { t } = useTranslation();
   const composerRef = useRef<HTMLFormElement>(null);
   const stickToBottomRef = useRef(true);
@@ -363,6 +364,7 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
     try {
       await streamAgentReply({
         messages: [...messages, userMessage],
+        repoPath,
         locale,
         signal: controller.signal,
         onDelta: (delta) => {

@@ -242,7 +242,7 @@ export function RepoPage() {
       {sidebarView === "files" ? <FileTree key={project.path} repoPath={project.path} /> : null}
       {sidebarView === "branches" ? <BranchList /> : null}
       {sidebarView === "agent" ? (
-        <AgentChatPanel projectId={project.id} />
+        <AgentChatPanel projectId={project.id} repoPath={project.path} />
       ) : null}
     </aside>
   );

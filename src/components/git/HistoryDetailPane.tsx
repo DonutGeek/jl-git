@@ -747,12 +747,16 @@ export function HistoryDetailPane() {
               aria-label={t("repo.previewCommitMessage")}
               onClick={() => setMessagePreviewOpen(true)}
             >
-              <p className="truncate text-[13px] leading-snug font-semibold">{detail.subject}</p>
-              {detail.body ? (
-                <p className="text-muted-foreground truncate mt-1 text-[11px] leading-snug">
-                  {detail.body.replace(/\s+/g, " ")}
+              <ScrollArea className="h-28 pr-2">
+                <p className="wrap-break-word text-[13px] leading-snug font-semibold">
+                  {detail.subject}
                 </p>
-              ) : null}
+                {detail.body ? (
+                  <p className="text-muted-foreground mt-1 whitespace-pre-wrap wrap-break-word text-[11px] leading-snug">
+                    {detail.body}
+                  </p>
+                ) : null}
+              </ScrollArea>
             </button>
           </TooltipTrigger>
           <TooltipContent>{t("repo.previewCommitMessage")}</TooltipContent>

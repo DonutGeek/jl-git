@@ -1,4 +1,5 @@
 import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
+import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getStagedDiff } from "@/services/git/git.diff";
 
 import i18n from "@/i18n";
@@ -138,14 +139,6 @@ function normalizeCommitMessage(content: string | null | undefined): string | nu
     .filter((line) => line.length <= 240);
 
   return detailLines.length > 0 ? `${firstLine}\n\n${detailLines.join("\n")}` : firstLine;
-}
-
-/** 掩码常见凭据形式，避免误把工作区中的密钥上传给模型服务。 */
-function redactSecrets(value: string): string {
-  return value
-    .replace(/(api[_-]?key|token|secret|password)\s*[:=]\s*[^\s'"`]+/gi, "$1=[REDACTED]")
-    .replace(/\bsk-[A-Za-z0-9_-]{16,}\b/g, "[REDACTED]")
-    .replace(/-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+ PRIVATE KEY-----/g, "[REDACTED PRIVATE KEY]");
 }
 
 function appError(code: AppError["code"], message: string): AppError {
