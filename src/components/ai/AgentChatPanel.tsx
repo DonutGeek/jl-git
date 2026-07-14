@@ -41,6 +41,8 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
   const { t } = useTranslation();
   const composerRef = useRef<HTMLFormElement>(null);
   const stickToBottomRef = useRef(true);
+  const messageViewportRef = useRef<HTMLDivElement | null>(null);
+  const messagesLengthRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const replyAbortControllerRef = useRef<AbortController | null>(null);
   const virtualizerRef = useRef<ReactVirtualizer<HTMLDivElement, HTMLDivElement> | null>(null);
@@ -73,6 +75,17 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
     conversations[0] ??
     null;
   const messages = activeConversation?.messages ?? EMPTY_MESSAGES;
+  messagesLengthRef.current = messages.length;
+  messageViewportRef.current = messageViewport;
+
+  /** 贴底时滚到最末；虚拟列表高度常晚于内容更新，需在测量后再补一次 */
+  const scrollToBottomIfSticky = useCallback((): void => {
+    const viewport = messageViewportRef.current;
+    if (!viewport || !stickToBottomRef.current) {
+      return;
+    }
+    viewport.scrollTop = viewport.scrollHeight;
+  }, []);
 
   useEffect(() => {
     if (conversations.length > 0) {
@@ -137,16 +150,26 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
 
   useEffect(() => {
     const observer = new ResizeObserver((entries) => {
+      let shouldCatchUp = false;
       entries.forEach((entry) => {
         const element = entry.target;
         const index = Number(element.getAttribute("data-index"));
-        if (Number.isInteger(index)) {
-          virtualizerRef.current?.resizeItem(
-            index,
-            Math.ceil(element.getBoundingClientRect().height),
-          );
+        if (!Number.isInteger(index)) {
+          return;
+        }
+        virtualizerRef.current?.resizeItem(
+          index,
+          Math.ceil(element.getBoundingClientRect().height),
+        );
+        // 末行变高时 scrollHeight 才更新，必须在测量后再贴底
+        if (index === messagesLengthRef.current - 1) {
+          shouldCatchUp = true;
         }
       });
+      if (shouldCatchUp) {
+        scrollToBottomIfSticky();
+        window.requestAnimationFrame(scrollToBottomIfSticky);
+      }
     });
     messageRowResizeObserver.current = observer;
     messageRowElements.current.forEach((element) => observer.observe(element));
@@ -155,7 +178,7 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
       observer.disconnect();
       messageRowResizeObserver.current = null;
     };
-  }, []);
+  }, [scrollToBottomIfSticky]);
 
   const getMessageRowRef = useCallback(
     (index: number): ((element: HTMLDivElement | null) => void) => {
@@ -214,24 +237,14 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
     stickToBottomRef.current = true;
   }, [activeConversation?.id]);
 
+  // 同步贴底 + 下一帧补滚；避免仅依赖双 rAF（流式过快时 cleanup 会取消未执行的滚动）
   useLayoutEffect(() => {
     if (!messageViewport || messages.length === 0 || !stickToBottomRef.current) {
       return;
     }
-    let followUpFrameId: number | null = null;
-    const frameId = window.requestAnimationFrame(() => {
-      followUpFrameId = window.requestAnimationFrame(() => {
-        if (stickToBottomRef.current) {
-          messageViewport.scrollTop = messageViewport.scrollHeight;
-        }
-      });
-    });
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      if (followUpFrameId != null) {
-        window.cancelAnimationFrame(followUpFrameId);
-      }
-    };
+    scrollToBottomIfSticky();
+    const frameId = window.requestAnimationFrame(scrollToBottomIfSticky);
+    return () => window.cancelAnimationFrame(frameId);
   }, [
     activeConversation?.id,
     lastMessage?.content,
@@ -239,7 +252,48 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
     lastMessage?.isStreaming,
     messageViewport,
     messages.length,
+    scrollToBottomIfSticky,
     virtualizer,
+  ]);
+
+  // 流式输出期间每帧贴底，跟上行高测量；用户上滑后 stick 为 false 则跳过
+  useEffect(() => {
+    if (!lastMessage?.isStreaming || !messageViewport) {
+      return;
+    }
+    let cancelled = false;
+    let frameId = 0;
+    const loop = (): void => {
+      if (cancelled) {
+        return;
+      }
+      scrollToBottomIfSticky();
+      frameId = window.requestAnimationFrame(loop);
+    };
+    frameId = window.requestAnimationFrame(loop);
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [lastMessage?.id, lastMessage?.isStreaming, messageViewport, scrollToBottomIfSticky]);
+
+  // 流式结束后再补几次，消化最后一轮 resizeItem
+  useEffect(() => {
+    if (lastMessage?.isStreaming !== false || !messageViewport) {
+      return;
+    }
+    scrollToBottomIfSticky();
+    const timers = [0, 32, 80].map((delay) =>
+      window.setTimeout(scrollToBottomIfSticky, delay),
+    );
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [
+    lastMessage?.id,
+    lastMessage?.isStreaming,
+    messageViewport,
+    scrollToBottomIfSticky,
   ]);
 
   function handleCreateConversation(): void {
@@ -443,15 +497,18 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
                       >
                         {message.content ? <span>{message.content}</span> : null}
                         {message.isStreaming ? (
-                          <span
-                            className={cn(
-                              "items-center gap-1.5",
-                              message.content ? "ml-1 inline-flex" : "flex",
-                            )}
-                          >
-                            <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
-                            {!message.content ? <span>{t("agent.thinking")}</span> : null}
-                          </span>
+                          message.content ? (
+                            // 流式出字：末尾光标，避免转圈抢注意力
+                            <span
+                              className="bg-foreground ml-0.5 inline-block h-3 w-0.5 animate-pulse align-middle"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5">
+                              <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
+                              <span>{t("agent.thinking")}</span>
+                            </span>
+                          )
                         ) : null}
                       </div>
                     </div>
