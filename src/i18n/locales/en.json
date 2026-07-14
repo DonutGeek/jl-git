@@ -186,10 +186,19 @@
     "replyTimeout": "鲸灵 timed out. Please try again.",
     "copy": "Copy",
     "copySuccess": "Copied",
-    "copyFailed": "Copy failed"
+    "copyFailed": "Copy failed",
+    "compareBranches": "Compare {{base}} and {{target}}",
+    "compareBranchesUnavailable": "The branches to compare are not available in this repository",
+    "compareBranchesTitle": "Compare {{base}} and {{target}}",
+    "compareBranchesDescription": "Shows commits unique to each branch. No Git write operation is performed.",
+    "compareBranchesLoading": "Loading branch differences…",
+    "compareBranchesFailed": "Failed to load branch differences",
+    "commitsOnlyOn": "Only on {{branch}}",
+    "noUniqueCommits": "No unique commits"
   },
   "repo": {
     "title": "Repository",
+    "opening": "Opening repository…",
     "notFound": "Project not found",
     "detached": "Detached HEAD",
     "switchProject": "Switch repository",

@@ -14,6 +14,12 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { AgentMessageCopyButton } from "@/components/ai/AgentMessageCopyButton";
+import { AgentBranchComparisonDialog } from "@/components/ai/AgentBranchComparisonDialog";
+import {
+  AgentRichMessage,
+  parseAgentMessage,
+  type CompareBranchesAction,
+} from "@/components/ai/AgentRichMessage";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -23,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { streamAgentReply } from "@/services/ai";
 import { EMPTY_CONVERSATIONS, useAgentChatStore } from "@/store/useAgentChatStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
+import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { AgentChatMessage } from "@/types/ai";
 
@@ -71,7 +78,9 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   const [isReplying, setIsReplying] = useState(false);
   const [composerPadPx, setComposerPadPx] = useState(COMPOSER_PAD_FALLBACK_PX);
   const [messageViewport, setMessageViewport] = useState<HTMLDivElement | null>(null);
+  const [branchComparison, setBranchComparison] = useState<CompareBranchesAction | null>(null);
   const locale = useLocaleStore((state) => state.locale);
+  const branches = useRepoStore((state) => state.branches);
   const conversations = useAgentChatStore(
     (state) => state.conversationsByProjectId[projectId] ?? EMPTY_CONVERSATIONS,
   );
@@ -94,6 +103,15 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   const messages = activeConversation?.messages ?? EMPTY_MESSAGES;
   messagesLengthRef.current = messages.length;
   messageViewportRef.current = messageViewport;
+
+  function handleCompareBranches(action: CompareBranchesAction): void {
+    const branchNames = new Set(branches.map((branch) => branch.name));
+    if (!branchNames.has(action.base) || !branchNames.has(action.target)) {
+      toast.error(t("agent.compareBranchesUnavailable"));
+      return;
+    }
+    setBranchComparison(action);
+  }
 
   /** 贴底时滚到最末；虚拟列表高度常晚于内容更新，需在测量后再补一次 */
   const scrollToBottomIfSticky = useCallback((): void => {
@@ -520,7 +538,12 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
                             : "bg-muted text-foreground",
                         )}
                       >
-                        {message.content ? <span>{message.content}</span> : null}
+                        {message.content ? (
+                          <AgentRichMessage
+                            {...parseAgentMessage(message.content)}
+                            onCompareBranches={handleCompareBranches}
+                          />
+                        ) : null}
                         {message.isStreaming ? (
                           message.content ? (
                             // 流式出字：末尾光标，避免转圈抢注意力
@@ -594,6 +617,16 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           </div>
         </form>
       </div>
+      <AgentBranchComparisonDialog
+        action={branchComparison}
+        open={branchComparison !== null}
+        repoPath={repoPath}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBranchComparison(null);
+          }
+        }}
+      />
     </section>
   );
 }

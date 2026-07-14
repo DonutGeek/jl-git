@@ -262,7 +262,7 @@ export function RepoPage() {
       <section className="flex h-full flex-col">
         <RepoTabBar />
         <div className="flex flex-1 items-center justify-center">
-          <p className="text-muted-foreground text-sm">{t("common.loading")}</p>
+          <p className="text-muted-foreground text-sm">{t("repo.opening")}</p>
         </div>
       </section>
     );

@@ -1,11 +1,24 @@
 import { getAgentKey } from "@/services/ai/ai.settings";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
-import { getLog, getStatus, listBranches, listTree } from "@/services/git";
+import { buildAgentSystemPrompt } from "@/prompts/agent";
+import {
+  getCommit,
+  getCommitFileDiff,
+  getLog,
+  getStatus,
+  listBranches,
+  listTree,
+} from "@/services/git";
 
 import i18n from "@/i18n";
 import { isRecord, type AppError } from "@/types/error";
 import type { AgentChatMessage } from "@/types/ai";
-import type { GitBranch, GitCommitSummary, GitStatusResult } from "@/types/git";
+import type {
+  GitBranch,
+  GitCommitDetail,
+  GitCommitSummary,
+  GitStatusResult,
+} from "@/types/git";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
 const DEEPSEEK_AGENT_MODEL = "deepseek-chat";
@@ -15,6 +28,10 @@ const AGENT_LOG_LIMIT = 16;
 const AGENT_FILE_LIMIT = 120;
 const AGENT_STATUS_ENTRY_LIMIT = 50;
 const AGENT_COMPARISON_LIMIT = 12;
+const AGENT_COMMIT_FILE_LIMIT = 80;
+const AGENT_COMMIT_PATCH_FILE_LIMIT = 6;
+const AGENT_COMMIT_PATCH_BYTES = 4_096;
+const COMMIT_REFERENCE_PATTERN = /\b[0-9a-f]{7,64}\b/gi;
 
 interface StreamAgentReplyOptions {
   messages: readonly AgentChatMessage[];
@@ -40,10 +57,7 @@ export async function streamAgentReply({
     throw appError("VALIDATION", i18n.t("ai.errors.missingApiKey"));
   }
 
-  const repositoryContext = await buildRepositoryContext(
-    repoPath,
-    messages[messages.length - 1]?.content ?? "",
-  );
+  const repositoryContext = await buildRepositoryContext(repoPath, messages);
   const controller = new AbortController();
   const abortFromCaller = (): void => controller.abort();
   signal?.addEventListener("abort", abortFromCaller, { once: true });
@@ -94,24 +108,11 @@ export async function streamAgentReply({
   }
 }
 
-function buildAgentSystemPrompt(locale: string, repositoryContext: string): string {
-  const language = locale === "zh-CN" ? "Simplified Chinese" : "English";
-  return [
-    "You are 鲸灵, a helpful Git desktop assistant.",
-    `Reply in ${language} unless the user explicitly requests another language.`,
-    "You receive a read-only snapshot of the current repository for every request.",
-    "Use only facts in the repository snapshot and the current project conversation.",
-    "You can explain current status, branches, history, files, and a supplied branch comparison.",
-    "Do not claim to have executed Git commands, changed files, or know file contents that are absent from the snapshot.",
-    "For a comparison that is not supplied, ask the user to name the two branches exactly.",
-    "Never reveal credentials or suggest destructive Git commands without explaining the impact.",
-    "Keep answers concise, practical, and clearly state uncertainty.",
-    "Current repository snapshot:",
-    repositoryContext,
-  ].join(" ");
-}
-
-async function buildRepositoryContext(repoPath: string, question: string): Promise<string> {
+async function buildRepositoryContext(
+  repoPath: string,
+  messages: readonly AgentChatMessage[],
+): Promise<string> {
+  const question = messages[messages.length - 1]?.content ?? "";
   const [statusResult, branchesResult, logResult, treeResult] = await Promise.allSettled([
     getStatus(repoPath),
     listBranches(repoPath, true),
@@ -139,6 +140,13 @@ async function buildRepositoryContext(repoPath: string, question: string): Promi
     );
     if (comparison) {
       sections.push(comparison);
+    }
+  }
+
+  if (logResult.status === "fulfilled") {
+    const commitContext = await buildCommitContext(repoPath, question, messages, logResult.value.commits);
+    if (commitContext) {
+      sections.push(commitContext);
     }
   }
 
@@ -243,6 +251,143 @@ async function buildBranchComparisonContext(
     formatLogContext(targetOnly, `Commits only on ${target}`),
     formatLogContext(baseOnly, `Commits only on ${base}`),
   ].join("\n");
+}
+
+/**
+ * 对话中的提交问答按需读取真实提交详情，避免模型仅根据标题猜测改动内容。
+ * 只允许匹配当前快照中的近期提交，防止将用户输入直接作为 Git 引用执行。
+ */
+async function buildCommitContext(
+  repoPath: string,
+  question: string,
+  messages: readonly AgentChatMessage[],
+  commits: readonly GitCommitSummary[],
+): Promise<string | null> {
+  const commit = findMentionedCommit(question, messages, commits);
+  if (!commit) {
+    return null;
+  }
+
+  try {
+    const detail = (await getCommit(repoPath, commit.id)).commit;
+    const sections = [formatCommitDetail(detail)];
+    if (shouldIncludeCommitPatches(question)) {
+      const patches = await readCommitPatches(repoPath, detail);
+      if (patches) {
+        sections.push(patches);
+      }
+    }
+    return sections.join("\n");
+  } catch {
+    return `Commit details for ${commit.shortId}: unavailable.`;
+  }
+}
+
+function findMentionedCommit(
+  question: string,
+  messages: readonly AgentChatMessage[],
+  commits: readonly GitCommitSummary[],
+): GitCommitSummary | null {
+  if (isLatestCommitQuestion(question)) {
+    return commits[0] ?? null;
+  }
+  if (!hasCommitFollowUpIntent(question)) {
+    return null;
+  }
+
+  const references = extractCommitReferences(messages);
+  for (const reference of references) {
+    const matched = commits.filter((commit) =>
+      commit.id.toLowerCase().startsWith(reference) || commit.shortId.toLowerCase().startsWith(reference),
+    );
+    if (matched.length === 1) {
+      return matched[0];
+    }
+  }
+  return null;
+}
+
+function isLatestCommitQuestion(question: string): boolean {
+  return /(?:最近|最新|上一次|上次|latest|last)\s*(?:一次)?\s*(?:提交|commit)|(?:提交|commit).{0,8}(?:最近|最新|latest|last)/i.test(
+    question,
+  );
+}
+
+function hasCommitFollowUpIntent(question: string): boolean {
+  return /(?:提交|commit|这次|这一个|这个|里面|改了|哪些文件|具体|内容|详情|diff|差异|变更)/i.test(
+    question,
+  );
+}
+
+function extractCommitReferences(messages: readonly AgentChatMessage[]): string[] {
+  const references: string[] = [];
+  for (const message of [...messages].reverse()) {
+    const matches = message.content.match(COMMIT_REFERENCE_PATTERN) ?? [];
+    for (const match of matches) {
+      const reference = match.toLowerCase();
+      if (!references.includes(reference)) {
+        references.push(reference);
+      }
+    }
+  }
+  return references;
+}
+
+function formatCommitDetail(detail: GitCommitDetail): string {
+  const parentDiffs = detail.diffs.map((parentDiff) => ({
+    parentShortId: parentDiff.parentShortId || "root",
+    files: parentDiff.files.slice(0, AGENT_COMMIT_FILE_LIMIT),
+    omitted: Math.max(0, parentDiff.files.length - AGENT_COMMIT_FILE_LIMIT),
+  }));
+  return [
+    `Commit details: ${detail.shortId} ${detail.subject}`,
+    detail.body ? `Commit message body: ${detail.body}` : null,
+    `Author: ${detail.authorName}; authored at ${detail.authoredAt}.`,
+    ...parentDiffs.flatMap((parentDiff) => [
+      `Changed files against ${parentDiff.parentShortId} (${parentDiff.files.length + parentDiff.omitted}):`,
+      ...parentDiff.files.map((file) => {
+        const stats =
+          file.additions == null && file.deletions == null
+            ? ""
+            : ` (+${file.additions ?? 0}/-${file.deletions ?? 0})`;
+        return `- ${file.status} ${file.path}${stats}`;
+      }),
+      ...(parentDiff.omitted > 0 ? [`- … ${parentDiff.omitted} more files omitted`] : []),
+    ]),
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n");
+}
+
+function shouldIncludeCommitPatches(question: string): boolean {
+  return /(?:主要.*(?:干什么|做了什么)|具体.*(?:改|内容)|怎么改|diff|差异|实现|逻辑|代码)/i.test(question);
+}
+
+async function readCommitPatches(repoPath: string, detail: GitCommitDetail): Promise<string | null> {
+  const firstParent = detail.diffs[0];
+  if (!firstParent) {
+    return null;
+  }
+  const files = firstParent.files.slice(0, AGENT_COMMIT_PATCH_FILE_LIMIT);
+  const results = await Promise.allSettled(
+    files.map(async (file) => ({
+      file,
+      diff: await getCommitFileDiff(repoPath, {
+        filePath: file.path,
+        commitRev: detail.id,
+        parentRev: firstParent.parentId || undefined,
+        maxBytes: AGENT_COMMIT_PATCH_BYTES,
+      }),
+    })),
+  );
+  const patches = results.flatMap((result) => {
+    if (result.status !== "fulfilled" || !result.value.diff.patch.trim()) {
+      return [];
+    }
+    const suffix = result.value.diff.truncated ? "\n[patch truncated]" : "";
+    return [`Patch for ${result.value.file.path}:\n${result.value.diff.patch}${suffix}`];
+  });
+  return patches.length > 0 ? ["Selected commit patches:", ...patches].join("\n\n") : null;
 }
 
 async function readSseStream(

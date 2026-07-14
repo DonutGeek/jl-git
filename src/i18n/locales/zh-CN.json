@@ -186,10 +186,19 @@
     "replyTimeout": "鲸灵回复超时，请重试",
     "copy": "复制",
     "copySuccess": "已复制",
-    "copyFailed": "复制失败"
+    "copyFailed": "复制失败",
+    "compareBranches": "比较 {{base}} 与 {{target}}",
+    "compareBranchesUnavailable": "当前仓库中找不到要比较的分支",
+    "compareBranchesTitle": "比较 {{base}} 与 {{target}}",
+    "compareBranchesDescription": "仅展示两个分支各自独有的提交，不执行任何 Git 写操作。",
+    "compareBranchesLoading": "正在读取分支差异…",
+    "compareBranchesFailed": "读取分支差异失败",
+    "commitsOnlyOn": "仅存在于 {{branch}}",
+    "noUniqueCommits": "没有独有提交"
   },
   "repo": {
     "title": "仓库",
+    "opening": "正在打开仓库…",
     "notFound": "未找到该项目",
     "detached": "分离头指针",
     "switchProject": "切换仓库",
