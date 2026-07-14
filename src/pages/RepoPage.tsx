@@ -9,6 +9,7 @@ import { RepoTabBar } from "@/components/layout/RepoTabBar";
 import { RepoToolbar, type RepoMainView } from "@/components/layout/RepoToolbar";
 import { SplitPane } from "@/components/layout/SplitPane";
 import { BranchList } from "@/components/git/BranchList";
+import { TagList } from "@/components/git/TagList";
 import { AgentChatPanel } from "@/components/ai/AgentChatPanel";
 import { ChangesPanel } from "@/components/git/ChangesPanel";
 import { ChangesPreviewPane } from "@/components/git/ChangesPreviewPane";
@@ -288,6 +289,7 @@ export function RepoPage() {
     <aside className="h-full min-h-0 overflow-hidden">
       {sidebarView === "files" ? <FileTree key={project.path} repoPath={project.path} /> : null}
       {sidebarView === "branches" ? <BranchList /> : null}
+      {sidebarView === "tags" ? <TagList onSelectTag={() => handleMainViewChange("history")} /> : null}
       {sidebarView === "agent" ? (
         <AgentChatPanel projectId={project.id} repoPath={project.path} />
       ) : null}
