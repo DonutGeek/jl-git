@@ -24,7 +24,7 @@
 - 基准提交选择器，默认当前 `HEAD`，可从已加载历史中选择提交；
 - 必填的标签名称；
 - 可选的标签信息。填写信息时创建附注标签，留空时创建轻量标签；
-- “推送标签到远端”复选框，默认选中。无远端时禁用并说明原因；
+- “推送标签到远端”复选框，默认选中。推送目标固定为优先 `origin`、否则第一个远端；无远端时禁用并说明原因；
 - 取消与创建按钮，以及字段级校验和服务错误提示。
 
 标签行右键菜单提供删除操作；删除需二次确认。本轮删除只删除本地标签，不隐式删除远端标签。
@@ -46,10 +46,10 @@ interface GitTag {
 | Command | 输入 | 输出 |
 | --- | --- | --- |
 | `git_tags` | `{ path }` | `{ tags: GitTag[] }` |
-| `git_tag_create` | `{ path, name, message?, ref?, push?: boolean }` | `{ ok: true }` |
+| `git_tag_create` | `{ path, name, message?, ref?, push?: boolean, remote?: string }` | `{ ok: true }` |
 | `git_tag_delete` | `{ path, name }` | `{ ok: true }` |
 
-创建 Command 使用参数数组执行 `git tag`；有 `message` 时传 `-a` 与 `-m`，没有时创建轻量标签。勾选推送时先本地创建，再执行 `git push <remote> refs/tags/<name>`。推送失败返回领域错误，前端明确提示“标签已在本地创建，但推送失败”，并保留刷新入口。
+创建 Command 使用参数数组执行 `git tag`；有 `message` 时传 `-a` 与 `-m`，没有时创建轻量标签。勾选推送时先本地创建，再执行 `git push <remote> refs/tags/<name>`；`<remote>` 优先为 `origin`，否则为第一个已配置远端。推送失败返回领域错误，前端明确提示“标签已在本地创建，但推送失败”，并保留刷新入口。
 
 所有路径参数继续经 Rust 仓库根校验。标签名和 ref 在 Rust 侧使用 Git 的 ref 规则验证；不得将用户输入拼接为 shell 命令。删除仅执行 `git tag -d -- <name>`，不执行远端删除。
 
