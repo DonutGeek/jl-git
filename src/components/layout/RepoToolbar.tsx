@@ -345,8 +345,8 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
               onPointerDown={(event) => event.stopPropagation()}
             />
           </div>
-          <ScrollArea className="max-h-80">
-            <div className="p-1">
+          <ScrollArea className="max-h-80 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+            <div className="min-w-0 p-1">
               {filteredProjects.length === 0 ? (
                 <p className="text-muted-foreground px-2 py-3 text-xs">
                   {t("repo.switchProjectNoMatch")}
@@ -355,18 +355,23 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
                 filteredProjects.map((item) => (
                   <DropdownMenuItem
                     key={item.id}
-                    className="flex flex-col items-start gap-0.5 py-2"
+                    className="flex w-full max-w-full min-w-0 flex-col items-start gap-0.5 overflow-hidden py-2"
                     onSelect={() => {
                       handleSelectProject(item);
                     }}
                   >
-                    <div className="flex w-full items-center gap-2">
+                    <div className="flex w-full max-w-full min-w-0 items-center gap-2">
                       <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
                       {item.id === project.id ? (
                         <Check className="text-primary size-3.5 shrink-0" aria-hidden="true" />
                       ) : null}
                     </div>
-                    <span className="text-muted-foreground w-full truncate text-xs">{item.path}</span>
+                    <span
+                      className="text-muted-foreground block w-full max-w-full min-w-0 truncate text-xs"
+                      title={item.path}
+                    >
+                      {item.path}
+                    </span>
                   </DropdownMenuItem>
                 ))
               )}

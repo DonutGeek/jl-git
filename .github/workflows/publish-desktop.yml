@@ -46,6 +46,7 @@ jobs:
         env:
           APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && '-' || '' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUST_LOG: tauri_bundler=debug
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 鲸灵Git ${{ github.ref_name }}

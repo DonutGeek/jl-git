@@ -41,8 +41,6 @@ export async function openBranchCompareWindow(
   const target = createBranchCompareWindowTarget(options);
   const existing = await WebviewWindow.getByLabel(target.label);
   if (existing) {
-    await existing.setSize(BRANCH_COMPARE_WINDOW_SIZE);
-    await existing.center();
     await existing.show();
     await existing.setFocus();
     return;
