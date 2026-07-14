@@ -8,6 +8,7 @@ import {
   CloudOff,
   Folder,
   FolderOpen,
+  GitCompareArrows,
   GitBranch as GitBranchIcon,
 } from "lucide-react";
 
@@ -32,6 +33,8 @@ export interface BranchContextActions {
   onPublish: (branch: GitBranch) => void;
   onRename: (branch: GitBranch) => void;
   onCopyName: (branch: GitBranch) => void;
+  onCompareWithCurrent: (branch: GitBranch) => void;
+  canCompareWithCurrent: (branch: GitBranch) => boolean;
   onDelete: (branch: GitBranch) => void;
 }
 
@@ -261,6 +264,8 @@ function BranchLeaf({
   const canPush = isCurrent && !isRemote && published && aheadCount > 0 && !isDisabled;
   const canRename = !isRemote && !isDisabled;
   const canDelete = !isRemote && !isCurrent && !isDisabled;
+  const canCompareWithCurrent =
+    !isCurrent && !isDisabled && contextActions.canCompareWithCurrent(branch);
 
   return (
     <ContextMenu>
@@ -332,6 +337,14 @@ function BranchLeaf({
         </ContextMenuItem>
 
         <ContextMenuSeparator />
+
+        <ContextMenuItem
+          disabled={!canCompareWithCurrent}
+          onSelect={() => contextActions.onCompareWithCurrent(branch)}
+        >
+          <GitCompareArrows className="mr-2 size-3.5" aria-hidden="true" />
+          {t("repo.compareCurrentWithBranch")}
+        </ContextMenuItem>
 
         <ContextMenuItem
           disabled={!canPull}

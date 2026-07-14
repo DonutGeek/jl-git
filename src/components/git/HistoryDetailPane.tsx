@@ -751,7 +751,7 @@ export function HistoryDetailPane() {
                 onClick={() => setMessagePreviewOpen(true)}
               >
                 {/* 小高度预览用原生滚动，避免 ScrollArea 内层 table 把卡片撑出右缘 */}
-                <div className="h-28 w-full min-w-0 overflow-x-hidden overflow-y-auto">
+                <div className="max-h-28 w-full min-w-0 overflow-x-hidden overflow-y-auto">
                   <p className="wrap-break-word break-words text-[13px] leading-snug font-semibold">
                     {detail.subject}
                   </p>

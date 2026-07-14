@@ -169,6 +169,23 @@ export interface GitDiffResult {
   truncated: boolean;
 }
 
+export type BranchCompareMode = "branch" | "localUpstream";
+
+export interface GitBranchCompareOptions {
+  base: string;
+  target: string;
+}
+
+export interface GitBranchFileDiffOptions extends GitBranchCompareOptions {
+  filePath: string;
+  maxBytes?: number;
+  encoding?: string;
+}
+
+export interface GitBranchCompareResult {
+  files: GitChangedFile[];
+}
+
 /** 限长的暂存区 Diff 上下文，供 AI 提交文案建议使用。 */
 export interface GitStagedDiffResult {
   patch: string;

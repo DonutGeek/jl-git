@@ -9,7 +9,7 @@ use crate::error::AppError;
 use crate::git::path::{validate_git_ref, validate_repo_relative_paths};
 use crate::git::runner;
 
-const DEFAULT_MAX_BYTES: usize = 1_048_576;
+pub(crate) const DEFAULT_MAX_BYTES: usize = 1_048_576;
 const DEFAULT_ENCODING: &str = "utf-8";
 const DEFAULT_STAGED_CONTEXT_MAX_BYTES: usize = 65_536;
 
@@ -266,7 +266,7 @@ fn diff_untracked(repo_path: &Path, abs_file: &Path, limit: usize) -> Result<Pat
     Ok(PatchOut { text, truncated })
 }
 
-fn read_blob(repo_path: &Path, spec: &str) -> Result<Option<Vec<u8>>, AppError> {
+pub(crate) fn read_blob(repo_path: &Path, spec: &str) -> Result<Option<Vec<u8>>, AppError> {
     let (code, stdout, _stderr) = git_bytes(repo_path, &["show", "--textconv", spec])?;
     if code != 0 {
         return Ok(None);
@@ -297,7 +297,7 @@ fn git_bytes(cwd: &Path, args: &[&str]) -> Result<(i32, Vec<u8>, String), AppErr
     ))
 }
 
-fn looks_binary(data: Option<&[u8]>) -> bool {
+pub(crate) fn looks_binary(data: Option<&[u8]>) -> bool {
     let Some(bytes) = data else {
         return false;
     };
@@ -333,7 +333,7 @@ fn resolve_encoding(encoding_id: &str) -> &'static Encoding {
     }
 }
 
-fn bytes_to_text(bytes: Vec<u8>, limit: usize, encoding_id: &str) -> (String, bool) {
+pub(crate) fn bytes_to_text(bytes: Vec<u8>, limit: usize, encoding_id: &str) -> (String, bool) {
     let truncated = bytes.len() > limit;
     let slice = if truncated { &bytes[..limit] } else { &bytes[..] };
     let encoding = resolve_encoding(encoding_id);

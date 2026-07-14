@@ -4,7 +4,7 @@ import { User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
-import { avatarUrlFromEmail, initialsFromName } from "@/utils/avatarUrl";
+import { avatarUrlFromEmail } from "@/utils/avatarUrl";
 
 interface GitIdentityAvatarProps {
   name: string | null;
@@ -16,7 +16,7 @@ interface GitIdentityAvatarProps {
   compact?: boolean;
 }
 
-/** Git 身份头像：shadcn Avatar + Libravatar，失败则缩写 / 默认图标 */
+/** Git 身份头像：shadcn Avatar + Libravatar，失败则显示默认图标 */
 export function GitIdentityAvatar({
   name,
   email,
@@ -48,9 +48,6 @@ export function GitIdentityAvatar({
   }, [email]);
 
   const showImage = Boolean(remoteUrl) && !imageFailed;
-  const initials = initialsFromName(name);
-  const fallbackText = compact ? initials.slice(0, 1) : initials;
-
   return (
     <Avatar
       className={cn(
@@ -69,11 +66,7 @@ export function GitIdentityAvatar({
         />
       ) : null}
       <AvatarFallback className={compact ? "text-[9px]" : undefined}>
-        {name?.trim() ? (
-          <span aria-hidden="true">{fallbackText}</span>
-        ) : (
-          <User className={cn(compact ? "size-2.5" : "size-3.5")} aria-hidden="true" />
-        )}
+        <User className={cn(compact ? "size-2.5" : "size-3.5")} aria-hidden="true" />
       </AvatarFallback>
     </Avatar>
   );

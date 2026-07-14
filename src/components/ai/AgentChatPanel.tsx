@@ -2,12 +2,12 @@ import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "re
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { AgentBranchComparisonDialog } from "@/components/ai/AgentBranchComparisonDialog";
 import { AgentComposer } from "@/components/ai/AgentComposer";
 import { AgentConversationTabs } from "@/components/ai/AgentConversationTabs";
 import { AgentMessageList } from "@/components/ai/AgentMessageList";
 import type { CompareBranchesAction } from "@/components/ai/AgentRichMessage";
 import { streamAgentReply } from "@/services/ai";
+import { openBranchCompareWindow } from "@/services/window/branchCompareWindow";
 import { EMPTY_CONVERSATIONS, useAgentChatStore } from "@/store/useAgentChatStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
@@ -39,7 +39,6 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   const [branchMentions, setBranchMentions] = useState<readonly AgentBranchMention[]>([]);
   const [isReplying, setIsReplying] = useState(false);
   const [composerPadPx, setComposerPadPx] = useState(COMPOSER_PAD_FALLBACK_PX);
-  const [branchComparison, setBranchComparison] = useState<CompareBranchesAction | null>(null);
   const locale = useLocaleStore((state) => state.locale);
   const branches = useRepoStore((state) => state.branches);
   const conversations = useAgentChatStore(
@@ -70,7 +69,14 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
       toast.error(t("agent.compareBranchesUnavailable"));
       return;
     }
-    setBranchComparison(action);
+    void openBranchCompareWindow({
+      projectId,
+      mode: "branch",
+      base: action.base,
+      target: action.target,
+    }).catch((error: unknown) => {
+      toast.error(toUserMessage(error) || t("agent.compareBranchesFailed"));
+    });
   }
 
   useEffect(() => {
@@ -247,17 +253,6 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           }}
         />
       </div>
-
-      <AgentBranchComparisonDialog
-        action={branchComparison}
-        open={branchComparison !== null}
-        repoPath={repoPath}
-        onOpenChange={(open) => {
-          if (!open) {
-            setBranchComparison(null);
-          }
-        }}
-      />
     </section>
   );
 }

@@ -5,6 +5,7 @@ use tauri::AppHandle;
 use crate::error::AppError;
 use crate::git::{
     branch::{self, GitBranch},
+    branch_compare::{self, GitBranchCompareResult},
     diff::{self, GitDiffResult, GitStagedDiffResult},
     fs_list::{self, FsFileSizeResult, FsListResult},
     identity::{self, GitIdentity},
@@ -180,6 +181,38 @@ pub fn git_diff(
         &repo_path,
         &file_path,
         staged.unwrap_or(false),
+        max_bytes,
+        encoding.as_deref(),
+    )
+}
+
+/// 两个指定 Git ref 之间的改动文件列表；只读，供分支比较窗口使用。
+#[tauri::command]
+pub fn git_branch_compare(
+    path: String,
+    base: String,
+    target: String,
+) -> Result<GitBranchCompareResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    branch_compare::get_changed_files(&repo_path, &base, &target)
+}
+
+/// 两个指定 Git ref 内单文件的只读前后文本与 patch。
+#[tauri::command]
+pub fn git_branch_file_diff(
+    path: String,
+    base: String,
+    target: String,
+    file_path: String,
+    max_bytes: Option<usize>,
+    encoding: Option<String>,
+) -> Result<GitDiffResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    branch_compare::get_file_diff(
+        &repo_path,
+        &base,
+        &target,
+        &file_path,
         max_bytes,
         encoding.as_deref(),
     )

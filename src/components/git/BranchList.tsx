@@ -36,6 +36,8 @@ import {
 import { cn } from "@/lib/utils";
 
 import { useRepoStore } from "@/store/useRepoStore";
+import { useProjectStore } from "@/store/useProjectStore";
+import { openBranchCompareWindow } from "@/services/window/branchCompareWindow";
 
 import { toUserMessage } from "@/types/error";
 import { GitBranch } from "@/types/git";
@@ -55,6 +57,7 @@ export function BranchList() {
   const pushRemote = useRepoStore((state) => state.push);
   const deleteBranch = useRepoStore((state) => state.deleteBranch);
   const renameBranch = useRepoStore((state) => state.renameBranch);
+  const projectId = useProjectStore((state) => state.current?.id);
 
   const [checkingOutName, setCheckingOutName] = useState<string | null>(null);
   const [selectedName, setSelectedName] = useState<string | null>(null);
@@ -274,6 +277,21 @@ export function BranchList() {
     toast.message(t("repo.syncComingSoon", { action }));
   }
 
+  function handleCompareWithCurrent(branch: GitBranch): void {
+    const currentBranch = status?.branch ?? branches.find((item) => item.isCurrent)?.name;
+    if (!projectId || !currentBranch || currentBranch === branch.name) {
+      return;
+    }
+    void openBranchCompareWindow({
+      projectId,
+      mode: "branch",
+      base: currentBranch,
+      target: branch.name,
+    }).catch((error: unknown) => {
+      toast.error(toUserMessage(error) || t("agent.compareBranchesFailed"));
+    });
+  }
+
   const contextActions: BranchContextActions = {
     onCheckout: (branch) => void handleCheckout(branch),
     onPull: (branch) => void handlePull(branch),
@@ -281,6 +299,11 @@ export function BranchList() {
     onPublish: (branch) => void handlePublish(branch),
     onRename: openRename,
     onCopyName: (branch) => void handleCopyName(branch),
+    onCompareWithCurrent: handleCompareWithCurrent,
+    canCompareWithCurrent: (branch) => {
+      const currentBranch = status?.branch ?? branches.find((item) => item.isCurrent)?.name;
+      return Boolean(projectId && currentBranch && currentBranch !== branch.name);
+    },
     onDelete: openDelete,
   };
 

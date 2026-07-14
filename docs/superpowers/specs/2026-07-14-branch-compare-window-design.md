@@ -31,6 +31,8 @@
 
 Tool 仅打开只读 UI，不直接运行写操作，也不允许模型传入任意命令。
 
+分支树右键菜单也提供同一入口。对任一本地或远程分支显示“比较当前分支与此分支”；当前检出分支为源 ref，右键的分支为目标 ref。该菜单项与 Agent 动作都调用同一个窗口服务，因此相同 project、模式和 refs 只会创建或聚焦同一个窗口。当前分支不可用或与目标相同时，菜单项禁用并显示原因。
+
 ## Git 数据契约
 
 新增只读 Command：
@@ -61,6 +63,7 @@ Tool 仅打开只读 UI，不直接运行写操作，也不允许模型传入任
 
 - `DiffPreviewToolbar`、`DiffSidePreview`、`monacoPreviewShared`。
 - `git_log`、`git_branches`、ProjectService。
+- `BranchList` / `BranchTree` 既有右键菜单结构。
 
 聊天层保留动作解析和分支存在校验，但把当前内嵌比较 Dialog 替换为窗口服务调用。
 

@@ -7,14 +7,18 @@ import {
 
 import { AppLayout } from "@/layouts/AppLayout";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { BranchComparePage } from "@/pages/BranchComparePage";
 import { RepoPage } from "@/pages/RepoPage";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route element={<AppLayout />}>
-      <Route index element={<DashboardPage />} />
-      <Route path="repo/:projectId" element={<RepoPage />} />
-    </Route>,
+    <>
+      <Route path="branch-compare" element={<BranchComparePage />} />
+      <Route element={<AppLayout />}>
+        <Route index element={<DashboardPage />} />
+        <Route path="repo/:projectId" element={<RepoPage />} />
+      </Route>
+    </>,
   ),
 );
 

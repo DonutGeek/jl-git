@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   CheckCircle2,
+  Download,
   HardDrive,
   Loader2,
   Moon,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -195,6 +197,17 @@ export function StatusBar() {
         </span>
         <span className="truncate font-medium" title={versionLabel}>
           {versionLabel}
+        </span>
+        <span className="relative flex h-5 w-14 shrink-0 items-center justify-center">
+          <Badge className="group absolute left-1/2 h-5 -translate-x-1/2 cursor-pointer gap-0 px-1.5 py-0 text-[10px] font-semibold transition-all duration-150 group-hover:gap-1">
+            <Download
+              className="size-3 transition-all duration-150 group-hover:w-0 group-hover:opacity-0"
+              aria-hidden="true"
+            />
+            <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-150 group-hover:max-w-10 group-hover:opacity-100">
+              {t("statusBar.update")}
+            </span>
+          </Badge>
         </span>
       </div>
 

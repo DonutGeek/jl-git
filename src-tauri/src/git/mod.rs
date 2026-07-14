@@ -1,4 +1,5 @@
 pub mod branch;
+pub mod branch_compare;
 pub mod commit;
 pub mod diff;
 pub mod fs_list;

@@ -1,4 +1,5 @@
 export * from "./git.branch";
+export * from "./git.branch-compare";
 export * from "./git.commit";
 export * from "./git.diff";
 export * from "./git.fs";
@@ -9,6 +10,7 @@ export * from "./git.show";
 export * from "./git.status";
 
 import { checkout, createBranch, deleteBranch, listBranches, renameBranch } from "./git.branch";
+import { getBranchCompare, getBranchFileDiff } from "./git.branch-compare";
 import {
   commit,
   stage,
@@ -48,6 +50,8 @@ export const gitService = {
   getDiff,
   getStagedDiff,
   getCommitFileDiff,
+  getBranchCompare,
+  getBranchFileDiff,
   stage,
   unstage,
   stageAll,
