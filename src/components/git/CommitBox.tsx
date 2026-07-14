@@ -9,7 +9,6 @@ import { toast } from "sonner";
 
 import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -311,28 +310,35 @@ export function CommitBox() {
                 <X className="size-3.5" aria-hidden="true" />
               </Button>
             </div>
-            <ScrollArea
-              className="min-h-0"
+            <div
+              className="min-h-0 w-full overflow-x-hidden overflow-y-auto"
               style={{ maxHeight: Math.max(88, historyPosition.maxHeight - 32) }}
             >
-              <ul className="p-1" role="listbox" aria-label={t("repo.commitMessageHistory")}>
+              <ul
+                className="w-full min-w-0 overflow-hidden p-1"
+                role="listbox"
+                aria-label={t("repo.commitMessageHistory")}
+              >
                 {commitMessageHistory.map((item) => (
-                  <li key={item.id}>
+                  <li key={item.id} className="w-full min-w-0 overflow-hidden">
                     <button
                       type="button"
                       role="option"
-                      className="hover:bg-accent focus-visible:ring-ring flex w-full min-w-0 cursor-pointer rounded-sm px-2 py-1.5 text-left text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
+                      className="hover:bg-accent focus-visible:ring-ring flex w-full min-w-0 cursor-pointer overflow-hidden rounded-sm px-2 py-1.5 text-left text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => fillCommitMessage(item.message)}
                     >
-                      <span className="min-w-0 flex-1 truncate" title={item.preview}>
+                      <span
+                        className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
+                        title={item.preview}
+                      >
                         {item.preview}
                       </span>
                     </button>
                   </li>
                 ))}
               </ul>
-            </ScrollArea>
+            </div>
           </div>,
           document.body,
         )

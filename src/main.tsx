@@ -16,11 +16,23 @@ initLocale();
 initAppPrefs();
 void startOpLogListener();
 
+function AppContent() {
+  React.useEffect(() => {
+    document.getElementById("app-loading")?.remove();
+  }, []);
+
+  return (
+    <>
+      <App />
+      <Toaster richColors position="top-right" />
+    </>
+  );
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <TooltipProvider delayDuration={300}>
-      <App />
-      <Toaster richColors position="top-right" />
+      <AppContent />
     </TooltipProvider>
   </React.StrictMode>,
 );
