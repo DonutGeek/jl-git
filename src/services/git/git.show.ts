@@ -2,6 +2,7 @@ import { invokeCommand } from "@/services/invoke";
 
 import {
   GitCommitChangeSizeResult,
+  GitCommitMessageResult,
   GitContainingBranchesResult,
   GitLsTreeResult,
   GitShowResult,
@@ -10,6 +11,17 @@ import {
 /** 读取单提交详情（含相对各 parent 的改动文件） */
 export async function getCommit(repoPath: string, rev: string): Promise<GitShowResult> {
   return invokeCommand<GitShowResult>("git_show", {
+    path: repoPath,
+    rev,
+  });
+}
+
+/** 读取单提交完整文案（标题与正文），不加载 diff。 */
+export async function getCommitMessage(
+  repoPath: string,
+  rev: string,
+): Promise<GitCommitMessageResult> {
+  return invokeCommand<GitCommitMessageResult>("git_commit_message", {
     path: repoPath,
     rev,
   });

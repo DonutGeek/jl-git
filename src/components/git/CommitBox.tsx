@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 
 import { generateCommitMessage } from "@/services/ai";
-import { getCommit } from "@/services/git";
+import { getCommitMessage } from "@/services/git";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
 
@@ -31,6 +31,7 @@ interface CommitMessageHistoryItem {
   id: string;
   preview: string;
   message: string;
+  complete: boolean;
 }
 
 async function loadFullCommitMessage(
@@ -41,19 +42,19 @@ async function loadFullCommitMessage(
     id: commit.id,
     preview: commit.subject.trim(),
     message: commit.subject.trim(),
+    complete: false,
   };
 
   try {
-    const detail = await getCommit(repoPath, commit.id);
-    const message = [detail.commit.subject.trim(), detail.commit.body.trim()]
-      .filter((part) => part.length > 0)
-      .join("\n\n");
+    const result = await getCommitMessage(repoPath, commit.id);
+    const message = result.message;
 
     return message
       ? {
           id: commit.id,
-          preview: detail.commit.subject.trim(),
+          preview: commit.subject.trim(),
           message,
+          complete: true,
         }
       : fallback;
   } catch {
@@ -123,6 +124,7 @@ export function CommitBox() {
       id: commit.id,
       preview: commit.subject.trim(),
       message: commit.subject.trim(),
+      complete: false,
     }));
     setCommitMessageHistory(fallback);
 
@@ -178,7 +180,17 @@ export function CommitBox() {
     setHistoryOpen(true);
   }
 
-  function fillCommitMessage(message: string): void {
+  async function fillCommitMessage(item: CommitMessageHistoryItem): Promise<void> {
+    let message = item.message;
+    if (!item.complete && repoPath) {
+      try {
+        const result = await getCommitMessage(repoPath, item.id);
+        message = result.message;
+      } catch {
+        // 详情读取失败时仍可安全回填列表已有标题。
+      }
+    }
+
     setCommitMessage(message);
     setHistoryOpen(false);
     messageInputRef.current?.focus();
@@ -326,14 +338,18 @@ export function CommitBox() {
                       role="option"
                       className="hover:bg-accent focus-visible:ring-ring flex w-full min-w-0 cursor-pointer overflow-hidden rounded-sm px-2 py-1.5 text-left text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
                       onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => fillCommitMessage(item.message)}
+                      onClick={() => void fillCommitMessage(item)}
                     >
-                      <span
-                        className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap"
-                        title={item.preview}
-                      >
-                        {item.preview}
-                      </span>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+                            {item.preview}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-96 whitespace-pre-wrap break-words">
+                          {item.message}
+                        </TooltipContent>
+                      </Tooltip>
                     </button>
                   </li>
                 ))}

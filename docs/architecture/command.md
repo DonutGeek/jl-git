@@ -238,6 +238,17 @@ interface GitBranch {
 | **输出** | `{ commit: GitCommitDetail }`（含 `parents` / `parentShortIds` / `diffs[]`） |
 | **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `GIT_FAILED` |
 
+### `git_commit_message`
+
+| | |
+|--|--|
+| **目的** | 读取单提交完整文案（标题与正文），用于提交信息历史的 Tooltip 与回填 |
+| **输入** | `{ path: string; rev: string }` |
+| **输出** | `{ message: string }` |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `GIT_FAILED` |
+
+使用 `git log -1 --no-patch --format=%B <rev>`；不读取 diff，避免提交信息回填受变更文件解析影响。
+
 ### `git_ls_tree`
 
 | | |

@@ -48,6 +48,12 @@ pub struct GitShowResult {
 
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GitCommitMessageResult {
+    pub message: String,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GitLsTreeResult {
     pub paths: Vec<String>,
 }
@@ -118,6 +124,20 @@ pub fn get_commit(repo_path: &Path, rev: &str) -> Result<GitShowResult, AppError
 
     Ok(GitShowResult {
         commit: GitCommitDetail { diffs, ..commit },
+    })
+}
+
+/// 读取完整提交文案（标题与正文），不解析 diff，供提交信息历史回填使用。
+pub fn get_commit_message(repo_path: &Path, rev: &str) -> Result<GitCommitMessageResult, AppError> {
+    validate_git_ref(rev)?;
+
+    let output = runner::run_git(
+        repo_path,
+        &["log", "-1", "--no-patch", "--format=%B", rev],
+    )?;
+
+    Ok(GitCommitMessageResult {
+        message: output.stdout.trim_end().to_string(),
     })
 }
 

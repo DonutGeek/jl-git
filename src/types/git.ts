@@ -86,6 +86,11 @@ export interface GitShowResult {
   commit: GitCommitDetail;
 }
 
+/** 单提交完整文案（标题与正文），用于提交信息历史回填。 */
+export interface GitCommitMessageResult {
+  message: string;
+}
+
 /** `git ls-tree -r --name-only`：某提交树下全部文件路径 */
 export interface GitLsTreeResult {
   paths: string[];

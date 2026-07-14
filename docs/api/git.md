@@ -45,6 +45,11 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 - **Command：** `git_show`
 - **说明：** 返回提交元数据，以及相对每个 parent 的 `name-status` 文件列表（合并提交会有多组）
 
+### `getCommitMessage(repoPath, rev: string): Promise<GitCommitMessageResult>`
+
+- **Command：** `git_commit_message`
+- **说明：** 仅返回完整提交文案（标题与正文），用于提交信息历史的 Tooltip 与点击回填；不加载 diff。
+
 ### `listTree(repoPath, rev: string): Promise<GitLsTreeResult>`
 
 - **Command：** `git_ls_tree`

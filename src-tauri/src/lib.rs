@@ -58,6 +58,7 @@ pub fn run() {
             commands::git_ops::git_branches,
             commands::git_ops::git_log,
             commands::git_ops::git_show,
+            commands::git_ops::git_commit_message,
             commands::git_ops::git_ls_tree,
             commands::git_ops::git_commit_containing_branches,
             commands::git_ops::git_commit_change_size,

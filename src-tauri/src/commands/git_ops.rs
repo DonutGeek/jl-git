@@ -18,8 +18,8 @@ use crate::git::{
     reset::{self, GitResetResult},
     runner,
     show::{
-        self, GitCommitChangeSizeResult, GitContainingBranchesResult, GitLsTreeResult,
-        GitShowResult,
+        self, GitCommitChangeSizeResult, GitCommitMessageResult, GitContainingBranchesResult,
+        GitLsTreeResult, GitShowResult,
     },
     status::{self, GitStatusResult},
 };
@@ -130,6 +130,13 @@ pub fn git_log(
 pub fn git_show(path: String, rev: String) -> Result<GitShowResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
     show::get_commit(&repo_path, &rev)
+}
+
+/// 读取完整提交文案（标题与正文），用于提交信息历史回填。
+#[tauri::command]
+pub fn git_commit_message(path: String, rev: String) -> Result<GitCommitMessageResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    show::get_commit_message(&repo_path, &rev)
 }
 
 /// 列出某提交下全部文件路径（用于历史详情「显示所有文件」）
