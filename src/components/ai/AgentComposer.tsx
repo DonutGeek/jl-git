@@ -52,12 +52,37 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
   ) {
     const { t } = useTranslation();
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+    // 中文等 IME：选词回车时部分环境 isComposing 已是 false，需组合态标记 + keyCode 229
+    const isComposingRef = useRef(false);
+    const skipEnterSubmitRef = useRef(false);
+
+    function handleCompositionStart(): void {
+      isComposingRef.current = true;
+    }
+
+    function handleCompositionEnd(): void {
+      isComposingRef.current = false;
+      // compositionend 常早于确认选词的 Enter keydown，跳过紧随其后的一次发送
+      skipEnterSubmitRef.current = true;
+      window.setTimeout(() => {
+        skipEnterSubmitRef.current = false;
+      }, 0);
+    }
 
     function handleInputKeyDown(
       event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
     ): void {
       if (event.defaultPrevented) return;
-      if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
+      if (event.key !== "Enter" || event.shiftKey) {
+        return;
+      }
+      const native = event.nativeEvent;
+      if (
+        isComposingRef.current ||
+        skipEnterSubmitRef.current ||
+        native.isComposing ||
+        native.keyCode === 229
+      ) {
         return;
       }
       event.preventDefault();
@@ -129,8 +154,10 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                     })),
                   });
                 }}
-                onKeyDown={handleInputKeyDown}
-                onWheel={handleInputWheel}
+              onKeyDown={handleInputKeyDown}
+              onCompositionStart={handleCompositionStart}
+              onCompositionEnd={handleCompositionEnd}
+              onWheel={handleInputWheel}
                 aria-label={t("agent.inputPlaceholder")}
                 placeholder={t("agent.inputPlaceholder")}
                 a11ySuggestionsListLabel={t("agent.branchMentions")}
