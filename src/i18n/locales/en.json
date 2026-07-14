@@ -204,6 +204,7 @@
   },
   "branchCompare": {
     "title": "Branch comparison",
+    "windowTitle": "Branch comparison - ({{path}})",
     "loading": "Loading branch comparison…",
     "projectNotFound": "Project not found",
     "loadFailed": "Unable to load branch comparison",

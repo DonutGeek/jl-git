@@ -3,5 +3,8 @@
   "identifier": "branch-compare",
   "description": "Capability for read-only branch comparison windows",
   "windows": ["branch-compare-*"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging"
+  ]
 }

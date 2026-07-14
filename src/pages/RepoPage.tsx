@@ -29,7 +29,7 @@ import { Project } from "@/types/project";
 
 const SIDEBAR_MAIN_SPLIT_KEY = "jlgit:split:sidebar-main";
 /** 目录树、分支与 Agent 共用的侧栏最小可拖拽宽度。 */
-const SIDEBAR_MIN_WIDTH_PX = 280;
+const SIDEBAR_MIN_WIDTH_PX = 240;
 /** 变更列表在纵向分栏中的最小高度。 */
 const CHANGES_LIST_MIN_HEIGHT_PX = 320;
 const HISTORY_DETAIL_SPLIT_KEY = "jlgit:split:history-detail-v10";
@@ -418,7 +418,7 @@ export function RepoPage() {
 
           <SplitPane
             orientation="horizontal"
-            defaultRatio={22}
+            defaultRatio={5}
             minFirstPx={SIDEBAR_MIN_WIDTH_PX}
             minSecondPx={320}
             storageKey={SIDEBAR_MAIN_SPLIT_KEY}

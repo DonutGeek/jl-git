@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { EmptyState } from "@/components/common/EmptyState";
+import { SplitPane } from "@/components/layout/SplitPane";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -108,52 +109,62 @@ export function BranchCompareWorkspace({ project, branches, initialMode, initial
     catch (reason) { setFileError(toUserMessage(reason) || t("branchCompare.loadCommitFailed")); }
   }
 
-  return <main className="bg-background text-foreground flex h-screen min-h-0 flex-col overflow-hidden">
+  return <main className="bg-background text-foreground flex h-screen min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden">
     <header data-tauri-drag-region className="border-border bg-muted/40 flex h-12 shrink-0 items-center border-b px-4 pl-[88px]">
-      <span className="text-sm font-semibold">{t("branchCompare.title")}</span>
-      <span className="text-muted-foreground ml-2 truncate text-xs">{project.name}</span>
+      <span className="truncate text-sm font-semibold" title={t("branchCompare.windowTitle", { path: project.path })}>
+        {t("branchCompare.windowTitle", { path: project.path })}
+      </span>
     </header>
-    <section className="border-border flex h-14 shrink-0 items-center gap-3 border-b px-4" style={noDragStyle}>
+    <section className="border-border grid h-14 shrink-0 grid-cols-[auto_11rem_auto_minmax(0,1fr)_auto_auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-4" style={noDragStyle}>
       <GitCompareArrows className="size-5 shrink-0" aria-hidden="true" />
       <SelectMenu value={mode} ariaLabel={t("branchCompare.title")} onChange={(value) => setMode(value as BranchCompareMode)} options={[{ value: "branch", label: t("branchCompare.modeBranch") }, { value: "localUpstream", label: t("branchCompare.modeLocalUpstream") }]} triggerClassName="w-44" />
-      <span className="text-sm font-medium">{t("branchCompare.source")}</span>
-      <SelectMenu value={base} ariaLabel={t("branchCompare.source")} onChange={mode === "localUpstream" ? selectLocalBranch : setBase} options={mode === "localUpstream" ? localBranches.map((branch) => ({ value: branch.name, label: branch.name })) : allOptions} triggerClassName="max-w-md" />
+      <span className="shrink-0 whitespace-nowrap text-sm font-medium">{t("branchCompare.source")}</span>
+      <SelectMenu value={base} ariaLabel={t("branchCompare.source")} onChange={mode === "localUpstream" ? selectLocalBranch : setBase} options={mode === "localUpstream" ? localBranches.map((branch) => ({ value: branch.name, label: branch.name })) : allOptions} triggerClassName="min-w-0 w-full" />
       <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" aria-label={t("branchCompare.swap")} disabled={mode === "localUpstream"} onClick={swapRefs}><ArrowLeftRight className="size-4" /></Button>
-      <span className="text-sm font-medium">{t("branchCompare.target")}</span>
-      <SelectMenu value={effectiveTarget} ariaLabel={t("branchCompare.target")} onChange={setTarget} disabled={mode === "localUpstream"} options={allOptions} triggerClassName="max-w-md" />
-      <div className="ml-auto flex items-center rounded-md border p-0.5 text-sm" role="tablist">
+      <span className="shrink-0 whitespace-nowrap text-sm font-medium">{t("branchCompare.target")}</span>
+      <SelectMenu value={effectiveTarget} ariaLabel={t("branchCompare.target")} onChange={setTarget} disabled={mode === "localUpstream"} options={allOptions} triggerClassName="min-w-0 w-full" />
+      <div className="flex shrink-0 items-center rounded-md border p-0.5 text-sm" role="tablist">
         {(["files", "commits"] as const).map((item) => <button key={item} type="button" role="tab" aria-selected={view === item} onClick={() => setView(item)} className={cn("rounded px-3 py-1", view === item && "bg-primary text-primary-foreground")}>{t(`branchCompare.${item}`)}</button>)}
       </div>
     </section>
     {mode === "localUpstream" && !effectiveTarget ? <p className="border-border text-muted-foreground shrink-0 border-b px-4 py-2 text-xs">{t("branchCompare.noUpstream")}</p> : null}
     {view === "files" ? (
-      <div className="min-h-0 flex-1 grid grid-cols-[19rem_minmax(0,1fr)] border-t">
-        <aside className="border-border min-h-0 border-r">
-          <div className="border-border border-b px-3 py-2 text-xs font-medium">
-            {t("branchCompare.changedFiles", summary)}
-          </div>
-          <div className="p-2">
-            <Input className="h-8 text-xs" value={fileFilter} onChange={(event) => setFileFilter(event.target.value)} placeholder={t("branchCompare.filterFiles")} />
-          </div>
-          <ScrollArea className="h-[calc(100%-5.5rem)]">
-            {fileError ? <p className="text-destructive p-3 text-xs">{fileError}</p> : visibleFiles.length ? visibleFiles.map((file) => (
-              <button type="button" key={file.path} onClick={() => setSelectedPath(file.path)} className={cn("hover:bg-accent flex w-full items-center gap-2 px-3 py-2 text-left text-xs", selectedPath === file.path && "bg-accent")}>
-                <MaterialFileIcon name={file.path} isDir={false} className="size-4" />
-                <span className={cn("w-4 font-medium", gitStatusLetterClass(file.status))}>{file.status}</span>
-                <span className="min-w-0 flex-1 truncate">{file.path}</span>
-                <span className="text-muted-foreground tabular-nums">{formatStat(file)}</span>
-              </button>
-            )) : <EmptyState compact icon={<Files />} title={t("branchCompare.noFiles")} description={t("branchCompare.noFilesDescription")} />}
-          </ScrollArea>
-        </aside>
-        <section className="min-w-0 h-full">
-          {diffError ? <p className="text-destructive p-4 text-sm">{diffError}</p> : !selectedPath ? (
-            <EmptyState className="h-full" icon={<FileSearch />} title={t("branchCompare.selectFile")} description={t("branchCompare.selectFileDescription")} />
-          ) : !diff ? <p className="text-muted-foreground p-4 text-sm">{t("branchCompare.loading")}</p> : diff.binary ? <pre className="text-muted-foreground whitespace-pre-wrap p-4 text-xs">{diff.patch || t("repo.diffBinary")}</pre> : <DiffEditor height="100%" language={languageFromPath(selectedPath)} original={diff.oldText} modified={diff.newText} options={{ readOnly: true, renderSideBySide: true, minimap: { enabled: false }, scrollBeyondLastLine: false }} />}
-        </section>
-      </div>
+      <SplitPane
+        orientation="horizontal"
+        defaultRatio={25}
+        minFirstPx={200}
+        minSecondPx={420}
+        storageKey="jlgit:split:branch-compare-files-v1"
+        first={(
+          <aside className="min-h-0">
+            <div className="border-border border-b px-3 py-2 text-xs font-medium">
+              {t("branchCompare.changedFiles", summary)}
+            </div>
+            <div className="p-2">
+              <Input className="h-8 text-xs" value={fileFilter} onChange={(event) => setFileFilter(event.target.value)} placeholder={t("branchCompare.filterFiles")} />
+            </div>
+            <ScrollArea className="h-[calc(100%-5.5rem)]">
+              {fileError ? <p className="text-destructive p-3 text-xs">{fileError}</p> : visibleFiles.length ? visibleFiles.map((file) => (
+                <button type="button" key={file.path} onClick={() => setSelectedPath(file.path)} className={cn("hover:bg-accent flex w-full items-center gap-2 px-3 py-2 text-left text-xs", selectedPath === file.path && "bg-accent")}>
+                  <MaterialFileIcon name={file.path} isDir={false} className="size-4" />
+                  <span className={cn("w-4 font-medium", gitStatusLetterClass(file.status))}>{file.status}</span>
+                  <span className="min-w-0 flex-1 truncate">{file.path}</span>
+                  <span className="text-muted-foreground tabular-nums">{formatStat(file)}</span>
+                </button>
+              )) : <EmptyState compact icon={<Files />} title={t("branchCompare.noFiles")} description={t("branchCompare.noFilesDescription")} />}
+            </ScrollArea>
+          </aside>
+        )}
+        second={(
+          <section className="min-w-0 h-full">
+            {diffError ? <p className="text-destructive p-4 text-sm">{diffError}</p> : !selectedPath ? (
+              <EmptyState className="h-full" icon={<FileSearch />} title={t("branchCompare.selectFile")} description={t("branchCompare.selectFileDescription")} />
+            ) : !diff ? <p className="text-muted-foreground p-4 text-sm">{t("branchCompare.loading")}</p> : diff.binary ? <pre className="text-muted-foreground whitespace-pre-wrap p-4 text-xs">{diff.patch || t("repo.diffBinary")}</pre> : <DiffEditor height="100%" language={languageFromPath(selectedPath)} original={diff.oldText} modified={diff.newText} options={{ readOnly: true, renderSideBySide: true, minimap: { enabled: false }, scrollBeyondLastLine: false }} />}
+          </section>
+        )}
+      />
     ) : (
-      <div className="min-h-0 flex-1 grid grid-cols-[minmax(15rem,1fr)_minmax(15rem,1fr)_minmax(22rem,1.3fr)] border-t">
+      <div className="min-h-0 flex-1 grid grid-cols-[minmax(15rem,1fr)_minmax(15rem,1fr)_minmax(22rem,1.3fr)]">
         <CommitColumn title={t("branchCompare.baseOnly", { branch: base })} commits={commitLists?.baseOnly ?? []} onSelect={selectCommit} />
         <CommitColumn title={t("branchCompare.targetOnly", { branch: effectiveTarget })} commits={commitLists?.targetOnly ?? []} onSelect={selectCommit} />
         <CommitDetail commit={selectedCommit} />

@@ -204,6 +204,7 @@
   },
   "branchCompare": {
     "title": "分支比较",
+    "windowTitle": "分支比较 - ({{path}})",
     "loading": "正在读取分支比较…",
     "projectNotFound": "未找到该项目",
     "loadFailed": "无法加载分支比较窗口",

@@ -57,7 +57,7 @@ export async function openBranchCompareWindow(
     minHeight: 560,
     titleBarStyle: "overlay",
     hiddenTitle: true,
-    trafficLightPosition: new LogicalPosition(16, 16),
+    trafficLightPosition: new LogicalPosition(16, 26),
   });
   await new Promise<void>((resolve, reject) => {
     void window.once("tauri://created", () => resolve());
