@@ -59,6 +59,7 @@ export function RepoPage() {
   const openTab = useOpenTabsStore((state) => state.openTab);
 
   const loadAll = useRepoStore((state) => state.loadAll);
+  const refreshStatus = useRepoStore((state) => state.refreshStatus);
   const reset = useRepoStore((state) => state.reset);
   const selectedCommitFile = useRepoStore((state) => state.selectedCommitFile);
 
@@ -197,6 +198,52 @@ export function RepoPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅随 projectId 切换
   }, [projectId]);
+
+  useEffect(() => {
+    if (!project) {
+      return;
+    }
+
+    let refreshing = false;
+    let refreshQueued = false;
+
+    const refreshChanges = async (): Promise<void> => {
+      if (refreshing) {
+        refreshQueued = true;
+        return;
+      }
+
+      refreshing = true;
+      do {
+        refreshQueued = false;
+        try {
+          await refreshStatus();
+        } catch (refreshError) {
+          // 自动刷新失败不打断当前操作；手动刷新仍会给出可见提示。
+          console.warn("[RepoPage] refresh repository status failed", refreshError);
+        }
+      } while (refreshQueued);
+      refreshing = false;
+    };
+
+    const handleWindowFocus = (): void => {
+      void refreshChanges();
+    };
+
+    const handleVisibilityChange = (): void => {
+      if (document.visibilityState === "visible") {
+        void refreshChanges();
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [project, refreshStatus]);
 
   function handleMainViewChange(view: RepoMainView): void {
     setVisitedViews((prev) => {
@@ -354,7 +401,7 @@ export function RepoPage() {
             aria-busy="true"
             aria-live="polite"
           >
-            <p className="bg-background text-muted-foreground rounded-md border px-3 py-1.5 text-xs shadow-sm">
+            <p className="bg-background text-muted-foreground rounded-md border px-3 py-1.5 text-xs">
               {t("common.loading")}
             </p>
           </div>

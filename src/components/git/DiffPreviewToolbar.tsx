@@ -10,7 +10,7 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { SelectMenu } from "@/components/ui/select-menu";
+import { SelectMenu } from "@/components/common/SelectMenu";
 import { ToolIconButton } from "@/components/git/monacoPreviewShared";
 import { cn } from "@/lib/utils";
 

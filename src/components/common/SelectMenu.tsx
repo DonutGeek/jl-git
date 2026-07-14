@@ -60,7 +60,6 @@ export function SelectMenu({
           disabled={disabled}
           aria-label={ariaLabel}
           className={cn(
-            // 与 RepoToolbar 分支选择器一致：边框 + 无阴影
             "border-border h-8 w-full justify-between gap-1.5 border px-2.5 text-sm font-normal shadow-none",
             compact && "h-7 gap-1 px-2 text-xs",
             triggerClassName,

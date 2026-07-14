@@ -334,6 +334,7 @@
     "undoCommitStart": "正在撤销提交…",
     "undoCommitSuccess": "已撤销提交（{{seconds}}s）",
     "refresh": "刷新",
+    "refreshChanges": "刷新变更",
     "refreshStart": "正在刷新分支…",
     "refreshSuccess": "分支已刷新",
     "openInEditor": "在外部编辑器打开",

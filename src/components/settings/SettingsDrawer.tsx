@@ -13,6 +13,7 @@ import {
   Sparkles,
   Terminal,
   Trash2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,12 +28,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { SelectMenu } from "@/components/ui/select-menu";
+import { SelectMenu } from "@/components/common/SelectMenu";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Sheet,
-  SheetCloseButton,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -151,7 +152,7 @@ function SegmentedControl<T extends string>({
             className={cn(
               "hover:bg-background/80 min-w-0 flex-1 cursor-pointer rounded-md px-2 py-1.5 text-xs transition-colors",
               selected
-                ? "bg-background text-foreground shadow-sm"
+                ? "bg-background text-foreground"
                 : "text-muted-foreground",
             )}
             onClick={() => onChange(option.value)}
@@ -544,14 +545,17 @@ export function SettingsDrawer() {
       <SheetContent
         side="right"
         className="flex w-[min(780px,92vw)] max-w-none flex-col gap-0 p-0 sm:max-w-[780px]"
-        showOverlay
+        showCloseButton={false}
       >
         <SheetHeader className="border-border space-y-0 border-b px-4 py-3 pr-10 text-left">
           <SheetTitle className="text-sm font-semibold">{t("settings.title")}</SheetTitle>
           <SheetDescription className="text-muted-foreground text-xs">
             {t("settings.subtitle")}
           </SheetDescription>
-          <SheetCloseButton className="top-3 right-3" />
+          <SheetClose className="ring-offset-background focus:ring-ring absolute top-3 right-3 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:pointer-events-none">
+            <X className="size-3.5" aria-hidden />
+            <span className="sr-only">{t("common.close")}</span>
+          </SheetClose>
         </SheetHeader>
 
         <div className="min-h-0 flex-1">

@@ -14,6 +14,7 @@ import {
   List,
   ListTree,
   MoreVertical,
+  RotateCw,
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -146,6 +147,14 @@ function ChangeRow({
   const showSize = (hovered || selected) && sizeLabel != null;
   const additions = side === "index" ? entry.indexAdditions : entry.worktreeAdditions;
   const deletions = side === "index" ? entry.indexDeletions : entry.worktreeDeletions;
+  const fullPath = entry.renamedFrom
+    ? `${entry.renamedFrom} → ${entry.path}`
+    : entry.path;
+  // 树形视图已展示父目录，叶子节点仅保留文件名，避免重复路径撑破列表。
+  const displayPath =
+    indentDepth == null
+      ? fullPath
+      : (entry.path.split("/").pop() ?? entry.path);
 
   return (
     <li>
@@ -154,7 +163,7 @@ function ChangeRow({
         aria-selected={selected}
         tabIndex={0}
         className={cn(
-          "group flex h-7 cursor-pointer items-center gap-1 rounded-md px-1.5 transition-colors",
+          "group flex h-7 w-full min-w-0 cursor-pointer items-center gap-1 rounded-md px-1.5 transition-colors",
           selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
         )}
         style={
@@ -197,16 +206,8 @@ function ChangeRow({
         </span>
         <TruncateStartPath
           className="min-w-0 flex-1"
-          path={
-            entry.renamedFrom
-              ? `${entry.renamedFrom} → ${entry.path}`
-              : entry.path
-          }
-          title={
-            entry.renamedFrom
-              ? `${entry.renamedFrom} → ${entry.path}`
-              : entry.path
-          }
+          path={displayPath}
+          title={fullPath}
         />
         <div className="ml-auto flex shrink-0 items-center gap-0.5">
           {showLineStats ? (
@@ -440,6 +441,7 @@ export function ChangesPanel() {
   const repoPath = useRepoStore((state) => state.repoPath);
   const loading = useRepoStore((state) => state.loading);
   const selectedChange = useRepoStore((state) => state.selectedChange);
+  const refreshStatus = useRepoStore((state) => state.refreshStatus);
   const selectChange = useRepoStore((state) => state.selectChange);
   const stage = useRepoStore((state) => state.stage);
   const unstage = useRepoStore((state) => state.unstage);
@@ -452,6 +454,7 @@ export function ChangesPanel() {
   const [unstagedGroupOpen, setUnstagedGroupOpen] = useState(true);
   const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(() => new Set());
   const [mutating, setMutating] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const unstagedEntries = useMemo(
     () => sortChangeEntries(entries.filter(isUnstagedEntry), sortMode, "worktree"),
@@ -503,6 +506,21 @@ export function ChangesPanel() {
 
   async function handleUnstageAll(): Promise<void> {
     await runMutation(() => unstageAll());
+  }
+
+  async function handleRefresh(): Promise<void> {
+    if (refreshing) {
+      return;
+    }
+
+    setRefreshing(true);
+    try {
+      await refreshStatus();
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   function showTreeView(): void {
@@ -627,6 +645,25 @@ export function ChangesPanel() {
             view === "tree" && "-translate-x-1",
           )}
         >
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground size-6"
+                aria-label={t("repo.refreshChanges")}
+                onClick={() => void handleRefresh()}
+                disabled={refreshing}
+              >
+                <RotateCw
+                  className={cn("size-3.5", refreshing && "animate-spin")}
+                  aria-hidden="true"
+                />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("repo.refreshChanges")}</TooltipContent>
+          </Tooltip>
           {view === "tree" ? (
             <>
               <Tooltip delayDuration={300}>

@@ -169,8 +169,7 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
           isSelected
             ? "bg-primary/15 text-foreground hover:bg-primary/20"
             : isHovered
-              ? // 图谱悬停：左侧主色条 + 浅底，与选中态明显区分
-                "bg-muted text-foreground shadow-[inset_2px_0_0_0_var(--primary)]"
+              ? "bg-muted text-foreground"
               : "hover:bg-accent/60 text-foreground",
         )}
         onClick={() => onSelect(commit.id)}
@@ -846,7 +845,7 @@ export function HistoryList() {
                 type="button"
                 variant="secondary"
                 size="icon"
-                className="absolute right-3 bottom-3 z-10 size-10 rounded-full shadow-sm"
+                className="absolute right-3 bottom-3 z-10 size-10 rounded-full"
                 aria-label={t("repo.backToTop")}
                 onClick={scrollHistoryToTop}
               >

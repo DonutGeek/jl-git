@@ -100,7 +100,7 @@ function TabChrome({
         isActive
           ? "bg-primary/10 text-primary"
           : "text-muted-foreground hover:bg-accent/60",
-        dragging && "bg-primary/10 text-primary shadow-sm ring-1 ring-border",
+        dragging && "bg-primary/10 text-primary ring-1 ring-border",
         loading && "opacity-90",
       )}
       aria-busy={loading || undefined}

@@ -44,7 +44,7 @@ pnpm dlx shadcn@latest add dropdown-menu
 
 规则：
 
-1. 生成文件落在 `src/components/ui/`，可按项目 Tokens 微调，保持与 [theme](theme.md) 一致
+1. `src/components/ui/` 只存放 shadcn CLI 官方生成件，**禁止手动修改**；更新或恢复组件必须执行 `pnpm dlx shadcn@latest add <component> --overwrite`
 2. 业务组件（`components/git` 等）**组合** ui 层，不复制其视觉实现
 3. 只添加当前功能用到的组件，避免一次性 `add` 全量目录
 4. 新增官方组件若引入额外 Radix / 依赖，在 PR 中说明用途；仍遵守「不引入第二套 UI 体系」

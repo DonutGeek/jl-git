@@ -334,6 +334,7 @@
     "undoCommitStart": "Undoing commit…",
     "undoCommitSuccess": "Commit undone ({{seconds}}s)",
     "refresh": "Refresh",
+    "refreshChanges": "Refresh changes",
     "refreshStart": "Refreshing branches…",
     "refreshSuccess": "Branches refreshed",
     "openInEditor": "Open in external editor",

@@ -212,7 +212,7 @@ export const HistoryGraph = memo(function HistoryGraph({
                 }}
               />
               <div
-                className="border-border bg-popover text-popover-foreground absolute max-w-[min(360px,calc(100vw-24px))] min-w-[220px] -translate-y-1/2 rounded-md border shadow-md"
+                className="border-border bg-popover text-popover-foreground absolute max-w-[min(360px,calc(100vw-24px))] min-w-[220px] -translate-y-1/2 rounded-md border"
                 style={{
                   left: tooltip.dotX + DOT_SIZE + 8,
                   top: tooltip.dotY,

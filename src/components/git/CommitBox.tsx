@@ -290,7 +290,7 @@ export function CommitBox() {
           <div
             role="dialog"
             aria-label={t("repo.commitMessageHistory")}
-            className="border-border bg-popover text-popover-foreground fixed z-50 w-80 overflow-hidden rounded-md border shadow-lg"
+            className="border-border bg-popover text-popover-foreground fixed z-50 w-80 overflow-hidden rounded-md border"
             style={{
               left: historyPosition.left,
               top: historyPosition.top,
@@ -321,11 +321,11 @@ export function CommitBox() {
                     <button
                       type="button"
                       role="option"
-                      className="hover:bg-accent focus-visible:ring-ring flex w-full cursor-pointer rounded-sm px-2 py-1.5 text-left text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
+                      className="hover:bg-accent focus-visible:ring-ring flex w-full min-w-0 cursor-pointer rounded-sm px-2 py-1.5 text-left text-xs transition-colors focus-visible:ring-1 focus-visible:outline-none"
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => fillCommitMessage(item.message)}
                     >
-                      <span className="truncate" title={item.preview}>
+                      <span className="min-w-0 flex-1 truncate" title={item.preview}>
                         {item.preview}
                       </span>
                     </button>
