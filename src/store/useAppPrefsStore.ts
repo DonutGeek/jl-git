@@ -36,6 +36,7 @@ interface AppPrefsState {
   shell: string;
   shellPath: string;
   launchAtLogin: boolean;
+  pushAfterCommit: boolean;
   setClientFont: (font: string) => void;
   setEditorFont: (font: string) => void;
   setExternalEditor: (value: string) => void;
@@ -43,6 +44,7 @@ interface AppPrefsState {
   setShell: (value: string) => void;
   setShellPath: (value: string) => void;
   setLaunchAtLogin: (value: boolean) => void;
+  setPushAfterCommit: (value: boolean) => void;
 }
 
 /** CSS font-family 中安全引用字体族名 */
@@ -95,6 +97,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
       shell: "auto",
       shellPath: "",
       launchAtLogin: false,
+      pushAfterCommit: false,
 
       setClientFont(font) {
         applyAppFonts(font, get().editorFont);
@@ -119,6 +122,9 @@ export const useAppPrefsStore = create<AppPrefsState>()(
       setLaunchAtLogin(value) {
         // 真正注册开机自启需 Tauri autostart 插件；此处先持久化偏好
         set({ launchAtLogin: value });
+      },
+      setPushAfterCommit(value) {
+        set({ pushAfterCommit: value });
       },
     }),
     {

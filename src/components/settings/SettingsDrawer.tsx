@@ -3,8 +3,6 @@ import { useTranslation } from "react-i18next";
 import {
   GitBranch,
   KeyRound,
-  Languages,
-  Monitor,
   Palette,
   Pencil,
   Plus,
@@ -183,6 +181,7 @@ export function SettingsDrawer() {
   const shell = useAppPrefsStore((state) => state.shell);
   const shellPath = useAppPrefsStore((state) => state.shellPath);
   const launchAtLogin = useAppPrefsStore((state) => state.launchAtLogin);
+  const pushAfterCommit = useAppPrefsStore((state) => state.pushAfterCommit);
   const setClientFont = useAppPrefsStore((state) => state.setClientFont);
   const setEditorFont = useAppPrefsStore((state) => state.setEditorFont);
   const setExternalEditor = useAppPrefsStore((state) => state.setExternalEditor);
@@ -190,6 +189,7 @@ export function SettingsDrawer() {
   const setShell = useAppPrefsStore((state) => state.setShell);
   const setShellPath = useAppPrefsStore((state) => state.setShellPath);
   const setLaunchAtLogin = useAppPrefsStore((state) => state.setLaunchAtLogin);
+  const setPushAfterCommit = useAppPrefsStore((state) => state.setPushAfterCommit);
 
   const [gitName, setGitName] = useState("");
   const [gitEmail, setGitEmail] = useState("");
@@ -726,8 +726,15 @@ export function SettingsDrawer() {
             title={t("settings.sectionSsh")}
             description={t("settings.sshHint")}
           >
-            <div className="border-border bg-muted/20 rounded-md border px-3 py-6 text-center">
-              <p className="text-muted-foreground text-xs">{t("settings.sshEmpty")}</p>
+            <div className="border-border overflow-hidden rounded-md border">
+              <div className="bg-muted/40 text-muted-foreground grid grid-cols-[minmax(100px,0.8fr)_minmax(160px,1.7fr)_72px] gap-3 border-b px-3 py-2 text-[11px] font-medium">
+                <span>{t("settings.sshKeyName")}</span>
+                <span>{t("settings.sshPublicKey")}</span>
+                <span>{t("settings.apiKeyActions")}</span>
+              </div>
+              <p className="text-muted-foreground px-3 py-6 text-center text-xs">
+                {t("settings.sshEmpty")}
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -1142,11 +1149,21 @@ export function SettingsDrawer() {
                 aria-label={t("settings.launchAtLogin")}
               />
             </label>
-            <p className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
-              <Languages className="size-3.5 shrink-0" aria-hidden />
-              <Monitor className="size-3.5 shrink-0" aria-hidden />
-              {t("settings.alsoInStatusBar")}
-            </p>
+            <label className="hover:bg-muted/40 flex cursor-pointer items-center justify-between gap-3 rounded-md border border-transparent px-1 py-1.5">
+              <div className="min-w-0">
+                <p className="text-sm">{t("settings.pushAfterCommit")}</p>
+                <p className="text-muted-foreground text-[11px]">
+                  {t("settings.pushAfterCommitHint")}
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                className="border-input text-primary size-4 shrink-0 rounded-sm accent-primary"
+                checked={pushAfterCommit}
+                onChange={(event) => setPushAfterCommit(event.target.checked)}
+                aria-label={t("settings.pushAfterCommit")}
+              />
+            </label>
           </SettingsSection> : null}
             </div>
             </ScrollArea>

@@ -28,6 +28,19 @@
     user-select: none;
   }
 
+  /* 统一可操作控件的鼠标反馈；显式标记为 cursor-default 的非交互项维持箭头。 */
+  button:not(:disabled):not([aria-disabled="true"]):not(.cursor-default),
+  [role="button"]:not([aria-disabled="true"]):not([data-disabled]):not(.cursor-default),
+  [role="menuitem"]:not([aria-disabled="true"]):not([data-disabled]),
+  [role="menuitemcheckbox"]:not([aria-disabled="true"]):not([data-disabled]),
+  [role="menuitemradio"]:not([aria-disabled="true"]):not([data-disabled]),
+  [role="tab"]:not([aria-disabled="true"]):not([data-disabled]),
+  [role="option"]:not([aria-disabled="true"]):not([data-disabled]),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    cursor: pointer;
+  }
+
   /* 灰底面板上 shadow-xs 过显眼；保留键盘 focus ring，不改 components/ui */
   [data-slot="input"]:not(:focus-visible),
   [data-slot="textarea"]:not(:focus-visible),

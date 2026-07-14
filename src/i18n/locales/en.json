@@ -87,6 +87,8 @@
     "gitIdentityAutoSaveHint": "Saved automatically once both name and email are filled",
     "sshHint": "Select or generate an SSH key, then copy the public key to your Git host settings",
     "sshEmpty": "No SSH keys registered yet",
+    "sshKeyName": "Name",
+    "sshPublicKey": "Public key",
     "sshAdd": "Add SSH key",
     "sshPick": "Choose existing local key",
     "sshComingSoon": "{{action}} coming soon",
@@ -140,6 +142,8 @@
     "launchAtLoginHint": "Open JLGit when you log in (system registration coming soon)",
     "launchAtLoginOnHint": "Launch-at-login preference saved (system registration coming soon)",
     "launchAtLoginOffHint": "Launch-at-login preference turned off",
+    "pushAfterCommit": "Push to remote after commit",
+    "pushAfterCommitHint": "New commits select “Push to remote” by default",
     "alsoInStatusBar": "Theme and language can also be toggled from the status bar",
     "comingSoon": "Coming soon"
   },

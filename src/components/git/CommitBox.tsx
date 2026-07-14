@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 
 import { generateCommitMessage } from "@/services/ai";
 import { getCommitMessage } from "@/services/git";
+import { useAppPrefsStore } from "@/store/useAppPrefsStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
 
@@ -84,8 +85,9 @@ export function CommitBox() {
   const identity = useRepoStore((state) => state.identity);
   const commits = useRepoStore((state) => state.commits);
   const repoPath = useRepoStore((state) => state.repoPath);
+  const defaultPushAfterCommit = useAppPrefsStore((state) => state.pushAfterCommit);
 
-  const [pushAfterCommit, setPushAfterCommit] = useState(false);
+  const [pushAfterCommit, setPushAfterCommit] = useState(defaultPushAfterCommit);
   const [busy, setBusy] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -96,6 +98,10 @@ export function CommitBox() {
   });
   const [commitMessageHistory, setCommitMessageHistory] = useState<CommitMessageHistoryItem[]>([]);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setPushAfterCommit(defaultPushAfterCommit);
+  }, [defaultPushAfterCommit]);
 
   const stagedCount = status?.entries.filter(isStagedEntry).length ?? 0;
   const working = loading || busy;
