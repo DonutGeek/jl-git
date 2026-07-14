@@ -462,6 +462,13 @@ export function AgentChatPanel({ projectId }: AgentChatPanelProps) {
           </div>
         </ScrollArea>
 
+        {/* 与输入框同宽；高度覆盖输入区+底边，挡住圆角后方透出的消息，不盖滚动条 */}
+        <div
+          className="bg-background pointer-events-none absolute inset-x-3 bottom-0 z-[5]"
+          style={{ height: composerPadPx }}
+          aria-hidden="true"
+        />
+
         <form
           ref={composerRef}
           className="bg-background absolute inset-x-3 bottom-3 z-10 rounded-md"
