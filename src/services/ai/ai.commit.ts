@@ -23,7 +23,7 @@ interface ChatCompletionResponse {
 }
 
 /**
- * 根据已暂存的改动生成一条 Conventional Commit 标题。
+ * 根据已暂存的改动生成 Conventional Commit 标题与简短正文。
  * 模型只提供建议，提交动作仍由用户在 CommitBox 中确认。
  */
 export async function generateCommitMessage(
@@ -97,10 +97,13 @@ function buildSystemPrompt(locale: string, commitInstructions: string): string {
   const prompt = [
     "You generate a Git commit message from a staged diff.",
     `Write the summary in ${language}.`,
-    "Return exactly one single-line Conventional Commit message and nothing else.",
-    "Format: <type>(<scope>): <summary>. Scope is optional when uncertain.",
+    "Return a commit message with a Conventional Commit subject and a concise body.",
+    "Format: <type>(<scope>): <summary>\\n\\n- <specific change or user-facing effect>\\n- <specific change or user-facing effect>.",
+    "The subject must be one line. The body must contain 2-4 factual bullet points when the diff provides enough detail.",
+    "Omit the body when the diff does not support reliable details; never guess.",
+    "Scope is optional when uncertain.",
     "Allowed types: feat, fix, refactor, style, docs, test, perf, build, ci, chore.",
-    "Use the actual user-facing effect, not implementation process. Never include markdown, explanation, code fences, or secrets.",
+    "Use the actual user-facing effect, not implementation process. Never include headings, code fences, or secrets.",
   ].join(" ");
   if (!commitInstructions.trim()) {
     return prompt;
@@ -112,12 +115,13 @@ function normalizeCommitMessage(content: string | null | undefined): string | nu
   if (!content) {
     return null;
   }
-  const firstLine = content
+  const lines = content
     .trim()
     .replace(/^```(?:text|plaintext)?\s*/i, "")
-    .split("\n")[0]
-    ?.replace(/`/g, "")
-    .trim();
+    .replace(/\s*```$/i, "")
+    .split("\n")
+    .map((line) => line.trim());
+  const firstLine = lines[0]?.replace(/`/g, "").trim();
   if (
     !firstLine ||
     firstLine.length > 200 ||
@@ -125,7 +129,15 @@ function normalizeCommitMessage(content: string | null | undefined): string | nu
   ) {
     return null;
   }
-  return firstLine;
+
+  const detailLines = lines
+    .slice(1)
+    .filter((line) => /^[-*•]\s+\S/.test(line))
+    .slice(0, 4)
+    .map((line) => `- ${line.replace(/^[-*•]\s+/, "")}`)
+    .filter((line) => line.length <= 240);
+
+  return detailLines.length > 0 ? `${firstLine}\n\n${detailLines.join("\n")}` : firstLine;
 }
 
 /** 掩码常见凭据形式，避免误把工作区中的密钥上传给模型服务。 */
