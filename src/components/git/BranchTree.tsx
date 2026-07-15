@@ -25,6 +25,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { BranchTreeNode } from "@/utils/branchTree";
@@ -187,7 +188,7 @@ export function BranchTree({
             <Button
               type="button"
               variant="ghost"
-              className="h-7 w-full justify-start gap-1 rounded-md px-1.5 text-left text-xs [&_svg]:size-3"
+              className="h-7 w-full min-w-0 justify-start gap-1 overflow-hidden rounded-md px-1.5 text-left text-xs [&_svg]:size-3"
               onClick={() => onToggleCollapse(key)}
             >
               <IndentGuides depth={depth} />
@@ -271,67 +272,81 @@ function BranchLeaf({
   const canDelete = !isRemote && !isCurrent && !isDisabled;
   const canCompareWithCurrent =
     !isCurrent && !isDisabled && contextActions.canCompareWithCurrent(branch);
+  const hasTrackingBranch = !isRemote && Boolean(branch.upstream);
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          className={cn(
-            "h-7 w-full justify-start gap-1 rounded-md px-1.5 text-left text-xs transition-colors [&_svg]:size-3",
-            isCurrent
-              ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-              : selected
-                ? "bg-accent text-foreground hover:bg-accent"
-                : "text-foreground",
-            isBusy && "cursor-wait",
-          )}
-          onClick={() => {
-            if (isDisabled) {
-              return;
-            }
-            onSelect(branch);
-          }}
-          onContextMenu={() => {
-            if (!isDisabled) {
-              onSelect(branch);
-            }
-          }}
-          onDoubleClick={() => {
-            if (!canCheckout) {
-              return;
-            }
-            onCheckout(branch);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && selected && canCheckout) {
-              event.preventDefault();
-              onCheckout(branch);
-            }
-          }}
-          disabled={isDisabled && !isCurrent}
-          aria-current={isCurrent ? "true" : undefined}
-          aria-selected={selected}
-          title={isCurrent ? undefined : t("repo.checkoutHint")}
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <ContextMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              className={cn(
+                "h-7 w-full min-w-0 justify-start gap-1 overflow-hidden rounded-md px-1.5 text-left text-xs transition-colors [&_svg]:size-3",
+                isCurrent
+                  ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                  : selected
+                    ? "bg-accent text-foreground hover:bg-accent"
+                    : "text-foreground",
+                isBusy && "cursor-wait",
+              )}
+              onClick={() => {
+                if (isDisabled) {
+                  return;
+                }
+                onSelect(branch);
+              }}
+              onContextMenu={() => {
+                if (!isDisabled) {
+                  onSelect(branch);
+                }
+              }}
+              onDoubleClick={() => {
+                if (!canCheckout) {
+                  return;
+                }
+                onCheckout(branch);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && selected && canCheckout) {
+                  event.preventDefault();
+                  onCheckout(branch);
+                }
+              }}
+              disabled={isDisabled && !isCurrent}
+              aria-current={isCurrent ? "true" : undefined}
+              aria-selected={selected}
+            >
+              <IndentGuides depth={depth} />
+              <span className="size-3 shrink-0" aria-hidden="true" />
+              {isCurrent ? (
+                <Check className="shrink-0" aria-hidden="true" />
+              ) : published ? (
+                <GitBranchIcon className="text-muted-foreground shrink-0" aria-hidden="true" />
+              ) : (
+                <CloudOff className="text-muted-foreground shrink-0" aria-hidden="true" />
+              )}
+              <span className="min-w-0 flex-1 truncate">{label}</span>
+              {!published && !isRemote ? (
+                <span className="text-muted-foreground shrink-0 text-[10px]">
+                  {t("repo.branchUnpublished")}
+                </span>
+              ) : null}
+            </Button>
+          </ContextMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent
+          className="max-w-96 font-mono whitespace-normal break-all"
+          side="right"
+          sideOffset={6}
         >
-          <IndentGuides depth={depth} />
-          <span className="size-3 shrink-0" aria-hidden="true" />
-          {isCurrent ? (
-            <Check className="shrink-0" aria-hidden="true" />
-          ) : published ? (
-            <GitBranchIcon className="text-muted-foreground shrink-0" aria-hidden="true" />
-          ) : (
-            <CloudOff className="text-muted-foreground shrink-0" aria-hidden="true" />
-          )}
-          <span className="min-w-0 flex-1 truncate">{label}</span>
-          {!published && !isRemote ? (
-            <span className="text-muted-foreground shrink-0 text-[10px]">
-              {t("repo.branchUnpublished")}
-            </span>
+          <p>{t("repo.branchTooltipName", { name: branch.name })}</p>
+          {hasTrackingBranch ? (
+            <p>{t("repo.branchTooltipUpstream", { upstream: branch.upstream })}</p>
           ) : null}
-        </Button>
-      </ContextMenuTrigger>
+        </TooltipContent>
+      </Tooltip>
 
       <ContextMenuContent className="min-w-40">
         <ContextMenuItem

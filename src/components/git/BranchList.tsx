@@ -400,9 +400,8 @@ export function BranchList() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1">
-        <ScrollArea className="h-full px-1 py-0.5">
-          {isEmpty ? (
+      <ScrollArea className="min-h-0 flex-1 px-1 py-0.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+        {isEmpty ? (
             <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.branchesEmpty")}</p>
           ) : noMatch ? (
             <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.branchesNoMatch")}</p>
@@ -473,8 +472,7 @@ export function BranchList() {
               </BranchGroup>
             </div>
           )}
-        </ScrollArea>
-      </div>
+      </ScrollArea>
 
       <CreateBranchDialog open={createOpen} onOpenChange={setCreateOpen} />
 

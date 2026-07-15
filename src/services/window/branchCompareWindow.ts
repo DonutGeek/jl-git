@@ -15,7 +15,7 @@ interface BranchCompareWindowTarget {
   url: string;
 }
 
-const BRANCH_COMPARE_WINDOW_SIZE = new LogicalSize(1180, 760);
+const BRANCH_COMPARE_WINDOW_SIZE = new LogicalSize(960, 640);
 
 /** 为同一项目与 ref 生成可聚焦的稳定子窗口标识。 */
 export function createBranchCompareWindowTarget(

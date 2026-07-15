@@ -1,12 +1,18 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import {
+  listenGlobalPreferenceChange,
+  notifyGlobalPreferenceChange,
+} from "@/services/window/globalPreferences";
+
 /** 客户端字体：`system` 表示系统默认无衬线栈，其它为字体族名 */
 export const CLIENT_FONT_SYSTEM = "system";
 /** 编辑器字体：`system-mono` 表示系统默认等宽栈，其它为字体族名 */
 export const EDITOR_FONT_SYSTEM = "system-mono";
 /** 客户端 / 编辑器字体的产品默认值 */
 export const DEFAULT_APP_FONT = "JetBrains Mono";
+const APP_PREFS_STORAGE_KEY = "jlgit-app-prefs";
 
 const SYSTEM_SANS =
   'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
@@ -102,33 +108,41 @@ export const useAppPrefsStore = create<AppPrefsState>()(
       setClientFont(font) {
         applyAppFonts(font, get().editorFont);
         set({ clientFont: font });
+        notifyGlobalPreferenceChange("app-prefs");
       },
       setEditorFont(font) {
         applyAppFonts(get().clientFont, font);
         set({ editorFont: font });
+        notifyGlobalPreferenceChange("app-prefs");
       },
       setExternalEditor(value) {
         set({ externalEditor: value });
+        notifyGlobalPreferenceChange("app-prefs");
       },
       setExternalEditorPath(value) {
         set({ externalEditorPath: value });
+        notifyGlobalPreferenceChange("app-prefs");
       },
       setShell(value) {
         set({ shell: value });
+        notifyGlobalPreferenceChange("app-prefs");
       },
       setShellPath(value) {
         set({ shellPath: value });
+        notifyGlobalPreferenceChange("app-prefs");
       },
       setLaunchAtLogin(value) {
         // 真正注册开机自启需 Tauri autostart 插件；此处先持久化偏好
         set({ launchAtLogin: value });
+        notifyGlobalPreferenceChange("app-prefs");
       },
       setPushAfterCommit(value) {
         set({ pushAfterCommit: value });
+        notifyGlobalPreferenceChange("app-prefs");
       },
     }),
     {
-      name: "jlgit-app-prefs",
+      name: APP_PREFS_STORAGE_KEY,
       version: 1,
       migrate: (persisted, version) => {
         const state = persisted as Partial<AppPrefsState> | undefined;
@@ -177,4 +191,19 @@ export const useAppPrefsStore = create<AppPrefsState>()(
 export function initAppPrefs(): void {
   const state = useAppPrefsStore.getState();
   applyAppFonts(state.clientFont, state.editorFont);
+
+  // 保证设置页修改字体后，已打开的子窗口也使用相同字体栈。
+  window.addEventListener("storage", (event) => {
+    if (event.key === APP_PREFS_STORAGE_KEY) {
+      void useAppPrefsStore.persist.rehydrate();
+    }
+  });
+
+  void listenGlobalPreferenceChange((kind) => {
+    if (kind === "app-prefs") {
+      void useAppPrefsStore.persist.rehydrate();
+    }
+  }).catch((error: unknown) => {
+    console.error("Failed to listen for app preference changes", error);
+  });
 }

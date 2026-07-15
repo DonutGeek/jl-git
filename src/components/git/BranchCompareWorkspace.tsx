@@ -146,8 +146,8 @@ export function BranchCompareWorkspace({ project, branches, initialMode, initial
             <ScrollArea className="h-[calc(100%-5.5rem)]">
               {fileError ? <p className="text-destructive p-3 text-xs">{fileError}</p> : visibleFiles.length ? visibleFiles.map((file) => (
                 <button type="button" key={file.path} onClick={() => setSelectedPath(file.path)} className={cn("hover:bg-accent flex w-full items-center gap-2 px-3 py-2 text-left text-xs", selectedPath === file.path && "bg-accent")}>
-                  <MaterialFileIcon name={file.path} isDir={false} className="size-4" />
                   <span className={cn("w-4 font-medium", gitStatusLetterClass(file.status))}>{file.status}</span>
+                  <MaterialFileIcon name={file.path} isDir={false} className="size-4" />
                   <span className="min-w-0 flex-1 truncate">{file.path}</span>
                   <span className="text-muted-foreground tabular-nums">{formatStat(file)}</span>
                 </button>

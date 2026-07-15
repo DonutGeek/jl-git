@@ -5,6 +5,10 @@ import {
   applyThemeToDocument,
   type ThemeMode,
 } from "@/services/theme/theme.service";
+import {
+  listenGlobalPreferenceChange,
+  notifyGlobalPreferenceChange,
+} from "@/services/window/globalPreferences";
 
 interface ThemeState {
   mode: ThemeMode;
@@ -12,6 +16,8 @@ interface ThemeState {
   /** 昼夜切换：浅色 ↔ 深色（不经过 system，状态栏一键切换） */
   toggleDayNight: () => void;
 }
+
+const THEME_STORAGE_KEY = "jlgit-theme";
 
 export const useThemeStore = create<ThemeState>()(
   persist(
@@ -21,6 +27,7 @@ export const useThemeStore = create<ThemeState>()(
       setMode(mode) {
         applyThemeToDocument(mode);
         set({ mode });
+        notifyGlobalPreferenceChange("theme");
       },
 
       toggleDayNight() {
@@ -31,10 +38,11 @@ export const useThemeStore = create<ThemeState>()(
         const next: ThemeMode = effective === "dark" ? "light" : "dark";
         applyThemeToDocument(next);
         set({ mode: next });
+        notifyGlobalPreferenceChange("theme");
       },
     }),
     {
-      name: "jlgit-theme",
+      name: THEME_STORAGE_KEY,
       version: 2,
       migrate: (persisted, version) => {
         const state = persisted as Partial<ThemeState> | undefined;
@@ -69,4 +77,19 @@ export function initTheme(): void {
     }
   };
   media.addEventListener("change", onChange);
+
+  // 主窗口与子窗口共享同源 localStorage；主窗口更改主题后让已打开子窗口重新水合并应用。
+  window.addEventListener("storage", (event) => {
+    if (event.key === THEME_STORAGE_KEY) {
+      void useThemeStore.persist.rehydrate();
+    }
+  });
+
+  void listenGlobalPreferenceChange((kind) => {
+    if (kind === "theme") {
+      void useThemeStore.persist.rehydrate();
+    }
+  }).catch((error: unknown) => {
+    console.error("Failed to listen for theme changes", error);
+  });
 }
