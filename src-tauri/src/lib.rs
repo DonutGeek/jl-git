@@ -80,6 +80,7 @@ pub fn run() {
             commands::git_ops::git_push,
             commands::git_ops::git_remotes,
             commands::git_ops::git_undo_commit,
+            commands::git_ops::git_merge,
             commands::git_ops::git_checkout,
             commands::git_ops::git_branch_create,
             commands::git_ops::git_branch_delete,

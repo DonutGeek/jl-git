@@ -10,6 +10,7 @@ use crate::git::{
     fs_list::{self, FsFileSizeResult, FsListResult},
     identity::{self, GitIdentity},
     log::{self, GitLogResult},
+    merge::{self, GitMergeResult, MergeMode},
     oplog,
     path::{
         normalize_existing_dir, require_git_toplevel, validate_git_ref,
@@ -527,6 +528,35 @@ pub async fn git_undo_commit(
     .map_err(|error| {
         AppError::new("INTERNAL", "撤销提交任务失败").with_details(error.to_string())
     })?
+}
+
+/// 将指定 ref 合并到当前检出的本地分支。
+#[tauri::command]
+pub async fn git_merge(
+    app: AppHandle,
+    path: String,
+    r#ref: String,
+    mode: Option<MergeMode>,
+    autostash: Option<bool>,
+) -> Result<GitMergeResult, AppError> {
+    let source = r#ref.trim().to_string();
+    if source.is_empty() {
+        return Err(AppError::new("VALIDATION", "合并分支不能为空"));
+    }
+    validate_git_ref(&source)?;
+
+    let repo_path = resolve_repo_path(&path)?;
+    let repo_key = path;
+    let mode = mode.unwrap_or(MergeMode::Default);
+    let autostash = autostash.unwrap_or(false);
+
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "merge", || {
+            merge::merge(&repo_path, &source, mode, autostash)
+        })
+    })
+    .await
+    .map_err(|error| AppError::new("INTERNAL", "合并任务失败").with_details(error.to_string()))?
 }
 
 #[tauri::command]
