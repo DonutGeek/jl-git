@@ -29,7 +29,7 @@ export function TagList({ onSelectTag }: TagListProps) {
   const filtered = useMemo(() => tags.filter((tag) => tag.name.toLowerCase().includes(filter.trim().toLowerCase())), [filter, tags]);
 
   async function select(name: string): Promise<void> { try { await selectLogRef(name); onSelectTag(); } catch (error) { toast.error(toUserMessage(error)); } }
-  async function refresh(): Promise<void> { try { await refreshTags(); } catch (error) { toast.error(toUserMessage(error)); } }
+  async function refresh(): Promise<void> { const toastId = toast.loading(t("repo.refreshStart")); try { await refreshTags(); toast.success(t("repo.tagRefreshSuccess"), { id: toastId }); } catch (error) { toast.error(toUserMessage(error), { id: toastId }); } }
   async function remove(name: string): Promise<void> { if (!window.confirm(t("repo.deleteTagQuestion", { name }))) return; setBusyName(name); try { await deleteTag(name); toast.success(t("repo.deleteTagSuccess", { name })); } catch (error) { toast.error(toUserMessage(error)); } finally { setBusyName(null); } }
 
   return <div className="flex h-full min-h-0 flex-col">
