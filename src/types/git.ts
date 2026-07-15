@@ -116,6 +116,24 @@ export interface OkResult {
   ok: boolean;
 }
 
+export type GitMergeMode =
+  | "default"
+  | "noFf"
+  | "squash"
+  | "resolve"
+  | "ort"
+  | "noCommit";
+
+export interface GitMergeOptions {
+  mode?: GitMergeMode;
+  autostash?: boolean;
+}
+
+export interface GitMergeResult {
+  ok: boolean;
+  conflict: boolean;
+}
+
 export interface GitFetchResult {
   ok: boolean;
   remote: string;
@@ -191,6 +209,16 @@ export interface GitDiffResult {
   patch: string;
   binary: boolean;
   truncated: boolean;
+  binaryComparison?: GitBinaryComparison;
+}
+
+/** 二进制文件的受限比较摘要；不会携带完整文件内容。 */
+export interface GitBinaryComparison {
+  oldSize?: number;
+  newSize?: number;
+  firstDifferenceOffset?: number;
+  oldPreview?: string;
+  newPreview?: string;
 }
 
 export type BranchCompareMode = "branch" | "localUpstream";

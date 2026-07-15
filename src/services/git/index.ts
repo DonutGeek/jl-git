@@ -5,6 +5,7 @@ export * from "./git.diff";
 export * from "./git.fs";
 export * from "./git.identity";
 export * from "./git.log";
+export * from "./git.merge";
 export * from "./git.remote";
 export * from "./git.show";
 export * from "./git.status";
@@ -24,6 +25,7 @@ import { getCommitFileDiff, getDiff, getStagedDiff } from "./git.diff";
 import { getFileSize, listDir } from "./git.fs";
 import { getGlobalIdentity, getIdentity, setGlobalIdentity } from "./git.identity";
 import { getLog } from "./git.log";
+import { merge } from "./git.merge";
 import { fetch, listRemotes, pull, push } from "./git.remote";
 import {
   getCommit,
@@ -61,6 +63,7 @@ export const gitService = {
   unstageAll,
   commit,
   undoCommit,
+  merge,
   checkout,
   createBranch,
   deleteBranch,

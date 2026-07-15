@@ -10,6 +10,8 @@ import {
   GitCommitDetail,
   GitCommitSummary,
   GitIdentity,
+  GitMergeOptions,
+  GitMergeResult,
   GitStatusEntry,
   GitStatusResult,
   GitTag,
@@ -188,6 +190,7 @@ interface RepoStoreActions {
   commit: () => Promise<string>;
   /** 撤销最近未推送提交：reset --mixed，变更回到工作区 */
   undoCommit: () => Promise<{ target: string; elapsedMs: number }>;
+  merge: (source: string, options?: GitMergeOptions) => Promise<GitMergeResult>;
   checkout: (ref: string) => Promise<void>;
   createBranch: (
     name: string,
@@ -725,6 +728,40 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         selectedCommitId: null,
         selectedCommitDetail: null,
         selectedCommitFile: null,
+      });
+
+      return result;
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
+  },
+
+  async merge(source, options) {
+    set({ loading: true, error: null });
+
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      const ref = source.trim();
+      if (!ref) {
+        throwValidationError(i18n.t("repo.errors.emptyBranchName"));
+      }
+
+      await revealOpLogBeforeInvoke();
+      const result = await gitService.merge(repoPath, ref, options);
+      const [status, branches, log] = await Promise.all([
+        gitService.getStatus(repoPath),
+        gitService.listBranches(repoPath, true),
+        gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+      ]);
+
+      set({
+        status,
+        selectedChange: resolveSelectedChange(status, get().selectedChange),
+        branches,
+        commits: log.commits,
+        hasMore: log.hasMore,
+        loading: false,
       });
 
       return result;
