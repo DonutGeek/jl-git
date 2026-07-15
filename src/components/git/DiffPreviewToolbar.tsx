@@ -23,6 +23,9 @@ export type DiffPreviewLayout = "inline" | "sideBySide";
 interface DiffPreviewToolbarProps {
   encoding: string;
   onEncodingChange: (encoding: string) => void;
+  /** 二进制十六进制视图使用固定展示标签，不支持文本编码切换 */
+  encodingDisabled?: boolean;
+  encodingDisplayLabel?: string;
   mode: DiffPreviewMode;
   onModeChange: (mode: DiffPreviewMode) => void;
   /** 上一个 / 下一个差异块 */
@@ -45,6 +48,8 @@ interface DiffPreviewToolbarProps {
 export function DiffPreviewToolbar({
   encoding,
   onEncodingChange,
+  encodingDisabled = false,
+  encodingDisplayLabel,
   mode,
   onModeChange,
   canNavigateHunk,
@@ -69,6 +74,8 @@ export function DiffPreviewToolbar({
         value={encoding}
         onChange={onEncodingChange}
         ariaLabel={t("repo.diffEncodingSelect")}
+        disabled={encodingDisabled}
+        displayLabel={encodingDisplayLabel}
         size="sm"
         options={TEXT_ENCODING_OPTIONS.map((option) => ({
           value: option.id,

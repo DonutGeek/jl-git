@@ -15,9 +15,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { AgentBranchMention } from "@/types/ai";
 
-export interface AgentMentionOption {
+export interface AgentMentionOption extends Record<string, unknown> {
   id: string;
   display: string;
+  isRemote: boolean;
 }
 
 interface AgentComposerProps {
@@ -135,7 +136,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                 "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
               )}
             >
-              <MentionsInput
+              <MentionsInput<AgentMentionOption>
                 inputRef={(element) => {
                   if (typeof inputRef === "function") {
                     inputRef(element);
@@ -186,24 +187,28 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                   suggestionItemFocused: "bg-accent text-accent-foreground",
                 }}
                 customSuggestionsContainer={(children) => (
-                  <ScrollArea className="max-h-48 w-full [&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden">
-                    <div className="p-1">{children}</div>
-                  </ScrollArea>
+                  <div className="max-h-72 overflow-y-scroll overscroll-contain p-1">
+                    {children}
+                  </div>
                 )}
                 disabled={isReplying}
               >
-                <Mention
+                <Mention<AgentMentionOption>
                   trigger="@"
-                  data={
-                    branchOptions as ReadonlyArray<
-                      { id: string; display: string } & Record<string, unknown>
-                    >
-                  }
+                  data={branchOptions}
                   appendSpaceOnAdd
+                  maxSuggestions={branchOptions.length}
                   // highlighter 与 textarea 叠字对齐：禁止 padding/inline-flex（会撑宽导致错位）
                   // 用同色 box-shadow 模拟 Badge 胶囊边距，不改文字度量
                   className="rounded-sm bg-secondary text-secondary-foreground shadow-[0_0_0_2px_var(--secondary)] box-decoration-clone"
-                  renderSuggestion={(branch) => <span>@{branch.display}</span>}
+                  renderSuggestion={(branch) => (
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate">@{branch.display}</span>
+                      <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none">
+                        {t(branch.isRemote ? "agent.remoteBranch" : "agent.localBranch")}
+                      </span>
+                    </div>
+                  )}
                   renderEmpty={() => (
                     <span className="text-muted-foreground block px-2 py-1.5 text-xs">
                       {t("agent.noBranchMentions")}

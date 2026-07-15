@@ -57,7 +57,7 @@ export function RepoPage() {
   const findById = useProjectStore((state) => state.findById);
   const loadProjects = useProjectStore((state) => state.loadProjects);
   const openExisting = useProjectStore((state) => state.openExisting);
-  const openTab = useOpenTabsStore((state) => state.openTab);
+  const openRepositoryTab = useOpenTabsStore((state) => state.openRepositoryTab);
 
   const loadAll = useRepoStore((state) => state.loadAll);
   const refreshStatus = useRepoStore((state) => state.refreshStatus);
@@ -147,7 +147,7 @@ export function RepoPage() {
         setProject(cached);
         // 有会话缓存则不挡交互；仅冷开仓显示切换遮罩
         setSwitching(!hasSession);
-        openTab(cached.id);
+        openRepositoryTab(cached.id);
       } else if (!project) {
         setBootstrapping(true);
       } else if (isFirstOpen) {
@@ -166,7 +166,7 @@ export function RepoPage() {
           throw new Error(t("repo.notFound"));
         }
 
-        openTab(target.id);
+        openRepositoryTab(target.id);
         if (active) {
           setProject(target);
           setBootstrapping(false);

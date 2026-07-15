@@ -123,8 +123,11 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 | `deleteBranch(repoPath, name, options?: { force?; deleteRemote?; remote? })` | `git_branch_delete` |
 | `renameBranch(repoPath, oldName, newName)` | `git_branch_rename` |
 | `checkout(repoPath, ref: string)` | `git_checkout` |
+| `merge(repoPath, ref, options?: { mode?: GitMergeMode; autostash?: boolean })` | `git_merge` |
 
 `createBranch` 默认 `checkout: true`（创建后切换到新分支）。
+
+`merge` 将 `ref` 合并到当前检出的本地分支。`mode` 可选 `default`、`noFf`、`squash`、`resolve`、`ort`、`noCommit`，分别对应 Git 默认行为、`--no-ff`、`--squash`、`-s resolve`、`-s ort`、`--no-commit`。`autostash: true` 传递 `--autostash`；压缩合并时该选项固定为 false。返回 `{ ok: true, conflict: false }` 表示成功，`{ ok: false, conflict: true }` 表示冲突保留在工作区，调用方应刷新状态并引导用户处理冲突。
 
 ---
 

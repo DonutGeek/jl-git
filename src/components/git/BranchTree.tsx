@@ -11,6 +11,7 @@ import {
   Folder,
   FolderOpen,
   GitCompareArrows,
+  GitMerge,
   GitBranch as GitBranchIcon,
   Pencil,
   Trash2,
@@ -41,6 +42,8 @@ export interface BranchContextActions {
   onCopyName: (branch: GitBranch) => void;
   onCompareWithCurrent: (branch: GitBranch) => void;
   canCompareWithCurrent: (branch: GitBranch) => boolean;
+  onMergeIntoCurrent: (branch: GitBranch) => void;
+  canMergeIntoCurrent: (branch: GitBranch) => boolean;
   onDelete: (branch: GitBranch) => void;
 }
 
@@ -271,7 +274,9 @@ function BranchLeaf({
   const canRename = !isRemote && !isDisabled;
   const canDelete = !isRemote && !isCurrent && !isDisabled;
   const canCompareWithCurrent =
-    !isCurrent && !isDisabled && contextActions.canCompareWithCurrent(branch);
+    !isDisabled && contextActions.canCompareWithCurrent(branch);
+  const canMergeIntoCurrent =
+    !isCurrent && !isDisabled && contextActions.canMergeIntoCurrent(branch);
   const hasTrackingBranch = !isRemote && Boolean(branch.upstream);
 
   return (
@@ -358,6 +363,14 @@ function BranchLeaf({
         </ContextMenuItem>
 
         <ContextMenuSeparator />
+
+        <ContextMenuItem
+          disabled={!canMergeIntoCurrent}
+          onSelect={() => contextActions.onMergeIntoCurrent(branch)}
+        >
+          <GitMerge className="size-3.5" aria-hidden="true" />
+          {t("repo.mergeIntoCurrent")}
+        </ContextMenuItem>
 
         <ContextMenuItem
           disabled={!canCompareWithCurrent}

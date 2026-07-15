@@ -23,14 +23,18 @@ import { toUserMessage } from "@/types/error";
 interface OpenRepoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  replaceNewTabId?: string;
 }
 
 /** 打开本地仓库对话框：路径可输入/选择，别名可选 */
-export function OpenRepoDialog({ open, onOpenChange }: OpenRepoDialogProps) {
+export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepoDialogProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const addAndOpen = useProjectStore((state) => state.addAndOpen);
-  const openTab = useOpenTabsStore((state) => state.openTab);
+  const openRepositoryTab = useOpenTabsStore((state) => state.openRepositoryTab);
+  const replaceNewTabWithRepository = useOpenTabsStore(
+    (state) => state.replaceNewTabWithRepository,
+  );
 
   const [path, setPath] = useState("");
   const [alias, setAlias] = useState("");
@@ -86,7 +90,11 @@ export function OpenRepoDialog({ open, onOpenChange }: OpenRepoDialogProps) {
         path: trimmedPath,
         name: alias.trim() || undefined,
       });
-      openTab(project.id);
+      if (replaceNewTabId) {
+        replaceNewTabWithRepository(replaceNewTabId, project.id);
+      } else {
+        openRepositoryTab(project.id);
+      }
       handleOpenChange(false);
       navigate(`/repo/${project.id}`);
     } catch (submitError) {

@@ -1,13 +1,14 @@
 import { create } from "zustand";
 
-import { projectService } from "@/services/project";
+import { projectService, workspaceService } from "@/services/project";
 
 import { toUserMessage } from "@/types/error";
-import { AddProjectInput, Project, RecentItem } from "@/types/project";
+import { AddProjectInput, Project, RecentItem, Workspace } from "@/types/project";
 
 interface ProjectStoreState {
   projects: Project[];
   recent: RecentItem[];
+  workspaces: Workspace[];
   current: Project | null;
   loading: boolean;
   error: string | null;
@@ -16,8 +17,12 @@ interface ProjectStoreState {
 interface ProjectStoreActions {
   loadProjects: () => Promise<Project[]>;
   loadRecent: () => Promise<RecentItem[]>;
+  loadWorkspaces: () => Promise<Workspace[]>;
+  createWorkspace: (name: string) => Promise<Workspace>;
+  removeWorkspace: (id: string) => Promise<void>;
+  updateProject: (input: { id: string; name?: string; workspaceId?: string | null }) => Promise<Project>;
   setCurrent: (project: Project | null) => void;
-  addAndOpen: (input: Pick<AddProjectInput, "path" | "name">) => Promise<Project>;
+  addAndOpen: (input: Pick<AddProjectInput, "path" | "name" | "workspaceId">) => Promise<Project>;
   openExisting: (id: string) => Promise<Project>;
   removeProject: (id: string) => Promise<void>;
   updateAlias: (id: string, name: string) => Promise<Project>;
@@ -39,6 +44,7 @@ function upsertProject(projects: Project[], project: Project): Project[] {
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   projects: [],
   recent: [],
+  workspaces: [],
   current: null,
   loading: false,
   error: null,
@@ -70,6 +76,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       throw error;
     }
   },
+
+  async loadWorkspaces() { const workspaces = await workspaceService.list(); set({ workspaces }); return workspaces; },
+  async createWorkspace(name) { const workspace = await workspaceService.create(name); set((state) => ({ workspaces: [...state.workspaces, workspace] })); return workspace; },
+  async removeWorkspace(id) { await workspaceService.remove(id); set((state) => ({ workspaces: state.workspaces.filter((item) => item.id !== id), projects: state.projects.map((project) => project.workspaceId === id ? { ...project, workspaceId: null } : project) })); },
+  async updateProject(input) { const project = await projectService.update(input); set((state) => ({ projects: upsertProject(state.projects, project), current: state.current?.id === project.id ? project : state.current })); return project; },
 
   setCurrent(project) {
     set({ current: project });

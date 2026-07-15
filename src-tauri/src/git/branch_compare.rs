@@ -4,7 +4,10 @@ use std::path::Path;
 
 use crate::error::AppError;
 use crate::git::{
-    diff::{bytes_to_text, looks_binary, read_blob, GitDiffResult, DEFAULT_MAX_BYTES},
+    diff::{
+        binary_to_hex_text, bytes_to_text, looks_binary, read_blob, summarize_binary_diff,
+        GitDiffResult, DEFAULT_MAX_BYTES,
+    },
     path::{validate_git_ref, validate_repo_relative_paths},
     runner,
     show::GitChangedFile,
@@ -24,7 +27,14 @@ pub fn get_changed_files(
     validate_compare_refs(base, target)?;
     let statuses = runner::run_git(
         repo_path,
-        &["diff", "--name-status", "-z", "--find-renames", base, target],
+        &[
+            "diff",
+            "--name-status",
+            "-z",
+            "--find-renames",
+            base,
+            target,
+        ],
     )?;
     let stats = runner::run_git(
         repo_path,
@@ -76,11 +86,12 @@ pub fn get_file_diff(
 
     if looks_binary(old.as_deref()) || looks_binary(new.as_deref()) {
         return Ok(GitDiffResult {
-            old_text: String::new(),
-            new_text: String::new(),
+            old_text: binary_to_hex_text(old.as_deref()),
+            new_text: binary_to_hex_text(new.as_deref()),
             patch,
             binary: true,
             truncated: patch_truncated,
+            binary_comparison: Some(summarize_binary_diff(old.as_deref(), new.as_deref())),
         });
     }
 
@@ -92,6 +103,7 @@ pub fn get_file_diff(
         patch,
         binary: false,
         truncated: old_truncated || new_truncated || patch_truncated,
+        binary_comparison: None,
     })
 }
 

@@ -1,14 +1,13 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FolderGit2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { FolderGit2, Loader2, Search } from "lucide-react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 import { useProjectStore } from "@/store/useProjectStore";
 
-import { toUserMessage } from "@/types/error";
 import { Project, RecentItem } from "@/types/project";
 
 interface RecentProjectRow {
@@ -38,57 +37,37 @@ function mergeRecentProjects(recent: RecentItem[], projects: Project[]): RecentP
   });
 }
 
-function formatOpenedAt(value: string | null): string | null {
-  if (!value) {
-    return null;
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 interface RecentProjectListProps {
-  onOpened?: (projectId: string) => void;
+  onOpenProject: (projectId: string) => void;
+  openingProjectId?: string | null;
 }
 
 /** 最近项目列表：单击选中，双击进入仓库 */
-export function RecentProjectList({ onOpened }: RecentProjectListProps) {
+export function RecentProjectList({
+  onOpenProject,
+  openingProjectId = null,
+}: RecentProjectListProps) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const projects = useProjectStore((state) => state.projects);
   const recent = useProjectStore((state) => state.recent);
   const loading = useProjectStore((state) => state.loading);
-  const openExisting = useProjectStore((state) => state.openExisting);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [openingId, setOpeningId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
 
   const rows = useMemo(() => mergeRecentProjects(recent, projects), [projects, recent]);
+  const filteredRows = useMemo(() => {
+    const query = filter.trim().toLowerCase();
+    return query ? rows.filter((item) => item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query)) : rows;
+  }, [filter, rows]);
+  const openBusy = Boolean(openingProjectId);
 
-  async function handleOpenProject(id: string): Promise<void> {
-    setOpeningId(id);
-    setSelectedId(id);
-    setError(null);
-
-    try {
-      const project = await openExisting(id);
-      onOpened?.(project.id);
-      navigate(`/repo/${project.id}`);
-    } catch (openError) {
-      setError(toUserMessage(openError));
-    } finally {
-      setOpeningId(null);
+  function handleOpenProject(id: string): void {
+    if (openBusy) {
+      return;
     }
+    setSelectedId(id);
+    onOpenProject(id);
   }
 
   if (rows.length === 0) {
@@ -107,67 +86,78 @@ export function RecentProjectList({ onOpened }: RecentProjectListProps) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-end justify-between gap-4 px-1 pb-3">
+      <div className="flex shrink-0 items-start justify-between gap-4 pb-4">
         <div>
-          <h2 className="text-sm font-semibold">{t("dashboard.recentTitle")}</h2>
+          <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">{t("dashboard.recentTitle")}</h2><Badge variant="secondary" className="px-1.5 py-0 text-[10px] tabular-nums">{t("dashboard.recentCount", { count: rows.length })}</Badge></div>
           <p className="text-muted-foreground mt-0.5 text-xs">{t("dashboard.recentDescription")}</p>
         </div>
-        <span className="text-muted-foreground text-xs tabular-nums">
-          {t("dashboard.recentCount", { count: rows.length })}
-        </span>
+        <label className="relative block w-52"><Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" aria-hidden="true" /><input value={filter} onChange={(event) => setFilter(event.target.value)} className="border-input bg-background focus-visible:ring-ring h-8 w-full rounded-md border pr-3 pl-8 text-xs outline-none focus-visible:ring-2" placeholder={t("repo.filter")} aria-label={t("repo.filter")} /></label>
       </div>
 
-      {error ? (
-        <p className="text-destructive mb-3 text-sm" role="alert">
-          {error}
-        </p>
-      ) : null}
-
       <div className="min-h-0 flex-1">
-        <ScrollArea className="h-full pb-4">
+        <ScrollArea className="h-full pb-4 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:pr-2">
           <ul className="space-y-1" role="listbox" aria-label={t("dashboard.recentTitle")}>
-            {rows.map((project) => {
-              const openedAt = formatOpenedAt(project.lastOpenedAt);
-              const isOpening = openingId === project.id;
+            {filteredRows.map((project) => {
               const isSelected = selectedId === project.id;
+              const isOpening = openingProjectId === project.id;
 
               return (
                 <li key={project.id} role="option" aria-selected={isSelected}>
                   <button
                     type="button"
+                    disabled={openBusy}
+                    aria-busy={isOpening || undefined}
                     className={cn(
-                      "focus-visible:ring-ring flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-wait disabled:opacity-60",
-                      isSelected
-                        ? "bg-primary/10 hover:bg-primary/15"
-                        : "hover:bg-accent",
+                      // 勿加 overflow-hidden，否则会裁掉右侧圆角（看起来左右不一致）
+                      "focus-visible:ring-ring flex w-full min-w-0 items-center gap-3 rounded-md px-3 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none",
+                      isOpening
+                        ? "bg-accent"
+                        : isSelected
+                          ? "bg-accent hover:bg-accent"
+                          : "hover:bg-accent/60",
+                      // 仅弱化其它行，当前打开行保持清晰
+                      openBusy && !isOpening && "pointer-events-none opacity-50",
+                      isOpening && "cursor-wait",
                     )}
-                    onClick={() => setSelectedId(project.id)}
-                    onDoubleClick={() => {
-                      if (!openingId) {
-                        void handleOpenProject(project.id);
+                    onClick={() => {
+                      if (!openBusy) {
+                        setSelectedId(project.id);
                       }
+                    }}
+                    onDoubleClick={() => {
+                      handleOpenProject(project.id);
                     }}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter" && isSelected && !openingId) {
+                      if (event.key === "Enter" && isSelected) {
                         event.preventDefault();
-                        void handleOpenProject(project.id);
+                        handleOpenProject(project.id);
                       }
                     }}
-                    disabled={Boolean(openingId)}
                   >
-                    <span className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
-                      <FolderGit2 className="size-4" aria-hidden="true" />
+                    <span
+                      className={cn(
+                        "text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-md",
+                        isOpening ? "bg-primary/10 text-primary" : "bg-muted",
+                      )}
+                    >
+                      {isOpening ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <FolderGit2 className="size-4" aria-hidden="true" />
+                      )}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{project.name}</span>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-sm font-medium">{project.name}</span>
+                        {isOpening ? (
+                          <span className="text-muted-foreground shrink-0 text-xs">
+                            {t("repo.opening")}
+                          </span>
+                        ) : null}
+                      </span>
                       <span className="text-muted-foreground mt-0.5 block truncate text-xs">
                         {project.path}
                       </span>
-                    </span>
-                    <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-                      {isOpening
-                        ? t("common.loading")
-                        : (openedAt ?? t("dashboard.recentOpenedUnknown"))}
                     </span>
                   </button>
                 </li>

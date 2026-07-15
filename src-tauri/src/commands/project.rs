@@ -3,7 +3,7 @@ use sqlx::SqlitePool;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 
-use crate::db::{self, ProjectRow, RecentProjectItem};
+use crate::db::{self, ProjectRow, RecentProjectItem, WorkspaceRow};
 use crate::error::AppError;
 
 #[derive(Serialize)]
@@ -35,6 +35,8 @@ pub struct PickDirectoryResult {
 pub struct RecentListResult {
     items: Vec<RecentProjectItem>,
 }
+#[derive(Serialize)] #[serde(rename_all = "camelCase")] pub struct WorkspaceListResult { workspaces: Vec<WorkspaceRow> }
+#[derive(Serialize)] #[serde(rename_all = "camelCase")] pub struct WorkspaceResult { workspace: WorkspaceRow }
 
 #[tauri::command]
 pub async fn project_list(
@@ -83,11 +85,15 @@ pub async fn project_update(
     pool: State<'_, SqlitePool>,
     id: String,
     name: Option<String>,
+    workspace_id: Option<Option<String>>,
 ) -> Result<ProjectResult, AppError> {
-    let project = db::update_project(&pool, &id, name).await?;
+    let project = db::update_project(&pool, &id, name, workspace_id).await?;
 
     Ok(ProjectResult { project })
 }
+#[tauri::command] pub async fn workspace_list(pool: State<'_, SqlitePool>) -> Result<WorkspaceListResult, AppError> { Ok(WorkspaceListResult { workspaces: db::list_workspaces(&pool).await? }) }
+#[tauri::command] pub async fn workspace_create(pool: State<'_, SqlitePool>, name: String) -> Result<WorkspaceResult, AppError> { Ok(WorkspaceResult { workspace: db::create_workspace(&pool, name).await? }) }
+#[tauri::command] pub async fn workspace_delete(pool: State<'_, SqlitePool>, id: String) -> Result<OkResult, AppError> { db::delete_workspace(&pool, &id).await?; Ok(OkResult { ok: true }) }
 
 #[tauri::command]
 pub async fn project_pick_directory(app: AppHandle) -> Result<PickDirectoryResult, AppError> {

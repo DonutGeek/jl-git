@@ -61,7 +61,11 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     conversations[0] ??
     null;
   const messages = activeConversation?.messages ?? EMPTY_MESSAGES;
-  const branchMentionData = branches.map((branch) => ({ id: branch.name, display: branch.name }));
+  const branchMentionData = branches.map((branch) => ({
+    id: branch.name,
+    display: branch.name,
+    isRemote: branch.isRemote,
+  }));
 
   function handleCompareBranches(action: CompareBranchesAction): void {
     const branchNames = new Set(branches.map((branch) => branch.name));

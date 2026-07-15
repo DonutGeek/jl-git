@@ -69,7 +69,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
   const navigate = useNavigate();
 
   const projects = useProjectStore((state) => state.projects);
-  const openTab = useOpenTabsStore((state) => state.openTab);
+  const openRepositoryTab = useOpenTabsStore((state) => state.openRepositoryTab);
 
   const status = useRepoStore((state) => state.status);
   const branches = useRepoStore((state) => state.branches);
@@ -137,7 +137,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
       return;
     }
     // 先导航立刻切换标签高亮；数据加载由 RepoPage 完成
-    openTab(next.id);
+    openRepositoryTab(next.id);
     navigate(`/repo/${next.id}`);
   }
 

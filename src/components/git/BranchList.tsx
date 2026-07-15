@@ -18,6 +18,7 @@ import {
   type BranchContextActions,
 } from "@/components/git/BranchTree";
 import { CreateBranchDialog } from "@/components/git/CreateBranchDialog";
+import { MergeBranchDialog } from "@/components/git/MergeBranchDialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,7 +41,7 @@ import { useProjectStore } from "@/store/useProjectStore";
 import { openBranchCompareWindow } from "@/services/window/branchCompareWindow";
 
 import { toUserMessage } from "@/types/error";
-import { GitBranch } from "@/types/git";
+import { GitBranch, GitMergeOptions } from "@/types/git";
 import { copyToClipboard } from "@/utils/clipboard";
 import { buildBranchTree } from "@/utils/branchTree";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
@@ -57,6 +58,7 @@ export function BranchList() {
   const pushRemote = useRepoStore((state) => state.push);
   const deleteBranch = useRepoStore((state) => state.deleteBranch);
   const renameBranch = useRepoStore((state) => state.renameBranch);
+  const mergeBranch = useRepoStore((state) => state.merge);
   const projectId = useProjectStore((state) => state.current?.id);
 
   const [checkingOutName, setCheckingOutName] = useState<string | null>(null);
@@ -75,6 +77,9 @@ export function BranchList() {
   const [deleteTarget, setDeleteTarget] = useState<GitBranch | null>(null);
   const [deleteRemoteAlso, setDeleteRemoteAlso] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const [mergeTarget, setMergeTarget] = useState<GitBranch | null>(null);
+  const [mergeBusy, setMergeBusy] = useState(false);
 
   const filterLower = filter.trim().toLowerCase();
 
@@ -97,6 +102,7 @@ export function BranchList() {
   const localTree = useMemo(() => buildBranchTree(localBranches), [localBranches]);
   const remoteTree = useMemo(() => buildBranchTree(remoteBranches), [remoteBranches]);
   const aheadCount = status?.ahead ?? 0;
+  const currentBranch = status?.branch ?? branches.find((item) => item.isCurrent)?.name ?? null;
 
   function toggleCollapse(key: string): void {
     setCollapsedPaths((prev) => {
@@ -223,6 +229,39 @@ export function BranchList() {
     setDeleteBusy(false);
   }
 
+  function openMerge(branch: GitBranch): void {
+    if (!currentBranch || branch.name === currentBranch || mergeBusy) {
+      return;
+    }
+    setMergeTarget(branch);
+  }
+
+  async function confirmMerge(options: GitMergeOptions): Promise<void> {
+    if (!mergeTarget || !currentBranch || mergeBusy) {
+      return;
+    }
+
+    const source = mergeTarget.name;
+    const target = currentBranch;
+    setMergeBusy(true);
+
+    try {
+      const result = await mergeBranch(source, options);
+      if (result.conflict) {
+        toast.error(t("repo.mergeConflict"));
+      } else if (result.ok) {
+        toast.success(t("repo.mergeSuccess", { source, target }));
+      } else {
+        toast.error(t("repo.mergeFailed"));
+      }
+      setMergeTarget(null);
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setMergeBusy(false);
+    }
+  }
+
   const deleteHasRemote = useMemo(() => {
     if (!deleteTarget || deleteTarget.isRemote) {
       return false;
@@ -279,7 +318,7 @@ export function BranchList() {
 
   function handleCompareWithCurrent(branch: GitBranch): void {
     const currentBranch = status?.branch ?? branches.find((item) => item.isCurrent)?.name;
-    if (!projectId || !currentBranch || currentBranch === branch.name) {
+    if (!projectId || !currentBranch) {
       return;
     }
     void openBranchCompareWindow({
@@ -300,10 +339,12 @@ export function BranchList() {
     onRename: openRename,
     onCopyName: (branch) => void handleCopyName(branch),
     onCompareWithCurrent: handleCompareWithCurrent,
-    canCompareWithCurrent: (branch) => {
+    canCompareWithCurrent: () => {
       const currentBranch = status?.branch ?? branches.find((item) => item.isCurrent)?.name;
-      return Boolean(projectId && currentBranch && currentBranch !== branch.name);
+      return Boolean(projectId && currentBranch);
     },
+    onMergeIntoCurrent: openMerge,
+    canMergeIntoCurrent: (branch) => Boolean(currentBranch && currentBranch !== branch.name),
     onDelete: openDelete,
   };
 
@@ -475,6 +516,19 @@ export function BranchList() {
       </ScrollArea>
 
       <CreateBranchDialog open={createOpen} onOpenChange={setCreateOpen} />
+
+      <MergeBranchDialog
+        open={Boolean(mergeTarget)}
+        source={mergeTarget?.name ?? null}
+        target={currentBranch}
+        busy={mergeBusy}
+        onOpenChange={(open) => {
+          if (!open && !mergeBusy) {
+            setMergeTarget(null);
+          }
+        }}
+        onConfirm={(options) => void confirmMerge(options)}
+      />
 
       <Dialog
         open={Boolean(renameTarget)}

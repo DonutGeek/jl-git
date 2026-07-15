@@ -14,6 +14,17 @@ export interface RecentItem {
   openedAt: string;
 }
 
+export interface Workspace {
+  id: string;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceListResult { workspaces: Workspace[]; }
+export interface WorkspaceResult { workspace: Workspace; }
+
 export interface ProjectListResult {
   projects: Project[];
 }

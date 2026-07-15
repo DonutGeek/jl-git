@@ -12,6 +12,7 @@ use crate::git::runner;
 pub(crate) const DEFAULT_MAX_BYTES: usize = 1_048_576;
 const DEFAULT_ENCODING: &str = "utf-8";
 const DEFAULT_STAGED_CONTEXT_MAX_BYTES: usize = 65_536;
+const BINARY_HEX_PREVIEW_BYTES: usize = 4_096;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,6 +22,19 @@ pub struct GitDiffResult {
     pub patch: String,
     pub binary: bool,
     pub truncated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary_comparison: Option<GitBinaryComparison>,
+}
+
+/// 二进制文件的受限比较摘要，不向前端传输完整二进制内容。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitBinaryComparison {
+    pub old_size: Option<usize>,
+    pub new_size: Option<usize>,
+    pub first_difference_offset: Option<usize>,
+    pub old_preview: Option<String>,
+    pub new_preview: Option<String>,
 }
 
 /// 供 AI 辅助生成提交文案使用的暂存区 Diff 上下文。
@@ -91,11 +105,15 @@ pub fn get_diff(
     if binary {
         let patch = read_patch(repo_path, file_path, staged, limit)?;
         return Ok(GitDiffResult {
-            old_text: String::new(),
-            new_text: String::new(),
+            old_text: binary_to_hex_text(old_raw.as_deref()),
+            new_text: binary_to_hex_text(new_raw.as_deref()),
             patch: patch.text,
             binary: true,
             truncated: patch.truncated,
+            binary_comparison: Some(summarize_binary_diff(
+                old_raw.as_deref(),
+                new_raw.as_deref(),
+            )),
         });
     }
 
@@ -109,6 +127,7 @@ pub fn get_diff(
         patch: patch.text,
         binary: false,
         truncated: old_trunc || new_trunc || patch.truncated,
+        binary_comparison: None,
     })
 }
 
@@ -147,11 +166,15 @@ pub fn get_commit_file_diff(
     if binary {
         let patch = read_commit_patch(repo_path, file_path, commit_rev, parent_rev, limit)?;
         return Ok(GitDiffResult {
-            old_text: String::new(),
-            new_text: String::new(),
+            old_text: binary_to_hex_text(old_raw.as_deref()),
+            new_text: binary_to_hex_text(new_raw.as_deref()),
             patch: patch.text,
             binary: true,
             truncated: patch.truncated,
+            binary_comparison: Some(summarize_binary_diff(
+                old_raw.as_deref(),
+                new_raw.as_deref(),
+            )),
         });
     }
 
@@ -165,6 +188,7 @@ pub fn get_commit_file_diff(
         patch: patch.text,
         binary: false,
         truncated: old_trunc || new_trunc || patch.truncated,
+        binary_comparison: None,
     })
 }
 
@@ -243,13 +267,7 @@ fn diff_untracked(repo_path: &Path, abs_file: &Path, limit: usize) -> Result<Pat
     let null_device = if cfg!(windows) { "NUL" } else { "/dev/null" };
     let abs_str = abs_file.to_string_lossy();
     let output = Command::new("git")
-        .args([
-            "diff",
-            "--no-index",
-            "--",
-            null_device,
-            abs_str.as_ref(),
-        ])
+        .args(["diff", "--no-index", "--", null_device, abs_str.as_ref()])
         .current_dir(repo_path)
         .env("GIT_TERMINAL_PROMPT", "0")
         .output()
@@ -316,6 +334,69 @@ pub(crate) fn looks_binary(data: Option<&[u8]>) -> bool {
     non_text * 100 > sample.len() * 10
 }
 
+pub(crate) fn summarize_binary_diff(old: Option<&[u8]>, new: Option<&[u8]>) -> GitBinaryComparison {
+    let first_difference_offset = match (old, new) {
+        (Some(old), Some(new)) => old
+            .iter()
+            .zip(new.iter())
+            .position(|(left, right)| left != right)
+            .or_else(|| (old.len() != new.len()).then_some(old.len().min(new.len()))),
+        (None, Some(_)) | (Some(_), None) => Some(0),
+        (None, None) => None,
+    };
+
+    GitBinaryComparison {
+        old_size: old.map(|data| data.len()),
+        new_size: new.map(|data| data.len()),
+        first_difference_offset,
+        old_preview: old.map(binary_preview),
+        new_preview: new.map(binary_preview),
+    }
+}
+
+fn binary_preview(data: &[u8]) -> String {
+    const PREVIEW_BYTES: usize = 32;
+    data.iter()
+        .take(PREVIEW_BYTES)
+        .map(|byte| format!("{byte:02X}"))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// 二进制文件转为受限十六进制文本，供 Monaco 以普通 Diff 方式对比。
+pub(crate) fn binary_to_hex_text(data: Option<&[u8]>) -> String {
+    let Some(data) = data else {
+        return String::new();
+    };
+    let visible = &data[..data.len().min(BINARY_HEX_PREVIEW_BYTES)];
+    let mut text = String::new();
+
+    for (line, chunk) in visible.chunks(16).enumerate() {
+        let offset = line * 16;
+        let bytes = chunk
+            .iter()
+            .map(|byte| format!("{byte:02X}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let ascii = chunk
+            .iter()
+            .map(|byte| {
+                if byte.is_ascii_graphic() || *byte == b' ' {
+                    char::from(*byte)
+                } else {
+                    '.'
+                }
+            })
+            .collect::<String>();
+        text.push_str(&format!("{offset:08X}  {bytes:<47}  |{ascii}|\n"));
+    }
+
+    if data.len() > visible.len() {
+        text.push_str(&format!("… truncated after {} bytes\n", visible.len()));
+    }
+    text
+}
+
 /// 将前端编码 id 映射到 encoding_rs（BOM 变体与无 BOM 共用解码器）
 fn resolve_encoding(encoding_id: &str) -> &'static Encoding {
     match encoding_id {
@@ -335,7 +416,11 @@ fn resolve_encoding(encoding_id: &str) -> &'static Encoding {
 
 pub(crate) fn bytes_to_text(bytes: Vec<u8>, limit: usize, encoding_id: &str) -> (String, bool) {
     let truncated = bytes.len() > limit;
-    let slice = if truncated { &bytes[..limit] } else { &bytes[..] };
+    let slice = if truncated {
+        &bytes[..limit]
+    } else {
+        &bytes[..]
+    };
     let encoding = resolve_encoding(encoding_id);
     let (cow, _enc_used, _had_errors) = encoding.decode(slice);
     (cow.into_owned(), truncated)
@@ -349,6 +434,26 @@ mod tests {
     fn detects_null_as_binary() {
         assert!(looks_binary(Some(b"a\0b")));
         assert!(!looks_binary(Some(b"hello\nworld")));
+    }
+
+    #[test]
+    fn summarizes_binary_difference_without_returning_full_content() {
+        let summary = summarize_binary_diff(Some(&[0x10, 0x20, 0x30]), Some(&[0x10, 0x99]));
+
+        assert_eq!(summary.old_size, Some(3));
+        assert_eq!(summary.new_size, Some(2));
+        assert_eq!(summary.first_difference_offset, Some(1));
+        assert_eq!(summary.old_preview.as_deref(), Some("10 20 30"));
+        assert_eq!(summary.new_preview.as_deref(), Some("10 99"));
+    }
+
+    #[test]
+    fn formats_binary_content_as_bounded_hex_lines() {
+        assert_eq!(
+            binary_to_hex_text(Some(&[0x41, 0x00, 0x20])),
+            "00000000  41 00 20                                         |A. |\n"
+        );
+        assert!(binary_to_hex_text(None).is_empty());
     }
 
     #[test]

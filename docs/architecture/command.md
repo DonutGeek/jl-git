@@ -459,11 +459,13 @@ interface GitBranch {
 
 | 命令 | 输入 | 输出 |
 |------|------|------|
-| `git_merge` | `{ path; ref: string; noFf?: boolean }` | `{ ok: true }` 或冲突信息结构 |
+| `git_merge` | `{ path; ref: string; mode?: "default" \| "noFf" \| "squash" \| "resolve" \| "ort" \| "noCommit"; autostash?: boolean }` | `{ ok: true; conflict: false }` 或 `{ ok: false; conflict: true }` |
 | `git_rebase` | `{ path; upstream: string }` | 同上 |
 | `git_cherry_pick` | `{ path; revs: string[] }` | 同上 |
 
 冲突时不要伪造成功；返回明确冲突状态供 UI。
+
+`mode` 映射为 Git 默认行为、`--no-ff`、`--squash`、`-s resolve`、`-s ort` 或 `--no-commit`。`autostash=true` 映射为 `--autostash`，但压缩合并必须忽略该选项。冲突时保留 Git 工作区状态，不自动执行 `git merge --abort`。
 
 ### `git_tag_create` / `git_tag_delete`
 

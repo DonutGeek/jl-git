@@ -16,6 +16,7 @@ const router = createBrowserRouter(
       <Route path="branch-compare" element={<BranchComparePage />} />
       <Route element={<AppLayout />}>
         <Route index element={<DashboardPage />} />
+        <Route path="tab/:tabId" element={<DashboardPage />} />
         <Route path="repo/:projectId" element={<RepoPage />} />
       </Route>
     </>,

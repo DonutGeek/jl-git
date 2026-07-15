@@ -29,6 +29,10 @@ pub struct RecentProjectItem {
     pub opened_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceRow { pub id: String, pub name: String, pub sort_order: i64, pub created_at: String, pub updated_at: String }
+
 // Rust 命令直接管理 sqlx 连接池，插件仍注册给未来前端 SQL 能力使用。
 pub async fn connect(db_path: &Path) -> Result<SqlitePool, AppError> {
     let options = SqliteConnectOptions::new()
@@ -61,6 +65,14 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
           path TEXT NOT NULL UNIQUE,
           last_opened_at TEXT NULL,
           pinned INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS workspaces (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          sort_order INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
@@ -180,28 +192,24 @@ pub async fn remove_project(pool: &SqlitePool, id: &str) -> Result<(), AppError>
 pub async fn update_project(
     pool: &SqlitePool,
     id: &str,
-    name: Option<String>,
+    name: Option<String>, workspace_id: Option<Option<String>>,
 ) -> Result<ProjectRow, AppError> {
     if id.trim().is_empty() {
         return Err(AppError::new("VALIDATION", "项目 ID 不能为空"));
     }
 
-    let Some(name) = name.map(|value| value.trim().to_string()).filter(|value| !value.is_empty())
-    else {
-        return Err(AppError::new("VALIDATION", "别名不能为空"));
-    };
+    let name = name.map(|value| value.trim().to_string()).filter(|value| !value.is_empty());
+    if name.is_none() && workspace_id.is_none() { return Err(AppError::new("VALIDATION", "没有可更新的项目字段")); }
 
     let timestamp = now();
     let result = sqlx::query(
         r#"
         UPDATE projects
-        SET name = ?1, updated_at = ?2
+        SET name = COALESCE(?1, name), workspace_id = CASE WHEN ?2 THEN ?3 ELSE workspace_id END, updated_at = ?4
         WHERE id = ?3
         "#,
     )
-    .bind(&name)
-    .bind(&timestamp)
-    .bind(id)
+    .bind(&name).bind(workspace_id.is_some()).bind(workspace_id.flatten()).bind(&timestamp).bind(id)
     .execute(pool)
     .await
     .map_err(to_db_error)?;
@@ -212,6 +220,12 @@ pub async fn update_project(
 
     get_project_by_id(pool, id).await
 }
+
+pub async fn list_workspaces(pool: &SqlitePool) -> Result<Vec<WorkspaceRow>, AppError> { sqlx::query("SELECT id, name, sort_order, created_at, updated_at FROM workspaces ORDER BY sort_order, name COLLATE NOCASE").fetch_all(pool).await.map_err(to_db_error)?.into_iter().map(row_to_workspace).collect() }
+pub async fn create_workspace(pool: &SqlitePool, name: String) -> Result<WorkspaceRow, AppError> { let name=name.trim().to_string(); if name.is_empty(){return Err(AppError::new("VALIDATION","分组名称不能为空"));} let id=uuid::Uuid::new_v4().to_string(); let time=now(); sqlx::query("INSERT INTO workspaces (id,name,sort_order,created_at,updated_at) VALUES (?1,?2,0,?3,?3)").bind(&id).bind(name).bind(time).execute(pool).await.map_err(to_db_error)?; get_workspace(pool,&id).await }
+pub async fn delete_workspace(pool: &SqlitePool, id: &str) -> Result<(), AppError> { let mut tx=pool.begin().await.map_err(to_db_error)?; let result=sqlx::query("UPDATE projects SET workspace_id = NULL WHERE workspace_id = ?1").bind(id).execute(&mut *tx).await.map_err(to_db_error)?; let _=result; let deleted=sqlx::query("DELETE FROM workspaces WHERE id = ?1").bind(id).execute(&mut *tx).await.map_err(to_db_error)?; if deleted.rows_affected()==0{return Err(AppError::new("NOT_FOUND","分组不存在"));} tx.commit().await.map_err(to_db_error)?; Ok(()) }
+async fn get_workspace(pool:&SqlitePool,id:&str)->Result<WorkspaceRow,AppError>{let row=sqlx::query("SELECT id,name,sort_order,created_at,updated_at FROM workspaces WHERE id=?1").bind(id).fetch_one(pool).await.map_err(to_db_error)?;row_to_workspace(row)}
+fn row_to_workspace(row:sqlx::sqlite::SqliteRow)->Result<WorkspaceRow,AppError>{Ok(WorkspaceRow{id:row.try_get("id").map_err(to_db_error)?,name:row.try_get("name").map_err(to_db_error)?,sort_order:row.try_get("sort_order").map_err(to_db_error)?,created_at:row.try_get("created_at").map_err(to_db_error)?,updated_at:row.try_get("updated_at").map_err(to_db_error)?})}
 
 pub async fn touch_opened(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
     if id.trim().is_empty() {

@@ -39,10 +39,12 @@ export async function remove(id: string): Promise<void> {
 export async function update(input: {
   id: string;
   name?: string;
+  workspaceId?: string | null;
 }): Promise<Project> {
   const result = await invokeCommand<ProjectResult>("project_update", {
     id: input.id,
     name: input.name,
+    workspaceId: input.workspaceId,
   });
 
   return result.project;
