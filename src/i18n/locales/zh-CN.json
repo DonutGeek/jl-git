@@ -267,6 +267,7 @@
     "branches": "分支",
     "tags": "标签",
     "tagsEmpty": "暂无标签",
+    "tagsEmptyDescription": "创建标签以标记重要版本",
     "tagsNoMatch": "无匹配标签",
     "newTag": "新建标签",
     "createTagTitle": "创建标签",

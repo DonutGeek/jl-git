@@ -267,6 +267,7 @@
     "branches": "Branches",
     "tags": "Tags",
     "tagsEmpty": "No tags",
+    "tagsEmptyDescription": "Create a tag to mark an important version",
     "tagsNoMatch": "No matching tags",
     "newTag": "New tag",
     "createTagTitle": "Create tag",
