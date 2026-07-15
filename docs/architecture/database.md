@@ -19,6 +19,7 @@ JLGit 使用 SQLite（`tauri-plugin-sql`，库名 `sqlite:jlgit.db`）存储**�
 
 ```mermaid
 erDiagram
+  workspaces ||--o{ workspaces : parent
   workspaces ||--o{ projects : contains
   projects ||--o{ favorites : "may be"
   projects ||--o{ recent_projects : "may be"
@@ -37,6 +38,7 @@ erDiagram
 | 列 | 类型 | 说明 |
 |----|------|------|
 | `id` | TEXT PK | UUID |
+| `parent_id` | TEXT NULL | 父分组 ID；NULL 表示根分组 |
 | `name` | TEXT NOT NULL | 显示名 |
 | `sort_order` | INTEGER NOT NULL DEFAULT 0 | 排序 |
 | `created_at` | TEXT NOT NULL | ISO-8601 |

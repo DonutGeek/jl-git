@@ -92,8 +92,8 @@ interface RecentItem {
 | 方法 | Command |
 |------|---------|
 | `list()` | `workspace_list` |
-| `create(name)` | `workspace_create` |
-| `update({ id, name?, sortOrder? })` | `workspace_update` |
+| `create(name, parentId?)` | `workspace_create` |
+| `update({ id, name?, parentId?, icon?, color? })` | `workspace_update` |
 | `remove(id)` | `workspace_delete` |
 
 ---

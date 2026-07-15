@@ -113,7 +113,7 @@ interface AppError {
 |------|------|------|------|------|
 | `workspace_list` | 列出工作区 | `{}` | `{ workspaces: WorkspaceRow[] }` | `DB_ERROR` |
 | `workspace_create` | 创建 | `{ name: string }` | `{ workspace: WorkspaceRow }` | `VALIDATION` `DB_ERROR` |
-| `workspace_update` | 改名/排序 | `{ id; name?; sortOrder? }` | `{ workspace }` | `NOT_FOUND` `DB_ERROR` |
+| `workspace_update` | 改名/上级/图标/颜色 | `{ id; name?; parentId?; icon?; color? }` | `{ workspace }` | `NOT_FOUND` `VALIDATION` `DB_ERROR` |
 | `workspace_delete` | 删除（项目 workspace_id 置空） | `{ id }` | `{ ok: true }` | `NOT_FOUND` `DB_ERROR` |
 
 ### `favorite_set` / `favorite_list`

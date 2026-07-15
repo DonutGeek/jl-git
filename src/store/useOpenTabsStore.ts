@@ -8,6 +8,9 @@ export type OpenTab =
 interface OpenTabsState {
   /** 当前会话打开的标签（按打开顺序） */
   tabs: OpenTab[];
+  /** 点击后立刻高亮的标签，路由落地后清除 */
+  pendingActiveId: string | null;
+  setPendingActiveId: (id: string | null) => void;
   /** 新建仓库选择标签并返回其唯一标识 */
   openNewTab: () => string;
   /** 打开仓库标签；同一仓库只保留一个标签 */
@@ -83,6 +86,11 @@ export const useOpenTabsStore = create<OpenTabsState>()(
   persist(
     (set, get) => ({
       tabs: [],
+      pendingActiveId: null,
+
+      setPendingActiveId(id) {
+        set({ pendingActiveId: id });
+      },
 
       openNewTab() {
         const existing = get().tabs.find((tab) => tab.type === "new-tab");

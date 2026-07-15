@@ -1,11 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ActivityBar, type SidebarView } from "@/components/layout/ActivityBar";
-import { RepoTabBar } from "@/components/layout/RepoTabBar";
 import { RepoToolbar, type RepoMainView } from "@/components/layout/RepoToolbar";
 import { SplitPane } from "@/components/layout/SplitPane";
 import { BranchList } from "@/components/git/BranchList";
@@ -21,9 +20,8 @@ import { HistoryList } from "@/components/git/HistoryList";
 import { WorkspaceBrowser } from "@/components/git/WorkspaceBrowser";
 import { cn } from "@/lib/utils";
 
-import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { useProjectStore } from "@/store/useProjectStore";
-import { hasRepoSession, useRepoStore } from "@/store/useRepoStore";
+import { hasRepoSession, restoreRepoSession, beginRepoSwitch, useRepoStore } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
 import { Project } from "@/types/project";
@@ -39,6 +37,14 @@ const HISTORY_DETAIL_PANE_ATTR = "data-history-detail-pane";
 /** SplitPane 水平分隔条为 w-1.5（6px）；弹层右缘让出，露出拖拽线 */
 const HISTORY_SPLIT_SEPARATOR_PX = 6;
 
+/** 从 store 同步取项目元数据（轻量，不含 Git 会话还原） */
+function lookupProject(projectId: string | undefined): Project | null {
+  if (!projectId) {
+    return null;
+  }
+  return useProjectStore.getState().findById(projectId) ?? null;
+}
+
 // 清理历史分栏旧 key，避免读到过期比例
 try {
   for (const key of Object.keys(localStorage)) {
@@ -50,24 +56,28 @@ try {
   // ignore
 }
 
-export function RepoPage() {
-  const { projectId } = useParams<{ projectId: string }>();
+interface RepoPageProps {
+  projectId: string;
+  /** 为 false 时保活隐藏：不请求、不抢 focus 刷新 */
+  active: boolean;
+}
+
+export function RepoPage({ projectId, active }: RepoPageProps) {
   const { t } = useTranslation();
 
   const findById = useProjectStore((state) => state.findById);
   const loadProjects = useProjectStore((state) => state.loadProjects);
   const openExisting = useProjectStore((state) => state.openExisting);
-  const openRepositoryTab = useOpenTabsStore((state) => state.openRepositoryTab);
-
   const loadAll = useRepoStore((state) => state.loadAll);
   const refreshStatus = useRepoStore((state) => state.refreshStatus);
   const reset = useRepoStore((state) => state.reset);
   const selectedCommitFile = useRepoStore((state) => state.selectedCommitFile);
 
-  const [project, setProject] = useState<Project | null>(null);
-  const [bootstrapping, setBootstrapping] = useState(true);
-  const [switching, setSwitching] = useState(false);
+  const [project, setProject] = useState<Project | null>(() => lookupProject(projectId));
+  const [bootstrapping, setBootstrapping] = useState(() => !lookupProject(projectId));
   const [error, setError] = useState<string | null>(null);
+  /** 跟踪 props id，在 render 阶段只换轻量壳 */
+  const [routeProjectId, setRouteProjectId] = useState(projectId);
   const [sidebarView, setSidebarView] = useState<SidebarView>("branches");
   const [mainView, setMainView] = useState<RepoMainView>("changes");
   /** 已访问过的主视图保活，避免来回切换反复挂载 */
@@ -81,11 +91,31 @@ export function RepoPage() {
   const mainAreaRef = useRef<HTMLDivElement>(null);
   const commitFileDiffOverlayRef = useRef<HTMLDivElement>(null);
 
+  // 换仓：本帧只换工具栏元数据，不碰 Git store（避免点击同步重渲）
+  if (projectId !== routeProjectId) {
+    setRouteProjectId(projectId);
+    const next = lookupProject(projectId);
+    setProject(next);
+    setBootstrapping(!next);
+    setError(null);
+  }
+
   useEffect(() => {
     return () => {
       reset();
     };
   }, [reset]);
+
+  // 绘制前轻量清空旧仓列表，避免「标签已是 B、列表还是 A」；比重灌缓存便宜得多
+  useLayoutEffect(() => {
+    if (!active) {
+      return;
+    }
+    const next = lookupProject(projectId);
+    if (next && useRepoStore.getState().repoPath !== next.path) {
+      beginRepoSwitch(next.path);
+    }
+  }, [active, projectId]);
 
   const showCommitFileDiff = mainView === "history" && Boolean(selectedCommitFile);
 
@@ -129,79 +159,83 @@ export function RepoPage() {
   }, [showCommitFileDiff]);
 
   useEffect(() => {
-    let active = true;
-
-    async function init(): Promise<void> {
-      if (!projectId) {
-        return;
-      }
-
-      const isFirstOpen = !project || project.id !== projectId;
-      setError(null);
-
-      // 同步切壳：标签已导航后立刻换项目壳，避免等 SQLite / Git 才反馈
-      const cached = findById(projectId);
-      const hasSession = Boolean(cached && hasRepoSession(cached.path));
-
-      if (cached && isFirstOpen) {
-        setProject(cached);
-        // 有会话缓存则不挡交互；仅冷开仓显示切换遮罩
-        setSwitching(!hasSession);
-        openRepositoryTab(cached.id);
-      } else if (!project) {
-        setBootstrapping(true);
-      } else if (isFirstOpen) {
-        setSwitching(true);
-      }
-
-      try {
-        let target = cached ?? findById(projectId);
-
-        if (!target) {
-          await loadProjects();
-          target = findById(projectId);
-        }
-
-        if (!target) {
-          throw new Error(t("repo.notFound"));
-        }
-
-        openRepositoryTab(target.id);
-        if (active) {
-          setProject(target);
-          setBootstrapping(false);
-        }
-
-        // 最近打开记录与 Git 数据并行；不阻塞标签切换
-        void openExisting(target.id).catch((touchError) => {
-          console.warn("[RepoPage] touchOpened failed", touchError);
-        });
-        await loadAll(target.path);
-
-        if (active) {
-          setSwitching(false);
-        }
-      } catch (initError) {
-        if (active) {
-          const message = toUserMessage(initError);
-          setError(message);
-          setBootstrapping(false);
-          setSwitching(false);
-          toast.error(message);
-        }
-      }
+    if (!active || !projectId) {
+      return;
     }
 
-    void init();
+    const id = projectId;
+    let cancelled = false;
+
+    // 等浏览器画出标签/工具栏后再灌会话与拉 Git，削掉点击卡点
+    const raf = window.requestAnimationFrame(() => {
+      void (async () => {
+        setError(null);
+
+        try {
+          let target = findById(id) ?? lookupProject(id);
+
+          if (!target) {
+            await loadProjects();
+            target = lookupProject(id);
+          }
+
+          if (!target) {
+            throw new Error(t("repo.notFound"));
+          }
+
+          if (cancelled) {
+            return;
+          }
+
+          // 每次重新激活都先尝试还原会话。
+          // 否则「同 path 但列表已被 beginRepoSwitch 清空」时会误判 alreadyShowing，
+          // 只刷 status → 分支一直空，还会把空列表写回缓存。
+          const cacheHit = hasRepoSession(target.path);
+          if (cacheHit) {
+            restoreRepoSession(target.path);
+          } else if (useRepoStore.getState().repoPath !== target.path) {
+            beginRepoSwitch(target.path);
+          }
+
+          setProject(target);
+          setBootstrapping(false);
+
+          void openExisting(target.id).catch((touchError) => {
+            console.warn("[RepoPage] touchOpened failed", touchError);
+          });
+
+          const hydrated = useRepoStore.getState();
+          const canSoftRefresh =
+            hydrated.repoPath === target.path && hydrated.branches.length > 0;
+
+          if (canSoftRefresh) {
+            void refreshStatus().catch((refreshError) => {
+              console.warn("[RepoPage] refreshStatus failed", refreshError);
+            });
+            return;
+          }
+
+          await loadAll(target.path);
+        } catch (initError) {
+          if (!cancelled) {
+            const message = toUserMessage(initError);
+            setError(message);
+            setBootstrapping(false);
+            toast.error(message);
+          }
+        }
+      })();
+    });
 
     return () => {
-      active = false;
+      cancelled = true;
+      window.cancelAnimationFrame(raf);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅随 projectId 切换
-  }, [projectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 随 projectId / active
+  }, [projectId, active]);
 
   useEffect(() => {
-    if (!project) {
+    if (!active || !project) {
       return;
     }
 
@@ -244,7 +278,7 @@ export function RepoPage() {
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [project, refreshStatus]);
+  }, [active, project, refreshStatus]);
 
   function handleMainViewChange(view: RepoMainView): void {
     setVisitedViews((prev) => {
@@ -261,7 +295,6 @@ export function RepoPage() {
   if (bootstrapping && !project) {
     return (
       <section className="flex h-full flex-col">
-        <RepoTabBar />
         <div className="flex flex-1 items-center justify-center">
           <p className="text-muted-foreground text-sm">{t("repo.opening")}</p>
         </div>
@@ -272,7 +305,6 @@ export function RepoPage() {
   if ((error && !project) || !project) {
     return (
       <section className="flex h-full flex-col">
-        <RepoTabBar />
         <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
           <p className="text-destructive text-sm" role="alert">
             {error ?? t("repo.notFound")}
@@ -389,7 +421,6 @@ export function RepoPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <RepoTabBar />
       <RepoToolbar
         project={project}
         mainView={mainView}
@@ -397,25 +428,7 @@ export function RepoPage() {
       />
 
       <div className="relative flex min-h-0 flex-1">
-        {switching ? (
-          <div
-            className="bg-background/40 absolute inset-0 z-20 flex items-start justify-center pt-8"
-            aria-busy="true"
-            aria-live="polite"
-          >
-            <p className="bg-background text-muted-foreground rounded-md border px-3 py-1.5 text-xs">
-              {t("common.loading")}
-            </p>
-          </div>
-        ) : null}
-
-        <div
-          ref={mainAreaRef}
-          className={cn(
-            "relative flex min-h-0 min-w-0 flex-1",
-            switching && "pointer-events-none opacity-60",
-          )}
-        >
+        <div ref={mainAreaRef} className="relative flex min-h-0 min-w-0 flex-1">
           <ActivityBar active={sidebarView} onChange={setSidebarView} />
 
           <SplitPane

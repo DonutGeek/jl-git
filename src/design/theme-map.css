@@ -31,6 +31,11 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-workspace-blue: var(--workspace-blue);
+  --color-workspace-green: var(--workspace-green);
+  --color-workspace-orange: var(--workspace-orange);
+  --color-workspace-purple: var(--workspace-purple);
+  --color-workspace-red: var(--workspace-red);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);

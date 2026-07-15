@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { projectService, workspaceService } from "@/services/project";
 
 import { toUserMessage } from "@/types/error";
-import { AddProjectInput, Project, RecentItem, Workspace } from "@/types/project";
+import { AddProjectInput, Project, ProjectOrderItem, RecentItem, Workspace, WorkspaceColor, WorkspaceIcon, WorkspaceOrderItem } from "@/types/project";
 
 interface ProjectStoreState {
   projects: Project[];
@@ -18,9 +18,17 @@ interface ProjectStoreActions {
   loadProjects: () => Promise<Project[]>;
   loadRecent: () => Promise<RecentItem[]>;
   loadWorkspaces: () => Promise<Workspace[]>;
-  createWorkspace: (name: string) => Promise<Workspace>;
+  createWorkspace: (name: string, parentId?: string, icon?: WorkspaceIcon, color?: WorkspaceColor) => Promise<Workspace>;
+  updateWorkspace: (input: {
+    id: string;
+    name?: string;
+    parentId?: string | null;
+    icon?: WorkspaceIcon;
+    color?: WorkspaceColor;
+  }) => Promise<Workspace>;
   removeWorkspace: (id: string) => Promise<void>;
   updateProject: (input: { id: string; name?: string; workspaceId?: string | null }) => Promise<Project>;
+  reorderGroupedItems: (input: { workspaces: WorkspaceOrderItem[]; projects: ProjectOrderItem[] }) => Promise<void>;
   setCurrent: (project: Project | null) => void;
   addAndOpen: (input: Pick<AddProjectInput, "path" | "name" | "workspaceId">) => Promise<Project>;
   openExisting: (id: string) => Promise<Project>;
@@ -78,9 +86,38 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   async loadWorkspaces() { const workspaces = await workspaceService.list(); set({ workspaces }); return workspaces; },
-  async createWorkspace(name) { const workspace = await workspaceService.create(name); set((state) => ({ workspaces: [...state.workspaces, workspace] })); return workspace; },
-  async removeWorkspace(id) { await workspaceService.remove(id); set((state) => ({ workspaces: state.workspaces.filter((item) => item.id !== id), projects: state.projects.map((project) => project.workspaceId === id ? { ...project, workspaceId: null } : project) })); },
+  async createWorkspace(name, parentId, icon, color) { const workspace = await workspaceService.create(name, parentId, icon, color); set((state) => ({ workspaces: [...state.workspaces, workspace] })); return workspace; },
+  async updateWorkspace(input) {
+    const workspace = await workspaceService.update(input);
+    set((state) => ({
+      workspaces: state.workspaces.map((item) => (item.id === workspace.id ? workspace : item)),
+    }));
+    return workspace;
+  },
+  async removeWorkspace(id) {
+    await workspaceService.remove(id);
+    set((state) => ({
+      workspaces: state.workspaces
+        .filter((item) => item.id !== id)
+        .map((item) => (item.parentId === id ? { ...item, parentId: null } : item)),
+      projects: state.projects.map((project) =>
+        project.workspaceId === id ? { ...project, workspaceId: null } : project,
+      ),
+    }));
+  },
   async updateProject(input) { const project = await projectService.update(input); set((state) => ({ projects: upsertProject(state.projects, project), current: state.current?.id === project.id ? project : state.current })); return project; },
+  async reorderGroupedItems(input) {
+    await workspaceService.reorder(input);
+    const workspaceOrder = new Map(input.workspaces.map((item) => [item.id, item.sortOrder]));
+    const projectOrder = new Map(input.projects.map((item) => [item.id, item]));
+    set((state) => ({
+      workspaces: state.workspaces.map((workspace) => ({ ...workspace, sortOrder: workspaceOrder.get(workspace.id) ?? workspace.sortOrder })),
+      projects: state.projects.map((project) => {
+        const order = projectOrder.get(project.id);
+        return order ? { ...project, workspaceId: order.workspaceId, sortOrder: order.sortOrder } : project;
+      }),
+    }));
+  },
 
   setCurrent(project) {
     set({ current: project });

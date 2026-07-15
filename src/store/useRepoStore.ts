@@ -84,15 +84,28 @@ function clearCommitDetailCache(): void {
 }
 
 function saveRepoSession(repoPath: string, state: RepoStoreState): void {
+  const existing = repoSessionCache.get(repoPath);
+  // 避免 refreshStatus 等局部刷新把空分支列表写回，污染切标签会话缓存
+  const branches =
+    state.branches.length > 0 || !existing?.branches.length
+      ? state.branches
+      : existing.branches;
+  const tags =
+    state.tags.length > 0 || !existing?.tags.length ? state.tags : existing.tags;
+  const commits =
+    state.commits.length > 0 || !existing?.commits.length
+      ? state.commits
+      : existing.commits;
+
   if (repoSessionCache.has(repoPath)) {
     repoSessionCache.delete(repoPath);
   }
   repoSessionCache.set(repoPath, {
     status: state.status,
     identity: state.identity,
-    branches: state.branches,
-    tags: state.tags,
-    commits: state.commits,
+    branches,
+    tags,
+    commits,
     hasMore: state.hasMore,
     logRef: state.logRef,
     commitMessage: state.commitMessage,
@@ -111,6 +124,61 @@ function saveRepoSession(repoPath: string, state: RepoStoreState): void {
 /** 是否已有该仓库的会话缓存（切标签可秒开） */
 export function hasRepoSession(repoPath: string): boolean {
   return repoSessionCache.has(repoPath);
+}
+
+/** 同步还原会话到 store；命中则返回 true（切标签首帧即可出数） */
+export function restoreRepoSession(repoPath: string): boolean {
+  const cached = repoSessionCache.get(repoPath);
+  if (!cached) {
+    return false;
+  }
+
+  useRepoStore.setState({
+    repoPath,
+    status: cached.status,
+    identity: cached.identity,
+    branches: cached.branches,
+    tags: cached.tags,
+    commits: cached.commits,
+    hasMore: cached.hasMore,
+    logRef: cached.logRef,
+    commitMessage: cached.commitMessage,
+    selectedCommitId: cached.selectedCommitId,
+    selectedCommitDetail: cached.selectedCommitId
+      ? (commitDetailCache.get(cached.selectedCommitId) ?? null)
+      : null,
+    detailLoading: false,
+    selectedChange: cached.selectedChange,
+    selectedCommitFile: null,
+    loading: true,
+    error: null,
+  });
+  return true;
+}
+
+/** 轻量切仓：只改路径并清空列表，避免同步灌入大缓存造成点击卡顿 */
+export function beginRepoSwitch(repoPath: string): void {
+  if (useRepoStore.getState().repoPath === repoPath) {
+    return;
+  }
+  useRepoStore.setState({
+    repoPath,
+    status: null,
+    identity: null,
+    branches: [],
+    tags: [],
+    commits: [],
+    hasMore: false,
+    logRef: null,
+    commitMessage: "",
+    selectedCommitId: null,
+    selectedCommitDetail: null,
+    detailLoading: false,
+    selectedChange: null,
+    selectedCommitFile: null,
+    loading: true,
+    error: null,
+  });
 }
 
 /** 已暂存：index 侧存在实际变更 */

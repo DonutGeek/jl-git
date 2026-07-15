@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "react-router-dom";
 import {
   CheckCircle2,
   Download,
@@ -52,6 +53,8 @@ function formatBytes(bytes: number): string {
 /** 应用底部状态栏：版本 | 语言 / 主题 / 磁盘 / 操作日志 / Git 身份 */
 export function StatusBar() {
   const { t } = useTranslation();
+  const { pathname } = useLocation();
+  const isNewTab = pathname.startsWith("/tab/");
   const mode = useThemeStore((state) => state.mode);
   const toggleDayNight = useThemeStore((state) => state.toggleDayNight);
   const locale = useLocaleStore((state) => state.locale);
@@ -256,7 +259,7 @@ export function StatusBar() {
           </TooltipContent>
         </Tooltip>
 
-        <Tooltip delayDuration={300}>
+        {!isNewTab ? <><Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <button
               type="button"
@@ -349,8 +352,8 @@ export function StatusBar() {
               />
             </div>
           </TooltipTrigger>
-          <TooltipContent>{identityLabel}</TooltipContent>
-        </Tooltip>
+        <TooltipContent>{identityLabel}</TooltipContent>
+        </Tooltip></> : null}
       </div>
     </footer>
   );

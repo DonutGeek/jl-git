@@ -16,6 +16,7 @@ export interface SelectMenuOption {
   label: string;
   /** 选项预览样式（如字体名） */
   style?: CSSProperties;
+  preview?: ReactNode;
 }
 
 interface SelectMenuProps {
@@ -94,6 +95,7 @@ export function SelectMenu({
                   style={option.style}
                   onSelect={() => onChange(option.value)}
                 >
+                  {option.preview ? <span className="shrink-0">{option.preview}</span> : null}
                   <span className="min-w-0 flex-1 truncate">{option.label}</span>
                   {selected ? (
                     <Check

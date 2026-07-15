@@ -1,37 +1,1118 @@
-import { useMemo, useState } from "react";
-import { ChevronDown, Folder, FolderOpen, FolderTree, History, Search } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { FormEvent, useMemo, useState, type ReactNode } from "react";
+import {
+  BriefcaseBusiness,
+  Box,
+  ChevronDown,
+  Code2,
+  Folder,
+  FolderGit2,
+  FolderOpen,
+  FolderTree,
+  History,
+  Layers3,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
+import {
+  closestCorners,
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { toast } from "sonner";
 
+import { SelectMenu } from "@/components/common/SelectMenu";
 import { RecentProjectList } from "@/components/project/RecentProjectList";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useProjectStore } from "@/store/useProjectStore";
 import { projectService } from "@/services/project";
+import { useProjectStore } from "@/store/useProjectStore";
+import { toUserMessage } from "@/types/error";
+import { Project, Workspace, WorkspaceColor, WorkspaceIcon } from "@/types/project";
+import { buildProjectOrderItems } from "@/utils/projectGroupOrder";
 
 interface ProjectManagerProps {
   onOpenProject: (projectId: string) => void;
-  openingProjectId?: string | null;
 }
+
 type View = "recent" | "open" | "groups";
 
+const WORKSPACE_COLOR_CLASS: Record<WorkspaceColor, string> = {
+  blue: "bg-workspace-blue",
+  green: "bg-workspace-green",
+  orange: "bg-workspace-orange",
+  purple: "bg-workspace-purple",
+  red: "bg-workspace-red",
+};
+
+/** workspace/project：可排序项；container：仅投放目标（如根「无分组」） */
+interface DragEntry {
+  type: "workspace" | "project" | "container";
+  workspaceId: string | null;
+  parentId: string | null;
+  label?: string;
+}
+
+function SortableGroupItem({
+  id,
+  entry,
+  acceptProjectDrop = false,
+  className,
+  children,
+}: {
+  id: string;
+  entry: DragEntry;
+  /** 分组行可作为项目投放目标 */
+  acceptProjectDrop?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({
+    id,
+    data: entry,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        className,
+        isDragging && "opacity-40",
+        acceptProjectDrop && isOver && !isDragging && "bg-primary/10 ring-primary/25 ring-1",
+      )}
+      {...attributes}
+      {...listeners}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** 根「无分组」投放区 */
+function RootDropZone({ children }: { children: ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: "drop-root",
+    data: { type: "container", workspaceId: null, parentId: null } satisfies DragEntry,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn("rounded-md", isOver && "bg-primary/10 ring-primary/25 ring-1")}
+    >
+      {children}
+    </div>
+  );
+}
+
+function getProjectName(path: string): string {
+  const normalizedPath = path.trim().replace(/[\\/]+$/, "");
+  const parts = normalizedPath.split(/[\\/]/);
+
+  return parts[parts.length - 1] ?? "";
+}
+
+function buildWorkspaceOptions(
+  workspaces: Workspace[],
+  excludeIds: Set<string> = new Set(),
+): Array<{ value: string; label: string }> {
+  const workspaceIds = new Set(workspaces.map((workspace) => workspace.id));
+
+  function visit(parentId: string | null, prefix: string): Array<{ value: string; label: string }> {
+    return workspaces
+      .filter((workspace) => workspace.parentId === parentId && !excludeIds.has(workspace.id))
+      .flatMap((workspace) => [
+        { value: workspace.id, label: `${prefix}${workspace.name}` },
+        ...visit(workspace.id, `${prefix}${workspace.name} / `),
+      ]);
+  }
+
+  const roots = workspaces.filter(
+    (workspace) =>
+      !excludeIds.has(workspace.id) &&
+      (workspace.parentId === null || !workspaceIds.has(workspace.parentId)),
+  );
+
+  return roots.flatMap((workspace) => [
+    { value: workspace.id, label: workspace.name },
+    ...visit(workspace.id, `${workspace.name} / `),
+  ]);
+}
+
+/** 编辑时排除自身及子孙，避免成环 */
+function collectWorkspaceSubtreeIds(workspaces: Workspace[], rootId: string): Set<string> {
+  const ids = new Set<string>([rootId]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const workspace of workspaces) {
+      if (workspace.parentId && ids.has(workspace.parentId) && !ids.has(workspace.id)) {
+        ids.add(workspace.id);
+        grew = true;
+      }
+    }
+  }
+  return ids;
+}
+
+/** 新标签页中的仓库管理入口。 */
 export function ProjectManager({
   onOpenProject,
-  openingProjectId = null,
 }: ProjectManagerProps) {
   const { t } = useTranslation();
   const [view, setView] = useState<View>("recent");
   const [filter, setFilter] = useState("");
   const [path, setPath] = useState("");
-  const [opening] = useState(false);
+  const [alias, setAlias] = useState("");
+  const [aliasEdited, setAliasEdited] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState("");
+  const [opening, setOpening] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [openError, setOpenError] = useState<string | null>(null);
+  const [groupDialog, setGroupDialog] = useState<{
+    mode: "create" | "edit";
+    workspaceId?: string;
+    parentId: string | null;
+  } | null>(null);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupIcon, setNewGroupIcon] = useState<WorkspaceIcon>("code");
+  const [newGroupColor, setNewGroupColor] = useState<WorkspaceColor>("blue");
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [groupError, setGroupError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [rootExpanded, setRootExpanded] = useState(true);
+  const [collapsedWorkspaceIds, setCollapsedWorkspaceIds] = useState<Set<string>>(new Set());
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [activeDrag, setActiveDrag] = useState<DragEntry | null>(null);
+
   const projects = useProjectStore((state) => state.projects);
   const workspaces = useProjectStore((state) => state.workspaces);
+  const addAndOpen = useProjectStore((state) => state.addAndOpen);
+  const createWorkspace = useProjectStore((state) => state.createWorkspace);
+  const updateWorkspace = useProjectStore((state) => state.updateWorkspace);
+  const removeWorkspace = useProjectStore((state) => state.removeWorkspace);
+  const reorderGroupedItems = useProjectStore((state) => state.reorderGroupedItems);
   const query = filter.trim().toLowerCase();
-  const visibleProjects = useMemo(() => query ? projects.filter((item) => item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query)) : projects, [projects, query]);
-  const nav = [{ id: "recent" as const, label: t("projectManager.recent"), icon: History }, { id: "open" as const, label: t("projectManager.open"), icon: FolderOpen }, { id: "groups" as const, label: t("projectManager.groups"), icon: FolderTree }];
-  async function pickPath(): Promise<void> { const selected = await projectService.pickDirectory(); if (selected) setPath(selected); }
-  const openBusy = Boolean(openingProjectId);
+  const visibleProjects = useMemo(
+    () => query
+      ? projects.filter((item) => item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query))
+      : projects,
+    [projects, query],
+  );
+  const nav = [
+    { id: "recent" as const, label: t("projectManager.recent"), icon: History },
+    { id: "open" as const, label: t("projectManager.open"), icon: FolderOpen },
+    { id: "groups" as const, label: t("projectManager.groups"), icon: FolderTree },
+  ];
+  const workspaceOptions = useMemo(
+    () => [{ value: "", label: t("projectManager.ungrouped") }, ...buildWorkspaceOptions(workspaces)],
+    [t, workspaces],
+  );
+  const rootWorkspaces = useMemo(
+    () => workspaces
+      .filter((workspace) => workspace.parentId === null || !workspaces.some((item) => item.id === workspace.parentId))
+      .sort((a, b) => a.sortOrder - b.sortOrder),
+    [workspaces],
+  );
+  const rootProjects = useMemo(
+    () => visibleProjects.filter((project) => project.workspaceId === null).sort((a, b) => a.sortOrder - b.sortOrder),
+    [visibleProjects],
+  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const dragging = activeDrag !== null;
 
-  return <div className="flex min-h-0 flex-1"><aside className="flex w-44 shrink-0 flex-col gap-1 p-3">{nav.map((item) => <Button key={item.id} variant="ghost" className={cn("justify-start gap-2", view === item.id && "bg-accent")} onClick={() => setView(item.id)} disabled={openBusy}><item.icon className="size-4" />{item.label}</Button>)}</aside><section className="min-w-0 flex-1 px-6 pt-3 pb-6">{view === "recent" && <RecentProjectList onOpenProject={onOpenProject} openingProjectId={openingProjectId} />}{view === "open" && <div className="max-w-2xl space-y-4"><div><label className="text-sm font-medium">{t("openRepo.pathLabel")}</label><div className="mt-2 flex gap-2"><Input value={path} onChange={(event) => setPath(event.target.value)} placeholder={t("openRepo.pathPlaceholder")} /><Button type="button" variant="outline" disabled={opening || openBusy} onClick={() => void pickPath()}><FolderOpen className="size-4" />{t("openRepo.pickButton")}</Button></div></div></div>}{view === "groups" && <div className="flex h-full max-w-4xl flex-col"><h2 className="mb-3 text-base font-semibold">{t("projectManager.groups")}</h2><label className="relative mb-3 block"><Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" /><Input value={filter} onChange={(event) => setFilter(event.target.value)} className="h-9 pl-8 text-sm" placeholder={t("repo.filter")} aria-label={t("repo.filter")} disabled={openBusy} /></label><ScrollArea className="border-border min-h-0 flex-1 rounded-md border"><div className="space-y-2 p-3"><div className="flex h-6 items-center gap-1.5 text-sm font-medium"><ChevronDown className="text-muted-foreground size-3.5" /><Folder className="text-muted-foreground size-4" />{t("projectManager.groups")}</div>{workspaces.map((workspace) => { const items = visibleProjects.filter((project) => project.workspaceId === workspace.id); return items.length ? <div key={workspace.id} className="ml-6"><div className="flex h-6 items-center gap-1.5 font-mono text-sm"><ChevronDown className="text-muted-foreground size-3.5" /><Folder className="text-muted-foreground size-4" />{workspace.name}</div>{items.map((project) => <button key={project.id} type="button" disabled={openBusy} className="hover:bg-accent ml-8 flex h-7 w-full cursor-pointer items-center gap-3 rounded px-1.5 text-left font-mono text-[13px] disabled:cursor-wait disabled:opacity-60" onDoubleClick={() => onOpenProject(project.id)}><span className="text-primary shrink-0">{project.name}</span><span className="text-muted-foreground truncate">{project.path}</span></button>)}</div> : null; })}</div></ScrollArea></div>}</section></div>;
+  function projectsInWorkspace(workspaceId: string | null): Project[] {
+    return projects
+      .filter((item) => item.workspaceId === workspaceId)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  }
+
+  async function persistProjectMove(groups: Array<{ workspaceId: string | null; projectIds: string[] }>): Promise<void> {
+    await reorderGroupedItems({
+      workspaces: [],
+      projects: buildProjectOrderItems(groups),
+    });
+  }
+
+  /** 将项目移到目标分组末尾（含移至无分组） */
+  async function moveProjectToWorkspace(
+    projectId: string,
+    fromWorkspaceId: string | null,
+    toWorkspaceId: string | null,
+  ): Promise<void> {
+    if (fromWorkspaceId === toWorkspaceId) {
+      return;
+    }
+    const source = projectsInWorkspace(fromWorkspaceId);
+    const target = projectsInWorkspace(toWorkspaceId);
+    if (!source.some((item) => item.id === projectId)) {
+      return;
+    }
+    await persistProjectMove([
+      { workspaceId: fromWorkspaceId, projectIds: source.filter((item) => item.id !== projectId).map((item) => item.id) },
+      { workspaceId: toWorkspaceId, projectIds: [...target.map((item) => item.id), projectId] },
+    ]);
+    if (toWorkspaceId) {
+      setCollapsedWorkspaceIds((current) => {
+        const next = new Set(current);
+        next.delete(toWorkspaceId);
+        return next;
+      });
+    }
+    setRootExpanded(true);
+  }
+
+  function handleGroupDragStart(event: DragStartEvent): void {
+    const entry = event.active.data.current as DragEntry | undefined;
+    setActiveDrag(entry ?? null);
+  }
+
+  async function handleGroupDragEnd(event: DragEndEvent): Promise<void> {
+    const active = event.active.data.current as DragEntry | undefined;
+    const over = event.over?.data.current as DragEntry | undefined;
+    setActiveDrag(null);
+
+    if (!active || !over || event.active.id === event.over?.id) {
+      return;
+    }
+
+    try {
+      // 同级分组排序
+      if (active.type === "workspace" && over.type === "workspace" && active.parentId === over.parentId) {
+        const siblings = workspaces
+          .filter((item) => item.parentId === active.parentId)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        const oldIndex = siblings.findIndex((item) => item.id === String(event.active.id).replace("workspace-", ""));
+        const newIndex = siblings.findIndex((item) => item.id === String(event.over?.id).replace("workspace-", ""));
+        if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
+          return;
+        }
+        await reorderGroupedItems({
+          workspaces: arrayMove(siblings, oldIndex, newIndex).map((item, sortOrder) => ({
+            id: item.id,
+            sortOrder,
+          })),
+          projects: [],
+        });
+        return;
+      }
+
+      if (active.type !== "project") {
+        return;
+      }
+
+      const activeId = String(event.active.id).replace("project-", "");
+
+      // 投放到分组行或根「无分组」容器
+      if (over.type === "workspace" || over.type === "container") {
+        await moveProjectToWorkspace(activeId, active.workspaceId, over.workspaceId);
+        return;
+      }
+
+      if (over.type !== "project") {
+        return;
+      }
+
+      const overId = String(event.over?.id).replace("project-", "");
+      const source = projectsInWorkspace(active.workspaceId);
+      const target =
+        active.workspaceId === over.workspaceId
+          ? source
+          : projectsInWorkspace(over.workspaceId);
+      const sourceIndex = source.findIndex((item) => item.id === activeId);
+      const targetIndex = target.findIndex((item) => item.id === overId);
+      if (sourceIndex < 0 || targetIndex < 0) {
+        return;
+      }
+
+      if (active.workspaceId === over.workspaceId) {
+        if (sourceIndex === targetIndex) {
+          return;
+        }
+        await persistProjectMove([
+          {
+            workspaceId: active.workspaceId,
+            projectIds: arrayMove(source, sourceIndex, targetIndex).map((item) => item.id),
+          },
+        ]);
+        return;
+      }
+
+      const nextSource = source.filter((item) => item.id !== activeId);
+      const moved = source[sourceIndex];
+      if (!moved) {
+        return;
+      }
+      const nextTarget = [...target.slice(0, targetIndex), moved, ...target.slice(targetIndex)];
+      await persistProjectMove([
+        { workspaceId: active.workspaceId, projectIds: nextSource.map((item) => item.id) },
+        { workspaceId: over.workspaceId, projectIds: nextTarget.map((item) => item.id) },
+      ]);
+      if (over.workspaceId) {
+        setCollapsedWorkspaceIds((current) => {
+          const next = new Set(current);
+          next.delete(over.workspaceId as string);
+          return next;
+        });
+      }
+    } catch (error) {
+      const message = toUserMessage(error);
+      setGroupError(message);
+      toast.error(message);
+    }
+  }
+
+  function handlePathChange(value: string): void {
+    setPath(value);
+    if (!aliasEdited) {
+      setAlias(getProjectName(value));
+    }
+  }
+
+  function handleAliasChange(value: string): void {
+    setAliasEdited(true);
+    setAlias(value);
+  }
+
+  async function pickPath(): Promise<void> {
+    setPicking(true);
+    setOpenError(null);
+
+    try {
+      const selected = await projectService.pickDirectory();
+      if (selected) {
+        handlePathChange(selected);
+      }
+    } catch (error) {
+      setOpenError(toUserMessage(error));
+    } finally {
+      setPicking(false);
+    }
+  }
+
+  async function submitOpen(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    const repositoryPath = path.trim();
+    if (!repositoryPath || opening) {
+      return;
+    }
+
+    setOpening(true);
+    setOpenError(null);
+
+    try {
+      const project = await addAndOpen({
+        path: repositoryPath,
+        name: alias.trim() || undefined,
+        workspaceId: workspaceId || undefined,
+      });
+      onOpenProject(project.id);
+    } catch (error) {
+      setOpenError(toUserMessage(error));
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  function startCreateGroup(parentId: string | null): void {
+    setGroupDialog({ mode: "create", parentId });
+    setNewGroupName("");
+    setNewGroupIcon("code");
+    setNewGroupColor("blue");
+    setGroupError(null);
+  }
+
+  function startEditGroup(workspace: Workspace): void {
+    setGroupDialog({
+      mode: "edit",
+      workspaceId: workspace.id,
+      parentId: workspace.parentId,
+    });
+    setNewGroupName(workspace.name);
+    setNewGroupIcon(workspace.icon);
+    setNewGroupColor(workspace.color);
+    setGroupError(null);
+  }
+
+  function closeGroupDialog(): void {
+    if (creatingGroup) {
+      return;
+    }
+    setGroupDialog(null);
+    setNewGroupName("");
+    setGroupError(null);
+  }
+
+  async function submitGroup(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!newGroupName.trim() || creatingGroup || !groupDialog) {
+      return;
+    }
+
+    setCreatingGroup(true);
+    setGroupError(null);
+    try {
+      if (groupDialog.mode === "edit" && groupDialog.workspaceId) {
+        await updateWorkspace({
+          id: groupDialog.workspaceId,
+          name: newGroupName.trim(),
+          parentId: groupDialog.parentId,
+          icon: newGroupIcon,
+          color: newGroupColor,
+        });
+        toast.success(t("projectManager.editGroupSuccess"));
+      } else {
+        await createWorkspace(
+          newGroupName.trim(),
+          groupDialog.parentId ?? undefined,
+          newGroupIcon,
+          newGroupColor,
+        );
+        toast.success(t("projectManager.createGroupSuccess"));
+      }
+      setGroupDialog(null);
+      setNewGroupName("");
+    } catch (error) {
+      const message = toUserMessage(error);
+      setGroupError(message);
+      toast.error(message);
+    } finally {
+      setCreatingGroup(false);
+    }
+  }
+
+  async function confirmDeleteGroup(): Promise<void> {
+    if (!deleteTarget || deleteBusy) {
+      return;
+    }
+    setDeleteBusy(true);
+    try {
+      await removeWorkspace(deleteTarget.id);
+      toast.success(t("projectManager.deleteGroupSuccess", { name: deleteTarget.name }));
+      setDeleteTarget(null);
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  function openGroupProject(projectId: string): void {
+    if (opening || dragging) {
+      return;
+    }
+    setSelectedProjectId(projectId);
+    onOpenProject(projectId);
+  }
+
+  /** 分组树内的仓库行：缩进在高亮外，避免左侧灰边嵌套感 */
+  function renderGroupProject(project: Project, depth: number) {
+    const isSelected = selectedProjectId === project.id;
+
+    return (
+      <div key={project.id} style={{ paddingLeft: `${depth * 20}px` }}>
+        <SortableGroupItem
+          id={`project-${project.id}`}
+          entry={{
+            type: "project",
+            workspaceId: project.workspaceId,
+            parentId: null,
+            label: project.name,
+          }}
+        >
+          <button
+            type="button"
+            disabled={opening || dragging}
+            className={cn(
+              "focus-visible:ring-ring group relative flex h-9 w-full min-w-0 cursor-grab items-center gap-2.5 rounded-md px-2 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing",
+              isSelected
+                ? "bg-accent hover:bg-accent"
+                : "hover:bg-accent/60",
+            )}
+            onClick={() => {
+              if (!opening && !dragging) {
+                setSelectedProjectId(project.id);
+              }
+            }}
+            onDoubleClick={() => openGroupProject(project.id)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && isSelected) {
+                event.preventDefault();
+                openGroupProject(project.id);
+              }
+            }}
+          >
+            <span className="text-muted-foreground bg-muted group-hover:bg-muted-foreground/10 group-focus-visible:bg-muted-foreground/10 flex size-7 shrink-0 items-center justify-center rounded-md transition-colors">
+              <FolderGit2 className="size-3.5" aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">{project.name}</span>
+          </button>
+        </SortableGroupItem>
+      </div>
+    );
+  }
+
+  function renderWorkspace(workspace: Workspace, depth: number) {
+    const children = workspaces
+      .filter((item) => item.parentId === workspace.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    const items = visibleProjects
+      .filter((project) => project.workspaceId === workspace.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+    const expanded = !collapsedWorkspaceIds.has(workspace.id);
+
+    return (
+      <div key={workspace.id} className="space-y-0.5">
+        {/* 缩进在高亮外；整行（含 +）共用同一 hover，避免灰底套白块 */}
+        <div style={{ paddingLeft: `${depth * 20}px` }}>
+          <SortableGroupItem
+            id={`workspace-${workspace.id}`}
+            entry={{
+              type: "workspace",
+              workspaceId: workspace.id,
+              parentId: workspace.parentId,
+              label: workspace.name,
+            }}
+            acceptProjectDrop
+            className="group/row hover:bg-accent/60 flex h-9 w-full items-center gap-0.5 rounded-md transition-colors"
+          >
+            <button
+              type="button"
+              className="focus-visible:ring-ring flex h-full min-w-0 flex-1 cursor-grab items-center gap-1.5 rounded-md px-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
+              onClick={() =>
+                setCollapsedWorkspaceIds((current) => {
+                  const next = new Set(current);
+                  if (next.has(workspace.id)) {
+                    next.delete(workspace.id);
+                  } else {
+                    next.add(workspace.id);
+                  }
+                  return next;
+                })
+              }
+            >
+              <ChevronDown
+                className={cn(
+                  "text-muted-foreground size-3.5 shrink-0 transition-transform",
+                  !expanded && "-rotate-90",
+                )}
+                aria-hidden="true"
+              />
+              <Folder className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 truncate font-medium">{workspace.name}</span>
+            </button>
+            <div className="mr-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={t("projectManager.createChildGroup", { name: workspace.name })}
+                    disabled={opening || dragging}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => startCreateGroup(workspace.id)}
+                  >
+                    <Plus aria-hidden="true" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("projectManager.createChildGroup", { name: workspace.name })}</TooltipContent>
+              </Tooltip>
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={t("projectManager.editGroup")}
+                    disabled={opening || dragging}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => startEditGroup(workspace)}
+                  >
+                    <Pencil aria-hidden="true" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("projectManager.editGroup")}</TooltipContent>
+              </Tooltip>
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="text-destructive hover:text-destructive"
+                    aria-label={t("projectManager.deleteGroup")}
+                    disabled={opening || dragging}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => setDeleteTarget(workspace)}
+                  >
+                    <Trash2 aria-hidden="true" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("projectManager.deleteGroup")}</TooltipContent>
+              </Tooltip>
+            </div>
+          </SortableGroupItem>
+        </div>
+        {expanded ? (
+          <SortableContext
+            items={children.map((child) => `workspace-${child.id}`)}
+            strategy={verticalListSortingStrategy}
+          >
+            {children.map((child) => renderWorkspace(child, depth + 1))}
+          </SortableContext>
+        ) : null}
+        {expanded ? (
+          <SortableContext
+            items={items.map((project) => `project-${project.id}`)}
+            strategy={verticalListSortingStrategy}
+          >
+            {items.map((project) => renderGroupProject(project, depth + 1))}
+          </SortableContext>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1">
+      <aside className="flex w-44 shrink-0 flex-col gap-1 p-3">
+        {nav.map((item) => (
+          <Button
+            key={item.id}
+            variant="ghost"
+            className={cn("justify-start gap-2", view === item.id && "bg-accent")}
+            onClick={() => setView(item.id)}
+            disabled={opening}
+          >
+            <item.icon className="size-4" aria-hidden="true" />
+            {item.label}
+          </Button>
+        ))}
+      </aside>
+
+      <section className="min-w-0 flex-1 px-6 pt-3 pb-6">
+        {view === "recent" ? (
+          <RecentProjectList onOpenProject={onOpenProject} />
+        ) : null}
+
+        {view === "open" ? (
+          <form className="max-w-2xl space-y-4" onSubmit={(event) => void submitOpen(event)}>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="project-manager-path">
+                {t("openRepo.pathLabel")}
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  id="project-manager-path"
+                  value={path}
+                  onChange={(event) => handlePathChange(event.target.value)}
+                  placeholder={t("openRepo.pathPlaceholder")}
+                  autoComplete="off"
+                  disabled={opening}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={picking || opening}
+                  onClick={() => void pickPath()}
+                >
+                  <FolderOpen className="size-4" aria-hidden="true" />
+                  {picking ? t("common.loading") : t("openRepo.pickButton")}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="project-manager-alias">
+                {t("openRepo.aliasLabel")}
+              </label>
+              <Input
+                id="project-manager-alias"
+                value={alias}
+                onChange={(event) => handleAliasChange(event.target.value)}
+                placeholder={t("openRepo.aliasPlaceholder")}
+                autoComplete="off"
+                disabled={opening}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="project-manager-workspace">
+                {t("projectManager.workspaceLabel")}
+              </label>
+              <SelectMenu
+                value={workspaceId}
+                options={workspaceOptions}
+                onChange={setWorkspaceId}
+                ariaLabel={t("projectManager.workspaceLabel")}
+                disabled={opening}
+                triggerClassName="h-9"
+              />
+            </div>
+
+            {openError ? (
+              <p className="text-destructive text-sm" role="alert">
+                {openError}
+              </p>
+            ) : null}
+
+            <Button type="submit" disabled={!path.trim() || opening}>
+              {opening ? t("common.loading") : t("openRepo.submitButton")}
+            </Button>
+          </form>
+        ) : null}
+
+        {view === "groups" ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex shrink-0 items-start justify-between gap-4 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold">{t("projectManager.groups")}</h2>
+                  <Badge variant="secondary" className="px-1.5 py-0 text-[10px] tabular-nums">
+                    {t("projectManager.groupsCount", { count: workspaces.length })}
+                  </Badge>
+                </div>
+                <p className="text-muted-foreground mt-0.5 text-xs">{t("projectManager.groupsDescription")}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <label className="relative block w-52">
+                  <Search
+                    className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
+                    aria-hidden="true"
+                  />
+                  <input
+                    value={filter}
+                    onChange={(event) => setFilter(event.target.value)}
+                    className="border-input bg-background focus-visible:ring-ring h-8 w-full rounded-md border pr-3 pl-8 text-xs outline-none focus-visible:ring-2"
+                    placeholder={t("repo.filter")}
+                    aria-label={t("repo.filter")}
+                    disabled={opening || dragging}
+                  />
+                </label>
+                <Tooltip delayDuration={300}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      className="size-8 shrink-0"
+                      disabled={opening || dragging}
+                      aria-label={t("projectManager.createGroup")}
+                      onClick={() => startCreateGroup(null)}
+                    >
+                      <Plus aria-hidden="true" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("projectManager.createGroup")}</TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCorners}
+              onDragStart={handleGroupDragStart}
+              onDragCancel={() => setActiveDrag(null)}
+              onDragEnd={(event) => void handleGroupDragEnd(event)}
+            >
+            <div className="min-h-0 flex-1">
+              <ScrollArea className="h-full pb-4 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:pr-2">
+                <div className="space-y-0.5 pb-4">
+                  {/* 最外层根节点：展开/收起全部，并作为拖回未分组的投放目标 */}
+                  <RootDropZone>
+                    <div className="group/row hover:bg-accent/60 flex h-9 w-full items-center gap-0.5 rounded-md transition-colors">
+                      <button
+                        type="button"
+                        className="focus-visible:ring-ring flex h-full min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                        onClick={() => setRootExpanded((current) => !current)}
+                      >
+                        <ChevronDown
+                          className={cn(
+                            "text-muted-foreground size-3.5 shrink-0 transition-transform",
+                            !rootExpanded && "-rotate-90",
+                          )}
+                          aria-hidden="true"
+                        />
+                        <Folder className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
+                        {t("projectManager.rootGroup")}
+                      </button>
+                      <div className="mr-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
+                        <Tooltip delayDuration={300}>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              aria-label={t("projectManager.createGroup")}
+                              disabled={opening || dragging}
+                              onPointerDown={(event) => event.stopPropagation()}
+                              onClick={() => startCreateGroup(null)}
+                            >
+                              <Plus aria-hidden="true" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("projectManager.createGroup")}</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  </RootDropZone>
+                  {rootExpanded ? (
+                    <SortableContext
+                      items={rootProjects.map((project) => `project-${project.id}`)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {rootProjects.map((project) => renderGroupProject(project, 1))}
+                    </SortableContext>
+                  ) : null}
+                  {rootExpanded ? (
+                    <SortableContext
+                      items={rootWorkspaces.map((workspace) => `workspace-${workspace.id}`)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {rootWorkspaces.map((workspace) => renderWorkspace(workspace, 1))}
+                    </SortableContext>
+                  ) : null}
+                  {groupError ? (
+                    <p className="text-destructive px-2 text-sm" role="alert">
+                      {groupError}
+                    </p>
+                  ) : null}
+                </div>
+              </ScrollArea>
+            </div>
+            <DragOverlay dropAnimation={null}>
+              {activeDrag?.label ? (
+                <div className="bg-background border-border flex h-9 max-w-xs items-center gap-2 rounded-md border px-3 shadow-md">
+                  {activeDrag.type === "project" ? (
+                    <FolderGit2 className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <Folder className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+                  )}
+                  <span className="truncate text-sm font-medium">{activeDrag.label}</span>
+                </div>
+              ) : null}
+            </DragOverlay>
+            </DndContext>
+            <Dialog
+              open={groupDialog !== null}
+              onOpenChange={(open) => {
+                if (!open) {
+                  closeGroupDialog();
+                }
+              }}
+            >
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>
+                    {groupDialog?.mode === "edit"
+                      ? t("projectManager.editGroup")
+                      : t("projectManager.createGroup")}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {groupDialog?.mode === "edit"
+                      ? t("projectManager.editGroupDescription")
+                      : groupDialog?.parentId
+                        ? t("projectManager.createChildGroup", {
+                            name: workspaces.find((item) => item.id === groupDialog.parentId)?.name ?? "",
+                          })
+                        : t("projectManager.groupName")}
+                  </DialogDescription>
+                </DialogHeader>
+                <form className="space-y-4" onSubmit={(event) => void submitGroup(event)}>
+                  <Input
+                    value={newGroupName}
+                    onChange={(event) => setNewGroupName(event.target.value)}
+                    placeholder={t("projectManager.groupNamePlaceholder")}
+                    autoFocus
+                    disabled={creatingGroup}
+                  />
+                  <SelectMenu
+                    value={groupDialog?.parentId ?? ""}
+                    displayLabel={
+                      <span className="flex items-center gap-2">
+                        <Folder className="size-4" />
+                        {groupDialog?.parentId
+                          ? buildWorkspaceOptions(workspaces).find((item) => item.value === groupDialog.parentId)
+                              ?.label
+                          : t("projectManager.rootGroup")}
+                      </span>
+                    }
+                    options={[
+                      { value: "", label: t("projectManager.rootGroup"), preview: <Folder className="size-4" /> },
+                      ...buildWorkspaceOptions(
+                        workspaces,
+                        groupDialog?.mode === "edit" && groupDialog.workspaceId
+                          ? collectWorkspaceSubtreeIds(workspaces, groupDialog.workspaceId)
+                          : new Set(),
+                      ).map((item) => ({ ...item, preview: <Folder className="size-4" /> })),
+                    ]}
+                    onChange={(value) =>
+                      setGroupDialog((current) =>
+                        current ? { ...current, parentId: value || null } : current,
+                      )
+                    }
+                    ariaLabel={t("projectManager.parentGroup")}
+                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <SelectMenu
+                      value={newGroupIcon}
+                      displayLabel={
+                        <span className="flex items-center gap-2">
+                          {newGroupIcon === "briefcase" ? (
+                            <BriefcaseBusiness className="size-4" />
+                          ) : newGroupIcon === "code" ? (
+                            <Code2 className="size-4" />
+                          ) : newGroupIcon === "layers" ? (
+                            <Layers3 className="size-4" />
+                          ) : newGroupIcon === "box" ? (
+                            <Box className="size-4" />
+                          ) : (
+                            <Folder className="size-4" />
+                          )}
+                          {t(`projectManager.icon${newGroupIcon[0].toUpperCase()}${newGroupIcon.slice(1)}`)}
+                        </span>
+                      }
+                      options={[
+                        { value: "code", label: t("projectManager.iconCode"), preview: <Code2 className="size-4" /> },
+                        { value: "folder", label: t("projectManager.iconFolder"), preview: <Folder className="size-4" /> },
+                        {
+                          value: "briefcase",
+                          label: t("projectManager.iconBriefcase"),
+                          preview: <BriefcaseBusiness className="size-4" />,
+                        },
+                        { value: "layers", label: t("projectManager.iconLayers"), preview: <Layers3 className="size-4" /> },
+                        { value: "box", label: t("projectManager.iconBox"), preview: <Box className="size-4" /> },
+                      ]}
+                      onChange={(value) => setNewGroupIcon(value as WorkspaceIcon)}
+                      ariaLabel={t("projectManager.groupIcon")}
+                    />
+                    <SelectMenu
+                      value={newGroupColor}
+                      displayLabel={
+                        <span className="flex items-center gap-2">
+                          <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS[newGroupColor])} />
+                          {t(`projectManager.color${newGroupColor[0].toUpperCase()}${newGroupColor.slice(1)}`)}
+                        </span>
+                      }
+                      options={[
+                        {
+                          value: "blue",
+                          label: t("projectManager.colorBlue"),
+                          preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.blue)} />,
+                        },
+                        {
+                          value: "green",
+                          label: t("projectManager.colorGreen"),
+                          preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.green)} />,
+                        },
+                        {
+                          value: "orange",
+                          label: t("projectManager.colorOrange"),
+                          preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.orange)} />,
+                        },
+                        {
+                          value: "purple",
+                          label: t("projectManager.colorPurple"),
+                          preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.purple)} />,
+                        },
+                        {
+                          value: "red",
+                          label: t("projectManager.colorRed"),
+                          preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.red)} />,
+                        },
+                      ]}
+                      onChange={(value) => setNewGroupColor(value as WorkspaceColor)}
+                      ariaLabel={t("projectManager.groupColor")}
+                    />
+                  </div>
+                  {groupError ? (
+                    <p className="text-destructive text-sm" role="alert">
+                      {groupError}
+                    </p>
+                  ) : null}
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={closeGroupDialog}>
+                      {t("common.cancel")}
+                    </Button>
+                    <Button type="submit" disabled={!newGroupName.trim() || creatingGroup}>
+                      {creatingGroup
+                        ? t("common.loading")
+                        : groupDialog?.mode === "edit"
+                          ? t("projectManager.saveGroup")
+                          : t("projectManager.createGroup")}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+            <Dialog
+              open={Boolean(deleteTarget)}
+              onOpenChange={(open) => {
+                if (!open && !deleteBusy) {
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              <DialogContent className="max-w-md gap-4 p-5 sm:rounded-lg">
+                <DialogHeader>
+                  <DialogTitle>{t("projectManager.deleteGroupTitle")}</DialogTitle>
+                </DialogHeader>
+                <div className="flex gap-3">
+                  <TriangleAlert className="text-chart-4 mt-0.5 size-5 shrink-0" aria-hidden="true" />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-foreground text-sm">
+                      <Trans
+                        i18nKey="projectManager.deleteGroupQuestion"
+                        values={{ name: deleteTarget?.name ?? "" }}
+                        components={{
+                          name: <span className="font-medium" />,
+                        }}
+                      />
+                    </p>
+                    <p className="text-muted-foreground text-xs">{t("projectManager.deleteGroupHint")}</p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={deleteBusy}
+                    onClick={() => setDeleteTarget(null)}
+                  >
+                    {t("common.cancel")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={deleteBusy}
+                    onClick={() => void confirmDeleteGroup()}
+                  >
+                    {deleteBusy ? t("common.loading") : t("projectManager.deleteGroupAction")}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
 }

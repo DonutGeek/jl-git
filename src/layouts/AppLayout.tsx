@@ -1,16 +1,23 @@
 import { Outlet } from "react-router-dom";
 
 import { OpLogPanel } from "@/components/layout/OpLogPanel";
+import { RepoTabBar } from "@/components/layout/RepoTabBar";
 import { StatusBar } from "@/components/layout/StatusBar";
+import { WorkspaceHost } from "@/components/layout/WorkspaceHost";
 import { SettingsDrawer } from "@/components/settings/SettingsDrawer";
 
+/** 标签栏 + 工作区保活宿主常驻，子路由只负责改 URL */
 export function AppLayout() {
   return (
     <div className="bg-background text-foreground relative flex h-screen flex-col overflow-hidden">
+      <RepoTabBar />
       <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
-        <Outlet />
+        <WorkspaceHost />
+        {/* 占位：让 React Router 仍匹配子路由，实际 UI 由 WorkspaceHost 根据 location 保活渲染 */}
+        <div hidden>
+          <Outlet />
+        </div>
       </main>
-      {/* 状态栏 z 高于日志遮罩未覆盖区；日志面板 fixed 且关闭即卸载 */}
       <StatusBar />
       <OpLogPanel />
       <SettingsDrawer />
