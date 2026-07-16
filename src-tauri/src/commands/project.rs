@@ -127,10 +127,20 @@ pub async fn workspace_reorder(pool: State<'_, SqlitePool>, workspaces: Vec<Work
 
 #[tauri::command]
 pub async fn project_pick_directory(app: AppHandle) -> Result<PickDirectoryResult, AppError> {
-    let path = app
-        .dialog()
-        .file()
-        .blocking_pick_folder()
+    // 非阻塞拉起面板（主线程），再用 spawn_blocking 等待结果，避免卡住 async runtime
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.dialog().file().pick_folder(move |folder| {
+        let _ = tx.send(folder);
+    });
+
+    let folder = tauri::async_runtime::spawn_blocking(move || rx.recv())
+        .await
+        .map_err(|error| {
+            AppError::new("INTERNAL", "选择目录任务失败").with_details(error.to_string())
+        })?
+        .map_err(|_| AppError::new("INTERNAL", "选择目录对话已中断"))?;
+
+    let path = folder
         .map(|path| {
             path.into_path()
                 .map(|path| path.to_string_lossy().into_owned())

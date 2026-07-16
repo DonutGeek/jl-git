@@ -50,11 +50,20 @@ import { Project } from "@/types/project";
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
 
-function resolveActiveTabId(pathname: string): string | null {
+function resolveActiveTabId(pathname: string, tabs: OpenTab[]): string | null {
   const repositoryMatch = pathname.match(/^\/repo\/([^/]+)/);
-  if (repositoryMatch) return repositoryMatch[1] ?? null;
+  if (repositoryMatch) {
+    return repositoryMatch[1] ?? null;
+  }
   const newTabMatch = pathname.match(/^\/tab\/([^/]+)/);
-  return newTabMatch?.[1] ?? null;
+  if (newTabMatch?.[1]) {
+    return newTabMatch[1];
+  }
+  // 根路径也在展示新标签页内容时，高亮已有「新标签页」
+  if (pathname === "/") {
+    return tabs.find((tab) => tab.type === "new-tab")?.id ?? null;
+  }
+  return null;
 }
 
 interface TabDisplayItem {
@@ -165,7 +174,7 @@ export function RepoTabBar() {
   const [aliasValue, setAliasValue] = useState("");
   const [aliasBusy, setAliasBusy] = useState(false);
   /** 仅跟路由走，与 WorkspaceHost 显隐同一帧，避免标签/页面不同步 */
-  const activeId = resolveActiveTabId(location.pathname);
+  const activeId = resolveActiveTabId(location.pathname, tabEntries);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const labels = useMemo(
     () => ({
@@ -358,7 +367,8 @@ export function RepoTabBar() {
             draggingId ? "z-[60]" : "z-40",
           )}
         >
-          <div className="flex h-7 min-w-0 flex-1 items-center gap-1.5" style={noDragStyle}>
+          {/* 交互控件 no-drag；拖拽留白必须是兄弟节点，不能包在 no-drag 里（否则加载页无工具栏时窗口无法拖动） */}
+          <div className="flex h-7 shrink-0 items-center gap-1.5" style={noDragStyle}>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <Button
@@ -375,65 +385,68 @@ export function RepoTabBar() {
               <TooltipContent>{t("dashboard.openRepoAction")}</TooltipContent>
             </Tooltip>
             <div className="bg-border h-3.5 w-px shrink-0 self-center" aria-hidden="true" />
-            <div className="flex h-7 min-w-0 flex-1 items-center gap-1 overflow-x-auto">
-              <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
-                <div className="flex h-7 items-center gap-1">
-                  {tabs.map((tab, index) => (
-                    <SortableRepoTab
-                      key={tab.id}
-                      tab={tab}
-                      isActive={tab.id === activeId}
-                      tabIndex={index}
-                      tabCount={tabs.length}
-                      onSelect={handleSelect}
-                      onClose={handleClose}
-                      onCloseTab={closeOneTab}
-                      onCloseOthers={(id) => {
-                        closeOtherTabs(id);
-                        syncRouteAfterTabsChange(id);
-                      }}
-                      onCloseLeft={(id) => {
-                        closeTabsToLeft(id);
-                        syncRouteAfterTabsChange(id);
-                      }}
-                      onCloseRight={(id) => {
-                        closeTabsToRight(id);
-                        syncRouteAfterTabsChange(id);
-                      }}
-                      onRemove={(project) => void handleRemove(project)}
-                      onSetAlias={(project) => {
-                        setAliasTarget(project);
-                        setAliasValue(project.name);
-                      }}
-                      onCopyRemote={(project) => void handleCopyRemote(project)}
-                      onCopyPath={(project) => void handleCopyPath(project)}
-                      closeLabel={t("repo.closeTab", { name: tab.label })}
-                      labels={labels}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-foreground size-7 shrink-0"
-                    aria-label={t("repo.addTab")}
-                    onClick={() => {
-                      const tabId = openNewTab();
-                      activateTab(() => navigate(`/tab/${tabId}`));
-                    }}
-                  >
-                    <Plus className="size-3.5" aria-hidden="true" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("repo.addTab")}</TooltipContent>
-              </Tooltip>
-              <div data-tauri-drag-region className="h-7 min-w-4 flex-1" />
-            </div>
           </div>
+          <div
+            className="flex h-7 min-w-0 items-center gap-1 overflow-x-auto"
+            style={noDragStyle}
+          >
+            <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
+              <div className="flex h-7 items-center gap-1">
+                {tabs.map((tab, index) => (
+                  <SortableRepoTab
+                    key={tab.id}
+                    tab={tab}
+                    isActive={tab.id === activeId}
+                    tabIndex={index}
+                    tabCount={tabs.length}
+                    onSelect={handleSelect}
+                    onClose={handleClose}
+                    onCloseTab={closeOneTab}
+                    onCloseOthers={(id) => {
+                      closeOtherTabs(id);
+                      syncRouteAfterTabsChange(id);
+                    }}
+                    onCloseLeft={(id) => {
+                      closeTabsToLeft(id);
+                      syncRouteAfterTabsChange(id);
+                    }}
+                    onCloseRight={(id) => {
+                      closeTabsToRight(id);
+                      syncRouteAfterTabsChange(id);
+                    }}
+                    onRemove={(project) => void handleRemove(project)}
+                    onSetAlias={(project) => {
+                      setAliasTarget(project);
+                      setAliasValue(project.name);
+                    }}
+                    onCopyRemote={(project) => void handleCopyRemote(project)}
+                    onCopyPath={(project) => void handleCopyPath(project)}
+                    closeLabel={t("repo.closeTab", { name: tab.label })}
+                    labels={labels}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground size-7 shrink-0"
+                  aria-label={t("repo.addTab")}
+                  onClick={() => {
+                    const tabId = openNewTab();
+                    activateTab(() => navigate(`/tab/${tabId}`));
+                  }}
+                >
+                  <Plus className="size-3.5" aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("repo.addTab")}</TooltipContent>
+            </Tooltip>
+          </div>
+          <div data-tauri-drag-region className="h-full min-w-8 flex-1" />
         </header>
         <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
           {draggingTab ? (

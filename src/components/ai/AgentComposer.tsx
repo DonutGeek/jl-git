@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useRef,
   type FormEvent,
   type KeyboardEvent,
@@ -10,6 +11,7 @@ import { ArrowUp, LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Mention, MentionsInput } from "react-mentions-ts";
 
+import { MentionSuggestionVirtualList } from "@/components/ai/MentionSuggestionVirtualList";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -19,6 +21,47 @@ export interface AgentMentionOption extends Record<string, unknown> {
   id: string;
   display: string;
   isRemote: boolean;
+  /** 是否在该项上方渲染分组标题（过滤后各组首条） */
+  showGroupHeader?: boolean;
+}
+
+function compareBranchDisplay(left: string, right: string): number {
+  return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
+}
+
+/** 本地组在前、远端组在后；组内按名称；各组首条带分组标题 */
+function buildMentionSuggestions(
+  options: readonly AgentMentionOption[],
+  query: string,
+): AgentMentionOption[] {
+  const needle = query.trim().toLowerCase();
+  const matched = options.filter((option) => {
+    if (!needle) {
+      return true;
+    }
+    return (
+      option.display.toLowerCase().includes(needle) ||
+      option.id.toLowerCase().includes(needle)
+    );
+  });
+
+  const local = matched
+    .filter((option) => !option.isRemote)
+    .sort((a, b) => compareBranchDisplay(a.display, b.display));
+  const remote = matched
+    .filter((option) => option.isRemote)
+    .sort((a, b) => compareBranchDisplay(a.display, b.display));
+
+  return [
+    ...local.map((option, index) => ({
+      ...option,
+      showGroupHeader: index === 0,
+    })),
+    ...remote.map((option, index) => ({
+      ...option,
+      showGroupHeader: index === 0,
+    })),
+  ];
 }
 
 interface AgentComposerProps {
@@ -56,6 +99,11 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
     // 中文等 IME：选词回车时部分环境 isComposing 已是 false，需组合态标记 + keyCode 229
     const isComposingRef = useRef(false);
     const skipEnterSubmitRef = useRef(false);
+
+    const mentionData = useCallback(
+      (query: string) => buildMentionSuggestions(branchOptions, query),
+      [branchOptions],
+    );
 
     function handleCompositionStart(): void {
       isComposingRef.current = true;
@@ -155,10 +203,10 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                     })),
                   });
                 }}
-              onKeyDown={handleInputKeyDown}
-              onCompositionStart={handleCompositionStart}
-              onCompositionEnd={handleCompositionEnd}
-              onWheel={handleInputWheel}
+                onKeyDown={handleInputKeyDown}
+                onCompositionStart={handleCompositionStart}
+                onCompositionEnd={handleCompositionEnd}
+                onWheel={handleInputWheel}
                 aria-label={t("agent.inputPlaceholder")}
                 placeholder={t("agent.inputPlaceholder")}
                 a11ySuggestionsListLabel={t("agent.branchMentions")}
@@ -182,33 +230,48 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                   // 强制去掉库默认 divide-y 分隔线
                   suggestionsList:
                     "m-0 max-h-none list-none overflow-visible p-0 !divide-y-0 divide-transparent",
+                  // 库默认给 li 加了 hover:bg-muted / data-[focused]:bg-primary/10；
+                  // 分组标题与候选项同在一个 li 内，必须清掉外层背景，只高亮内层分支行
                   suggestionItem:
-                    "relative flex cursor-default items-center rounded-sm border-0 px-2 py-1.5 text-xs outline-hidden select-none hover:bg-accent hover:text-accent-foreground",
-                  suggestionItemFocused: "bg-accent text-accent-foreground",
+                    "relative block cursor-default border-0 bg-transparent p-0 text-xs text-foreground outline-hidden select-none hover:!bg-transparent data-[focused=true]:!bg-transparent data-[focused=true]:!text-foreground",
+                  suggestionItemFocused:
+                    "!bg-transparent hover:!bg-transparent data-[focused=true]:!bg-transparent data-[focused=true]:!text-foreground",
                 }}
                 customSuggestionsContainer={(children) => (
-                  <div className="max-h-72 overflow-y-scroll overscroll-contain p-1">
-                    {children}
-                  </div>
+                  <MentionSuggestionVirtualList>{children}</MentionSuggestionVirtualList>
                 )}
                 disabled={isReplying}
               >
                 <Mention<AgentMentionOption>
                   trigger="@"
-                  data={branchOptions}
+                  data={mentionData}
                   appendSpaceOnAdd
-                  maxSuggestions={branchOptions.length}
+                  maxSuggestions={Math.max(branchOptions.length, 1)}
                   // highlighter 与 textarea 叠字对齐：禁止 padding/inline-flex（会撑宽导致错位）
                   // 用同色 box-shadow 模拟 Badge 胶囊边距，不改文字度量
                   className="rounded-sm bg-secondary text-secondary-foreground shadow-[0_0_0_2px_var(--secondary)] box-decoration-clone"
-                  renderSuggestion={(branch) => (
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate">@{branch.display}</span>
-                      <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none">
-                        {t(branch.isRemote ? "agent.remoteBranch" : "agent.localBranch")}
-                      </span>
-                    </div>
-                  )}
+                  renderSuggestion={(branch, _query, _highlighted, _index, focused) => {
+                    const display = String(branch.display ?? branch.id);
+                    return (
+                      <div className="min-w-0">
+                        {branch.showGroupHeader ? (
+                          <div className="text-muted-foreground pointer-events-none px-1.5 pt-1.5 pb-1 text-[10px] font-medium tracking-wide">
+                            {t(branch.isRemote ? "repo.remote" : "repo.local")}
+                          </div>
+                        ) : null}
+                        <div
+                          className={cn(
+                            "flex min-w-0 items-center rounded-md px-1.5 py-1.5",
+                            focused
+                              ? "bg-accent text-accent-foreground"
+                              : "hover:bg-accent/60",
+                          )}
+                        >
+                          <span className="min-w-0 flex-1 truncate">@{display}</span>
+                        </div>
+                      </div>
+                    );
+                  }}
                   renderEmpty={() => (
                     <span className="text-muted-foreground block px-2 py-1.5 text-xs">
                       {t("agent.noBranchMentions")}

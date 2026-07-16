@@ -60,6 +60,11 @@ const HISTORY_GRAPH_WIDTH_STORAGE_KEY = "jlgit:history-graph-width:v3";
 const HISTORY_GRAPH_DEFAULT_WIDTH = 52;
 const HISTORY_GRAPH_MIN_WIDTH = 40;
 const HISTORY_GRAPH_MAX_WIDTH = 320;
+/**
+ * 历史列表水平间隙（左右同宽）。
+ * 滚动条悬停才出现，不为滚动条额外加宽右侧。
+ */
+const HISTORY_EDGE_GAP_PX = 8;
 
 function readHistoryGraphWidth(): number {
   try {
@@ -281,6 +286,8 @@ export function HistoryList() {
   const loadingMoreRef = useRef(false);
 
   const selectedCommitId = useRepoStore((state) => state.selectedCommitId);
+  const selectedCommitDetail = useRepoStore((state) => state.selectedCommitDetail);
+  const detailLoading = useRepoStore((state) => state.detailLoading);
   const selectCommit = useRepoStore((state) => state.selectCommit);
   const currentBranch = status?.branch ?? null;
   const localBranches = useMemo(
@@ -299,7 +306,7 @@ export function HistoryList() {
 
   /**
    * 进入历史 / 列表刷新后：
-   * - 已有选中且仍在列表中 → 保留
+   * - 已有选中且仍在列表中 → 保留；若详情缺失则补拉（切仓会话还原常见）
    * - 否则有提交 → 默认选中第一条
    * - 无提交 → 清空选中
    */
@@ -320,6 +327,15 @@ export function HistoryList() {
       commits.some((commit) => commit.id === selectedCommitId);
 
     if (stillValid) {
+      if (
+        selectedCommitDetail?.id !== selectedCommitId &&
+        !detailLoading &&
+        selectedCommitId
+      ) {
+        void selectCommit(selectedCommitId).catch((error: unknown) => {
+          toast.error(toUserMessage(error));
+        });
+      }
       return;
     }
 
@@ -329,7 +345,14 @@ export function HistoryList() {
         toast.error(toUserMessage(error));
       });
     }
-  }, [commits, loading, selectCommit, selectedCommitId]);
+  }, [
+    commits,
+    detailLoading,
+    loading,
+    selectCommit,
+    selectedCommitDetail?.id,
+    selectedCommitId,
+  ]);
 
   const authors = useMemo(() => {
     const names = new Set<string>();
@@ -473,7 +496,8 @@ export function HistoryList() {
     if (!rect) {
       return;
     }
-    setGraphWidth(clampGraphWidth(clientX - rect.left));
+    // 分隔线在「左边距 + graphWidth」处，宽度不含左侧留白
+    setGraphWidth(clampGraphWidth(clientX - rect.left - HISTORY_EDGE_GAP_PX));
   }
 
   function handleGraphDividerPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
@@ -718,6 +742,7 @@ export function HistoryList() {
         <ScrollArea
           ref={historyScrollRef}
           // Radix viewport 内层 display:table 会撑开宽度导致 truncate 失效；在用法处覆盖，不改 ui/scroll-area
+          // 水平留白由 ul 控制（左右同宽），滚动条悬停叠加，不单独加宽右侧
           className="h-full w-full [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
         >
         {commits.length === 0 ? (
@@ -753,6 +778,7 @@ export function HistoryList() {
                 <HistoryGraph
                   commits={commits}
                   width={graphWidth}
+                  edgeGap={HISTORY_EDGE_GAP_PX}
                   onHoverCommit={setHoveredCommitId}
                   onSelectCommit={handleSelectCommit}
                 />
@@ -760,11 +786,19 @@ export function HistoryList() {
             ) : null}
 
             <ul
-              className={cn(
-                "relative w-full min-w-0 py-1.5 pr-1.5",
-                hasActiveFilters ? "pl-1.5" : "",
-              )}
-              style={hasActiveFilters ? undefined : { paddingLeft: `${graphWidth + 8}px` }}
+              className="relative w-full min-w-0 py-1.5"
+              style={
+                hasActiveFilters
+                  ? {
+                      paddingLeft: HISTORY_EDGE_GAP_PX,
+                      paddingRight: HISTORY_EDGE_GAP_PX,
+                    }
+                  : {
+                      // 左边距 + 图谱 + 间隙 | 行 | 同宽右间隙
+                      paddingLeft: HISTORY_EDGE_GAP_PX + graphWidth + HISTORY_EDGE_GAP_PX,
+                      paddingRight: HISTORY_EDGE_GAP_PX,
+                    }
+              }
               role="listbox"
               aria-label={t("repo.history")}
             >
@@ -792,23 +826,31 @@ export function HistoryList() {
         {hasMore ? (
           <div
             ref={loadMoreSentinelRef}
-            className="flex min-h-9 items-center justify-center px-2 py-2"
+            className="flex min-h-10 items-center justify-center gap-2 px-2 py-3"
             aria-live="polite"
           >
             {loadingMore ? (
-              <Loader2 className="text-muted-foreground size-4 animate-spin" aria-label={t("common.loading")} />
+              <>
+                <Loader2
+                  className="text-muted-foreground size-3.5 shrink-0 animate-spin"
+                  aria-hidden="true"
+                />
+                <span className="text-muted-foreground text-xs">{t("repo.historyLoadingMore")}</span>
+              </>
             ) : hasActiveFilters || loadMoreFailed ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={() => void handleLoadMore()}
-              disabled={loading}
-            >
-              {t("repo.loadMore")}
-            </Button>
-            ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => void handleLoadMore()}
+                disabled={loading}
+              >
+                {t("repo.loadMore")}
+              </Button>
+            ) : (
+              <span className="text-muted-foreground/80 text-xs">{t("repo.historyLoadMoreHint")}</span>
+            )}
           </div>
         ) : null}
         </ScrollArea>
@@ -833,7 +875,7 @@ export function HistoryList() {
               "focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none",
               draggingGraphDivider && "before:bg-primary before:w-0.5",
             )}
-            style={{ left: `${graphWidth}px` }}
+            style={{ left: `${HISTORY_EDGE_GAP_PX + graphWidth}px` }}
             onPointerDown={handleGraphDividerPointerDown}
             onPointerMove={handleGraphDividerPointerMove}
             onPointerUp={handleGraphDividerPointerEnd}

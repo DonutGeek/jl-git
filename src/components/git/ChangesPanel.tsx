@@ -68,27 +68,181 @@ const CHANGE_VIRTUAL_OVERSCAN = 10;
 
 type ChangeSortMode = "default" | "status" | "name";
 
+/** 按增/改/删/重命名分类（与常见 Git 客户端一致） */
+type ChangeStatusCategory =
+  | "conflict"
+  | "added"
+  | "modified"
+  | "deleted"
+  | "renamed";
+
+/** 状态分类折叠集合的稳定空值 */
+const EMPTY_STATUS_COLLAPSED: ReadonlySet<ChangeStatusCategory> = new Set();
+/** 日期分组折叠集合的稳定空值 */
+const EMPTY_DATE_COLLAPSED: ReadonlySet<string> = new Set();
+/** 无 mtime 时的日期分组键 */
+const UNKNOWN_MODIFIED_DATE_KEY = "__unknown__";
+
+const CHANGE_STATUS_CATEGORY_ORDER: readonly ChangeStatusCategory[] = [
+  "conflict",
+  "added",
+  "modified",
+  "deleted",
+  "renamed",
+] as const;
+
+/** 列表分组方式：Default / 状态分类 / 修改日期（后两者互斥） */
+type ListGroupMode = "default" | "status" | "date";
+
 type ChangeListVisibleRow =
   | { kind: "default-header" }
+  | { kind: "status-header"; category: ChangeStatusCategory; count: number; open: boolean }
+  | { kind: "date-header"; dateKey: string; count: number; open: boolean }
   | { kind: "file"; entry: GitStatusEntry };
 
 type ChangeVisibleRow = ChangeListVisibleRow | ChangeTreeVisibleRow;
+
+function isConflictEntry(entry: GitStatusEntry): boolean {
+  const index = entry.indexStatus;
+  const worktree = entry.worktreeStatus;
+  return (
+    index === "U" ||
+    worktree === "U" ||
+    (index === "A" && worktree === "A") ||
+    (index === "D" && worktree === "D")
+  );
+}
+
+function classifyChangeStatus(
+  entry: GitStatusEntry,
+  side: "index" | "worktree",
+): ChangeStatusCategory {
+  if (isConflictEntry(entry)) {
+    return "conflict";
+  }
+  const letter = side === "index" ? entry.indexStatus : entry.worktreeStatus;
+  if (letter === "?" || letter === "A") {
+    return "added";
+  }
+  if (letter === "D") {
+    return "deleted";
+  }
+  if (letter === "R" || letter === "C") {
+    return "renamed";
+  }
+  return "modified";
+}
 
 function flattenChangeListRows(
   entries: GitStatusEntry[],
   showDefaultGroup: boolean,
   groupOpen: boolean,
 ): ChangeListVisibleRow[] {
-  if (entries.length === 0) {
-    return [];
-  }
   if (!showDefaultGroup) {
     return entries.map((entry) => ({ kind: "file" as const, entry }));
   }
+  // 空列表也保留 Default 头，与有文件时结构一致
   const rows: ChangeListVisibleRow[] = [{ kind: "default-header" }];
   if (groupOpen) {
     for (const entry of entries) {
       rows.push({ kind: "file", entry });
+    }
+  }
+  return rows;
+}
+
+/** 列表：按冲突 / 新增 / 修改 / 删除 / 重命名分组（含 0 计数空组） */
+function flattenChangeStatusGroupRows(
+  entries: GitStatusEntry[],
+  side: "index" | "worktree",
+  collapsedCategories: ReadonlySet<ChangeStatusCategory>,
+): ChangeListVisibleRow[] {
+  const buckets: Record<ChangeStatusCategory, GitStatusEntry[]> = {
+    conflict: [],
+    added: [],
+    modified: [],
+    deleted: [],
+    renamed: [],
+  };
+  for (const entry of entries) {
+    buckets[classifyChangeStatus(entry, side)].push(entry);
+  }
+
+  const rows: ChangeListVisibleRow[] = [];
+  for (const category of CHANGE_STATUS_CATEGORY_ORDER) {
+    const groupEntries = buckets[category];
+    const open = !collapsedCategories.has(category);
+    rows.push({
+      kind: "status-header",
+      category,
+      count: groupEntries.length,
+      open,
+    });
+    if (open) {
+      for (const entry of groupEntries) {
+        rows.push({ kind: "file", entry });
+      }
+    }
+  }
+  return rows;
+}
+
+/** 本地日历日 YYYY-MM-DD；无 mtime 归入未知组 */
+function changeModifiedDateKey(entry: GitStatusEntry): string {
+  const ms = entry.modifiedAt;
+  if (ms == null || !Number.isFinite(ms)) {
+    return UNKNOWN_MODIFIED_DATE_KEY;
+  }
+  const date = new Date(ms);
+  if (Number.isNaN(date.getTime())) {
+    return UNKNOWN_MODIFIED_DATE_KEY;
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** 列表：按修改日期分组（新→旧；未知日期置底） */
+function flattenChangeDateGroupRows(
+  entries: GitStatusEntry[],
+  collapsedDates: ReadonlySet<string>,
+): ChangeListVisibleRow[] {
+  const buckets = new Map<string, GitStatusEntry[]>();
+  for (const entry of entries) {
+    const key = changeModifiedDateKey(entry);
+    const list = buckets.get(key);
+    if (list) {
+      list.push(entry);
+    } else {
+      buckets.set(key, [entry]);
+    }
+  }
+
+  const dateKeys = [...buckets.keys()].sort((a, b) => {
+    if (a === UNKNOWN_MODIFIED_DATE_KEY) {
+      return 1;
+    }
+    if (b === UNKNOWN_MODIFIED_DATE_KEY) {
+      return -1;
+    }
+    return b.localeCompare(a);
+  });
+
+  const rows: ChangeListVisibleRow[] = [];
+  for (const dateKey of dateKeys) {
+    const groupEntries = buckets.get(dateKey) ?? [];
+    const open = !collapsedDates.has(dateKey);
+    rows.push({
+      kind: "date-header",
+      dateKey,
+      count: groupEntries.length,
+      open,
+    });
+    if (open) {
+      for (const entry of groupEntries) {
+        rows.push({ kind: "file", entry });
+      }
     }
   }
   return rows;
@@ -297,6 +451,16 @@ interface ChangeGroupProps {
   groupOpen?: boolean;
   onToggleGroup?: () => void;
   groupLabel?: string;
+  /** 按增/改/删/重命名分类（列表模式） */
+  groupByStatus?: boolean;
+  collapsedStatusCategories?: ReadonlySet<ChangeStatusCategory>;
+  onToggleStatusCategory?: (category: ChangeStatusCategory) => void;
+  statusCategoryLabel?: (category: ChangeStatusCategory, count: number) => string;
+  /** 按修改日期分类（列表模式；与 status 互斥） */
+  groupByDate?: boolean;
+  collapsedDateKeys?: ReadonlySet<string>;
+  onToggleDateKey?: (dateKey: string) => void;
+  dateGroupLabel?: (dateKey: string, count: number) => string;
   entries: GitStatusEntry[];
   rootName: string;
   side: "index" | "worktree";
@@ -318,6 +482,10 @@ function changeRowKey(row: ChangeVisibleRow, index: number): string {
   switch (row.kind) {
     case "default-header":
       return "default-header";
+    case "status-header":
+      return `status:${row.category}`;
+    case "date-header":
+      return `date:${row.dateKey}`;
     case "root":
     case "directory":
       return row.key;
@@ -328,7 +496,7 @@ function changeRowKey(row: ChangeVisibleRow, index: number): string {
   }
 }
 
-/** 变更 / 待提交分区；变更区有 Default，待提交为扁平列表 */
+/** 变更 / 待提交分区；列表模式变更区以 Default 为根路径分组 */
 function ChangeGroup({
   title,
   actionIcon,
@@ -339,6 +507,14 @@ function ChangeGroup({
   groupOpen = true,
   onToggleGroup,
   groupLabel,
+  groupByStatus = false,
+  collapsedStatusCategories,
+  onToggleStatusCategory,
+  statusCategoryLabel,
+  groupByDate = false,
+  collapsedDateKeys,
+  onToggleDateKey,
+  dateGroupLabel,
   entries,
   rootName,
   side,
@@ -357,18 +533,35 @@ function ChangeGroup({
 }: ChangeGroupProps) {
   const isEmpty = entries.length === 0;
   const { viewport, bindScrollArea } = useScrollAreaViewport();
+  const collapsed =
+    collapsedStatusCategories ?? EMPTY_STATUS_COLLAPSED;
+  const collapsedDates = collapsedDateKeys ?? EMPTY_DATE_COLLAPSED;
 
   const visibleRows = useMemo((): ChangeVisibleRow[] => {
     if (view === "tree") {
       return flattenChangeTreeRows(entries, rootName, side, expandedTreePaths);
     }
-    if (isEmpty) {
-      return [];
+    if (groupByStatus) {
+      if (isEmpty) {
+        return [];
+      }
+      return flattenChangeStatusGroupRows(entries, side, collapsed);
     }
+    if (groupByDate) {
+      if (isEmpty) {
+        return [];
+      }
+      return flattenChangeDateGroupRows(entries, collapsedDates);
+    }
+    // Default 列表：空时仍保留分组头
     return flattenChangeListRows(entries, showDefaultGroup, groupOpen);
   }, [
+    collapsed,
+    collapsedDates,
     entries,
     expandedTreePaths,
+    groupByDate,
+    groupByStatus,
     groupOpen,
     isEmpty,
     rootName,
@@ -385,7 +578,17 @@ function ChangeGroup({
     getItemKey: (index) => changeRowKey(visibleRows[index]!, index),
   });
 
-  const showEmpty = view === "list" && isEmpty;
+  /** 纯空态：无 Default 头可挂时才整区 EmptyState */
+  const showBareEmpty =
+    view === "list" && isEmpty && !(showDefaultGroup && !groupByStatus && !groupByDate);
+  /** Default 下为空：头下方再展示空提示 */
+  const showEmptyUnderDefault =
+    view === "list" &&
+    isEmpty &&
+    showDefaultGroup &&
+    !groupByStatus &&
+    !groupByDate &&
+    groupOpen;
 
   function renderRow(row: ChangeVisibleRow): ReactNode {
     if (row.kind === "default-header") {
@@ -423,6 +626,50 @@ function ChangeGroup({
       );
     }
 
+    if (row.kind === "status-header") {
+      return (
+        <div className="hover:bg-accent/60 flex h-7 items-center rounded-md transition-colors">
+          <button
+            type="button"
+            className="text-muted-foreground flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-2 text-left text-xs"
+            onClick={() => onToggleStatusCategory?.(row.category)}
+          >
+            {row.open ? (
+              <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="size-3 shrink-0" aria-hidden="true" />
+            )}
+            <span className="truncate">
+              {statusCategoryLabel?.(row.category, row.count) ??
+                `${row.category} (${row.count})`}
+            </span>
+          </button>
+        </div>
+      );
+    }
+
+    if (row.kind === "date-header") {
+      return (
+        <div className="hover:bg-accent/60 flex h-7 items-center rounded-md transition-colors">
+          <button
+            type="button"
+            className="text-muted-foreground flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-2 text-left text-xs"
+            onClick={() => onToggleDateKey?.(row.dateKey)}
+          >
+            {row.open ? (
+              <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="size-3 shrink-0" aria-hidden="true" />
+            )}
+            <span className="truncate">
+              {dateGroupLabel?.(row.dateKey, row.count) ??
+                `${row.dateKey} (${row.count})`}
+            </span>
+          </button>
+        </div>
+      );
+    }
+
     if (row.kind === "root" || row.kind === "directory") {
       return (
         <ChangeTreeFolderRow
@@ -443,7 +690,10 @@ function ChangeGroup({
         onToggle={onToggleEntry}
         disabled={disabled}
         toggleLabel={toggleLabelFor(row.entry.path)}
-        indented={view === "list" && showDefaultGroup}
+        indented={
+          view === "list" &&
+          (showDefaultGroup || groupByStatus || groupByDate)
+        }
         indentDepth={view === "tree" && "depth" in row ? row.depth : undefined}
         showLineStats={showLineStats}
       />
@@ -481,12 +731,12 @@ function ChangeGroup({
       </div>
 
       <div className="min-h-0 flex-1">
-        {/* 右侧为滚动条预留槽位，避免盖住行尾暂存按钮 */}
+        {/* 左右同宽内边距；滚动条贴右缘叠在右侧 padding 上，避免左右空隙不一致 */}
         <ScrollArea
           ref={bindScrollArea}
-          className="h-full pb-1 pl-1.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:pr-3 [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5"
+          className="h-full px-2 pb-1 [&_[data-slot=scroll-area-viewport]>div]:!block"
         >
-          {showEmpty ? (
+          {showBareEmpty ? (
             <EmptyState
               compact
               className="min-h-30 py-6"
@@ -495,32 +745,43 @@ function ChangeGroup({
               description={emptyDescription}
             />
           ) : (
-            <div
-              className="relative w-full"
-              style={{ height: `${virtualizer.getTotalSize()}px` }}
-              role={view === "tree" ? "tree" : "listbox"}
-              aria-label={title}
-            >
-              {virtualizer.getVirtualItems().map((virtualItem) => {
-                const row = visibleRows[virtualItem.index];
-                if (!row) {
-                  return null;
-                }
-                return (
-                  <div
-                    key={virtualItem.key}
-                    data-index={virtualItem.index}
-                    className="absolute top-0 left-0 w-full"
-                    style={{
-                      height: `${virtualItem.size}px`,
-                      transform: `translateY(${virtualItem.start}px)`,
-                    }}
-                  >
-                    {renderRow(row)}
-                  </div>
-                );
-              })}
-            </div>
+            <>
+              <div
+                className="relative w-full"
+                style={{ height: `${virtualizer.getTotalSize()}px` }}
+                role={view === "tree" ? "tree" : "listbox"}
+                aria-label={title}
+              >
+                {virtualizer.getVirtualItems().map((virtualItem) => {
+                  const row = visibleRows[virtualItem.index];
+                  if (!row) {
+                    return null;
+                  }
+                  return (
+                    <div
+                      key={virtualItem.key}
+                      data-index={virtualItem.index}
+                      className="absolute top-0 left-0 w-full"
+                      style={{
+                        height: `${virtualItem.size}px`,
+                        transform: `translateY(${virtualItem.start}px)`,
+                      }}
+                    >
+                      {renderRow(row)}
+                    </div>
+                  );
+                })}
+              </div>
+              {showEmptyUnderDefault ? (
+                <EmptyState
+                  compact
+                  className="min-h-30 py-6"
+                  icon={emptyIcon}
+                  title={emptyTitle}
+                  description={emptyDescription}
+                />
+              ) : null}
+            </>
           )}
         </ScrollArea>
       </div>
@@ -545,6 +806,14 @@ export function ChangesPanel() {
   const [view, setView] = useState<"list" | "tree">("list");
   const [sortMode, setSortMode] = useState<ChangeSortMode>("default");
   const [showLineStats, setShowLineStats] = useState(false);
+  /** 列表分组：Default / 状态 / 日期（状态与日期互斥） */
+  const [listGroupMode, setListGroupMode] = useState<ListGroupMode>("default");
+  const [collapsedStatusCategories, setCollapsedStatusCategories] = useState(
+    () => new Set<ChangeStatusCategory>(),
+  );
+  const [collapsedDateKeys, setCollapsedDateKeys] = useState(
+    () => new Set<string>(),
+  );
   const [unstagedGroupOpen, setUnstagedGroupOpen] = useState(true);
   const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(() => new Set());
   const [mutating, setMutating] = useState(false);
@@ -643,12 +912,60 @@ export function ChangesPanel() {
     setExpandedTreePaths(new Set());
   }
 
+  function toggleStatusCategory(category: ChangeStatusCategory): void {
+    setCollapsedStatusCategories((previous) => {
+      const next = new Set(previous);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  }
+
+  function toggleDateKey(dateKey: string): void {
+    setCollapsedDateKeys((previous) => {
+      const next = new Set(previous);
+      if (next.has(dateKey)) {
+        next.delete(dateKey);
+      } else {
+        next.add(dateKey);
+      }
+      return next;
+    });
+  }
+
+  function statusCategoryLabel(
+    category: ChangeStatusCategory,
+    count: number,
+  ): string {
+    const labels: Record<ChangeStatusCategory, string> = {
+      conflict: t("repo.changesGroupConflict"),
+      added: t("repo.changesGroupAdded"),
+      modified: t("repo.changesGroupModified"),
+      deleted: t("repo.changesGroupDeleted"),
+      renamed: t("repo.changesGroupRenamed"),
+    };
+    return `${labels[category]} (${count})`;
+  }
+
+  function dateGroupLabel(dateKey: string, count: number): string {
+    const label =
+      dateKey === UNKNOWN_MODIFIED_DATE_KEY
+        ? t("repo.changesGroupUnknownDate")
+        : dateKey;
+    return `${label} (${count})`;
+  }
+
   function handleSoon(action: string): void {
     toast.message(t("repo.syncComingSoon", { action }));
   }
 
   const groupLabel = t("repo.groupDefault");
   const rootName = getPathBasename(repoPath ?? "") || t("project.repoLabel");
+  const listGroupByStatus = view === "list" && listGroupMode === "status";
+  const listGroupByDate = view === "list" && listGroupMode === "date";
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -828,12 +1145,31 @@ export function ChangesPanel() {
               </TooltipTrigger>
               <TooltipContent>{t("repo.historyMore")}</TooltipContent>
             </Tooltip>
-            <DropdownMenuContent align="end" className="min-w-[11rem]">
+            <DropdownMenuContent align="end" className="min-w-[14rem]">
               <DropdownMenuCheckboxItem
                 checked={showLineStats}
                 onCheckedChange={(checked) => setShowLineStats(checked === true)}
+                onSelect={(event) => event.preventDefault()}
               >
                 {t("repo.commitShowLineStats")}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={listGroupMode === "status"}
+                onCheckedChange={(checked) =>
+                  setListGroupMode(checked === true ? "status" : "default")
+                }
+                onSelect={(event) => event.preventDefault()}
+              >
+                {t("repo.changesGroupByStatus")}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={listGroupMode === "date"}
+                onCheckedChange={(checked) =>
+                  setListGroupMode(checked === true ? "date" : "default")
+                }
+                onSelect={(event) => event.preventDefault()}
+              >
+                {t("repo.changesGroupByDate")}
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -854,10 +1190,18 @@ export function ChangesPanel() {
               actionLabel={t("repo.stageAll")}
               onAction={() => void handleStageAll()}
               actionDisabled={busy}
-              showDefaultGroup
+              showDefaultGroup={view === "list" && listGroupMode === "default"}
               groupOpen={unstagedGroupOpen}
               onToggleGroup={() => setUnstagedGroupOpen((prev) => !prev)}
               groupLabel={groupLabel}
+              groupByStatus={listGroupByStatus}
+              collapsedStatusCategories={collapsedStatusCategories}
+              onToggleStatusCategory={toggleStatusCategory}
+              statusCategoryLabel={statusCategoryLabel}
+              groupByDate={listGroupByDate}
+              collapsedDateKeys={collapsedDateKeys}
+              onToggleDateKey={toggleDateKey}
+              dateGroupLabel={dateGroupLabel}
               entries={unstagedEntries}
               rootName={rootName}
               side="worktree"
@@ -892,6 +1236,14 @@ export function ChangesPanel() {
               actionLabel={t("repo.unstageAll")}
               onAction={() => void handleUnstageAll()}
               actionDisabled={busy}
+              groupByStatus={listGroupByStatus}
+              collapsedStatusCategories={collapsedStatusCategories}
+              onToggleStatusCategory={toggleStatusCategory}
+              statusCategoryLabel={statusCategoryLabel}
+              groupByDate={listGroupByDate}
+              collapsedDateKeys={collapsedDateKeys}
+              onToggleDateKey={toggleDateKey}
+              dateGroupLabel={dateGroupLabel}
               entries={stagedEntries}
               rootName={rootName}
               side="index"

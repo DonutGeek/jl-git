@@ -33,6 +33,9 @@ pub struct GitStatusEntry {
     pub index_additions: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub index_deletions: Option<u32>,
+    /// 工作区文件 mtime（Unix 毫秒）；已删除或不存在时为 None
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modified_at: Option<i64>,
 }
 
 fn empty_entry(path: String, index_status: String, worktree_status: String, renamed_from: Option<String>) -> GitStatusEntry {
@@ -45,6 +48,7 @@ fn empty_entry(path: String, index_status: String, worktree_status: String, rena
         worktree_deletions: None,
         index_additions: None,
         index_deletions: None,
+        modified_at: None,
     }
 }
 
@@ -66,6 +70,7 @@ pub fn get_status(repo_path: &Path) -> Result<GitStatusResult, AppError> {
 
     let mut result = parse_status(&output.stdout);
     attach_status_numstat(repo_path, &mut result);
+    attach_status_mtimes(repo_path, &mut result);
     Ok(result)
 }
 
@@ -107,6 +112,25 @@ fn attach_status_numstat(repo_path: &Path, result: &mut GitStatusResult) {
             }
         }
     }
+}
+
+/// 附加工作区文件修改时间（失败不影响 status 主结果）
+fn attach_status_mtimes(repo_path: &Path, result: &mut GitStatusResult) {
+    for entry in &mut result.entries {
+        let relative = Path::new(&entry.path);
+        if relative.is_absolute() {
+            continue;
+        }
+        entry.modified_at = file_modified_at_ms(&repo_path.join(relative));
+    }
+}
+
+fn file_modified_at_ms(path: &Path) -> Option<i64> {
+    let modified = std::fs::metadata(path).ok()?.modified().ok()?;
+    let duration = modified
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .ok()?;
+    Some(duration.as_millis() as i64)
 }
 
 pub fn parse_status(stdout: &str) -> GitStatusResult {

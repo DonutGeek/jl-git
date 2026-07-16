@@ -182,6 +182,8 @@ interface GitStatusEntry {
   indexStatus: string;   // porcelain 语义
   worktreeStatus: string;
   renamedFrom?: string;
+  /** 工作区文件 mtime（Unix 毫秒）；已删除或不存在时缺省 */
+  modifiedAt?: number;
 }
 ```
 

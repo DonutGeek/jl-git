@@ -42,6 +42,8 @@ function labelKey(label: OpLogLabel): string {
   if (label === "deleteBranch") return "opLog.labelDeleteBranch";
   if (label === "renameBranch") return "opLog.labelRenameBranch";
   if (label === "merge") return "opLog.labelMerge";
+  if (label === "stageAll") return "opLog.labelStageAll";
+  if (label === "unstageAll") return "opLog.labelUnstageAll";
   return "opLog.labelUnknown";
 }
 

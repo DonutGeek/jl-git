@@ -49,7 +49,7 @@ export interface SelectedCommitFile {
   status: string;
 }
 
-/** 提交详情短缓存，减少来回点击时的 git_show 与重渲染 */
+/** 提交详情短缓存（按仓库路径隔离，避免切仓互相踩） */
 const commitDetailCache = new Map<string, GitCommitDetail>();
 
 /** 已打开仓库的会话快照：切标签时先还原，再后台刷新，避免每次冷加载卡顿 */
@@ -68,8 +68,12 @@ interface RepoSessionSnapshot {
 
 const repoSessionCache = new Map<string, RepoSessionSnapshot>();
 
-function cacheCommitDetail(detail: GitCommitDetail): void {
-  commitDetailCache.set(detail.id, detail);
+function commitDetailCacheKey(repoPath: string, commitId: string): string {
+  return `${repoPath}\0${commitId}`;
+}
+
+function cacheCommitDetail(repoPath: string, detail: GitCommitDetail): void {
+  commitDetailCache.set(commitDetailCacheKey(repoPath, detail.id), detail);
   if (commitDetailCache.size <= COMMIT_DETAIL_CACHE_MAX) {
     return;
   }
@@ -79,8 +83,39 @@ function cacheCommitDetail(detail: GitCommitDetail): void {
   }
 }
 
+function getCachedCommitDetail(repoPath: string, commitId: string): GitCommitDetail | null {
+  return commitDetailCache.get(commitDetailCacheKey(repoPath, commitId)) ?? null;
+}
+
+/** 仅清除指定仓库的详情缓存（冷启该仓时用，勿清空其它标签页） */
+function clearCommitDetailCacheForRepo(repoPath: string): void {
+  const prefix = `${repoPath}\0`;
+  for (const key of [...commitDetailCache.keys()]) {
+    if (key.startsWith(prefix)) {
+      commitDetailCache.delete(key);
+    }
+  }
+}
+
 function clearCommitDetailCache(): void {
   commitDetailCache.clear();
+}
+
+/** 会话还原后若有选中提交但详情缺失，异步补拉，避免详情区直接显示失败 */
+function ensureSelectedCommitDetail(): void {
+  const state = useRepoStore.getState();
+  const commitId = state.selectedCommitId;
+  const repoPath = state.repoPath;
+  if (!commitId || !repoPath) {
+    return;
+  }
+  if (state.selectedCommitDetail?.id === commitId || state.detailLoading) {
+    return;
+  }
+  void useRepoStore
+    .getState()
+    .selectCommit(commitId)
+    .catch(() => undefined);
 }
 
 function saveRepoSession(repoPath: string, state: RepoStoreState): void {
@@ -133,6 +168,11 @@ export function restoreRepoSession(repoPath: string): boolean {
     return false;
   }
 
+  const detail = cached.selectedCommitId
+    ? getCachedCommitDetail(repoPath, cached.selectedCommitId)
+    : null;
+  const needsDetail = Boolean(cached.selectedCommitId && !detail);
+
   useRepoStore.setState({
     repoPath,
     status: cached.status,
@@ -144,22 +184,28 @@ export function restoreRepoSession(repoPath: string): boolean {
     logRef: cached.logRef,
     commitMessage: cached.commitMessage,
     selectedCommitId: cached.selectedCommitId,
-    selectedCommitDetail: cached.selectedCommitId
-      ? (commitDetailCache.get(cached.selectedCommitId) ?? null)
-      : null,
-    detailLoading: false,
+    selectedCommitDetail: detail,
+    detailLoading: needsDetail,
     selectedChange: cached.selectedChange,
     selectedCommitFile: null,
     loading: true,
     error: null,
   });
+  if (needsDetail) {
+    ensureSelectedCommitDetail();
+  }
   return true;
 }
 
 /** 轻量切仓：只改路径并清空列表，避免同步灌入大缓存造成点击卡顿 */
 export function beginRepoSwitch(repoPath: string): void {
-  if (useRepoStore.getState().repoPath === repoPath) {
+  const current = useRepoStore.getState();
+  if (current.repoPath === repoPath) {
     return;
+  }
+  // 离开前写入会话，保留 A 仓的选中提交，返回时可还原
+  if (current.repoPath) {
+    saveRepoSession(current.repoPath, current);
   }
   useRepoStore.setState({
     repoPath,
@@ -355,6 +401,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
     // 命中会话缓存：立刻还原 UI，再后台静默刷新（切标签不再整页等待）
     if (cached) {
+      const detail = cached.selectedCommitId
+        ? getCachedCommitDetail(repoPath, cached.selectedCommitId)
+        : null;
+      const needsDetail = Boolean(cached.selectedCommitId && !detail);
       set({
         repoPath,
         status: cached.status,
@@ -366,13 +416,16 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         logRef: cached.logRef,
         commitMessage: cached.commitMessage,
         selectedCommitId: cached.selectedCommitId,
-        selectedCommitDetail: null,
-        detailLoading: false,
+        selectedCommitDetail: detail,
+        detailLoading: needsDetail,
         selectedChange: cached.selectedChange,
         selectedCommitFile: null,
         loading: true,
         error: null,
       });
+      if (needsDetail) {
+        ensureSelectedCommitDetail();
+      }
 
       try {
         const [status, identity, branches, tags, log] = await Promise.all([
@@ -403,6 +456,8 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           loading: false,
         });
         saveRepoSession(repoPath, get());
+        // 刷新后选中提交可能已不在列表；仍在则补详情
+        ensureSelectedCommitDetail();
       } catch (error) {
         if (get().repoPath === repoPath) {
           setError(set, error);
@@ -412,7 +467,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       return;
     }
 
-    // 冷启动：清空旧数据再并行拉取
+    // 冷启动：清空旧数据再并行拉取（只清本仓详情，保留其它标签页缓存）
     set({
       repoPath,
       status: null,
@@ -431,7 +486,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       loading: true,
       error: null,
     });
-    clearCommitDetailCache();
+    clearCommitDetailCacheForRepo(repoPath);
 
     try {
       const [status, identity, branches, tags, log] = await Promise.all([
@@ -532,7 +587,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     if (get().logRef === ref) {
       return;
     }
-    clearCommitDetailCache();
+    const repoPath = get().repoPath;
+    if (repoPath) {
+      clearCommitDetailCacheForRepo(repoPath);
+    }
     set({
       logRef: ref,
       selectedCommitId: null,
@@ -574,7 +632,31 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       return;
     }
 
-    await get().refreshLog(false);
+    // 不拉全局 loading：避免工具栏/列表整页进入加载态，底部用局部 loadingMore 提示
+    set({ error: null });
+
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      const skip = get().commits.length;
+      const log = await gitService.getLog(repoPath, {
+        skip,
+        limit: LOG_PAGE_SIZE,
+        ref: get().logRef ?? undefined,
+      });
+
+      if (get().repoPath !== repoPath) {
+        return;
+      }
+
+      set({
+        commits: [...get().commits, ...log.commits],
+        hasMore: log.hasMore,
+      });
+      saveRepoSession(repoPath, get());
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
   },
 
   async selectCommit(commitId) {
@@ -585,6 +667,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         detailLoading: false,
         selectedCommitFile: null,
       });
+      const path = get().repoPath;
+      if (path) {
+        saveRepoSession(path, get());
+      }
       return;
     }
 
@@ -599,12 +685,17 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       error: null,
     });
 
-    const cached = commitDetailCache.get(commitId);
+    const repoPathForCache = get().repoPath;
+    const cached =
+      repoPathForCache != null ? getCachedCommitDetail(repoPathForCache, commitId) : null;
     if (cached) {
       set({
         selectedCommitDetail: cached,
         detailLoading: false,
       });
+      if (repoPathForCache) {
+        saveRepoSession(repoPathForCache, get());
+      }
       return;
     }
 
@@ -617,15 +708,16 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     try {
       const repoPath = requireRepoPath(get().repoPath);
       const result = await gitService.getCommit(repoPath, commitId);
-      // 若用户已点了另一条，丢弃过期结果
-      if (get().selectedCommitId !== commitId) {
+      // 若用户已点了另一条或已切仓，丢弃过期结果
+      if (get().selectedCommitId !== commitId || get().repoPath !== repoPath) {
         return;
       }
-      cacheCommitDetail(result.commit);
+      cacheCommitDetail(repoPath, result.commit);
       set({
         selectedCommitDetail: result.commit,
         detailLoading: false,
       });
+      saveRepoSession(repoPath, get());
     } catch (error) {
       if (get().selectedCommitId === commitId) {
         set({
@@ -678,6 +770,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
     try {
       const repoPath = requireRepoPath(get().repoPath);
+      await revealOpLogBeforeInvoke();
       await gitService.stageAll(repoPath);
       const status = await gitService.getStatus(repoPath);
       set({
@@ -695,6 +788,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
     try {
       const repoPath = requireRepoPath(get().repoPath);
+      await revealOpLogBeforeInvoke();
       await gitService.unstageAll(repoPath);
       const status = await gitService.getStatus(repoPath);
       set({

@@ -14,6 +14,7 @@ export interface BranchTreeNode {
 /**
  * 将分支列表按名称中的 "/" 拆分构建树。
  * 远端形如 origin/hl/feature → origin → hl → feature，逐级向右展开。
+ * 同层排序：文件夹优先，组内按名称（数字自然序）。
  */
 export function buildBranchTree(branches: GitBranch[]): BranchTreeNode[] {
   const roots: BranchTreeNode[] = [];
@@ -22,6 +23,7 @@ export function buildBranchTree(branches: GitBranch[]): BranchTreeNode[] {
     insertBranch(roots, branch.name.split("/"), branch, "");
   }
 
+  sortBranchTreeNodes(roots);
   return roots;
 }
 
@@ -44,5 +46,26 @@ function insertBranch(
     node.branch = branch;
   } else {
     insertBranch(node.children, rest, branch, path);
+  }
+}
+
+/** 同层：有子节点的文件夹在前，叶子分支在后；组内按 segment 名称排序 */
+function sortBranchTreeNodes(nodes: BranchTreeNode[]): void {
+  nodes.sort((left, right) => {
+    const leftFolder = left.children.length > 0;
+    const rightFolder = right.children.length > 0;
+    if (leftFolder !== rightFolder) {
+      return leftFolder ? -1 : 1;
+    }
+    return left.segment.localeCompare(right.segment, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  });
+
+  for (const node of nodes) {
+    if (node.children.length > 0) {
+      sortBranchTreeNodes(node.children);
+    }
   }
 }

@@ -69,6 +69,34 @@ interface DragEntry {
   label?: string;
 }
 
+/** 同级混合列表项（分组与仓库共用 sortOrder 空间） */
+type MixedTreeItem =
+  | {
+      kind: "workspace";
+      sortableId: string;
+      sortOrder: number;
+      name: string;
+      workspace: Workspace;
+    }
+  | {
+      kind: "project";
+      sortableId: string;
+      sortOrder: number;
+      name: string;
+      project: Project;
+    };
+
+function compareMixedTreeItems(a: MixedTreeItem, b: MixedTreeItem): number {
+  if (a.sortOrder !== b.sortOrder) {
+    return a.sortOrder - b.sortOrder;
+  }
+  // sortOrder 相同时：仓库在前、分组在后，贴近历史默认布局
+  if (a.kind !== b.kind) {
+    return a.kind === "project" ? -1 : 1;
+  }
+  return a.name.localeCompare(b.name);
+}
+
 function SortableGroupItem({
   id,
   entry,
@@ -94,7 +122,8 @@ function SortableGroupItem({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
         className,
-        isDragging && "opacity-40",
+        // 拖拽中隐藏原行，由 DragOverlay 展示，避免缩成小胶囊
+        isDragging && "opacity-0",
         acceptProjectDrop && isOver && !isDragging && "bg-primary/10 ring-primary/25 ring-1",
       )}
       {...attributes}
@@ -236,6 +265,25 @@ export function ProjectManager({
     () => visibleProjects.filter((project) => project.workspaceId === null).sort((a, b) => a.sortOrder - b.sortOrder),
     [visibleProjects],
   );
+  const rootMixedItems = useMemo(() => {
+    const mixed: MixedTreeItem[] = [
+      ...rootWorkspaces.map((workspace) => ({
+        kind: "workspace" as const,
+        sortableId: `workspace-${workspace.id}`,
+        sortOrder: workspace.sortOrder,
+        name: workspace.name,
+        workspace,
+      })),
+      ...rootProjects.map((project) => ({
+        kind: "project" as const,
+        sortableId: `project-${project.id}`,
+        sortOrder: project.sortOrder,
+        name: project.name,
+        project,
+      })),
+    ];
+    return mixed.sort(compareMixedTreeItems);
+  }, [rootProjects, rootWorkspaces]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const dragging = activeDrag !== null;
 
@@ -245,10 +293,76 @@ export function ProjectManager({
       .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
   }
 
+  /** 某父级下的分组 + 仓库混合列表（共用 sortOrder） */
+  function buildMixedItems(parentId: string | null): MixedTreeItem[] {
+    if (parentId === null) {
+      return rootMixedItems;
+    }
+
+    const childWorkspaces = workspaces
+      .filter((item) => item.parentId === parentId)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    const childProjects = visibleProjects.filter((project) => project.workspaceId === parentId);
+
+    const mixed: MixedTreeItem[] = [
+      ...childWorkspaces.map((workspace) => ({
+        kind: "workspace" as const,
+        sortableId: `workspace-${workspace.id}`,
+        sortOrder: workspace.sortOrder,
+        name: workspace.name,
+        workspace,
+      })),
+      ...childProjects.map((project) => ({
+        kind: "project" as const,
+        sortableId: `project-${project.id}`,
+        sortOrder: project.sortOrder,
+        name: project.name,
+        project,
+      })),
+    ];
+    return mixed.sort(compareMixedTreeItems);
+  }
+
   async function persistProjectMove(groups: Array<{ workspaceId: string | null; projectIds: string[] }>): Promise<void> {
     await reorderGroupedItems({
       workspaces: [],
       projects: buildProjectOrderItems(groups),
+    });
+  }
+
+  /** 同级混合排序（分组可在仓库间上下拖动） */
+  async function persistMixedReorder(
+    parentId: string | null,
+    activeSortableId: string,
+    overSortableId: string,
+  ): Promise<void> {
+    const mixed = buildMixedItems(parentId);
+    const oldIndex = mixed.findIndex((item) => item.sortableId === activeSortableId);
+    const newIndex = mixed.findIndex((item) => item.sortableId === overSortableId);
+    if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
+      return;
+    }
+
+    const next = arrayMove(mixed, oldIndex, newIndex);
+    const workspaceOrders: Array<{ id: string; sortOrder: number }> = [];
+    const projectOrders: Array<{ id: string; workspaceId: string | null; sortOrder: number }> = [];
+
+    next.forEach((item, sortOrder) => {
+      if (item.kind === "workspace") {
+        workspaceOrders.push({ id: item.workspace.id, sortOrder });
+      } else {
+        projectOrders.push({
+          id: item.project.id,
+          workspaceId: parentId,
+          sortOrder,
+        });
+      }
+    });
+
+    await reorderGroupedItems({
+      workspaces: workspaceOrders,
+      projects: projectOrders,
     });
   }
 
@@ -294,24 +408,19 @@ export function ProjectManager({
       return;
     }
 
+    const activeSortableId = String(event.active.id);
+    const overSortableId = String(event.over?.id ?? "");
+
     try {
-      // 同级分组排序
-      if (active.type === "workspace" && over.type === "workspace" && active.parentId === over.parentId) {
-        const siblings = workspaces
-          .filter((item) => item.parentId === active.parentId)
-          .sort((a, b) => a.sortOrder - b.sortOrder);
-        const oldIndex = siblings.findIndex((item) => item.id === String(event.active.id).replace("workspace-", ""));
-        const newIndex = siblings.findIndex((item) => item.id === String(event.over?.id).replace("workspace-", ""));
-        if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
-          return;
+      // 拖动分组：与同级分组或同级仓库重排
+      if (active.type === "workspace") {
+        const sameLevelWorkspace =
+          over.type === "workspace" && over.parentId === active.parentId;
+        const sameLevelProject =
+          over.type === "project" && over.workspaceId === active.parentId;
+        if (sameLevelWorkspace || sameLevelProject) {
+          await persistMixedReorder(active.parentId, activeSortableId, overSortableId);
         }
-        await reorderGroupedItems({
-          workspaces: arrayMove(siblings, oldIndex, newIndex).map((item, sortOrder) => ({
-            id: item.id,
-            sortOrder,
-          })),
-          projects: [],
-        });
         return;
       }
 
@@ -319,9 +428,9 @@ export function ProjectManager({
         return;
       }
 
-      const activeId = String(event.active.id).replace("project-", "");
+      const activeId = activeSortableId.replace("project-", "");
 
-      // 投放到分组行或根「无分组」容器
+      // 投放到分组行或根「无分组」容器 → 移入该分组
       if (over.type === "workspace" || over.type === "container") {
         await moveProjectToWorkspace(activeId, active.workspaceId, over.workspaceId);
         return;
@@ -331,28 +440,20 @@ export function ProjectManager({
         return;
       }
 
-      const overId = String(event.over?.id).replace("project-", "");
-      const source = projectsInWorkspace(active.workspaceId);
-      const target =
-        active.workspaceId === over.workspaceId
-          ? source
-          : projectsInWorkspace(over.workspaceId);
-      const sourceIndex = source.findIndex((item) => item.id === activeId);
-      const targetIndex = target.findIndex((item) => item.id === overId);
-      if (sourceIndex < 0 || targetIndex < 0) {
+      const overId = overSortableId.replace("project-", "");
+
+      // 同级（含根下混排）：与分组共用顺序
+      if (active.workspaceId === over.workspaceId) {
+        await persistMixedReorder(active.workspaceId, activeSortableId, overSortableId);
         return;
       }
 
-      if (active.workspaceId === over.workspaceId) {
-        if (sourceIndex === targetIndex) {
-          return;
-        }
-        await persistProjectMove([
-          {
-            workspaceId: active.workspaceId,
-            projectIds: arrayMove(source, sourceIndex, targetIndex).map((item) => item.id),
-          },
-        ]);
+      // 跨分组：落到目标组内指定位置
+      const source = projectsInWorkspace(active.workspaceId);
+      const target = projectsInWorkspace(over.workspaceId);
+      const sourceIndex = source.findIndex((item) => item.id === activeId);
+      const targetIndex = target.findIndex((item) => item.id === overId);
+      if (sourceIndex < 0 || targetIndex < 0) {
         return;
       }
 
@@ -393,11 +494,16 @@ export function ProjectManager({
   }
 
   async function pickPath(): Promise<void> {
-    setPicking(true);
+    if (picking || opening) {
+      return;
+    }
     setOpenError(null);
+    // 先发起选目录 IPC，再改按钮态，避免重渲染抢主线程导致面板晚弹出
+    const pickPromise = projectService.pickDirectory();
+    setPicking(true);
 
     try {
-      const selected = await projectService.pickDirectory();
+      const selected = await pickPromise;
       if (selected) {
         handlePathChange(selected);
       }
@@ -549,7 +655,10 @@ export function ProjectManager({
             )}
             onClick={() => {
               if (!opening && !dragging) {
-                setSelectedProjectId(project.id);
+                // 再次点击已选项则取消选中
+                setSelectedProjectId((current) =>
+                  current === project.id ? null : project.id,
+                );
               }
             }}
             onDoubleClick={() => openGroupProject(project.id)}
@@ -560,7 +669,14 @@ export function ProjectManager({
               }
             }}
           >
-            <span className="text-muted-foreground bg-muted group-hover:bg-muted-foreground/10 group-focus-visible:bg-muted-foreground/10 flex size-7 shrink-0 items-center justify-center rounded-md transition-colors">
+            <span
+              className={cn(
+                "text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                isSelected
+                  ? "bg-muted-foreground/12 ring-border/60 ring-1 ring-inset"
+                  : "bg-muted group-hover:bg-muted-foreground/10 group-focus-visible:bg-muted-foreground/10",
+              )}
+            >
               <FolderGit2 className="size-3.5" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1 truncate text-sm font-medium">{project.name}</span>
@@ -571,13 +687,8 @@ export function ProjectManager({
   }
 
   function renderWorkspace(workspace: Workspace, depth: number) {
-    const children = workspaces
-      .filter((item) => item.parentId === workspace.id)
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-    const items = visibleProjects
-      .filter((project) => project.workspaceId === workspace.id)
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
     const expanded = !collapsedWorkspaceIds.has(workspace.id);
+    const mixedChildren = buildMixedItems(workspace.id);
 
     return (
       <div key={workspace.id} className="space-y-0.5">
@@ -674,18 +785,14 @@ export function ProjectManager({
         </div>
         {expanded ? (
           <SortableContext
-            items={children.map((child) => `workspace-${child.id}`)}
+            items={mixedChildren.map((item) => item.sortableId)}
             strategy={verticalListSortingStrategy}
           >
-            {children.map((child) => renderWorkspace(child, depth + 1))}
-          </SortableContext>
-        ) : null}
-        {expanded ? (
-          <SortableContext
-            items={items.map((project) => `project-${project.id}`)}
-            strategy={verticalListSortingStrategy}
-          >
-            {items.map((project) => renderGroupProject(project, depth + 1))}
+            {mixedChildren.map((item) =>
+              item.kind === "workspace"
+                ? renderWorkspace(item.workspace, depth + 1)
+                : renderGroupProject(item.project, depth + 1),
+            )}
           </SortableContext>
         ) : null}
       </div>
@@ -736,7 +843,7 @@ export function ProjectManager({
                   onClick={() => void pickPath()}
                 >
                   <FolderOpen className="size-4" aria-hidden="true" />
-                  {picking ? t("common.loading") : t("openRepo.pickButton")}
+                  {t("openRepo.pickButton")}
                 </Button>
               </div>
             </div>
@@ -834,7 +941,7 @@ export function ProjectManager({
               onDragEnd={(event) => void handleGroupDragEnd(event)}
             >
             <div className="min-h-0 flex-1">
-              <ScrollArea className="h-full pb-4 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:pr-2">
+              <ScrollArea className="h-full pb-4 [&_[data-slot=scroll-area-viewport]>div]:!block">
                 <div className="space-y-0.5 pb-4">
                   {/* 最外层根节点：展开/收起全部，并作为拖回未分组的投放目标 */}
                   <RootDropZone>
@@ -876,18 +983,14 @@ export function ProjectManager({
                   </RootDropZone>
                   {rootExpanded ? (
                     <SortableContext
-                      items={rootProjects.map((project) => `project-${project.id}`)}
+                      items={rootMixedItems.map((item) => item.sortableId)}
                       strategy={verticalListSortingStrategy}
                     >
-                      {rootProjects.map((project) => renderGroupProject(project, 1))}
-                    </SortableContext>
-                  ) : null}
-                  {rootExpanded ? (
-                    <SortableContext
-                      items={rootWorkspaces.map((workspace) => `workspace-${workspace.id}`)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {rootWorkspaces.map((workspace) => renderWorkspace(workspace, 1))}
+                      {rootMixedItems.map((item) =>
+                        item.kind === "workspace"
+                          ? renderWorkspace(item.workspace, 1)
+                          : renderGroupProject(item.project, 1),
+                      )}
                     </SortableContext>
                   ) : null}
                   {groupError ? (
@@ -900,13 +1003,16 @@ export function ProjectManager({
             </div>
             <DragOverlay dropAnimation={null}>
               {activeDrag?.label ? (
-                <div className="bg-background border-border flex h-9 max-w-xs items-center gap-2 rounded-md border px-3 shadow-md">
+                <div className="bg-popover text-popover-foreground border-border flex h-9 min-w-[14rem] items-center gap-1.5 rounded-md border px-2 shadow-lg">
                   {activeDrag.type === "project" ? (
                     <FolderGit2 className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
                   ) : (
-                    <Folder className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+                    <>
+                      <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+                      <Folder className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
+                    </>
                   )}
-                  <span className="truncate text-sm font-medium">{activeDrag.label}</span>
+                  <span className="min-w-0 truncate text-sm font-medium">{activeDrag.label}</span>
                 </div>
               ) : null}
             </DragOverlay>

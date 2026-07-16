@@ -121,7 +121,7 @@ export function RecentProjectList({
       </div>
 
       <div className="min-h-0 flex-1">
-        <ScrollArea className="h-full pb-4 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:pr-2">
+        <ScrollArea className="h-full pb-4 [&_[data-slot=scroll-area-viewport]>div]:!block">
           <ul className="space-y-1" role="listbox" aria-label={t("dashboard.recentTitle")}>
             {filteredRows.map((project) => {
               const isSelected = selectedId === project.id;
@@ -142,7 +142,10 @@ export function RecentProjectList({
                             : "hover:bg-accent/60",
                         )}
                         onClick={() => {
-                          setSelectedId(project.id);
+                          // 再次点击已选项则取消选中
+                          setSelectedId((current) =>
+                            current === project.id ? null : project.id,
+                          );
                         }}
                         onDoubleClick={() => {
                           handleOpenProject(project.id);
@@ -159,7 +162,13 @@ export function RecentProjectList({
                         }}
                       >
                     <span
-                      className="text-muted-foreground bg-muted group-hover:bg-muted-foreground/10 group-focus-visible:bg-muted-foreground/10 flex size-9 shrink-0 items-center justify-center rounded-md transition-colors"
+                      className={cn(
+                        "text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-md transition-colors",
+                        // 选中时略加深并加细边，避免与行底糊成一片，也不用强反差底色
+                        isSelected
+                          ? "bg-muted-foreground/12 ring-border/60 ring-1 ring-inset"
+                          : "bg-muted group-hover:bg-muted-foreground/10 group-focus-visible:bg-muted-foreground/10",
+                      )}
                     >
                       <FolderGit2 className="size-4" aria-hidden="true" />
                     </span>

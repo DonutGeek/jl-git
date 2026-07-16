@@ -503,8 +503,8 @@ function ParentDiffSection({
       </div>
 
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-        <ScrollArea className="h-full w-full min-w-0 [&_[data-orientation=vertical]]:right-0.5 [&_[data-orientation=vertical]]:left-auto [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
-          <div className="min-w-0 px-2 pr-3 pb-1">
+        <ScrollArea className="h-full w-full min-w-0 px-2 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+          <div className="min-w-0 pb-1">
             {allFilesLoading ? (
               <div className="text-muted-foreground flex items-center gap-2 px-0.5 py-3 text-xs">
                 <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />

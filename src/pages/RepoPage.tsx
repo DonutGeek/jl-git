@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -19,6 +26,8 @@ import { HistoryDetailPane } from "@/components/git/HistoryDetailPane";
 import { HistoryList } from "@/components/git/HistoryList";
 import { WorkspaceBrowser } from "@/components/git/WorkspaceBrowser";
 import { cn } from "@/lib/utils";
+
+const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
 
 import { useProjectStore } from "@/store/useProjectStore";
 import { hasRepoSession, restoreRepoSession, beginRepoSwitch, useRepoStore } from "@/store/useRepoStore";
@@ -294,7 +303,8 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
 
   if (bootstrapping && !project) {
     return (
-      <section className="flex h-full flex-col">
+      // 加载期无 RepoToolbar：整页可拖窗口，避免只能点到失效的标签栏留白
+      <section data-tauri-drag-region className="flex h-full flex-col">
         <div className="flex flex-1 items-center justify-center">
           <p className="text-muted-foreground text-sm">{t("repo.opening")}</p>
         </div>
@@ -304,14 +314,16 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
 
   if ((error && !project) || !project) {
     return (
-      <section className="flex h-full flex-col">
+      <section data-tauri-drag-region className="flex h-full flex-col">
         <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
           <p className="text-destructive text-sm" role="alert">
             {error ?? t("repo.notFound")}
           </p>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/">{t("common.back")}</Link>
-          </Button>
+          <div style={noDragStyle}>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/">{t("common.back")}</Link>
+            </Button>
+          </div>
         </div>
       </section>
     );

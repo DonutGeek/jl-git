@@ -24,6 +24,8 @@ export interface GitStatusEntry {
   /** 暂存区相对 HEAD 的增删行 */
   indexAdditions?: number | null;
   indexDeletions?: number | null;
+  /** 工作区文件 mtime（Unix 毫秒）；已删除或不存在时缺省 */
+  modifiedAt?: number | null;
 }
 
 export interface GitBranch {

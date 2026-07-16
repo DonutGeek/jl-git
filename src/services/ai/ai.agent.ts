@@ -4,6 +4,7 @@ import { buildAgentSystemPrompt } from "@/prompts/agent";
 import {
   getCommit,
   getCommitFileDiff,
+  getDiff,
   getLog,
   getStatus,
   listBranches,
@@ -31,6 +32,8 @@ const AGENT_COMPARISON_LIMIT = 12;
 const AGENT_COMMIT_FILE_LIMIT = 80;
 const AGENT_COMMIT_PATCH_FILE_LIMIT = 6;
 const AGENT_COMMIT_PATCH_BYTES = 4_096;
+const AGENT_WORKING_TREE_PATCH_FILE_LIMIT = 6;
+const AGENT_WORKING_TREE_PATCH_BYTES = 4_096;
 const COMMIT_REFERENCE_PATTERN = /\b[0-9a-f]{7,64}\b/gi;
 
 interface StreamAgentReplyOptions {
@@ -116,22 +119,40 @@ async function buildRepositoryContext(
   const selectedBranches = messages[messages.length - 1]?.mentions
     ?.filter((mention) => mention.type === "branch")
     .map((mention) => mention.name) ?? [];
+  const needFileTree = needsFileTreeContext(question);
+  const needWorkingTreePatches = needsWorkingTreePatchContext(question);
+
   const [statusResult, branchesResult, logResult, treeResult] = await Promise.allSettled([
     getStatus(repoPath),
     listBranches(repoPath, true),
     getLog(repoPath, { limit: AGENT_LOG_LIMIT }),
-    listTree(repoPath, "HEAD"),
+    needFileTree
+      ? listTree(repoPath, "HEAD")
+      : Promise.resolve({ paths: [] as string[] }),
   ]);
 
   const sections = [
     formatStatusContext(statusResult),
     formatBranchesContext(branchesResult),
     formatLogContext(logResult, "Recent commits on HEAD"),
-    formatTreeContext(treeResult),
+    needFileTree ? formatTreeContext(treeResult) : null,
     selectedBranches.length > 0
       ? `User-selected branch references: ${selectedBranches.join(", ")}.`
       : null,
   ];
+
+  if (
+    needWorkingTreePatches &&
+    statusResult.status === "fulfilled"
+  ) {
+    const workingTreePatches = await readWorkingTreePatches(
+      repoPath,
+      statusResult.value,
+    );
+    if (workingTreePatches) {
+      sections.push(workingTreePatches);
+    }
+  }
 
   if (branchesResult.status === "fulfilled") {
     const currentBranch =
@@ -164,18 +185,48 @@ function formatStatusContext(result: PromiseSettledResult<GitStatusResult>): str
     return "Repository status: unavailable.";
   }
   const status = result.value;
-  const changes = status.entries
-    .slice(0, AGENT_STATUS_ENTRY_LIMIT)
-    .map((entry) => `${entry.indexStatus}${entry.worktreeStatus} ${entry.path}`);
+  const changes = status.entries.slice(0, AGENT_STATUS_ENTRY_LIMIT).map((entry) => {
+    const sides: string[] = [];
+    if (entry.indexStatus !== "." && entry.indexStatus !== "?") {
+      sides.push(`staged:${describeGitLetter(entry.indexStatus)}`);
+    }
+    if (entry.worktreeStatus === "?") {
+      sides.push("untracked");
+    } else if (entry.worktreeStatus !== ".") {
+      sides.push(`unstaged:${describeGitLetter(entry.worktreeStatus)}`);
+    }
+    const sideLabel = sides.length > 0 ? sides.join(", ") : "changed";
+    return `  - ${entry.path} (${sideLabel})`;
+  });
   const omitted = status.entries.length - changes.length;
   return [
     "Repository status:",
     `- Current ref: ${status.detached ? "detached HEAD" : status.branch ?? "unknown"}`,
     `- Upstream: ${status.upstream ?? "none"}; ahead ${status.ahead}, behind ${status.behind}`,
     `- Working tree changes (${status.entries.length}):`,
-    ...(changes.length > 0 ? changes.map((change) => `  - ${change}`) : ["  - clean"]),
+    ...(changes.length > 0 ? changes : ["  - clean"]),
     ...(omitted > 0 ? [`  - … ${omitted} more changes omitted`] : []),
   ].join("\n");
+}
+
+/** 将 Git 单字母状态转成快照可读标签，避免模型把 .M 原样念给用户 */
+function describeGitLetter(letter: string): string {
+  switch (letter) {
+    case "M":
+      return "modified";
+    case "A":
+      return "added";
+    case "D":
+      return "deleted";
+    case "R":
+      return "renamed";
+    case "C":
+      return "copied";
+    case "U":
+      return "unmerged";
+    default:
+      return letter;
+  }
 }
 
 function formatBranchesContext(result: PromiseSettledResult<GitBranch[]>): string {
@@ -311,6 +362,73 @@ function findMentionedCommit(
     }
   }
   return null;
+}
+
+function hasWorkingTreeChangeIntent(question: string): boolean {
+  return /(?:当前|现在|工作区|未提交|暂存)?.{0,12}(?:变更|修改|改了|改动|changes?)|(?:变更|修改|改动|diff|差异).{0,12}(?:什么|哪些|内容|文件)|what(?:'s| is| are)?.{0,12}chang/i.test(
+    question,
+  );
+}
+
+/** 仅在用户追问行级细节时拉工作区 patch，避免普通「改了什么」被多文件 diff 拖慢发送 */
+function needsWorkingTreePatchContext(question: string): boolean {
+  return (
+    hasWorkingTreeChangeIntent(question) &&
+    /(?:具体|逐行|细节|怎么改|改哪|diff|差异|patch|代码|实现|逻辑)/i.test(question)
+  );
+}
+
+function needsFileTreeContext(question: string): boolean {
+  return /(?:文件列表|有哪些文件|目录树|仓库里有|list\s+files|file\s+tree|project\s+files)/i.test(
+    question,
+  );
+}
+
+async function readWorkingTreePatches(
+  repoPath: string,
+  status: GitStatusResult,
+): Promise<string | null> {
+  const targets = status.entries
+    .flatMap((entry) => {
+      const items: { path: string; staged: boolean }[] = [];
+      if (entry.indexStatus !== "." && entry.indexStatus !== "?") {
+        items.push({ path: entry.path, staged: true });
+      }
+      if (entry.worktreeStatus === "?" || entry.worktreeStatus !== ".") {
+        items.push({ path: entry.path, staged: false });
+      }
+      return items;
+    })
+    .slice(0, AGENT_WORKING_TREE_PATCH_FILE_LIMIT);
+
+  if (targets.length === 0) {
+    return null;
+  }
+
+  const results = await Promise.allSettled(
+    targets.map(async (target) => ({
+      target,
+      diff: await getDiff(repoPath, {
+        filePath: target.path,
+        staged: target.staged,
+        maxBytes: AGENT_WORKING_TREE_PATCH_BYTES,
+      }),
+    })),
+  );
+
+  const patches = results.flatMap((result) => {
+    if (result.status !== "fulfilled" || !result.value.diff.patch.trim()) {
+      return [];
+    }
+    const { target, diff } = result.value;
+    const side = target.staged ? "staged" : "unstaged";
+    const suffix = diff.truncated ? "\n[patch truncated]" : "";
+    return [`Patch (${side}) for ${target.path}:\n${diff.patch}${suffix}`];
+  });
+
+  return patches.length > 0
+    ? ["Selected working-tree patches:", ...patches].join("\n\n")
+    : null;
 }
 
 function isLatestCommitQuestion(question: string): boolean {

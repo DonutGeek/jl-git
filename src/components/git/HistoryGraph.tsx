@@ -8,6 +8,8 @@ import { GitCommitSummary } from "@/types/git";
 interface HistoryGraphProps {
   commits: GitCommitSummary[];
   width: number;
+  /** 相对面板左缘的留白，与列表行右侧间隙对齐 */
+  edgeGap?: number;
   /** 悬停圆点时同步高亮历史行；移出传 null */
   onHoverCommit?: (commitId: string | null) => void;
   /** 点击圆点选中提交 */
@@ -84,6 +86,7 @@ const DOT_SIZE = 6;
 export const HistoryGraph = memo(function HistoryGraph({
   commits,
   width,
+  edgeGap = 0,
   onHoverCommit,
   onSelectCommit,
 }: HistoryGraphProps) {
@@ -179,8 +182,8 @@ export const HistoryGraph = memo(function HistoryGraph({
 
   return (
     <div
-      className="text-muted-foreground pointer-events-auto absolute top-0 left-1.5 z-10 overflow-hidden [&_svg]:block"
-      style={{ width }}
+      className="text-muted-foreground pointer-events-auto absolute top-0 z-10 overflow-hidden [&_svg]:block"
+      style={{ width, left: edgeGap }}
       aria-hidden="true"
     >
       <Gitgraph key={graphKey} options={HISTORY_GRAPH_OPTIONS}>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { ProjectManager } from "@/components/project/ProjectManager";
 
@@ -15,6 +15,7 @@ interface DashboardPageProps {
 
 export function DashboardPage({ active = true }: DashboardPageProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { tabId: routeTabId } = useParams<{ tabId: string }>();
   const loadProjects = useProjectStore((state) => state.loadProjects);
   const loadRecent = useProjectStore((state) => state.loadRecent);
@@ -24,9 +25,6 @@ export function DashboardPage({ active = true }: DashboardPageProps) {
   const openRepositoryTab = useOpenTabsStore((state) => state.openRepositoryTab);
 
   const [error, setError] = useState<string | null>(null);
-
-  const tabId =
-    routeTabId ?? tabs.find((tab) => tab.type === "new-tab")?.id ?? undefined;
 
   useEffect(() => {
     if (!active) {
@@ -54,8 +52,12 @@ export function DashboardPage({ active = true }: DashboardPageProps) {
     };
   }, [active, loadProjects, loadRecent, loadWorkspaces]);
 
+  // 必须以路由 /tab/:id 命中新标签为准；不能用 store 回退冒充「已激活」
+  const routeTabMatch = location.pathname.match(/^\/tab\/([^/]+)/);
+  const routeNewTabId = routeTabMatch?.[1] ?? routeTabId ?? null;
   const isCurrentNewTab = Boolean(
-    tabId && tabs.some((tab) => tab.id === tabId && tab.type === "new-tab"),
+    routeNewTabId &&
+      tabs.some((tab) => tab.id === routeNewTabId && tab.type === "new-tab"),
   );
 
   useEffect(() => {
@@ -66,13 +68,10 @@ export function DashboardPage({ active = true }: DashboardPageProps) {
       return;
     }
 
-    if (tabId && !tabs.some((tab) => tab.id === tabId)) {
-      return;
-    }
-
+    // 显示了新标签页内容时，路由必须落到对应「新标签页」上，标签栏才能高亮
     const nextTabId = openNewTab();
     navigate(`/tab/${nextTabId}`, { replace: true });
-  }, [active, isCurrentNewTab, navigate, openNewTab, tabId, tabs]);
+  }, [active, isCurrentNewTab, navigate, openNewTab]);
 
   /** 先登记标签再跳路由；勿 flushSync，避免同步重渲卡住点击 */
   function handleOpenProject(projectId: string): void {

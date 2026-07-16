@@ -159,13 +159,16 @@ export function CommitBox() {
       return;
     }
 
-    const left = Math.max(
-      HISTORY_VIEWPORT_PADDING,
-      Math.min(
-        rect.right + 8,
-        window.innerWidth - HISTORY_POPOVER_WIDTH - HISTORY_VIEWPORT_PADDING,
-      ),
-    );
+    // 右侧放得下则贴输入框右侧；否则放到左侧，避免贴边后预览再被裁切
+    const spaceRight =
+      window.innerWidth - HISTORY_VIEWPORT_PADDING - (rect.right + 8);
+    const preferRight = spaceRight >= HISTORY_POPOVER_WIDTH;
+    const left = preferRight
+      ? rect.right + 8
+      : Math.max(
+          HISTORY_VIEWPORT_PADDING,
+          rect.left - HISTORY_POPOVER_WIDTH - 8,
+        );
 
     // 可用高度：输入框顶到视口底；不够时上移，避免底部被裁切
     const spaceBelow = window.innerHeight - HISTORY_VIEWPORT_PADDING - rect.top;
@@ -352,7 +355,13 @@ export function CommitBox() {
                             {item.preview}
                           </span>
                         </TooltipTrigger>
-                        <TooltipContent className="max-w-96 whitespace-pre-wrap break-words">
+                        <TooltipContent
+                          side="left"
+                          align="center"
+                          sideOffset={8}
+                          collisionPadding={12}
+                          className="max-w-80 text-left text-wrap whitespace-pre-wrap break-words"
+                        >
                           {item.message}
                         </TooltipContent>
                       </Tooltip>

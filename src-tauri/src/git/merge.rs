@@ -133,6 +133,7 @@ mod tests {
                 worktree_deletions: None,
                 index_additions: None,
                 index_deletions: None,
+                modified_at: None,
             }],
         }));
     }

@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -61,11 +62,15 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     conversations[0] ??
     null;
   const messages = activeConversation?.messages ?? EMPTY_MESSAGES;
-  const branchMentionData = branches.map((branch) => ({
-    id: branch.name,
-    display: branch.name,
-    isRemote: branch.isRemote,
-  }));
+  const branchMentionData = useMemo(
+    () =>
+      branches.map((branch) => ({
+        id: branch.name,
+        display: branch.name,
+        isRemote: branch.isRemote,
+      })),
+    [branches],
+  );
 
   function handleCompareBranches(action: CompareBranchesAction): void {
     const branchNames = new Set(branches.map((branch) => branch.name));
@@ -150,13 +155,25 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
       isStreaming: true,
     };
     const conversationId = activeConversation.id;
-    appendMessage(projectId, conversationId, userMessage);
-    appendMessage(projectId, conversationId, assistantMessage);
-    clearDraft();
+    const historyForRequest = [...messages, userMessage];
+
+    // 先同步上屏用户消息并清空输入，避免等 Git/模型时感觉「回车卡住」
+    flushSync(() => {
+      appendMessage(projectId, conversationId, userMessage);
+      appendMessage(projectId, conversationId, assistantMessage);
+      clearDraft();
+      setIsReplying(true);
+    });
+
+    // 等浏览器画出本帧后再拉快照 / 请求模型
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
 
     const controller = new AbortController();
     replyAbortControllerRef.current = controller;
-    setIsReplying(true);
     let contentBuffer = "";
     let animationFrameId: number | null = null;
     const flushReply = (): void => {
@@ -168,7 +185,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
 
     try {
       await streamAgentReply({
-        messages: [...messages, userMessage],
+        messages: historyForRequest,
         repoPath,
         locale,
         signal: controller.signal,

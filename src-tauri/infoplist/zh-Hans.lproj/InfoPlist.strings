@@ -1,0 +1,3 @@
+/* 简体中文：声明 .lproj 后，系统面板才会跟系统语言显示中文 */
+CFBundleName = "鲸灵Git";
+CFBundleDisplayName = "鲸灵Git";

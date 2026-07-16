@@ -146,7 +146,7 @@ export function TagList({ onSelectTag }: TagListProps) {
 
       <ScrollArea
         ref={bindScrollArea}
-        className="min-h-0 flex-1 px-1 py-0.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
+        className="min-h-0 flex-1 px-3 py-0.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
       >
         {isEmpty ? (
           <EmptyState
@@ -199,22 +199,17 @@ export function TagList({ onSelectTag }: TagListProps) {
                       />
                       <span className="min-w-0 truncate">{tag.name}</span>
                     </button>
-                    <Tooltip delayDuration={300}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-6 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                          aria-label={t("repo.deleteTag")}
-                          disabled={busyName === tag.name}
-                          onClick={() => void remove(tag.name)}
-                        >
-                          <Trash2 className="size-3" aria-hidden="true" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>{t("repo.deleteTag")}</TooltipContent>
-                    </Tooltip>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                      aria-label={t("repo.deleteTag")}
+                      disabled={busyName === tag.name}
+                      onClick={() => void remove(tag.name)}
+                    >
+                      <Trash2 className="size-3" aria-hidden="true" />
+                    </Button>
                   </div>
                 </div>
               );

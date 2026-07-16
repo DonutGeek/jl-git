@@ -61,11 +61,16 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
   }
 
   async function handlePickDirectory(): Promise<void> {
-    setPicking(true);
+    if (picking || loading) {
+      return;
+    }
     setError(null);
+    // 先发起选目录，再更新按钮态，避免重渲染拖慢系统对话框
+    const pickPromise = projectService.pickDirectory();
+    setPicking(true);
 
     try {
-      const selectedPath = await projectService.pickDirectory();
+      const selectedPath = await pickPromise;
       if (selectedPath) {
         setPath(selectedPath);
       }
@@ -132,7 +137,7 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
                 disabled={loading || picking}
               >
                 <FolderOpen aria-hidden="true" />
-                {picking ? t("common.loading") : t("openRepo.pickButton")}
+                {t("openRepo.pickButton")}
               </Button>
             </div>
           </div>
