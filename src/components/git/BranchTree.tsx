@@ -50,6 +50,79 @@ export interface BranchContextActions {
 /** 与折叠箭头同宽，保证虚线落在父级箭头中轴下 */
 const INDENT_PX = 12;
 
+/** 分支树虚拟列表可见行（不含 local/remote 分组头） */
+export type BranchVisibleRow =
+  | {
+      kind: "folder";
+      id: string;
+      segment: string;
+      depth: number;
+      collapsed: boolean;
+      variant: "local" | "remote";
+      isRemoteName: boolean;
+    }
+  | {
+      kind: "branch";
+      id: string;
+      branch: GitBranch;
+      label: string;
+      depth: number;
+      variant: "local" | "remote";
+    };
+
+/** 按折叠状态展平分支树 */
+export function flattenBranchTreeRows(
+  nodes: BranchTreeNode[],
+  treeId: string,
+  variant: "local" | "remote",
+  depth: number,
+  collapsedPaths: ReadonlySet<string>,
+): BranchVisibleRow[] {
+  const rows: BranchVisibleRow[] = [];
+
+  for (const node of nodes) {
+    const id = `${treeId}:${node.path}`;
+    const isFolder = node.children.length > 0;
+
+    if (!isFolder && node.branch) {
+      rows.push({
+        kind: "branch",
+        id,
+        branch: node.branch,
+        label: node.segment,
+        depth,
+        variant,
+      });
+      continue;
+    }
+
+    const collapsed = collapsedPaths.has(id);
+    rows.push({
+      kind: "folder",
+      id,
+      segment: node.segment,
+      depth,
+      collapsed,
+      variant,
+      isRemoteName: variant === "remote" && node.path === node.segment,
+    });
+
+    if (!collapsed) {
+      rows.push(
+        ...flattenBranchTreeRows(
+          node.children,
+          treeId,
+          variant,
+          depth + 1,
+          collapsedPaths,
+        ),
+      );
+    }
+  }
+
+  return rows;
+}
+
 interface BranchGroupProps {
   icon: ReactNode;
   label: string;
@@ -137,7 +210,46 @@ function IndentGuides({ depth }: { depth: number }) {
   );
 }
 
-/** 左栏分支树：按 / 分层向右展开 */
+/** 文件夹 / remote 名行（供虚拟列表复用） */
+export function BranchFolderRow({
+  segment,
+  depth,
+  collapsed,
+  isRemoteName,
+  onToggle,
+}: {
+  segment: string;
+  depth: number;
+  collapsed: boolean;
+  isRemoteName: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className="h-7 w-full min-w-0 justify-start gap-1 overflow-hidden rounded-md px-1.5 text-left text-xs [&_svg]:size-3"
+      onClick={onToggle}
+    >
+      <IndentGuides depth={depth} />
+      {collapsed ? (
+        <ChevronRight className="text-muted-foreground shrink-0" aria-hidden="true" />
+      ) : (
+        <ChevronDown className="text-muted-foreground shrink-0" aria-hidden="true" />
+      )}
+      {isRemoteName ? (
+        <Cloud className="text-muted-foreground shrink-0" aria-hidden="true" />
+      ) : collapsed ? (
+        <Folder className="text-muted-foreground shrink-0" aria-hidden="true" />
+      ) : (
+        <FolderOpen className="text-muted-foreground shrink-0" aria-hidden="true" />
+      )}
+      <span className="min-w-0 flex-1 truncate">{segment}</span>
+    </Button>
+  );
+}
+
+/** 左栏分支树：按 / 分层向右展开（非虚拟路径，测试/简单复用） */
 export function BranchTree({
   nodes,
   depth,
@@ -154,80 +266,42 @@ export function BranchTree({
   aheadCount = 0,
   isPublished,
 }: BranchTreeProps) {
+  const rows = flattenBranchTreeRows(nodes, treeId, variant, depth, collapsedPaths);
+
   return (
     <ul className="flex flex-col">
-      {nodes.map((node) => {
-        const key = `${treeId}:${node.path}`;
-        const isFolder = node.children.length > 0;
-
-        if (!isFolder && node.branch) {
-          const published =
-            variant === "remote" ? true : (isPublished?.(node.branch) ?? true);
+      {rows.map((row) => {
+        if (row.kind === "folder") {
           return (
-            <li key={key}>
-              <BranchLeaf
-                branch={node.branch}
-                label={node.segment}
-                depth={depth}
-                isBusy={checkingOutName === node.branch.name}
-                disabled={disabled}
-                published={published}
-                selected={selectedName === node.branch.name}
-                aheadCount={aheadCount}
-                onSelect={onSelect}
-                onCheckout={onCheckout}
-                contextActions={contextActions}
+            <li key={row.id}>
+              <BranchFolderRow
+                segment={row.segment}
+                depth={row.depth}
+                collapsed={row.collapsed}
+                isRemoteName={row.isRemoteName}
+                onToggle={() => onToggleCollapse(row.id)}
               />
             </li>
           );
         }
 
-        const collapsed = collapsedPaths.has(key);
-        // remote 名（origin）路径无 /，用云；更深路径段用文件夹
-        const isRemoteName = variant === "remote" && node.path === node.segment;
-
+        const published =
+          row.variant === "remote" ? true : (isPublished?.(row.branch) ?? true);
         return (
-          <li key={key}>
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-7 w-full min-w-0 justify-start gap-1 overflow-hidden rounded-md px-1.5 text-left text-xs [&_svg]:size-3"
-              onClick={() => onToggleCollapse(key)}
-            >
-              <IndentGuides depth={depth} />
-              {collapsed ? (
-                <ChevronRight className="text-muted-foreground shrink-0" aria-hidden="true" />
-              ) : (
-                <ChevronDown className="text-muted-foreground shrink-0" aria-hidden="true" />
-              )}
-              {isRemoteName ? (
-                <Cloud className="text-muted-foreground shrink-0" aria-hidden="true" />
-              ) : collapsed ? (
-                <Folder className="text-muted-foreground shrink-0" aria-hidden="true" />
-              ) : (
-                <FolderOpen className="text-muted-foreground shrink-0" aria-hidden="true" />
-              )}
-              <span className="min-w-0 flex-1 truncate">{node.segment}</span>
-            </Button>
-
-            {!collapsed ? (
-              <BranchTree
-                nodes={node.children}
-                depth={depth + 1}
-                variant={variant}
-                treeId={treeId}
-                collapsedPaths={collapsedPaths}
-                onToggleCollapse={onToggleCollapse}
-                onSelect={onSelect}
-                onCheckout={onCheckout}
-                contextActions={contextActions}
-                selectedName={selectedName}
-                checkingOutName={checkingOutName}
-                disabled={disabled}
-                aheadCount={aheadCount}
-                isPublished={isPublished}
-              />
-            ) : null}
+          <li key={row.id}>
+            <BranchLeaf
+              branch={row.branch}
+              label={row.label}
+              depth={row.depth}
+              isBusy={checkingOutName === row.branch.name}
+              disabled={disabled}
+              published={published}
+              selected={selectedName === row.branch.name}
+              aheadCount={aheadCount}
+              onSelect={onSelect}
+              onCheckout={onCheckout}
+              contextActions={contextActions}
+            />
           </li>
         );
       })}
@@ -249,7 +323,7 @@ interface BranchLeafProps {
   contextActions: BranchContextActions;
 }
 
-function BranchLeaf({
+export function BranchLeaf({
   branch,
   label,
   depth,

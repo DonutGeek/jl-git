@@ -1,4 +1,5 @@
 import { ReactNode, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import {
   ArrowDown,
@@ -20,7 +21,12 @@ import {
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/common/EmptyState";
-import { ChangeTree, getChangeTreeFolderKeys } from "@/components/git/ChangeTree";
+import {
+  ChangeTreeFolderRow,
+  flattenChangeTreeRows,
+  getChangeTreeFolderKeys,
+  type ChangeTreeVisibleRow,
+} from "@/components/git/ChangeTree";
 import { DiffLineStats } from "@/components/git/DiffLineStats";
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import { SplitPane } from "@/components/layout/SplitPane";
@@ -38,6 +44,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { cn } from "@/lib/utils";
 
 import { useRepoStore } from "@/store/useRepoStore";
@@ -55,8 +62,37 @@ import {
 
 /** 稳定空数组：避免 selector 每次返回新 [] 触发 useSyncExternalStore 无限重渲染 */
 const EMPTY_ENTRIES: GitStatusEntry[] = [];
+/** 变更行固定高度（h-7） */
+const CHANGE_ROW_HEIGHT_PX = 28;
+const CHANGE_VIRTUAL_OVERSCAN = 10;
 
 type ChangeSortMode = "default" | "status" | "name";
+
+type ChangeListVisibleRow =
+  | { kind: "default-header" }
+  | { kind: "file"; entry: GitStatusEntry };
+
+type ChangeVisibleRow = ChangeListVisibleRow | ChangeTreeVisibleRow;
+
+function flattenChangeListRows(
+  entries: GitStatusEntry[],
+  showDefaultGroup: boolean,
+  groupOpen: boolean,
+): ChangeListVisibleRow[] {
+  if (entries.length === 0) {
+    return [];
+  }
+  if (!showDefaultGroup) {
+    return entries.map((entry) => ({ kind: "file" as const, entry }));
+  }
+  const rows: ChangeListVisibleRow[] = [{ kind: "default-header" }];
+  if (groupOpen) {
+    for (const entry of entries) {
+      rows.push({ kind: "file", entry });
+    }
+  }
+  return rows;
+}
 
 /** 已暂存：index 侧存在实际变更（非 "." 且非未跟踪的 "?"） */
 function isStagedEntry(entry: GitStatusEntry): boolean {
@@ -157,7 +193,6 @@ function ChangeRow({
       : (entry.path.split("/").pop() ?? entry.path);
 
   return (
-    <li>
       <div
         role="option"
         aria-selected={selected}
@@ -248,7 +283,6 @@ function ChangeRow({
           </Tooltip>
         </div>
       </div>
-    </li>
   );
 }
 
@@ -280,6 +314,20 @@ interface ChangeGroupProps {
   showLineStats?: boolean;
 }
 
+function changeRowKey(row: ChangeVisibleRow, index: number): string {
+  switch (row.kind) {
+    case "default-header":
+      return "default-header";
+    case "root":
+    case "directory":
+      return row.key;
+    case "file":
+      return "key" in row ? row.key : `file:${row.entry.path}`;
+    default:
+      return String(index);
+  }
+}
+
 /** 变更 / 待提交分区；变更区有 Default，待提交为扁平列表 */
 function ChangeGroup({
   title,
@@ -308,26 +356,99 @@ function ChangeGroup({
   showLineStats = false,
 }: ChangeGroupProps) {
   const isEmpty = entries.length === 0;
+  const { viewport, bindScrollArea } = useScrollAreaViewport();
 
-  const fileList =
-    !isEmpty && (!showDefaultGroup || groupOpen) ? (
-      <ul className="flex flex-col" role="listbox" aria-label={title}>
-        {entries.map((entry) => (
-          <ChangeRow
-            key={`${side}-${entry.path}`}
-            entry={entry}
-            side={side}
-            selected={selectedPath === entry.path}
-            onSelect={onSelectEntry}
-            onToggle={onToggleEntry}
-            disabled={disabled}
-            toggleLabel={toggleLabelFor(entry.path)}
-            indented={showDefaultGroup}
-            showLineStats={showLineStats}
-          />
-        ))}
-      </ul>
-    ) : null;
+  const visibleRows = useMemo((): ChangeVisibleRow[] => {
+    if (view === "tree") {
+      return flattenChangeTreeRows(entries, rootName, side, expandedTreePaths);
+    }
+    if (isEmpty) {
+      return [];
+    }
+    return flattenChangeListRows(entries, showDefaultGroup, groupOpen);
+  }, [
+    entries,
+    expandedTreePaths,
+    groupOpen,
+    isEmpty,
+    rootName,
+    showDefaultGroup,
+    side,
+    view,
+  ]);
+
+  const virtualizer = useVirtualizer({
+    count: visibleRows.length,
+    getScrollElement: () => viewport,
+    estimateSize: () => CHANGE_ROW_HEIGHT_PX,
+    overscan: CHANGE_VIRTUAL_OVERSCAN,
+    getItemKey: (index) => changeRowKey(visibleRows[index]!, index),
+  });
+
+  const showEmpty = view === "list" && isEmpty;
+
+  function renderRow(row: ChangeVisibleRow): ReactNode {
+    if (row.kind === "default-header") {
+      return (
+        <div className="hover:bg-accent/60 group flex h-7 items-center rounded-md transition-colors">
+          <button
+            type="button"
+            className="text-muted-foreground flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-2 text-left text-xs"
+            onClick={onToggleGroup}
+          >
+            {groupOpen ? (
+              <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="size-3 shrink-0" aria-hidden="true" />
+            )}
+            <span className="truncate">{groupLabel}</span>
+          </button>
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="mr-0.5 size-6 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0 group-hover:disabled:opacity-50 [&_svg]:size-3"
+                onClick={onAction}
+                disabled={actionDisabled || isEmpty}
+                aria-label={actionLabel}
+              >
+                <ArrowDown aria-hidden="true" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left">{actionLabel}</TooltipContent>
+          </Tooltip>
+        </div>
+      );
+    }
+
+    if (row.kind === "root" || row.kind === "directory") {
+      return (
+        <ChangeTreeFolderRow
+          name={row.name}
+          open={row.open}
+          depth={row.kind === "directory" ? row.depth : undefined}
+          onToggle={() => onToggleTreeFolder(row.key)}
+        />
+      );
+    }
+
+    return (
+      <ChangeRow
+        entry={row.entry}
+        side={side}
+        selected={selectedPath === row.entry.path}
+        onSelect={onSelectEntry}
+        onToggle={onToggleEntry}
+        disabled={disabled}
+        toggleLabel={toggleLabelFor(row.entry.path)}
+        indented={view === "list" && showDefaultGroup}
+        indentDepth={view === "tree" && "depth" in row ? row.depth : undefined}
+        showLineStats={showLineStats}
+      />
+    );
+  }
 
   return (
     <section className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -361,30 +482,11 @@ function ChangeGroup({
 
       <div className="min-h-0 flex-1">
         {/* 右侧为滚动条预留槽位，避免盖住行尾暂存按钮 */}
-        <ScrollArea className="h-full pb-1 pl-1.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:pr-3 [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5">
-          {view === "tree" ? (
-            <ChangeTree
-              entries={entries}
-              rootName={rootName}
-              side={side}
-              expandedPaths={expandedTreePaths}
-              onToggleFolder={onToggleTreeFolder}
-              renderEntry={(entry, depth) => (
-                <ChangeRow
-                  key={`${side}-${entry.path}`}
-                  entry={entry}
-                  side={side}
-                  selected={selectedPath === entry.path}
-                  onSelect={onSelectEntry}
-                  onToggle={onToggleEntry}
-                  disabled={disabled}
-                  toggleLabel={toggleLabelFor(entry.path)}
-                  indentDepth={depth}
-                  showLineStats={showLineStats}
-                />
-              )}
-            />
-          ) : isEmpty ? (
+        <ScrollArea
+          ref={bindScrollArea}
+          className="h-full pb-1 pl-1.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:pr-3 [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5"
+        >
+          {showEmpty ? (
             <EmptyState
               compact
               className="min-h-30 py-6"
@@ -392,42 +494,33 @@ function ChangeGroup({
               title={emptyTitle}
               description={emptyDescription}
             />
-          ) : showDefaultGroup ? (
-            <>
-              <div className="hover:bg-accent/60 group flex h-7 items-center rounded-md transition-colors">
-                <button
-                  type="button"
-                  className="text-muted-foreground flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-2 text-left text-xs"
-                  onClick={onToggleGroup}
-                >
-                  {groupOpen ? (
-                    <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
-                  ) : (
-                    <ChevronRight className="size-3 shrink-0" aria-hidden="true" />
-                  )}
-                  <span className="truncate">{groupLabel}</span>
-                </button>
-                <Tooltip delayDuration={300}>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="mr-0.5 size-6 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0 group-hover:disabled:opacity-50 [&_svg]:size-3"
-                      onClick={onAction}
-                      disabled={actionDisabled || isEmpty}
-                      aria-label={actionLabel}
-                    >
-                      <ArrowDown aria-hidden="true" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="left">{actionLabel}</TooltipContent>
-                </Tooltip>
-              </div>
-              {fileList}
-            </>
           ) : (
-            fileList
+            <div
+              className="relative w-full"
+              style={{ height: `${virtualizer.getTotalSize()}px` }}
+              role={view === "tree" ? "tree" : "listbox"}
+              aria-label={title}
+            >
+              {virtualizer.getVirtualItems().map((virtualItem) => {
+                const row = visibleRows[virtualItem.index];
+                if (!row) {
+                  return null;
+                }
+                return (
+                  <div
+                    key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    className="absolute top-0 left-0 w-full"
+                    style={{
+                      height: `${virtualItem.size}px`,
+                      transform: `translateY(${virtualItem.start}px)`,
+                    }}
+                  >
+                    {renderRow(row)}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </ScrollArea>
       </div>

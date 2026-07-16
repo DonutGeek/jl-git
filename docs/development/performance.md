@@ -55,6 +55,15 @@ flowchart TB
 
 使用 `@tanstack/react-virtual`（已在依赖中）。固定或估算行高，避免测量抖动。
 
+已落地：
+
+- Agent 消息列表（`AgentMessageList`）
+- 变更 / 待提交（列表 + 树形，`ChangesPanel`）
+- 分支树（`BranchList`，展平可见行）
+- 标签列表（`TagList`）
+
+约定：`ScrollArea` + Radix viewport 作为 `getScrollElement`（见 `useScrollAreaViewport`）；树结构先按展开状态展平再虚拟化。
+
 ---
 
 ## Diff

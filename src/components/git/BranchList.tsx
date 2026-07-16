@@ -1,5 +1,6 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Trans, useTranslation } from "react-i18next";
 import {
   Cloud,
@@ -13,9 +14,12 @@ import {
 import { toast } from "sonner";
 
 import {
+  BranchFolderRow,
   BranchGroup,
-  BranchTree,
+  BranchLeaf,
+  flattenBranchTreeRows,
   type BranchContextActions,
+  type BranchVisibleRow,
 } from "@/components/git/BranchTree";
 import { CreateBranchDialog } from "@/components/git/CreateBranchDialog";
 import { MergeBranchDialog } from "@/components/git/MergeBranchDialog";
@@ -34,6 +38,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { cn } from "@/lib/utils";
 
 import { useRepoStore } from "@/store/useRepoStore";
@@ -45,6 +50,13 @@ import { GitBranch, GitMergeOptions } from "@/types/git";
 import { copyToClipboard } from "@/utils/clipboard";
 import { buildBranchTree } from "@/utils/branchTree";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
+
+const BRANCH_ROW_HEIGHT_PX = 28;
+const BRANCH_VIRTUAL_OVERSCAN = 12;
+
+type BranchListVisibleRow =
+  | { kind: "group"; id: "local" | "remote"; open: boolean }
+  | BranchVisibleRow;
 
 /** 左栏：本地/远端分支树；单击选中，双击切换；右键菜单操作 */
 export function BranchList() {
@@ -103,6 +115,35 @@ export function BranchList() {
   const remoteTree = useMemo(() => buildBranchTree(remoteBranches), [remoteBranches]);
   const aheadCount = status?.ahead ?? 0;
   const currentBranch = status?.branch ?? branches.find((item) => item.isCurrent)?.name ?? null;
+  const isEmpty = branches.length === 0;
+  const noMatch = !isEmpty && filteredBranches.length === 0;
+
+  const visibleRows = useMemo((): BranchListVisibleRow[] => {
+    const rows: BranchListVisibleRow[] = [{ kind: "group", id: "local", open: localOpen }];
+    if (localOpen) {
+      rows.push(...flattenBranchTreeRows(localTree, "local", "local", 1, collapsedPaths));
+    }
+    rows.push({ kind: "group", id: "remote", open: remoteOpen });
+    if (remoteOpen) {
+      rows.push(...flattenBranchTreeRows(remoteTree, "remote", "remote", 1, collapsedPaths));
+    }
+    return rows;
+  }, [collapsedPaths, localOpen, localTree, remoteOpen, remoteTree]);
+
+  const { viewport, bindScrollArea } = useScrollAreaViewport();
+  const virtualizer = useVirtualizer({
+    count: isEmpty || noMatch ? 0 : visibleRows.length,
+    getScrollElement: () => viewport,
+    estimateSize: () => BRANCH_ROW_HEIGHT_PX,
+    overscan: BRANCH_VIRTUAL_OVERSCAN,
+    getItemKey: (index) => {
+      const row = visibleRows[index];
+      if (!row) {
+        return index;
+      }
+      return row.kind === "group" ? `group:${row.id}` : row.id;
+    },
+  });
 
   function toggleCollapse(key: string): void {
     setCollapsedPaths((prev) => {
@@ -348,8 +389,77 @@ export function BranchList() {
     onDelete: openDelete,
   };
 
-  const isEmpty = branches.length === 0;
-  const noMatch = !isEmpty && filteredBranches.length === 0;
+  const remoteGroupTrailing = (
+    <Tooltip delayDuration={300}>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="text-muted-foreground hover:text-foreground size-6 shrink-0 hover:bg-transparent [&_svg]:size-3.5"
+          aria-label={t("repo.newBranch")}
+          onClick={() => setCreateOpen(true)}
+        >
+          <Plus aria-hidden="true" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{t("repo.newBranch")}</TooltipContent>
+    </Tooltip>
+  );
+
+  function renderBranchRow(row: BranchListVisibleRow): ReactNode {
+    if (row.kind === "group") {
+      if (row.id === "local") {
+        return (
+          <BranchGroup
+            icon={<Monitor className="text-muted-foreground shrink-0" aria-hidden="true" />}
+            label={t("repo.local")}
+            open={localOpen}
+            onToggle={() => setLocalOpen((prev) => !prev)}
+          />
+        );
+      }
+      return (
+        <BranchGroup
+          icon={<Cloud className="text-muted-foreground shrink-0" aria-hidden="true" />}
+          label={t("repo.remote")}
+          open={remoteOpen}
+          onToggle={() => setRemoteOpen((prev) => !prev)}
+          trailing={remoteGroupTrailing}
+        />
+      );
+    }
+
+    if (row.kind === "folder") {
+      return (
+        <BranchFolderRow
+          segment={row.segment}
+          depth={row.depth}
+          collapsed={row.collapsed}
+          isRemoteName={row.isRemoteName}
+          onToggle={() => toggleCollapse(row.id)}
+        />
+      );
+    }
+
+    const published =
+      row.variant === "remote" ? true : isLocalBranchPublished(row.branch, branches);
+    return (
+      <BranchLeaf
+        branch={row.branch}
+        label={row.label}
+        depth={row.depth}
+        isBusy={checkingOutName === row.branch.name}
+        disabled={loading}
+        published={published}
+        selected={selectedName === row.branch.name}
+        aheadCount={aheadCount}
+        onSelect={handleSelect}
+        onCheckout={(branch) => void handleCheckout(branch)}
+        contextActions={contextActions}
+      />
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -441,78 +551,40 @@ export function BranchList() {
         </div>
       </div>
 
-      <ScrollArea className="min-h-0 flex-1 px-1 py-0.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+      <ScrollArea
+        ref={bindScrollArea}
+        className="min-h-0 flex-1 px-1 py-0.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
+      >
         {isEmpty ? (
-            <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.branchesEmpty")}</p>
-          ) : noMatch ? (
-            <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.branchesNoMatch")}</p>
-          ) : (
-            <div className="flex flex-col">
-              <BranchGroup
-                icon={<Monitor className="text-muted-foreground shrink-0" aria-hidden="true" />}
-                label={t("repo.local")}
-                open={localOpen}
-                onToggle={() => setLocalOpen((prev) => !prev)}
-              >
-                <BranchTree
-                  nodes={localTree}
-                  depth={1}
-                  variant="local"
-                  treeId="local"
-                  collapsedPaths={collapsedPaths}
-                  onToggleCollapse={toggleCollapse}
-                  onSelect={handleSelect}
-                  onCheckout={(branch) => void handleCheckout(branch)}
-                  contextActions={contextActions}
-                  selectedName={selectedName}
-                  checkingOutName={checkingOutName}
-                  disabled={loading}
-                  aheadCount={aheadCount}
-                  isPublished={(branch) => isLocalBranchPublished(branch, branches)}
-                />
-              </BranchGroup>
-
-              <BranchGroup
-                icon={<Cloud className="text-muted-foreground shrink-0" aria-hidden="true" />}
-                label={t("repo.remote")}
-                open={remoteOpen}
-                onToggle={() => setRemoteOpen((prev) => !prev)}
-                trailing={
-                  <Tooltip delayDuration={300}>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground hover:text-foreground size-6 shrink-0 hover:bg-transparent [&_svg]:size-3.5"
-                        aria-label={t("repo.newBranch")}
-                        onClick={() => setCreateOpen(true)}
-                      >
-                        <Plus aria-hidden="true" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{t("repo.newBranch")}</TooltipContent>
-                  </Tooltip>
-                }
-              >
-                <BranchTree
-                  nodes={remoteTree}
-                  depth={1}
-                  variant="remote"
-                  treeId="remote"
-                  collapsedPaths={collapsedPaths}
-                  onToggleCollapse={toggleCollapse}
-                  onSelect={handleSelect}
-                  onCheckout={(branch) => void handleCheckout(branch)}
-                  contextActions={contextActions}
-                  selectedName={selectedName}
-                  checkingOutName={checkingOutName}
-                  disabled={loading}
-                  aheadCount={aheadCount}
-                />
-              </BranchGroup>
-            </div>
-          )}
+          <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.branchesEmpty")}</p>
+        ) : noMatch ? (
+          <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.branchesNoMatch")}</p>
+        ) : (
+          <div
+            className="relative w-full"
+            style={{ height: `${virtualizer.getTotalSize()}px` }}
+          >
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const row = visibleRows[virtualItem.index];
+              if (!row) {
+                return null;
+              }
+              return (
+                <div
+                  key={virtualItem.key}
+                  data-index={virtualItem.index}
+                  className="absolute top-0 left-0 w-full"
+                  style={{
+                    height: `${virtualItem.size}px`,
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  {renderBranchRow(row)}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </ScrollArea>
 
       <CreateBranchDialog open={createOpen} onOpenChange={setCreateOpen} />
