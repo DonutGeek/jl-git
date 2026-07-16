@@ -3,6 +3,8 @@ import type {
   GitCommitFileDiffOptions,
   GitDiffOptions,
   GitDiffResult,
+  GitFileMedia,
+  GitFileMediaOptions,
   GitStagedDiffResult,
 } from "@/types/git";
 
@@ -17,6 +19,19 @@ export async function getDiff(
     staged: options.staged ?? false,
     maxBytes: options.maxBytes,
     encoding: options.encoding,
+  });
+}
+
+/** 单侧文件媒体（图片等）内容，供非文本 Diff/File 预览 */
+export async function getFileMedia(
+  repoPath: string,
+  options: GitFileMediaOptions,
+): Promise<GitFileMedia> {
+  return invokeCommand<GitFileMedia>("git_file_media", {
+    path: repoPath,
+    filePath: options.filePath,
+    source: options.source,
+    maxBytes: options.maxBytes,
   });
 }
 

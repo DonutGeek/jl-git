@@ -295,6 +295,19 @@ interface GitBranch {
 - `maxBytes` 默认约 1MB；二进制不返回文本内容（`binary=true`）
 - `encoding`：文本解码编码 id（默认 `utf-8`；见前端 `TEXT_ENCODING_OPTIONS`），由 `encoding_rs` 解码
 
+### `git_file_media`
+
+| | |
+|--|--|
+| **目的** | 读取单侧文件媒体内容（图片等），供 Diff/File 非文本预览 |
+| **输入** | `{ path: string; filePath: string; source: string; maxBytes?: number }` |
+| **输出** | `{ present: boolean; kind: "image" \| "unsupported"; mime?; base64?; size: number; truncated: boolean }` |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `GIT_FAILED` `INTERNAL` |
+
+- `source`：`worktree`（工作区文件）/ `index`（暂存 blob `:`）/ 合法 Git rev（如 `HEAD`、commit）
+- 仅识别常见图片扩展名时返回 `kind=image` 与 base64；其它二进制只回 `size`，不传内容
+- `maxBytes` 默认约 5MB，上限约 8MB；超限 `truncated=true` 并截断字节后再编码
+
 ### `git_staged_diff`
 
 | | |

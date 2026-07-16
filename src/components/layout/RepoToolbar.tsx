@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { LocalBranchMenuList } from "@/components/git/LocalBranchMenuList";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -331,7 +332,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
             <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-72 p-0">
+        <DropdownMenuContent align="start" className="w-72 overflow-hidden p-0">
           <div className="border-border border-b p-2">
             <Input
               value={projectFilter}
@@ -345,7 +346,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
               onPointerDown={(event) => event.stopPropagation()}
             />
           </div>
-          <ScrollArea className="max-h-80 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+          <ScrollArea className="max-h-80 [&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
             <div className="min-w-0 p-1">
               {filteredProjects.length === 0 ? (
                 <p className="text-muted-foreground px-2 py-3 text-xs">
@@ -439,31 +440,22 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
             <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-72 p-0">
-          <ScrollArea className="max-h-80">
-            <div className="p-1">
-              <DropdownMenuLabel>{t("repo.local")}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {localBranches.length === 0 ? (
-                <DropdownMenuItem disabled>{t("repo.branchesEmpty")}</DropdownMenuItem>
-              ) : (
-                localBranches.map((branch) => (
-                  <DropdownMenuItem
-                    key={branch.name}
-                    disabled={branch.isCurrent || checkingOut}
-                    onSelect={() => {
-                      void handleCheckout(branch.name);
-                    }}
-                  >
-                    <span className="min-w-0 flex-1 truncate">{branch.name}</span>
-                    {branch.isCurrent ? (
-                      <Check className="text-primary size-3.5 shrink-0" aria-hidden="true" />
-                    ) : null}
-                  </DropdownMenuItem>
-                ))
-              )}
-            </div>
-          </ScrollArea>
+        <DropdownMenuContent
+          align="start"
+          // 禁止 Content 原生滚动，滚动交给内部 ScrollArea
+          className="w-72 overflow-hidden p-0"
+        >
+          <div className="p-1 pb-0">
+            <DropdownMenuLabel>{t("repo.local")}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+          </div>
+          <LocalBranchMenuList
+            branches={localBranches}
+            checkingOut={checkingOut}
+            onCheckout={(branchName) => {
+              void handleCheckout(branchName);
+            }}
+          />
         </DropdownMenuContent>
       </DropdownMenu>
 

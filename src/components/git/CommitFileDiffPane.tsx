@@ -20,6 +20,7 @@ import {
   type DiffPreviewLayout,
   type DiffPreviewMode,
 } from "@/components/git/DiffPreviewToolbar";
+import { MediaFilePreview } from "@/components/git/MediaFilePreview";
 import {
   bindDiffScrollSync,
   detectLineEnding,
@@ -44,6 +45,7 @@ import { toUserMessage } from "@/types/error";
 import type { GitDiffResult } from "@/types/git";
 import { copyToClipboard } from "@/utils/clipboard";
 import { gitStatusLetterClass, normalizeGitStatusLetter } from "@/utils/gitStatusStyle";
+import { isImagePath } from "@/utils/mediaPath";
 import { DEFAULT_TEXT_ENCODING } from "@/utils/textEncodings";
 
 /** 差异顶栏可复制完整 rev：悬停提示复制，点击写入剪贴板 */
@@ -392,7 +394,7 @@ export function CommitFileDiffPane() {
           <span
             className={cn(
               "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
-              gitStatusLetterClass(statusLetter),
+              gitStatusLetterClass(selectedCommitFile.status),
             )}
             aria-label={statusLetter}
           >
@@ -418,20 +420,25 @@ export function CommitFileDiffPane() {
         </Tooltip>
       </div>
 
-      <DiffPreviewToolbar
-        encoding={encoding}
-        onEncodingChange={setEncoding}
-        mode={mode}
-        onModeChange={setMode}
-        canNavigateHunk={canNavigateHunk}
-        onPrevHunk={goPrevHunk}
-        onNextHunk={goNextHunk}
-        diffLayout={diffLayout}
-        onDiffLayoutChange={setDiffLayout}
-        foldUnchanged={foldUnchanged}
-        onFoldUnchangedChange={setFoldUnchanged}
-        diffToolsDisabled={diffToolsDisabled}
-      />
+      {/* 图片预览不需要文本 Diff 工具行 */}
+      {!(diff?.binary && isImagePath(selectedCommitFile.path)) ? (
+        <DiffPreviewToolbar
+          encoding={encoding}
+          onEncodingChange={setEncoding}
+          encodingDisabled={Boolean(diff?.binary)}
+          encodingDisplayLabel={diff?.binary ? "—" : undefined}
+          mode={mode}
+          onModeChange={setMode}
+          canNavigateHunk={canNavigateHunk}
+          onPrevHunk={goPrevHunk}
+          onNextHunk={goNextHunk}
+          diffLayout={diffLayout}
+          onDiffLayoutChange={setDiffLayout}
+          foldUnchanged={foldUnchanged}
+          onFoldUnchangedChange={setFoldUnchanged}
+          diffToolsDisabled={diffToolsDisabled || Boolean(diff?.binary)}
+        />
+      ) : null}
 
       {loading ? (
         <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
@@ -445,10 +452,32 @@ export function CommitFileDiffPane() {
         </div>
       ) : null}
 
-      {!loading && !error && diff?.binary ? (
+      {!loading && !error && diff?.binary && !isImagePath(selectedCommitFile.path) ? (
         <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 text-center text-sm">
           {t("repo.diffBinary")}
         </div>
+      ) : null}
+
+      {!loading &&
+      !error &&
+      diff?.binary &&
+      isImagePath(selectedCommitFile.path) &&
+      repoPath ? (
+        <MediaFilePreview
+          repoPath={repoPath}
+          filePath={selectedCommitFile.path}
+          oldSource={
+            selectedCommitFile.parentId === "" ? null : selectedCommitFile.parentId
+          }
+          newSource={selectedCommitFile.commitId}
+          oldLabel={
+            selectedCommitFile.parentId === ""
+              ? t("repo.diffEmptyTree")
+              : t("repo.diffParentLabel")
+          }
+          newLabel={t("repo.diffCommitLabel")}
+          statusCode={selectedCommitFile.status}
+        />
       ) : null}
 
       {!loading && !error && diff && !diff.binary ? (

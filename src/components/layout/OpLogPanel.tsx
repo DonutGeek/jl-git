@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   CheckCircle2,
   ChevronDown,
@@ -16,6 +17,7 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { cn } from "@/lib/utils";
 
 import {
@@ -29,6 +31,10 @@ import { useRepoStore } from "@/store/useRepoStore";
 
 /** 与 StatusBar h-7 对齐，面板停在其上方 */
 const STATUS_BAR_OFFSET = "1.75rem";
+/** 折叠行估算高度；展开后由 measureElement 实测 */
+const OP_LOG_ROW_COLLAPSED_PX = 36;
+const OP_LOG_ROW_EXPANDED_ESTIMATE_PX = 200;
+const OP_LOG_VIRTUAL_OVERSCAN = 8;
 
 function labelKey(label: OpLogLabel): string {
   if (label === "commit") return "opLog.labelCommit";
@@ -108,7 +114,7 @@ function OpLogRow({ entry }: { entry: OpLogEntry }) {
   const hasDetail = detailText.length > 0 || Boolean(entry.error);
 
   return (
-    <div className="border-border/60 border-b last:border-b-0">
+    <div className="border-border/60 border-b">
       <div
         className="hover:bg-muted/60 group flex cursor-pointer items-center gap-1.5 px-2 py-1.5 text-xs"
         onClick={() => toggleExpanded(entry.id)}
@@ -195,8 +201,9 @@ export function OpLogPanel() {
   const pendingReveal = useOpLogStore((state) => state.pendingReveal);
   const setPanelOpen = useOpLogStore((state) => state.setPanelOpen);
   const byRepo = useOpLogStore((state) => state.byRepo);
+  const expandedIds = useOpLogStore((state) => state.expandedIds);
   const repoPath = useRepoStore((state) => state.repoPath);
-  const listScrollRef = useRef<HTMLDivElement>(null);
+  const { viewport, bindScrollArea } = useScrollAreaViewport();
 
   const entries = useMemo(
     () => selectRepoEntries(byRepo, repoPath),
@@ -205,18 +212,45 @@ export function OpLogPanel() {
   const latest = selectLatestEntry(entries);
   const isRunning = latest?.status === "running" || pendingReveal;
 
-  // 最新在底部：列表变化时滚到底
+  const virtualizer = useVirtualizer({
+    count: entries.length,
+    getScrollElement: () => viewport,
+    estimateSize: (index) => {
+      const entry = entries[index];
+      if (!entry) {
+        return OP_LOG_ROW_COLLAPSED_PX;
+      }
+      const expanded = expandedIds[entry.id] ?? false;
+      if (!expanded) {
+        return OP_LOG_ROW_COLLAPSED_PX;
+      }
+      const hasDetail = entry.lines.length > 0 || Boolean(entry.error);
+      return hasDetail ? OP_LOG_ROW_EXPANDED_ESTIMATE_PX : OP_LOG_ROW_COLLAPSED_PX;
+    },
+    measureElement: (element) => element.getBoundingClientRect().height,
+    overscan: OP_LOG_VIRTUAL_OVERSCAN,
+    getItemKey: (index) => entries[index]?.id ?? index,
+  });
+
+  // 展开/收起后重测行高
   useEffect(() => {
-    if (!panelOpen || !listScrollRef.current) {
+    virtualizer.measure();
+  }, [expandedIds, virtualizer]);
+
+  // 最新在底部：列表或末条状态变化时滚到底
+  useEffect(() => {
+    if (!panelOpen || entries.length === 0) {
       return;
     }
-    const viewport = listScrollRef.current.querySelector(
-      "[data-radix-scroll-area-viewport]",
-    );
-    if (viewport instanceof HTMLElement) {
-      viewport.scrollTop = viewport.scrollHeight;
-    }
-  }, [panelOpen, entries.length, latest?.id, latest?.status, latest?.lines.length]);
+    virtualizer.scrollToIndex(entries.length - 1, { align: "end" });
+  }, [
+    panelOpen,
+    entries.length,
+    latest?.id,
+    latest?.status,
+    latest?.lines.length,
+    virtualizer,
+  ]);
 
   if (!panelOpen) {
     return null;
@@ -259,7 +293,10 @@ export function OpLogPanel() {
         </div>
 
         <div className="min-h-0 flex-1">
-          <ScrollArea ref={listScrollRef} className="h-full">
+          <ScrollArea
+            ref={bindScrollArea}
+            className="h-full [&_[data-slot=scroll-area-viewport]>div]:!block"
+          >
             {entries.length === 0 ? (
               <EmptyState
                 compact
@@ -281,7 +318,30 @@ export function OpLogPanel() {
                 }
               />
             ) : (
-              entries.map((entry) => <OpLogRow key={entry.id} entry={entry} />)
+              <div
+                className="relative w-full"
+                style={{ height: `${virtualizer.getTotalSize()}px` }}
+              >
+                {virtualizer.getVirtualItems().map((virtualItem) => {
+                  const entry = entries[virtualItem.index];
+                  if (!entry) {
+                    return null;
+                  }
+                  return (
+                    <div
+                      key={virtualItem.key}
+                      data-index={virtualItem.index}
+                      ref={virtualizer.measureElement}
+                      className="absolute top-0 left-0 w-full"
+                      style={{
+                        transform: `translateY(${virtualItem.start}px)`,
+                      }}
+                    >
+                      <OpLogRow entry={entry} />
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </ScrollArea>
         </div>

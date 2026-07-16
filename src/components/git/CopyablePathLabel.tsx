@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import {
   Tooltip,
   TooltipContent,
@@ -17,9 +18,7 @@ interface CopyablePathLabelProps {
 }
 
 /**
- * 可点击复制的文件路径。
- * 触发器宽度跟文字走（超长才裁切），提示相对路径文字居中；
- * 默认向上，上方不够由 Radix 翻到下方 —— 与「往上提示」不冲突。
+ * 可点击复制的文件路径；过长时前部省略（…/尾部路径）。
  */
 export function CopyablePathLabel({ path, className }: CopyablePathLabelProps) {
   const { t } = useTranslation();
@@ -55,19 +54,16 @@ export function CopyablePathLabel({ path, className }: CopyablePathLabelProps) {
         <TooltipTrigger asChild>
           <button
             type="button"
-            title={path}
             aria-label={t("repo.copy")}
             className={cn(
-              "text-foreground inline-block max-w-full cursor-pointer truncate border-0 bg-transparent p-0 text-left align-middle font-mono text-xs underline-offset-2 hover:underline",
+              "text-foreground flex min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-left underline-offset-2 hover:underline",
               className,
             )}
-            // 跟文字同宽，避免锚到整行 flex 中心
-            style={{ width: "fit-content", maxWidth: "100%" }}
             onClick={() => {
               void copyPath();
             }}
           >
-            {path}
+            <TruncateStartPath path={path} className="font-mono" />
           </button>
         </TooltipTrigger>
         <TooltipContent align="center" sideOffset={6}>

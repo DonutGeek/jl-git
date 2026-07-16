@@ -744,24 +744,34 @@ export function HistoryDetailPane() {
         <div className="min-w-0 w-full">
           <Tooltip delayDuration={200}>
             <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="border-border bg-muted/30 hover:bg-accent/50 focus-visible:ring-ring block w-full max-w-full min-w-0 cursor-pointer rounded-md border px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-1"
-                aria-label={t("repo.previewCommitMessage")}
-                onClick={() => setMessagePreviewOpen(true)}
-              >
-                {/* 小高度预览用原生滚动，避免 ScrollArea 内层 table 把卡片撑出右缘 */}
-                <div className="max-h-28 w-full min-w-0 overflow-x-hidden overflow-y-auto">
-                  <p className="wrap-break-word break-words text-[13px] leading-snug font-semibold">
-                    {detail.subject}
-                  </p>
-                  {detail.body ? (
-                    <p className="text-muted-foreground mt-1 whitespace-pre-wrap wrap-break-word break-words text-[11px] leading-snug">
-                      {detail.body}
+              {/* 滚动区与可点击区分离：button 内无法可靠滚动；点文案打开预览 */}
+              <div className="border-border bg-muted/30 hover:bg-accent/50 w-full max-w-full min-w-0 overflow-hidden rounded-md border transition-colors">
+                <ScrollArea
+                  className={cn(
+                    // 有正文时定高，保证 Viewport 可滚；仅标题则随内容收缩
+                    detail.body ? "h-28" : "max-h-28",
+                    "w-full min-w-0",
+                    "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+                    "[&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden",
+                  )}
+                >
+                  <button
+                    type="button"
+                    className="focus-visible:ring-ring block w-full cursor-pointer px-2.5 py-2 text-left focus-visible:outline-none focus-visible:ring-1"
+                    aria-label={t("repo.previewCommitMessage")}
+                    onClick={() => setMessagePreviewOpen(true)}
+                  >
+                    <p className="wrap-break-word text-[13px] leading-snug font-semibold">
+                      {detail.subject}
                     </p>
-                  ) : null}
-                </div>
-              </button>
+                    {detail.body ? (
+                      <p className="text-muted-foreground mt-1 whitespace-pre-wrap wrap-break-word text-[11px] leading-snug">
+                        {detail.body}
+                      </p>
+                    ) : null}
+                  </button>
+                </ScrollArea>
+              </div>
             </TooltipTrigger>
             <TooltipContent>{t("repo.previewCommitMessage")}</TooltipContent>
           </Tooltip>

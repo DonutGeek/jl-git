@@ -387,7 +387,10 @@ function ChangeRow({
         <span
           className={cn(
             "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
-            gitStatusLetterClass(label),
+            gitStatusLetterClass(
+              side === "index" ? entry.indexStatus : entry.worktreeStatus,
+              { conflict: isConflictEntry(entry) },
+            ),
           )}
           aria-hidden="true"
         >

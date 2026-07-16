@@ -119,6 +119,19 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   }
 
   function handleCreateConversation(): void {
+    // 已有「新对话」（尚无消息）时只切换过去，避免叠多个空会话
+    const emptyConversation = conversations.find(
+      (conversation) => conversation.messages.length === 0,
+    );
+    if (emptyConversation) {
+      if (emptyConversation.id !== activeConversation?.id) {
+        setActiveConversation(projectId, emptyConversation.id);
+        clearDraft();
+      }
+      window.requestAnimationFrame(() => inputRef.current?.focus());
+      return;
+    }
+
     conversationSequence.current += 1;
     createConversation(projectId, {
       id: `conversation-${Date.now()}-${conversationSequence.current}`,

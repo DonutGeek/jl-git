@@ -292,7 +292,7 @@ pub(crate) fn read_blob(repo_path: &Path, spec: &str) -> Result<Option<Vec<u8>>,
     Ok(Some(stdout))
 }
 
-fn read_worktree_bytes(path: &Path) -> Result<Vec<u8>, AppError> {
+pub(crate) fn read_worktree_bytes(path: &Path) -> Result<Vec<u8>, AppError> {
     fs::read(path).map_err(|error| {
         AppError::new("INTERNAL", "无法读取工作区文件").with_details(error.to_string())
     })

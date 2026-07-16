@@ -227,7 +227,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                     "pointer-events-none absolute inset-0 box-border min-h-full w-full min-w-0 overflow-hidden px-3 pt-2 pb-10 text-xs leading-5 break-words whitespace-pre-wrap",
                   suggestions:
                     "bg-popover text-popover-foreground z-[100] mb-1 min-w-0 overflow-hidden rounded-md border p-0 shadow-md",
-                  // 强制去掉库默认 divide-y 分隔线
+                  // 滚动交给 MentionSuggestionVirtualList（ScrollArea + 虚拟列表）
                   suggestionsList:
                     "m-0 max-h-none list-none overflow-visible p-0 !divide-y-0 divide-transparent",
                   // 库默认给 li 加了 hover:bg-muted / data-[focused]:bg-primary/10；

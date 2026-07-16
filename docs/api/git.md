@@ -73,6 +73,13 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 
 `staged=true` 读暂存区相对 HEAD；否则读工作区相对 HEAD。`encoding` 控制两侧文本解码（默认 UTF-8）。Monaco DiffEditor 使用 `oldText` / `newText`。
 
+### `getFileMedia(repoPath, options: GitFileMediaOptions): Promise<GitFileMedia>`
+
+- **Command：** `git_file_media`
+- **GitFileMediaOptions：** `filePath` `source`（`worktree` | `index` | Git rev）`maxBytes?`
+- **GitFileMedia：** `present` `kind` `mime?` `base64?` `size` `truncated`
+- **说明：** 供图片等媒体在 Diff/File 视图预览；非图片扩展名不返回 base64。
+
 ### `getStagedDiff(repoPath: string, maxBytes?: number): Promise<GitStagedDiffResult>`
 
 - **Command：** `git_staged_diff`
@@ -183,6 +190,7 @@ export const gitService = {
   pull,
   push,
   getDiff,
+  getFileMedia,
   // ...
 };
 ```

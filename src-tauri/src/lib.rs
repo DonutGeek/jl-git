@@ -71,6 +71,7 @@ pub fn run() {
             commands::git_ops::git_commit_containing_branches,
             commands::git_ops::git_commit_change_size,
             commands::git_ops::git_diff,
+            commands::git_ops::git_file_media,
             commands::git_ops::git_branch_compare,
             commands::git_ops::git_branch_file_diff,
             commands::git_ops::git_staged_diff,

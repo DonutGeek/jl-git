@@ -27,6 +27,7 @@ import {
   type DiffPreviewLayout,
   type DiffPreviewMode,
 } from "@/components/git/DiffPreviewToolbar";
+import { MediaFilePreview } from "@/components/git/MediaFilePreview";
 import {
   bindDiffScrollSync,
   detectLineEnding,
@@ -53,6 +54,7 @@ import {
   gitStatusLetterClass,
   normalizeGitStatusLetter,
 } from "@/utils/gitStatusStyle";
+import { isImagePath } from "@/utils/mediaPath";
 import { DEFAULT_TEXT_ENCODING } from "@/utils/textEncodings";
 
 /** 稳定空数组：避免 selector 每次返回新 [] */
@@ -332,13 +334,20 @@ export function ChangesPreviewPane() {
       : t("repo.diffLocalUnstaged");
 
   const statusEntry = entries.find((entry) => entry.path === selectedChange.path);
-  const statusLetter = statusEntry
-    ? normalizeGitStatusLetter(
-        selectedChange.side === "index"
-          ? statusEntry.indexStatus
-          : statusEntry.worktreeStatus,
-      )
+  const rawStatusCode = statusEntry
+    ? selectedChange.side === "index"
+      ? statusEntry.indexStatus
+      : statusEntry.worktreeStatus
     : null;
+  const statusLetter = rawStatusCode
+    ? normalizeGitStatusLetter(rawStatusCode)
+    : null;
+  const statusConflict = statusEntry
+    ? statusEntry.indexStatus === "U" ||
+      statusEntry.worktreeStatus === "U" ||
+      (statusEntry.indexStatus === "A" && statusEntry.worktreeStatus === "A") ||
+      (statusEntry.indexStatus === "D" && statusEntry.worktreeStatus === "D")
+    : false;
 
   const editorKey = `${selectedChange.side}:${selectedChange.path}:${mode}:${diffLayout}:${foldUnchanged ? "fold" : "full"}`;
   const ready = size.width > 0 && size.height > 0;
@@ -390,11 +399,11 @@ export function ChangesPreviewPane() {
             {diffHidden ? t("repo.diffShow") : t("repo.diffHide")}
           </TooltipContent>
         </Tooltip>
-        {statusLetter ? (
+        {statusLetter && rawStatusCode ? (
           <span
             className={cn(
               "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
-              gitStatusLetterClass(statusLetter),
+              gitStatusLetterClass(rawStatusCode, { conflict: statusConflict }),
             )}
             aria-label={statusLetter}
           >
@@ -417,21 +426,25 @@ export function ChangesPreviewPane() {
         </div>
       ) : (
         <>
-      {/* 工具行：与历史提交对比共用 DiffPreviewToolbar */}
-      <DiffPreviewToolbar
-        encoding={encoding}
-        onEncodingChange={setEncoding}
-        mode={mode}
-        onModeChange={setMode}
-        canNavigateHunk={canNavigateHunk}
-        onPrevHunk={goPrevHunk}
-        onNextHunk={goNextHunk}
-        diffLayout={diffLayout}
-        onDiffLayoutChange={setDiffLayout}
-        foldUnchanged={foldUnchanged}
-        onFoldUnchangedChange={setFoldUnchanged}
-        diffToolsDisabled={diffToolsDisabled}
-      />
+      {/* 图片预览不需要文本 Diff 工具行 */}
+      {!(diff?.binary && isImagePath(selectedChange.path)) ? (
+        <DiffPreviewToolbar
+          encoding={encoding}
+          onEncodingChange={setEncoding}
+          encodingDisabled={Boolean(diff?.binary)}
+          encodingDisplayLabel={diff?.binary ? "—" : undefined}
+          mode={mode}
+          onModeChange={setMode}
+          canNavigateHunk={canNavigateHunk}
+          onPrevHunk={goPrevHunk}
+          onNextHunk={goNextHunk}
+          diffLayout={diffLayout}
+          onDiffLayoutChange={setDiffLayout}
+          foldUnchanged={foldUnchanged}
+          onFoldUnchangedChange={setFoldUnchanged}
+          diffToolsDisabled={diffToolsDisabled || Boolean(diff?.binary)}
+        />
+      ) : null}
 
       {loading ? (
         <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
@@ -445,10 +458,23 @@ export function ChangesPreviewPane() {
         </div>
       ) : null}
 
-      {!loading && !error && diff?.binary ? (
+      {!loading && !error && diff?.binary && !isImagePath(selectedChange.path) ? (
         <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 text-center text-sm">
           {t("repo.diffBinary")}
         </div>
+      ) : null}
+
+      {!loading && !error && diff?.binary && isImagePath(selectedChange.path) && repoPath ? (
+        <MediaFilePreview
+          repoPath={repoPath}
+          filePath={selectedChange.path}
+          oldSource="HEAD"
+          newSource={selectedChange.side === "index" ? "index" : "worktree"}
+          oldLabel={baseLabel}
+          newLabel={localLabel}
+          statusCode={rawStatusCode}
+          conflict={statusConflict}
+        />
       ) : null}
 
       {!loading && !error && diff && !diff.binary ? (

@@ -1,10 +1,8 @@
 import {
   Children,
-  cloneElement,
   isValidElement,
   useEffect,
   useMemo,
-  type CSSProperties,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -17,8 +15,6 @@ import { cn } from "@/lib/utils";
 const SUGGESTION_MAX_HEIGHT_PX = 288;
 const SUGGESTION_ROW_ESTIMATE_PX = 36;
 const SUGGESTION_VIRTUAL_OVERSCAN = 8;
-/** 超过该数量才启用虚拟列表，少量候选项随内容收缩高度 */
-const SUGGESTION_VIRTUALIZE_THRESHOLD = 24;
 const SUGGESTION_PAD_Y_PX = 8;
 
 const scrollAreaClassName = cn(
@@ -27,39 +23,65 @@ const scrollAreaClassName = cn(
   "[&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden",
 );
 
-function isSuggestionItem(node: ReactElement): boolean {
-  const props = node.props as { role?: string; "data-slot"?: string };
-  return props.role === "option" || props["data-slot"] === "suggestion-item";
+/** 从 listbox ul 直接取子节点（memo 候选项渲染前没有 role=option） */
+function extractListboxChildren(node: ReactElement): ReactElement[] | null {
+  const props = node.props as {
+    children?: ReactNode;
+    role?: string;
+    "data-slot"?: string;
+  };
+  if (props.role !== "listbox" && props["data-slot"] !== "suggestions-list") {
+    return null;
+  }
+  const result: ReactElement[] = [];
+  Children.forEach(props.children, (child) => {
+    if (isValidElement(child)) {
+      result.push(child);
+    }
+  });
+  return result;
 }
 
-/** 从 Mentions 容器中取出候选 li（兼容 ul / 包装层） */
 function extractSuggestionItems(root: ReactElement): ReactElement[] {
-  const result: ReactElement[] = [];
-
-  function visit(node: ReactNode): void {
-    Children.forEach(node, (child) => {
-      if (!isValidElement(child)) {
-        return;
-      }
-      if (isSuggestionItem(child)) {
-        result.push(child);
-        return;
-      }
-      const nested = (child.props as { children?: ReactNode }).children;
-      if (nested != null) {
-        visit(nested);
-      }
-    });
+  const direct = extractListboxChildren(root);
+  if (direct) {
+    return direct;
   }
 
+  let found: ReactElement[] | null = null;
+  function visit(node: ReactNode): void {
+    if (found) {
+      return;
+    }
+    Children.forEach(node, (child) => {
+      if (found || !isValidElement(child)) {
+        return;
+      }
+      const list = extractListboxChildren(child);
+      if (list) {
+        found = list;
+        return;
+      }
+      visit((child.props as { children?: ReactNode }).children);
+    });
+  }
   visit(root);
-  return result;
+  return found ?? [];
 }
 
 function findFocusedIndex(items: readonly ReactElement[]): number {
   return items.findIndex((item) => {
-    const props = item.props as { "data-focused"?: string; "aria-selected"?: boolean };
-    return props["data-focused"] === "true" || props["aria-selected"] === true;
+    const props = item.props as {
+      focused?: boolean;
+      "data-focused"?: string;
+      "aria-selected"?: boolean;
+    };
+    // react-mentions-ts 候选项是 memo 组件，焦点在 focused prop 上
+    return (
+      props.focused === true ||
+      props["data-focused"] === "true" ||
+      props["aria-selected"] === true
+    );
   });
 }
 
@@ -68,8 +90,8 @@ interface MentionSuggestionVirtualListProps {
 }
 
 /**
- * Mentions 候选：ScrollArea；条目多时再用虚拟列表。
- * 少量候选项按内容高度收缩，避免大块空白。
+ * Mentions 候选：ScrollArea + 虚拟列表。
+ * 库的 SuggestionItem 不转发 style/ref，故用外层 div 承担定位与测高。
  */
 export function MentionSuggestionVirtualList({
   children,
@@ -77,10 +99,10 @@ export function MentionSuggestionVirtualList({
   const items = useMemo(() => extractSuggestionItems(children), [children]);
   const focusedIndex = useMemo(() => findFocusedIndex(items), [items]);
   const { viewport, bindScrollArea } = useScrollAreaViewport();
-  const useVirtual = items.length >= SUGGESTION_VIRTUALIZE_THRESHOLD;
+  const listAriaLabel = (children.props as { "aria-label"?: string })["aria-label"];
 
   const virtualizer = useVirtualizer({
-    count: useVirtual ? items.length : 0,
+    count: items.length,
     getScrollElement: () => viewport,
     estimateSize: () => SUGGESTION_ROW_ESTIMATE_PX,
     overscan: SUGGESTION_VIRTUAL_OVERSCAN,
@@ -88,24 +110,20 @@ export function MentionSuggestionVirtualList({
   });
 
   useEffect(() => {
-    if (!useVirtual || focusedIndex < 0 || items.length === 0) {
+    if (focusedIndex < 0 || items.length === 0) {
       return;
     }
     virtualizer.scrollToIndex(focusedIndex, { align: "auto" });
-  }, [focusedIndex, items.length, useVirtual, virtualizer]);
+  }, [focusedIndex, items.length, virtualizer]);
 
   if (items.length === 0) {
-    return <div className="px-1 py-1">{children}</div>;
-  }
-
-  if (!useVirtual) {
-    // 少量条目：原生滚动 + 随内容高度，避免 ScrollArea 定高撑出大块空白
     return (
-      <div className="max-h-72 overflow-y-auto overscroll-contain px-1 py-1">
-        <ul className="m-0 w-full min-w-0 list-none p-0" role="listbox">
-          {items}
-        </ul>
-      </div>
+      <ScrollArea
+        className={scrollAreaClassName}
+        style={{ maxHeight: SUGGESTION_MAX_HEIGHT_PX }}
+      >
+        {children}
+      </ScrollArea>
     );
   }
 
@@ -122,36 +140,31 @@ export function MentionSuggestionVirtualList({
       className={scrollAreaClassName}
       style={{ height: listHeight, maxHeight: SUGGESTION_MAX_HEIGHT_PX }}
     >
-      <ul
-        className="relative m-0 w-full min-w-0 list-none p-0"
+      {/* 用 div 而非 ul：候选项本身已渲染为 li，避免嵌套 */}
+      <div
+        className="relative m-0 w-full min-w-0 p-0"
         style={{ height: `${virtualizer.getTotalSize()}px` }}
         role="listbox"
+        aria-label={listAriaLabel}
       >
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const item = items[virtualItem.index];
           if (!item) {
             return null;
           }
-          const itemProps = item.props as {
-            className?: string;
-            style?: CSSProperties;
-          };
-          return cloneElement(
-            item,
-            {
-              key: String(virtualItem.key),
-              "data-index": virtualItem.index,
-              ref: virtualizer.measureElement,
-              className: cn(itemProps.className, "absolute top-0 left-0 w-full"),
-              style: {
-                ...itemProps.style,
-                height: `${virtualItem.size}px`,
-                transform: `translateY(${virtualItem.start}px)`,
-              },
-            } as never,
+          return (
+            <div
+              key={String(virtualItem.key)}
+              data-index={virtualItem.index}
+              ref={virtualizer.measureElement}
+              className="absolute top-0 left-0 w-full"
+              style={{ transform: `translateY(${virtualItem.start}px)` }}
+            >
+              {item}
+            </div>
           );
         })}
-      </ul>
+      </div>
     </ScrollArea>
   );
 }

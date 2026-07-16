@@ -214,6 +214,25 @@ export interface GitDiffResult {
   binaryComparison?: GitBinaryComparison;
 }
 
+/** 媒体预览来源：工作区 / 索引 / Git rev */
+export type GitFileMediaSource = "worktree" | "index" | (string & {});
+
+export interface GitFileMediaOptions {
+  filePath: string;
+  /** worktree | index | HEAD | commit… */
+  source: GitFileMediaSource;
+  maxBytes?: number;
+}
+
+export interface GitFileMedia {
+  present: boolean;
+  kind: "image" | "unsupported" | string;
+  mime?: string;
+  base64?: string;
+  size: number;
+  truncated: boolean;
+}
+
 /** 二进制文件的受限比较摘要；不会携带完整文件内容。 */
 export interface GitBinaryComparison {
   oldSize?: number;

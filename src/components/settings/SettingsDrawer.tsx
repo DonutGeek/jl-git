@@ -391,7 +391,11 @@ export function SettingsDrawer() {
   }): Promise<void> {
     try {
       await setAiInstructions(instructions);
-      savedInstructionsRef.current = instructions;
+      // 清空后回退默认规则，与 getAiInstructions 生效值对齐
+      const effective = await getAiInstructions();
+      savedInstructionsRef.current = effective;
+      setCommitInstructions(effective.commit);
+      setPullRequestInstructions(effective.pullRequest);
       toast.success(t("settings.aiInstructionsSaved"));
     } catch (error) {
       toast.error(toUserMessage(error));

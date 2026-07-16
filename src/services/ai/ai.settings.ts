@@ -1,5 +1,7 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
 
+import i18n from "@/i18n";
+import { getDefaultAiInstructions } from "@/prompts/aiInstructions";
 import { isRecord } from "@/types/error";
 
 const STORE_FILE = "ai-secrets.json";
@@ -152,14 +154,15 @@ async function saveApiKeys(keys: AiApiKey[]): Promise<void> {
   await store.save();
 }
 
-/** 读取用户为 AI 提供的 Git 文案约束。 */
+/** 读取 AI Git 文案约束；未配置时回退 JLGit 默认规则。 */
 export async function getAiInstructions(): Promise<AiInstructions> {
   const store = await getStore();
   const commit = await store.get<string>(COMMIT_INSTRUCTIONS);
   const pullRequest = await store.get<string>(PULL_REQUEST_INSTRUCTIONS);
+  const defaults = getDefaultAiInstructions(i18n.language ?? "zh-CN");
   return {
-    commit: typeof commit === "string" ? commit : "",
-    pullRequest: typeof pullRequest === "string" ? pullRequest : "",
+    commit: typeof commit === "string" ? commit : defaults.commit,
+    pullRequest: typeof pullRequest === "string" ? pullRequest : defaults.pullRequest,
   };
 }
 

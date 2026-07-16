@@ -5,6 +5,7 @@ pub mod diff;
 pub mod fs_list;
 pub mod identity;
 pub mod log;
+pub mod media;
 pub mod merge;
 pub mod oplog;
 pub mod path;

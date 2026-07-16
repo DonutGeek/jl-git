@@ -10,6 +10,7 @@ use crate::git::{
     fs_list::{self, FsFileSizeResult, FsListResult},
     identity::{self, GitIdentity},
     log::{self, GitLogResult},
+    media::{self, GitFileMedia},
     merge::{self, GitMergeResult, MergeMode},
     oplog,
     path::{
@@ -293,6 +294,20 @@ pub fn git_diff(
         max_bytes,
         encoding.as_deref(),
     )
+}
+
+/// 读取单侧文件媒体（图片等）内容，供 Diff/File 预览非文本文件
+///
+/// `source`：`worktree` | `index` | Git rev（如 `HEAD`、commit）
+#[tauri::command]
+pub fn git_file_media(
+    path: String,
+    file_path: String,
+    source: String,
+    max_bytes: Option<usize>,
+) -> Result<GitFileMedia, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    media::get_file_media(&repo_path, &file_path, &source, max_bytes)
 }
 
 /// 两个指定 Git ref 之间的改动文件列表；只读，供分支比较窗口使用。
