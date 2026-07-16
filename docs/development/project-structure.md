@@ -89,6 +89,12 @@ src/
 │   ├── settings.ts
 │   └── error.ts
 ├── utils/
+├── i18n/
+│   ├── index.ts          # i18next 初始化
+│   ├── locale.ts
+│   └── locales/
+│       ├── zh-CN/        # 按域拆分：common.json、repo.json…
+│       └── en/
 ├── App.tsx
 ├── main.tsx
 └── vite-env.d.ts

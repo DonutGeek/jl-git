@@ -264,6 +264,7 @@ Local State → Zustand → SQLite
 
 - 用户可见文案走 i18n 资源，不硬编码中文/英文在业务组件中（品牌名 `JLGit` 除外）
 - 默认提供 `zh-CN`；`en` 作为第二语言预留
+- 文案资源按语言分目录、按域分文件：`src/i18n/locales/<lng>/<domain>.json`（禁止把全部文案堆进单一大 JSON）
 - 日期/相对时间用统一工具（如 dayjs + locale）
 
 ---

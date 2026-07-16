@@ -1,0 +1,21 @@
+{
+  "switchToLight": "Switch to light mode",
+  "switchToDark": "Switch to dark mode",
+  "diskSpace": "Disk space",
+  "diskAvailable": "{{size}} free",
+  "diskAvailableFull": "Available: {{size}}",
+  "diskTotal": "Total: {{size}}",
+  "diskUsedPercent": "{{percent}}% used",
+  "diskUnknown": "Disk unknown",
+  "gitIdentity": "{{name}}",
+  "gitIdentityEmpty": "Git user not configured",
+  "opLog": "Operation log",
+  "opLogSuccess": "Last operation succeeded",
+  "opLogFailed": "Last operation failed",
+  "opLogRunning": "Operation in progress",
+  "switchToZh": "Switch to Chinese",
+  "switchToEn": "Switch to English",
+  "localeZh": "中",
+  "localeEn": "EN",
+  "update": "Update"
+}

@@ -1,0 +1,9 @@
+{
+  "errors": {
+    "missingApiKey": "请先在设置中配置 DeepSeek API Key",
+    "emptyStagedDiff": "暂存区没有可用于生成文案的改动",
+    "requestFailed": "生成提交文案失败",
+    "invalidResponse": "DeepSeek 未返回有效的提交文案",
+    "timeout": "生成提交文案超时，请重试"
+  }
+}

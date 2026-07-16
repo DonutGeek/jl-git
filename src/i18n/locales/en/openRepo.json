@@ -1,0 +1,10 @@
+{
+  "title": "Open repository",
+  "description": "Choose a local Git repository folder. Display name is optional.",
+  "pathLabel": "Repository path",
+  "pathPlaceholder": "Repository path",
+  "pickButton": "Browse",
+  "aliasLabel": "Repository alias",
+  "aliasPlaceholder": "e.g. JLGit",
+  "submitButton": "Open"
+}

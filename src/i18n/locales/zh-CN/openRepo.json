@@ -1,0 +1,10 @@
+{
+  "title": "打开仓库",
+  "description": "选择本地 Git 仓库目录，可选填写显示别名。",
+  "pathLabel": "仓库路径",
+  "pathPlaceholder": "仓库路径",
+  "pickButton": "选择",
+  "aliasLabel": "仓库别名",
+  "aliasPlaceholder": "例如：JLGit",
+  "submitButton": "打开"
+}

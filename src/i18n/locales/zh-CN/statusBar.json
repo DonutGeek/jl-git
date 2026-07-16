@@ -1,0 +1,21 @@
+{
+  "switchToLight": "切换到浅色模式",
+  "switchToDark": "切换到深色模式",
+  "diskSpace": "磁盘空间",
+  "diskAvailable": "{{size}} 可用",
+  "diskAvailableFull": "可用空间：{{size}}",
+  "diskTotal": "总大小：{{size}}",
+  "diskUsedPercent": "已用 {{percent}}%",
+  "diskUnknown": "磁盘未知",
+  "gitIdentity": "{{name}}",
+  "gitIdentityEmpty": "未配置 Git 用户",
+  "opLog": "操作日志",
+  "opLogSuccess": "最近操作成功",
+  "opLogFailed": "最近操作失败",
+  "opLogRunning": "操作进行中",
+  "switchToZh": "切换到中文",
+  "switchToEn": "切换到英文",
+  "localeZh": "中",
+  "localeEn": "EN",
+  "update": "更新"
+}

@@ -1,0 +1,9 @@
+{
+  "errors": {
+    "missingApiKey": "Configure a DeepSeek API Key in Settings first",
+    "emptyStagedDiff": "There are no staged changes to generate a message from",
+    "requestFailed": "Failed to generate the commit message",
+    "invalidResponse": "DeepSeek did not return a valid commit message",
+    "timeout": "Generating the commit message timed out. Try again."
+  }
+}

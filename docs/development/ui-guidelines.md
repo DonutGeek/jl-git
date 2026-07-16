@@ -235,6 +235,7 @@ pnpm dlx shadcn@latest add dropdown-menu
 
 - 用户可见文案（含 Tooltip、空状态、toast、aria-label）一律走 i18n
 - 品牌名 `JLGit` 可硬编码；路径、分支名、hash 等数据不翻译
+- 资源按语言分目录、按域分文件：`src/i18n/locales/<lng>/<domain>.json`，由该语言目录下的 `index.ts` 合并；新增域时同步补齐 `zh-CN` 与 `en`，并在两侧 `index.ts` 注册
 
 ### 7. 验收清单（功能合入前）
 
