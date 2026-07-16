@@ -514,6 +514,14 @@ export function ProjectManager({
     }
   }
 
+  function resetOpenForm(): void {
+    setPath("");
+    setAlias("");
+    setAliasEdited(false);
+    setWorkspaceId("");
+    setOpenError(null);
+  }
+
   async function submitOpen(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const repositoryPath = path.trim();
@@ -530,6 +538,7 @@ export function ProjectManager({
         name: alias.trim() || undefined,
         workspaceId: workspaceId || undefined,
       });
+      resetOpenForm();
       onOpenProject(project.id);
     } catch (error) {
       setOpenError(toUserMessage(error));
