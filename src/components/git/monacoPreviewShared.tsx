@@ -11,8 +11,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Monaco 文件 / 差异预览共享逻辑
- * 由 ChangesPreviewPane（工作区变更预览）与 CommitFileDiffPane（历史提交文件对比）共用，
- * 保持两处预览的工具行、Monaco 配置与滚动联动一致。
+ * 由 TextDiffPreview 使用（工作区变更 / 历史提交对比 / 分支比较）。
  */
 
 export interface HostSize {

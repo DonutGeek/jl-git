@@ -28,6 +28,7 @@ import {
   type ChangeTreeVisibleRow,
 } from "@/components/git/ChangeTree";
 import { DiffLineStats } from "@/components/git/DiffLineStats";
+import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import { SplitPane } from "@/components/layout/SplitPane";
 import { Button } from "@/components/ui/button";
@@ -396,11 +397,17 @@ function ChangeRow({
         >
           {label}
         </span>
+        <MaterialFileIcon
+          name={entry.path}
+          isDir={false}
+          className="size-3.5 shrink-0"
+        />
         <TruncateStartPath
           className="min-w-0 flex-1"
           path={displayPath}
           title={fullPath}
         />
+
         <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-0.5">
           {showLineStats ? (
             <DiffLineStats additions={additions} deletions={deletions} className="ml-0" />
