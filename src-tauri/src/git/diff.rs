@@ -86,7 +86,8 @@ pub fn get_diff(
     let (old_raw, new_raw) = if staged {
         (
             read_blob(repo_path, &format!("HEAD:{file_path}"))?,
-            read_blob(repo_path, &format!(":{file_path}"))?,
+            // 显式 stage0 + 失败回退工作区，避免暂存侧读空被当成「整文件删除」
+            read_staged_blob(repo_path, file_path)?,
         )
     } else {
         let old = read_blob(repo_path, &format!("HEAD:{file_path}"))?;
@@ -284,12 +285,33 @@ fn diff_untracked(repo_path: &Path, abs_file: &Path, limit: usize) -> Result<Pat
     Ok(PatchOut { text, truncated })
 }
 
+/// 读取提交 / 树 / 索引中的 blob。
+/// 先 `cat-file -p`（对 `:0:path` 更稳）；失败再试 `show --textconv`。
 pub(crate) fn read_blob(repo_path: &Path, spec: &str) -> Result<Option<Vec<u8>>, AppError> {
+    let (code, stdout, _stderr) = git_bytes(repo_path, &["cat-file", "-p", spec])?;
+    if code == 0 {
+        return Ok(Some(stdout));
+    }
     let (code, stdout, _stderr) = git_bytes(repo_path, &["show", "--textconv", spec])?;
     if code != 0 {
         return Ok(None);
     }
     Ok(Some(stdout))
+}
+
+/// 读取暂存区（index stage 0）内容；失败时回退工作区文件。
+fn read_staged_blob(repo_path: &Path, file_path: &str) -> Result<Option<Vec<u8>>, AppError> {
+    if let Some(bytes) = read_blob(repo_path, &format!(":0:{file_path}"))? {
+        return Ok(Some(bytes));
+    }
+    if let Some(bytes) = read_blob(repo_path, &format!(":{file_path}"))? {
+        return Ok(Some(bytes));
+    }
+    let worktree = repo_path.join(file_path);
+    if worktree.is_file() {
+        return Ok(Some(read_worktree_bytes(&worktree)?));
+    }
+    Ok(None)
 }
 
 pub(crate) fn read_worktree_bytes(path: &Path) -> Result<Vec<u8>, AppError> {

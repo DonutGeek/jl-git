@@ -57,7 +57,13 @@ pub fn get_file_media(
             }
             Some(read_worktree_bytes(&worktree)?)
         }
-        "index" => read_blob(repo_path, &format!(":{file_path}"))?,
+        "index" => {
+            if let Some(bytes) = read_blob(repo_path, &format!(":0:{file_path}"))? {
+                Some(bytes)
+            } else {
+                read_blob(repo_path, &format!(":{file_path}"))?
+            }
+        }
         rev => {
             validate_git_ref(rev)?;
             read_blob(repo_path, &format!("{rev}:{file_path}"))?

@@ -1014,11 +1014,13 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const stagedEntries = (get().status?.entries ?? []).filter(
         (entry) => entry.indexStatus !== "." && entry.indexStatus !== "?",
       );
-      if (stagedEntries.length === 0) {
+      const sequencerInProgress = Boolean(get().repoState?.merging);
+      // 合并/变基进行中：即使 UI 暂存列表为空也允许提交以结束操作
+      if (stagedEntries.length === 0 && !sequencerInProgress) {
         throwValidationError(i18n.t("repo.errors.nothingToCommit"));
       }
 
-      // ugit 式：按「待提交」列表重建 index 再 commit
+      // 普通提交：按「待提交」重建 index；合并中后端会跳过 reset，直接 commit
       const paths = stagedEntries.map((entry) => entry.path);
       const removePaths = stagedEntries.flatMap((entry) => {
         const removed: string[] = [];
@@ -1036,9 +1038,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         paths,
         removePaths,
       });
-      const [status, log] = await Promise.all([
+      const [status, log, repoState] = await Promise.all([
         gitService.getStatus(repoPath),
         gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+        gitService.getRepoState(repoPath),
       ]);
 
       set({
@@ -1047,6 +1050,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         commits: log.commits,
         hasMore: log.hasMore,
         commitMessage: "",
+        repoState,
         loading: false,
       });
 

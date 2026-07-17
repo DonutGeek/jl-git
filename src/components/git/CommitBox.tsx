@@ -90,6 +90,9 @@ export function CommitBox() {
   const commits = useRepoStore((state) => state.commits);
   const repoPath = useRepoStore((state) => state.repoPath);
   const conflictCount = useRepoStore((state) => state.repoState?.conflictCount ?? 0);
+  const sequencerInProgress = useRepoStore((state) =>
+    Boolean(state.repoState?.merging),
+  );
   const demotedConflictPaths = useRepoStore((state) => state.demotedConflictPaths);
   const defaultPushAfterCommit = useAppPrefsStore((state) => state.pushAfterCommit);
 
@@ -115,12 +118,12 @@ export function CommitBox() {
   const stagedCount =
     status?.entries.filter((entry) => isStagedEntry(entry, demotedSet)).length ?? 0;
   const working = loading || busy;
-  // 待提交为空或仍有冲突时不可提交
+  // 待提交为空不可提交；合并进行中且冲突已清时可提交以结束合并
   const canCommit =
     !working &&
     conflictCount === 0 &&
     commitMessage.trim().length > 0 &&
-    stagedCount > 0;
+    (stagedCount > 0 || sequencerInProgress);
   const branchLabel = status?.branch ?? (status?.detached ? t("repo.detached") : "");
   const ahead = status?.ahead ?? 0;
   const hasUnpushed = ahead > 0;

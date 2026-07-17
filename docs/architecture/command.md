@@ -399,17 +399,22 @@ interface GitBranch {
 
 | | |
 |--|--|
-| **目的** | 创建提交（ugit 式：按路径列表重建 index 后 commit） |
+| **目的** | 创建提交（ugit 式：按路径列表重建 index 后 commit；合并/变基中则直接 commit） |
 | **输入** | `{ path: string; message: string; paths: string[]; removePaths?: string[]; amend?: boolean }` |
 | **输出** | `{ commitId: string }` |
-| **错误** | `VALIDATION`（空 message / 空 paths）；`GIT_FAILED`（hooks 失败等） |
+| **错误** | `VALIDATION`（空 message；非合并态下空 paths）；`GIT_FAILED`（hooks 失败等） |
 
-执行顺序：
+**普通提交**执行顺序：
 
 1. `git reset -- .` — 清空暂存区
 2. `git update-index --add --remove --replace -z --stdin` — 写入 `paths`
 3. 若有 `removePaths`：`git update-index --force-remove ... -z --stdin`
 4. `git commit -F -`（stdin 为 message；可选 `--amend`）
+
+**合并 / 变基 / cherry-pick 进行中**（存在 `MERGE_HEAD` / `CHERRY_PICK_HEAD` / `rebase-*`）：
+
+- **跳过** reset / update-index，保留 Git 已维护的 index
+- 直接 `git commit -F -`，以正确生成 merge commit 并清除进行中状态
 
 默认不传 `--no-verify`。
 
