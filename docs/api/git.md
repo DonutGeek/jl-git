@@ -144,7 +144,12 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 |------|---------|
 | `listRemotes(repoPath)` | `git_remotes` |
 | `fetch(repoPath, remote?: string)` | `git_fetch` | 返回 `{ ok, remote, elapsedMs }` |
-| `pull(repoPath, options?: { remote?; branch?; rebase? })` | `git_pull` | 返回 `{ ok, remote, elapsedMs }` |
+| `pull(repoPath, options?: { remote?; branch?; rebase? })` | `git_pull` | 返回 `{ ok, conflict, remote, elapsedMs }`；冲突时 `conflict: true` |
+| `getRepoState(repoPath)` | `git_repo_state` | 合并进行中状态与冲突路径 |
+| `conflictTake(repoPath, filePath, side)` | `git_conflict_take` | 整文件 ours/theirs + add |
+| `conflictMarkResolved(repoPath, filePath)` | `git_conflict_mark_resolved` | `git add` |
+| `readWorktreeFile(repoPath, filePath, options?)` | `git_read_worktree_file` | 含冲突标记的工作区文本 |
+| `writeWorktreeFile(repoPath, filePath, content, options?)` | `git_write_worktree_file` | 写回；`stage` 时一并 add |
 | `push(repoPath, options?: { remote?; branch?; setUpstream?; force? })` | `git_push` | 返回 `{ ok, remote, elapsedMs }` |
 
 `pull` 默认由调用方传 `origin` + 当前分支；成功后应刷新 status / branches / log。  

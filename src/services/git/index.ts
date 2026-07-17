@@ -1,6 +1,7 @@
 export * from "./git.branch";
 export * from "./git.branch-compare";
 export * from "./git.commit";
+export * from "./git.conflict";
 export * from "./git.diff";
 export * from "./git.fs";
 export * from "./git.identity";
@@ -21,6 +22,13 @@ import {
   unstage,
   unstageAll,
 } from "./git.commit";
+import {
+  conflictMarkResolved,
+  conflictTake,
+  getRepoState,
+  readWorktreeFile,
+  writeWorktreeFile,
+} from "./git.conflict";
 import { getCommitFileDiff, getDiff, getFileMedia, getStagedDiff } from "./git.diff";
 import { getFileSize, listDir } from "./git.fs";
 import { getGlobalIdentity, getIdentity, setGlobalIdentity } from "./git.identity";
@@ -65,6 +73,11 @@ export const gitService = {
   commit,
   undoCommit,
   merge,
+  getRepoState,
+  conflictTake,
+  readWorktreeFile,
+  writeWorktreeFile,
+  conflictMarkResolved,
   checkout,
   createBranch,
   deleteBranch,

@@ -17,6 +17,7 @@ import {
   MoreVertical,
   RotateCw,
   Search,
+  TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,6 +32,7 @@ import { DiffLineStats } from "@/components/git/DiffLineStats";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import { SplitPane } from "@/components/layout/SplitPane";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -56,6 +58,11 @@ import { toUserMessage } from "@/types/error";
 import { GitStatusEntry } from "@/types/git";
 import { formatFileSize } from "@/utils/formatFileSize";
 import { getPathBasename } from "@/utils/getPathBasename";
+import {
+  isConflictEntry as isConflictChangeEntry,
+  isStagedChangeEntry,
+  isUnstagedChangeEntry,
+} from "@/utils/gitConflict";
 import {
   gitStatusLetterClass,
   normalizeGitStatusLetter,
@@ -104,14 +111,7 @@ type ChangeListVisibleRow =
 type ChangeVisibleRow = ChangeListVisibleRow | ChangeTreeVisibleRow;
 
 function isConflictEntry(entry: GitStatusEntry): boolean {
-  const index = entry.indexStatus;
-  const worktree = entry.worktreeStatus;
-  return (
-    index === "U" ||
-    worktree === "U" ||
-    (index === "A" && worktree === "A") ||
-    (index === "D" && worktree === "D")
-  );
+  return isConflictChangeEntry(entry);
 }
 
 function classifyChangeStatus(
@@ -249,14 +249,20 @@ function flattenChangeDateGroupRows(
   return rows;
 }
 
-/** 已暂存：index 侧存在实际变更（非 "." 且非未跟踪的 "?"） */
-function isStagedEntry(entry: GitStatusEntry): boolean {
-  return entry.indexStatus !== "." && entry.indexStatus !== "?";
+/** 已暂存：含默认待提交的冲突；demoted 冲突不算 */
+function isStagedEntry(
+  entry: GitStatusEntry,
+  demotedConflictPaths: ReadonlySet<string>,
+): boolean {
+  return isStagedChangeEntry(entry, demotedConflictPaths);
 }
 
-/** 未暂存：worktree 侧为未跟踪（"?"）或存在实际变更（非 "."） */
-function isUnstagedEntry(entry: GitStatusEntry): boolean {
-  return entry.worktreeStatus === "?" || entry.worktreeStatus !== ".";
+/** 未暂存：含被放回变更的冲突 */
+function isUnstagedEntry(
+  entry: GitStatusEntry,
+  demotedConflictPaths: ReadonlySet<string>,
+): boolean {
+  return isUnstagedChangeEntry(entry, demotedConflictPaths);
 }
 
 function entryLabel(entry: GitStatusEntry, side: "index" | "worktree"): string {
@@ -313,7 +319,9 @@ function ChangeRow({
   indentDepth,
   showLineStats = false,
 }: ChangeRowProps) {
+  const { t } = useTranslation();
   const label = entryLabel(entry, side);
+  const conflictLocked = isConflictEntry(entry);
   const repoPath = useRepoStore((state) => state.repoPath);
   const [hovered, setHovered] = useState(false);
   const [sizeLabel, setSizeLabel] = useState<string | null>(null);
@@ -363,7 +371,7 @@ function ChangeRow({
         }
         onClick={() => onSelect(entry.path, side)}
         onDoubleClick={() => {
-          if (!disabled) {
+          if (!disabled && !conflictLocked) {
             onToggle(entry.path);
           }
         }}
@@ -397,6 +405,12 @@ function ChangeRow({
         >
           {label}
         </span>
+        {isConflictEntry(entry) ? (
+          <TriangleAlert
+            className="text-destructive size-3.5 shrink-0"
+            aria-hidden="true"
+          />
+        ) : null}
         <MaterialFileIcon
           name={entry.path}
           isDir={false}
@@ -417,6 +431,7 @@ function ChangeRow({
               {sizeLabel}
             </span>
           ) : null}
+          {/* 与原版相同：仅 hover/选中时出现。冲突时仍 disabled，但需盖掉 Button 默认 disabled:opacity-50，否则未 hover 也会露出 */}
           <Tooltip delayDuration={300}>
             <TooltipTrigger asChild>
               <Button
@@ -424,17 +439,31 @@ function ChangeRow({
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "size-6 shrink-0 focus-visible:opacity-100 disabled:opacity-0 group-hover:disabled:opacity-50 [&_svg]:size-3",
-                  selected
-                    ? "opacity-100"
-                    : "opacity-0 group-hover:opacity-100",
+                  "size-6 shrink-0 focus-visible:opacity-100 [&_svg]:size-3",
+                  conflictLocked
+                    ? cn(
+                        "text-muted-foreground",
+                        selected
+                          ? "opacity-40 disabled:opacity-40"
+                          : "opacity-0 disabled:opacity-0 group-hover:opacity-40 group-hover:disabled:opacity-40",
+                      )
+                    : [
+                        "disabled:opacity-0 group-hover:disabled:opacity-50",
+                        selected
+                          ? "opacity-100"
+                          : "opacity-0 group-hover:opacity-100",
+                      ],
                 )}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onToggle(entry.path);
+                  if (!conflictLocked) {
+                    onToggle(entry.path);
+                  }
                 }}
-                disabled={disabled}
-                aria-label={toggleLabel}
+                disabled={disabled || conflictLocked}
+                aria-label={
+                  conflictLocked ? t("repo.conflictStageLocked") : toggleLabel
+                }
               >
                 {side === "worktree" ? (
                   <ArrowDown aria-hidden="true" />
@@ -443,7 +472,9 @@ function ChangeRow({
                 )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="left">{toggleLabel}</TooltipContent>
+            <TooltipContent side="left">
+              {conflictLocked ? t("repo.conflictStageLocked") : toggleLabel}
+            </TooltipContent>
           </Tooltip>
         </div>
       </div>
@@ -452,6 +483,8 @@ function ChangeRow({
 
 interface ChangeGroupProps {
   title: string;
+  /** 若提供则替换分区标题行（如冲突警告标签） */
+  titleSlot?: ReactNode;
   actionIcon: ReactNode;
   actionLabel: string;
   onAction: () => void;
@@ -509,6 +542,7 @@ function changeRowKey(row: ChangeVisibleRow, index: number): string {
 /** 变更 / 待提交分区；列表模式变更区以 Default 为根路径分组 */
 function ChangeGroup({
   title,
+  titleSlot,
   actionIcon,
   actionLabel,
   onAction,
@@ -712,11 +746,17 @@ function ChangeGroup({
 
   return (
     <section className="flex h-full min-h-0 flex-col overflow-hidden">
-      {/* 分区标题：悬停高亮，操作按钮悬停才显 */}
+      {/* 分区标题行保留；冲突时仅标题文案换成警告标签 */}
       <div className="group/header hover:bg-accent/60 flex h-7 shrink-0 items-center justify-between gap-1 rounded-md px-2 transition-colors">
-        <h3 className="text-muted-foreground min-w-0 truncate text-[11px] font-medium">
-          {title}
-        </h3>
+        <div className="flex min-w-0 flex-1 items-center">
+          {titleSlot ? (
+            titleSlot
+          ) : (
+            <h3 className="text-muted-foreground min-w-0 truncate text-[11px] font-medium">
+              {title}
+            </h3>
+          )}
+        </div>
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <Button
@@ -806,6 +846,12 @@ export function ChangesPanel() {
   const repoPath = useRepoStore((state) => state.repoPath);
   const loading = useRepoStore((state) => state.loading);
   const selectedChange = useRepoStore((state) => state.selectedChange);
+  const conflictCount = useRepoStore(
+    (state) => state.repoState?.conflictCount ?? 0,
+  );
+  const demotedConflictPaths = useRepoStore(
+    (state) => state.demotedConflictPaths,
+  );
   const refreshStatus = useRepoStore((state) => state.refreshStatus);
   const selectChange = useRepoStore((state) => state.selectChange);
   const stage = useRepoStore((state) => state.stage);
@@ -829,13 +875,27 @@ export function ChangesPanel() {
   const [mutating, setMutating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  const demotedSet = useMemo(
+    () => new Set(demotedConflictPaths),
+    [demotedConflictPaths],
+  );
   const unstagedEntries = useMemo(
-    () => sortChangeEntries(entries.filter(isUnstagedEntry), sortMode, "worktree"),
-    [entries, sortMode],
+    () =>
+      sortChangeEntries(
+        entries.filter((entry) => isUnstagedEntry(entry, demotedSet)),
+        sortMode,
+        "worktree",
+      ),
+    [demotedSet, entries, sortMode],
   );
   const stagedEntries = useMemo(
-    () => sortChangeEntries(entries.filter(isStagedEntry), sortMode, "index"),
-    [entries, sortMode],
+    () =>
+      sortChangeEntries(
+        entries.filter((entry) => isStagedEntry(entry, demotedSet)),
+        sortMode,
+        "index",
+      ),
+    [demotedSet, entries, sortMode],
   );
   const busy = loading || mutating;
   const treeFolderKeys = useMemo(
@@ -1242,10 +1302,26 @@ export function ChangesPanel() {
           second={
             <ChangeGroup
               title={t("repo.stagedCount", { count: stagedEntries.length })}
+              titleSlot={
+                conflictCount > 0 ? (
+                  <Badge
+                    variant="outline"
+                    role="status"
+                    className="border-destructive/40 bg-destructive/10 text-destructive gap-1 rounded-md px-1.5 py-0 text-[11px] font-medium [&>svg]:size-3"
+                  >
+                    <TriangleAlert aria-hidden="true" />
+                    {t("repo.conflictBanner", { count: conflictCount })}
+                  </Badge>
+                ) : undefined
+              }
               actionIcon={<ArrowUp aria-hidden="true" />}
               actionLabel={t("repo.unstageAll")}
               onAction={() => void handleUnstageAll()}
-              actionDisabled={busy}
+              actionDisabled={
+                busy ||
+                (stagedEntries.length > 0 &&
+                  stagedEntries.every((entry) => isConflictEntry(entry)))
+              }
               groupByStatus={listGroupByStatus}
               collapsedStatusCategories={collapsedStatusCategories}
               onToggleStatusCategory={toggleStatusCategory}

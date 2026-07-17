@@ -32,6 +32,8 @@ interface DiffPreviewToolbarProps {
   canNavigateHunk: boolean;
   onPrevHunk: () => void;
   onNextHunk: () => void;
+  /** 如「1/1 冲突」，显示在上下导航旁 */
+  navLabel?: string;
   /** 仅差异视图下可用的布局控件 */
   diffLayout: DiffPreviewLayout;
   onDiffLayoutChange: (layout: DiffPreviewLayout) => void;
@@ -39,6 +41,8 @@ interface DiffPreviewToolbarProps {
   onFoldUnchangedChange: (fold: boolean) => void;
   /** 加载中或二进制时禁用布局类按钮 */
   diffToolsDisabled: boolean;
+  /** 冲突文件视图：隐藏单栏/多栏/折叠（文件视图下无意义） */
+  hideDiffLayoutTools?: boolean;
 }
 
 /**
@@ -55,11 +59,13 @@ export function DiffPreviewToolbar({
   canNavigateHunk,
   onPrevHunk,
   onNextHunk,
+  navLabel,
   diffLayout,
   onDiffLayoutChange,
   foldUnchanged,
   onFoldUnchangedChange,
   diffToolsDisabled,
+  hideDiffLayoutTools = false,
 }: DiffPreviewToolbarProps) {
   const { t } = useTranslation();
   const sideBySide = diffLayout === "sideBySide";
@@ -123,6 +129,11 @@ export function DiffPreviewToolbar({
       </div>
 
       <div className="z-10 ml-auto flex shrink-0 items-center gap-0.5">
+        {navLabel ? (
+          <span className="text-muted-foreground px-1 font-mono text-[11px] tabular-nums">
+            {navLabel}
+          </span>
+        ) : null}
         <ToolIconButton
           label={t("repo.diffPrevChange")}
           disabled={!canNavigateHunk}
@@ -138,32 +149,38 @@ export function DiffPreviewToolbar({
           <ChevronDown aria-hidden="true" />
         </ToolIconButton>
 
-        <div className="bg-border mx-0.5 h-4 w-px shrink-0" aria-hidden="true" />
+        {!hideDiffLayoutTools ? (
+          <>
+            <div className="bg-border mx-0.5 h-4 w-px shrink-0" aria-hidden="true" />
 
-        <ToolIconButton
-          label={t("repo.diffInline")}
-          pressed={sideBySide === false}
-          disabled={diffToolsDisabled}
-          onClick={() => onDiffLayoutChange("inline")}
-        >
-          <List aria-hidden="true" />
-        </ToolIconButton>
-        <ToolIconButton
-          label={t("repo.diffSideBySide")}
-          pressed={sideBySide}
-          disabled={diffToolsDisabled}
-          onClick={() => onDiffLayoutChange("sideBySide")}
-        >
-          <Columns2 aria-hidden="true" />
-        </ToolIconButton>
-        <ToolIconButton
-          label={t("repo.diffFoldUnchanged")}
-          pressed={foldUnchanged}
-          disabled={diffToolsDisabled}
-          onClick={() => onFoldUnchangedChange(!foldUnchanged)}
-        >
-          <FoldVertical aria-hidden="true" />
-        </ToolIconButton>
+            <ToolIconButton
+              label={t("repo.diffInline")}
+              pressed={sideBySide === false}
+              disabled={diffToolsDisabled}
+              onClick={() => onDiffLayoutChange("inline")}
+            >
+              <List aria-hidden="true" />
+            </ToolIconButton>
+            <ToolIconButton
+              label={t("repo.diffSideBySide")}
+              pressed={sideBySide}
+              disabled={diffToolsDisabled}
+              onClick={() => onDiffLayoutChange("sideBySide")}
+            >
+              <Columns2 aria-hidden="true" />
+            </ToolIconButton>
+            <ToolIconButton
+              label={t("repo.diffFoldUnchanged")}
+              pressed={foldUnchanged}
+              disabled={diffToolsDisabled}
+              onClick={() => onFoldUnchangedChange(!foldUnchanged)}
+            >
+              <FoldVertical aria-hidden="true" />
+            </ToolIconButton>
+          </>
+        ) : (
+          <div className="bg-border mx-0.5 h-4 w-px shrink-0" aria-hidden="true" />
+        )}
 
         <Button
           type="button"
@@ -186,6 +203,17 @@ export function DiffPreviewToolbar({
           onClick={handleComingSoon}
         >
           {t("repo.diffHistory")}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground h-6 px-2 text-[11px]"
+          disabled
+          title={t("repo.diffComingSoon")}
+          onClick={handleComingSoon}
+        >
+          {t("repo.diffHistoryCompare")}
         </Button>
         <ToolIconButton label={t("repo.diffMore")} onClick={handleComingSoon}>
           <Menu aria-hidden="true" />

@@ -12,12 +12,25 @@ import {
   GitIdentity,
   GitMergeOptions,
   GitMergeResult,
+  GitPullResult,
+  GitRepoState,
   GitStatusEntry,
   GitStatusResult,
   GitTag,
   GitCreateTagOptions,
   GitTagCreateResult,
 } from "@/types/git";
+import {
+  isConflictEntry,
+  isConflictStatus,
+  isStagedChangeEntry,
+  isUnstagedChangeEntry,
+  pruneDemotedConflictPaths,
+} from "@/utils/gitConflict";
+import {
+  hasUnresolvedConflicts,
+  isWriteOpBlocked,
+} from "@/utils/repoOperationGuard";
 
 /** 先打开操作日志并让出一帧，保证按钮点击后立刻可见 */
 async function revealOpLogBeforeInvoke(): Promise<void> {
@@ -222,25 +235,37 @@ export function beginRepoSwitch(repoPath: string): void {
     detailLoading: false,
     selectedChange: null,
     selectedCommitFile: null,
+    demotedConflictPaths: [],
     loading: true,
     error: null,
   });
 }
 
-/** 已暂存：index 侧存在实际变更 */
-function isStagedEntry(entry: GitStatusEntry): boolean {
-  return entry.indexStatus !== "." && entry.indexStatus !== "?";
+function demotedSetFrom(paths: readonly string[]): ReadonlySet<string> {
+  return new Set(paths);
 }
 
-/** 未暂存：worktree 侧为未跟踪或存在实际变更 */
-function isUnstagedEntry(entry: GitStatusEntry): boolean {
-  return entry.worktreeStatus === "?" || entry.worktreeStatus !== ".";
+/** 已暂存 / 冲突默认待提交（未 demote） */
+function isStagedEntry(
+  entry: GitStatusEntry,
+  demotedConflictPaths: readonly string[],
+): boolean {
+  return isStagedChangeEntry(entry, demotedSetFrom(demotedConflictPaths));
 }
 
-/** status 刷新后校验选中项是否仍在对应列表 */
+/** 未暂存 / 被放回变更的冲突 */
+function isUnstagedEntry(
+  entry: GitStatusEntry,
+  demotedConflictPaths: readonly string[],
+): boolean {
+  return isUnstagedChangeEntry(entry, demotedSetFrom(demotedConflictPaths));
+}
+
+/** status 刷新后校验选中项是否仍在对应列表；冲突侧随 demote 切换 */
 function resolveSelectedChange(
   status: GitStatusResult | null,
   selected: SelectedChange | null,
+  demotedConflictPaths: readonly string[],
 ): SelectedChange | null {
   if (!selected || !status) {
     return null;
@@ -249,13 +274,36 @@ function resolveSelectedChange(
   if (!entry) {
     return null;
   }
-  if (selected.side === "worktree" && isUnstagedEntry(entry)) {
+  if (isConflictEntry(entry)) {
+    const demoted = demotedSetFrom(demotedConflictPaths).has(entry.path);
+    return { path: entry.path, side: demoted ? "worktree" : "index" };
+  }
+  if (selected.side === "worktree" && isUnstagedEntry(entry, demotedConflictPaths)) {
     return selected;
   }
-  if (selected.side === "index" && isStagedEntry(entry)) {
+  if (selected.side === "index" && isStagedEntry(entry, demotedConflictPaths)) {
     return selected;
   }
   return null;
+}
+
+/** status 更新时同步裁剪 demote 列表并校正选中项 */
+function statusSelectionPatch(
+  get: () => RepoStore,
+  status: GitStatusResult,
+): Pick<RepoStoreState, "demotedConflictPaths" | "selectedChange"> {
+  const demotedConflictPaths = pruneDemotedConflictPaths(
+    get().demotedConflictPaths,
+    status.entries,
+  );
+  return {
+    demotedConflictPaths,
+    selectedChange: resolveSelectedChange(
+      status,
+      get().selectedChange,
+      demotedConflictPaths,
+    ),
+  };
 }
 
 interface RepoStoreState {
@@ -277,6 +325,12 @@ interface RepoStoreState {
   selectedChange: SelectedChange | null;
   /** 历史详情中选中的改动文件（左侧整区切换为文件前后对比） */
   selectedCommitFile: SelectedCommitFile | null;
+  /** 合并/变基进行中状态与冲突列表 */
+  repoState: GitRepoState | null;
+  /** 递增后 RepoPage 切到变更视图并聚焦冲突 */
+  conflictFocusEpoch: number;
+  /** @deprecated 冲突文件不再允许 demote；保留字段仅兼容旧会话状态 */
+  demotedConflictPaths: string[];
   loading: boolean;
   error: string | null;
 }
@@ -287,6 +341,9 @@ interface RepoStoreActions {
   setCommitMessage: (msg: string) => void;
   selectChange: (selection: SelectedChange | null) => void;
   selectCommitFile: (file: SelectedCommitFile | null) => void;
+  refreshRepoState: () => Promise<GitRepoState | null>;
+  /** 选中首个冲突文件并请求聚焦变更视图 */
+  focusFirstConflict: () => void;
   loadAll: (repoPath: string) => Promise<void>;
   refreshStatus: () => Promise<void>;
   refreshBranches: () => Promise<void>;
@@ -322,7 +379,7 @@ interface RepoStoreActions {
     remote?: string;
     branch?: string;
     rebase?: boolean;
-  }) => Promise<{ remote: string; elapsedMs: number }>;
+  }) => Promise<Pick<GitPullResult, "ok" | "conflict" | "remote" | "elapsedMs">>;
   /** 推送到远端后刷新 status / log */
   push: (options?: {
     remote?: string;
@@ -349,9 +406,66 @@ const initialState: RepoStoreState = {
   detailLoading: false,
   selectedChange: null,
   selectedCommitFile: null,
+  repoState: null,
+  conflictFocusEpoch: 0,
+  demotedConflictPaths: [],
   loading: false,
   error: null,
 };
+
+function firstConflictPath(status: GitStatusResult | null): string | null {
+  const entry = status?.entries.find((item) =>
+    isConflictStatus(item.indexStatus, item.worktreeStatus),
+  );
+  return entry?.path ?? null;
+}
+
+async function syncAfterConflictOp(
+  set: (partial: Partial<RepoStoreState>) => void,
+  get: () => RepoStore,
+  options?: { focusConflict?: boolean; preferMergeMessage?: boolean },
+): Promise<GitRepoState | null> {
+  const repoPath = get().repoPath;
+  if (!repoPath) {
+    return null;
+  }
+  const [status, repoState] = await Promise.all([
+    gitService.getStatus(repoPath),
+    gitService.getRepoState(repoPath),
+  ]);
+  const focusPath =
+    options?.focusConflict && repoState.conflictCount > 0
+      ? (repoState.conflictPaths[0] ?? firstConflictPath(status))
+      : null;
+
+  const nextMessage =
+    options?.preferMergeMessage &&
+    repoState.mergeMessage &&
+    !get().commitMessage.trim()
+      ? repoState.mergeMessage
+      : get().commitMessage;
+
+  const demotedConflictPaths = pruneDemotedConflictPaths(
+    get().demotedConflictPaths,
+    status.entries,
+  );
+  set({
+    status,
+    repoState,
+    demotedConflictPaths,
+    commitMessage: nextMessage,
+    selectedChange: focusPath
+      ? {
+          path: focusPath,
+          side: demotedConflictPaths.includes(focusPath) ? "worktree" : "index",
+        }
+      : resolveSelectedChange(status, get().selectedChange, demotedConflictPaths),
+    conflictFocusEpoch: focusPath
+      ? get().conflictFocusEpoch + 1
+      : get().conflictFocusEpoch,
+  });
+  return repoState;
+}
 
 function requireRepoPath(repoPath: string | null): string {
   if (!repoPath) {
@@ -359,6 +473,18 @@ function requireRepoPath(repoPath: string | null): string {
   }
 
   return repoPath;
+}
+
+/** 冲突或合并进行中时拒绝切换分支等写操作 */
+function assertWriteOpAllowed(get: () => RepoStore): void {
+  const repoState = get().repoState;
+  if (!isWriteOpBlocked(repoState)) {
+    return;
+  }
+  if (hasUnresolvedConflicts(repoState)) {
+    throwValidationError(i18n.t("repo.conflictOpBlockedMessage"));
+  }
+  throwValidationError(i18n.t("repo.conflictOpBlockedInProgress"));
 }
 
 function throwValidationError(message: string): never {
@@ -389,7 +515,49 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
   },
 
   selectChange(selection) {
-    set({ selectedChange: selection });
+    if (!selection) {
+      set({ selectedChange: null });
+      return;
+    }
+    const entry = get().status?.entries.find((item) => item.path === selection.path);
+    // 点选冲突文件时递增聚焦信号，预览锁定到第一处冲突
+    const focusConflict = entry ? isConflictEntry(entry) : false;
+    set({
+      selectedChange: selection,
+      conflictFocusEpoch: focusConflict
+        ? get().conflictFocusEpoch + 1
+        : get().conflictFocusEpoch,
+    });
+  },
+
+  async refreshRepoState() {
+    const repoPath = get().repoPath;
+    if (!repoPath) {
+      set({ repoState: null });
+      return null;
+    }
+    try {
+      const repoState = await gitService.getRepoState(repoPath);
+      set({ repoState });
+      return repoState;
+    } catch (error) {
+      console.warn("[useRepoStore] refreshRepoState failed", error);
+      return get().repoState;
+    }
+  },
+
+  focusFirstConflict() {
+    const status = get().status;
+    const fromState = get().repoState?.conflictPaths[0] ?? null;
+    const path = fromState ?? firstConflictPath(status);
+    if (!path) {
+      return;
+    }
+    const demoted = get().demotedConflictPaths.includes(path);
+    set({
+      selectedChange: { path, side: demoted ? "worktree" : "index" },
+      conflictFocusEpoch: get().conflictFocusEpoch + 1,
+    });
   },
 
   selectCommitFile(file) {
@@ -428,12 +596,13 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       }
 
       try {
-        const [status, identity, branches, tags, log] = await Promise.all([
+        const [status, identity, branches, tags, log, repoState] = await Promise.all([
           gitService.getStatus(repoPath),
           gitService.getIdentity(repoPath),
           gitService.listBranches(repoPath, true),
           gitService.listTags(repoPath),
           gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE, ref: cached.logRef ?? undefined }),
+          gitService.getRepoState(repoPath),
         ]);
 
         // 用户已切到其他仓库则丢弃本次结果
@@ -441,10 +610,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           return;
         }
 
-        const selectedChange = resolveSelectedChange(
-          status,
-          get().selectedChange,
-        );
         set({
           status,
           identity,
@@ -452,7 +617,8 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           tags: tags.tags,
           commits: log.commits,
           hasMore: log.hasMore,
-          selectedChange,
+          ...statusSelectionPatch(get, status),
+          repoState,
           loading: false,
         });
         saveRepoSession(repoPath, get());
@@ -483,18 +649,20 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       detailLoading: false,
       selectedChange: null,
       selectedCommitFile: null,
+      repoState: null,
       loading: true,
       error: null,
     });
     clearCommitDetailCacheForRepo(repoPath);
 
     try {
-      const [status, identity, branches, tags, log] = await Promise.all([
+      const [status, identity, branches, tags, log, repoState] = await Promise.all([
         gitService.getStatus(repoPath),
         gitService.getIdentity(repoPath),
         gitService.listBranches(repoPath, true),
         gitService.listTags(repoPath),
         gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+        gitService.getRepoState(repoPath),
       ]);
 
       if (get().repoPath !== repoPath) {
@@ -508,6 +676,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         tags: tags.tags,
         commits: log.commits,
         hasMore: log.hasMore,
+        repoState,
         loading: false,
       });
       saveRepoSession(repoPath, get());
@@ -524,9 +693,16 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
     try {
       const repoPath = requireRepoPath(get().repoPath);
-      const status = await gitService.getStatus(repoPath);
-      const selectedChange = resolveSelectedChange(status, get().selectedChange);
-      set({ status, selectedChange, loading: false });
+      const [status, repoState] = await Promise.all([
+        gitService.getStatus(repoPath),
+        gitService.getRepoState(repoPath),
+      ]);
+      set({
+        status,
+        repoState,
+        ...statusSelectionPatch(get, status),
+        loading: false,
+      });
       saveRepoSession(repoPath, get());
     } catch (error) {
       setError(set, error);
@@ -736,12 +912,18 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
     try {
       const repoPath = requireRepoPath(get().repoPath);
+      const entries = get().status?.entries ?? [];
+      const hasConflictPath = paths.some((path) => {
+        const entry = entries.find((item) => item.path === path);
+        return entry ? isConflictEntry(entry) : false;
+      });
+      // 冲突文件禁止改变暂存状态
+      if (hasConflictPath) {
+        throwValidationError(i18n.t("repo.conflictStageLocked"));
+      }
       await gitService.stage(repoPath, paths);
       const status = await gitService.getStatus(repoPath);
-      set({
-        status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
-      });
+      set({ status, ...statusSelectionPatch(get, status) });
     } catch (error) {
       setError(set, error);
       throw error;
@@ -753,12 +935,18 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
     try {
       const repoPath = requireRepoPath(get().repoPath);
+      const entries = get().status?.entries ?? [];
+      const hasConflictPath = paths.some((path) => {
+        const entry = entries.find((item) => item.path === path);
+        return entry ? isConflictEntry(entry) : false;
+      });
+      // 冲突文件禁止取消暂存（不可放回变更）
+      if (hasConflictPath) {
+        throwValidationError(i18n.t("repo.conflictStageLocked"));
+      }
       await gitService.unstage(repoPath, paths);
       const status = await gitService.getStatus(repoPath);
-      set({
-        status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
-      });
+      set({ status, ...statusSelectionPatch(get, status) });
     } catch (error) {
       setError(set, error);
       throw error;
@@ -771,12 +959,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     try {
       const repoPath = requireRepoPath(get().repoPath);
       await revealOpLogBeforeInvoke();
+      set({ demotedConflictPaths: [] });
       await gitService.stageAll(repoPath);
       const status = await gitService.getStatus(repoPath);
-      set({
-        status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
-      });
+      set({ status, ...statusSelectionPatch(get, status) });
     } catch (error) {
       setError(set, error);
       throw error;
@@ -789,12 +975,25 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     try {
       const repoPath = requireRepoPath(get().repoPath);
       await revealOpLogBeforeInvoke();
-      await gitService.unstageAll(repoPath);
+      const entries = get().status?.entries ?? [];
+      // 冲突文件保持在待提交；仅取消暂存其余文件
+      const gitPaths = entries
+        .filter(
+          (entry) =>
+            !isConflictEntry(entry) &&
+            entry.indexStatus !== "." &&
+            entry.indexStatus !== "?",
+        )
+        .map((entry) => entry.path);
+      if (gitPaths.length === 0) {
+        if (entries.some(isConflictEntry)) {
+          throwValidationError(i18n.t("repo.conflictStageLocked"));
+        }
+        return;
+      }
+      await gitService.unstage(repoPath, gitPaths);
       const status = await gitService.getStatus(repoPath);
-      set({
-        status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
-      });
+      set({ status, ...statusSelectionPatch(get, status) });
     } catch (error) {
       setError(set, error);
       throw error;
@@ -844,7 +1043,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       set({
         status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
+        ...statusSelectionPatch(get, status),
         commits: log.commits,
         hasMore: log.hasMore,
         commitMessage: "",
@@ -882,7 +1081,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       set({
         status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
+        ...statusSelectionPatch(get, status),
         commits: log.commits,
         hasMore: log.hasMore,
         // 把撤销的提交说明填回输入框，便于改完再提交
@@ -903,6 +1102,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
+      assertWriteOpAllowed(get);
       const repoPath = requireRepoPath(get().repoPath);
       const ref = source.trim();
       if (!ref) {
@@ -911,15 +1111,16 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       await revealOpLogBeforeInvoke();
       const result = await gitService.merge(repoPath, ref, options);
-      const [status, branches, log] = await Promise.all([
-        gitService.getStatus(repoPath),
+      const [branches, log] = await Promise.all([
         gitService.listBranches(repoPath, true),
         gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
       ]);
+      await syncAfterConflictOp(set, get, {
+        focusConflict: result.conflict,
+        preferMergeMessage: result.conflict,
+      });
 
       set({
-        status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
         branches,
         commits: log.commits,
         hasMore: log.hasMore,
@@ -937,6 +1138,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
+      assertWriteOpAllowed(get);
       const repoPath = requireRepoPath(get().repoPath);
       await revealOpLogBeforeInvoke();
       await gitService.checkout(repoPath, ref);
@@ -948,7 +1150,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       set({
         status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
+        ...statusSelectionPatch(get, status),
         branches,
         commits: log.commits,
         hasMore: log.hasMore,
@@ -984,7 +1186,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       set({
         status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
+        ...statusSelectionPatch(get, status),
         branches,
         commits: log.commits,
         hasMore: log.hasMore,
@@ -1015,7 +1217,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       set({
         status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
+        ...statusSelectionPatch(get, status),
         branches,
       });
     } catch (error) {
@@ -1045,7 +1247,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       set({
         status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
+        ...statusSelectionPatch(get, status),
         branches,
         commits: log.commits,
         hasMore: log.hasMore,
@@ -1071,7 +1273,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       set({
         status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
+        ...statusSelectionPatch(get, status),
         branches,
       });
       return { remote: result.remote, elapsedMs: result.elapsedMs };
@@ -1085,25 +1287,38 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     set({ error: null });
 
     try {
+      assertWriteOpAllowed(get);
       const repoPath = requireRepoPath(get().repoPath);
       await revealOpLogBeforeInvoke();
       const result = await gitService.pull(repoPath, options);
-      // 对齐 ugit：pull 后刷新 status / branches / log
-      const [status, branches, log] = await Promise.all([
-        gitService.getStatus(repoPath),
+      const [branches, log] = await Promise.all([
         gitService.listBranches(repoPath, true),
         gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
       ]);
+      // 冲突时也刷新 status（不再吞掉现场）
+      await syncAfterConflictOp(set, get, {
+        focusConflict: result.conflict,
+        preferMergeMessage: result.conflict,
+      });
 
       set({
-        status,
-        selectedChange: resolveSelectedChange(status, get().selectedChange),
         branches,
         commits: log.commits,
         hasMore: log.hasMore,
       });
-      return { remote: result.remote, elapsedMs: result.elapsedMs };
+      return {
+        ok: result.ok,
+        conflict: result.conflict,
+        remote: result.remote,
+        elapsedMs: result.elapsedMs,
+      };
     } catch (error) {
+      // 尽量刷新，避免 UI 停留在冲突前的干净状态
+      try {
+        await syncAfterConflictOp(set, get, { focusConflict: true });
+      } catch {
+        /* ignore */
+      }
       setError(set, error);
       throw error;
     }
@@ -1134,7 +1349,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       set({
         status: nextStatus,
-        selectedChange: resolveSelectedChange(nextStatus, get().selectedChange),
+        ...statusSelectionPatch(get, nextStatus),
         branches,
         commits: log.commits,
         hasMore: log.hasMore,

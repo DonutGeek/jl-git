@@ -145,8 +145,40 @@ export interface GitFetchResult {
 
 export interface GitPullResult {
   ok: boolean;
+  /** 拉取产生未合并冲突时为 true */
+  conflict: boolean;
   remote: string;
   elapsedMs: number;
+}
+
+export type ConflictSide = "ours" | "theirs";
+
+export type GitRepoStateKind = "merge" | "rebase" | "cherryPick" | "none";
+
+/** 冲突一侧标记行展示用提交摘要 */
+export interface ConflictSideMeta {
+  label: string;
+  shortId?: string;
+  authorName?: string;
+  authoredAt?: string;
+}
+
+export interface GitRepoState {
+  kind: GitRepoStateKind | string;
+  merging: boolean;
+  oursLabel: string;
+  theirsLabel: string;
+  conflictCount: number;
+  conflictPaths: string[];
+  mergeMessage?: string;
+  oursMeta?: ConflictSideMeta;
+  theirsMeta?: ConflictSideMeta;
+}
+
+export interface GitWorktreeFileResult {
+  text: string;
+  binary: boolean;
+  truncated: boolean;
 }
 
 export interface GitPushResult {

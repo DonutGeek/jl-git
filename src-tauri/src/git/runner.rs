@@ -105,6 +105,23 @@ pub fn run_git_timeout(
     ensure_success(args, output)
 }
 
+/// 带超时且允许非 0 退出码（如 pull 冲突需自行判定）
+pub fn run_git_timeout_allow_nonzero(
+    cwd: &Path,
+    args: &[&str],
+    timeout: Duration,
+) -> Result<GitOutput, AppError> {
+    run_git_allow_nonzero_timeout(cwd, args, Some(timeout))
+}
+
+/// 将非 0 的 GitOutput 转为领域错误（与 run_git_timeout 失败路径一致）
+pub fn error_from_failed_output(args: &[&str], output: GitOutput) -> AppError {
+    match ensure_success(args, output) {
+        Ok(_) => AppError::new("GIT_FAILED", "git 命令失败"),
+        Err(error) => error,
+    }
+}
+
 fn record(args: &[&str], output: &GitOutput, started: Instant) {
     oplog::record_command(
         args,

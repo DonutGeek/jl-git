@@ -81,6 +81,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
   const refreshStatus = useRepoStore((state) => state.refreshStatus);
   const reset = useRepoStore((state) => state.reset);
   const selectedCommitFile = useRepoStore((state) => state.selectedCommitFile);
+  const conflictFocusEpoch = useRepoStore((state) => state.conflictFocusEpoch);
 
   const [project, setProject] = useState<Project | null>(() => lookupProject(projectId));
   const [bootstrapping, setBootstrapping] = useState(() => !lookupProject(projectId));
@@ -127,6 +128,22 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
   }, [active, projectId]);
 
   const showCommitFileDiff = mainView === "history" && Boolean(selectedCommitFile);
+
+  // 合并/拉取冲突后自动切到变更视图
+  useEffect(() => {
+    if (conflictFocusEpoch <= 0 || !active) {
+      return;
+    }
+    setMainView("changes");
+    setVisitedViews((prev) => {
+      if (prev.has("changes")) {
+        return prev;
+      }
+      const next = new Set(prev);
+      next.add("changes");
+      return next;
+    });
+  }, [active, conflictFocusEpoch]);
 
   // 弹层右缘：详情左缘再让出分隔条宽度，露出可拖拽线
   useLayoutEffect(() => {

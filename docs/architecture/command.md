@@ -436,14 +436,14 @@ interface GitBranch {
 | 命令 | 输入 | 输出 |
 |------|------|------|
 | `git_fetch` | `{ path; remote?: string }` | `{ ok: true; remote: string; elapsedMs: number }` |
-| `git_pull` | `{ path; remote?: string; branch?: string; rebase?: boolean }` | `{ ok: true; remote: string; elapsedMs: number }` |
+| `git_pull` | `{ path; remote?: string; branch?: string; rebase?: boolean }` | `{ ok: true; conflict: false; remote; elapsedMs }` 或 `{ ok: false; conflict: true; remote; elapsedMs }` |
 | `git_push` | `{ path; remote?: string; branch?: string; setUpstream?: boolean; force?: boolean }` | `{ ok: true; remote: string; elapsedMs: number }` |
 | `git_undo_commit` | `{ path; target?: string }` | `{ ok: true; target: string; elapsedMs: number }` |
 
 `git_fetch` / `git_pull` / `git_push` / `git_undo_commit` 在阻塞线程池异步执行；fetch/pull 默认 120s、push 180s 超时；超时返回 `GIT_TIMEOUT`。
 
 `git_undo_commit`：`git reset --mixed` 到 `target`（省略则为 `HEAD~1`）。仅用于撤销本地未推送提交；变更回到工作区，不丢文件。首提交无法撤销时返回 `VALIDATION`。  
-`git_pull` 对齐 ugit：`pull --recurse-submodules --progress`，并带 `protocol.version=2`；**不**清空 credential.helper。成功后前端刷新 status / branches / log。
+`git_pull` 对齐 ugit：`pull --recurse-submodules --progress`，并带 `protocol.version=2`；**不**清空 credential.helper。成功后前端刷新 status / branches / log。若产生未合并冲突，返回 `{ ok: false, conflict: true }`（不抛错），并刷新 status 进入冲突解决 UI。
 
 `git_push` 对齐 ugit：`push --progress` + `protocol.version=2`；有分支时使用 `origin main:main` 式 refspec；**不**清空 credential.helper。成功后前端刷新 status / branches / log。
 
@@ -475,12 +475,24 @@ interface GitBranch {
 | 命令 | 输入 | 输出 |
 |------|------|------|
 | `git_merge` | `{ path; ref: string; mode?: "default" \| "noFf" \| "squash" \| "resolve" \| "ort" \| "noCommit"; autostash?: boolean }` | `{ ok: true; conflict: false }` 或 `{ ok: false; conflict: true }` |
-| `git_rebase` | `{ path; upstream: string }` | 同上 |
-| `git_cherry_pick` | `{ path; revs: string[] }` | 同上 |
+| `git_rebase` | `{ path; upstream: string }` | 同上（尚未实现） |
+| `git_cherry_pick` | `{ path; revs: string[] }` | 同上（尚未实现） |
 
 冲突时不要伪造成功；返回明确冲突状态供 UI。
 
-`mode` 映射为 Git 默认行为、`--no-ff`、`--squash`、`-s resolve`、`-s ort` 或 `--no-commit`。`autostash=true` 映射为 `--autostash`，但压缩合并必须忽略该选项。冲突时保留 Git 工作区状态，不自动执行 `git merge --abort`。
+`mode` 映射为 Git 默认行为、`--no-ff`、`--squash`、`-s resolve`、`-s ort` 或 `--no-commit`。`autostash=true` 映射为 `--autostash`，但压缩合并必须忽略该选项。冲突时保留 Git 工作区状态，不自动执行 `git merge --abort`。前端提供冲突预览与逐块/整文件解决。
+
+### `git_repo_state` / `git_conflict_*` / `git_read_worktree_file` / `git_write_worktree_file`
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `git_repo_state` | `{ path }` | `{ kind; merging; oursLabel; theirsLabel; conflictCount; conflictPaths; mergeMessage?; oursMeta?; theirsMeta? }` |
+| `git_conflict_take` | `{ path; filePath; side: "ours" \| "theirs" }` | `{ ok: true }` |
+| `git_conflict_mark_resolved` | `{ path; filePath }` | `{ ok: true }` |
+| `git_read_worktree_file` | `{ path; filePath; encoding?; maxBytes? }` | `{ text; binary; truncated }` |
+| `git_write_worktree_file` | `{ path; filePath; content; stage?; encoding? }` | `{ ok: true }` |
+
+路径须相对仓库根且不得含 `..`。`git_conflict_take` 执行 `checkout --ours/--theirs` 后 `git add`。`git_write_worktree_file` 在 `stage=true` 时写回后 `git add`。
 
 ### `git_tag_create` / `git_tag_delete`
 

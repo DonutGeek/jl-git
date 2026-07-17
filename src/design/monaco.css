@@ -31,9 +31,144 @@
   border-color: transparent;
 }
 
-/* 预览图改用右侧独立组件，彻底隐藏 Monaco 内置 minimap（含左侧占位灰条） */
-.jlgit-monaco-host .minimap {
-  display: none !important;
-  width: 0 !important;
-  max-width: 0 !important;
+/* 文件视图开原生 minimap；差异编辑器仍 options.minimap.enabled=false */
+
+/* 冲突块：当前侧绿 / 传入侧蓝（颜色走 token） */
+.jlgit-monaco-host .jlgit-conflict-ours-marker {
+  background: color-mix(in oklab, var(--git-added) 28%, transparent);
+}
+
+.jlgit-monaco-host .jlgit-conflict-ours {
+  background: color-mix(in oklab, var(--git-added) 12%, transparent);
+}
+
+.jlgit-monaco-host .jlgit-conflict-sep {
+  background: color-mix(in oklab, var(--muted-foreground) 10%, transparent);
+}
+
+.jlgit-monaco-host .jlgit-conflict-theirs {
+  background: color-mix(in oklab, var(--git-modified) 12%, transparent);
+}
+
+.jlgit-monaco-host .jlgit-conflict-theirs-marker {
+  background: color-mix(in oklab, var(--git-modified) 28%, transparent);
+}
+
+.jlgit-monaco-host .jlgit-conflict-gutter-ours {
+  background: var(--git-added);
+  width: 3px !important;
+  margin-left: 3px;
+}
+
+.jlgit-monaco-host .jlgit-conflict-gutter-theirs {
+  background: var(--git-modified);
+  width: 3px !important;
+  margin-left: 3px;
+}
+
+/* 标记行末尾元数据（Content Widget，不用 Monaco after 注入） */
+.jlgit-monaco-host .jlgit-conflict-marker-label {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  color: var(--muted-foreground);
+  margin-left: 0;
+  opacity: 0.92;
+  font-style: normal;
+  font-size: 12px;
+  white-space: pre;
+  pointer-events: none;
+  user-select: none;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+.jlgit-monaco-host .jlgit-conflict-marker-hash {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  margin-left: 0.35em;
+  color: var(--primary);
+  font-family: inherit;
+}
+
+.jlgit-monaco-host .jlgit-conflict-marker-commit-icon {
+  display: block;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+/* View Zone 仅占位；操作条无底色，只保留可点文字按钮 */
+.jlgit-monaco-host .jlgit-conflict-actions-spacer {
+  pointer-events: none;
+  background: transparent;
+}
+
+.jlgit-monaco-host .jlgit-conflict-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  box-sizing: border-box;
+  height: 100%;
+  padding: 0 0.75rem 0 0.25rem;
+  font-size: 12px;
+  line-height: 1;
+  background: transparent;
+  border: 0;
+  user-select: none;
+  pointer-events: auto;
+  z-index: 20;
+}
+
+.jlgit-monaco-host .jlgit-conflict-actions[data-active="true"] {
+  background: transparent;
+}
+
+.jlgit-monaco-host .jlgit-conflict-action-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  text-decoration: none;
+  pointer-events: auto;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    transform 80ms ease;
+}
+
+.jlgit-monaco-host .jlgit-conflict-action-btn:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--primary) 16%, transparent);
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.jlgit-monaco-host .jlgit-conflict-action-btn:active:not(:disabled) {
+  background: color-mix(in oklab, var(--primary) 24%, transparent);
+  transform: translateY(0.5px);
+}
+
+.jlgit-monaco-host .jlgit-conflict-action-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+.jlgit-monaco-host .jlgit-conflict-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.jlgit-monaco-host .jlgit-conflict-actions-sep {
+  color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+  padding: 0 0.1rem;
+  user-select: none;
+  pointer-events: none;
 }

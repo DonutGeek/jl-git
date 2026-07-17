@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::error::AppError;
 use crate::git::path::validate_git_ref;
-use crate::git::runner;
+use crate::git::{runner, status};
 
 /// fetch 默认超时：避免网络/凭据挂起拖死界面
 const FETCH_TIMEOUT: Duration = Duration::from_secs(120);
@@ -31,6 +31,8 @@ pub struct GitPushResult {
 #[serde(rename_all = "camelCase")]
 pub struct GitPullResult {
     pub ok: bool,
+    /// 拉取产生未合并冲突时为 true（与 merge 契约对齐）
+    pub conflict: bool,
     pub remote: String,
     pub elapsed_ms: u64,
 }
@@ -99,13 +101,28 @@ pub fn pull(
         args.push(name);
     }
 
-    runner::run_git_timeout(repo_path, &args, FETCH_TIMEOUT)?;
+    let output = runner::run_git_timeout_allow_nonzero(repo_path, &args, FETCH_TIMEOUT)?;
+    let elapsed_ms = started.elapsed().as_millis() as u64;
 
-    Ok(GitPullResult {
-        ok: true,
-        remote: remote_label,
-        elapsed_ms: started.elapsed().as_millis() as u64,
-    })
+    if output.code == 0 {
+        return Ok(GitPullResult {
+            ok: true,
+            conflict: false,
+            remote: remote_label,
+            elapsed_ms,
+        });
+    }
+
+    if status::has_unmerged_entries(&status::get_status(repo_path)?) {
+        return Ok(GitPullResult {
+            ok: false,
+            conflict: true,
+            remote: remote_label,
+            elapsed_ms,
+        });
+    }
+
+    Err(runner::error_from_failed_output(&args, output))
 }
 
 /// 推送到远端。对齐 ugit：`push --progress` + `protocol.version=2`；

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Eye, EyeOff, FileText } from "lucide-react";
+import { Eye, EyeOff, FileText, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -8,6 +8,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  ConflictFilePreview,
+  type ConflictFilePreviewHandle,
+} from "@/components/git/ConflictFilePreview";
 import { CopyablePathLabel } from "@/components/git/CopyablePathLabel";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { MediaFilePreview } from "@/components/git/MediaFilePreview";
@@ -18,6 +22,7 @@ import { gitService } from "@/services/git";
 import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { GitDiffResult, GitStatusEntry } from "@/types/git";
+import { isConflictStatus } from "@/utils/gitConflict";
 import {
   gitStatusLetterClass,
   normalizeGitStatusLetter,
@@ -34,16 +39,23 @@ export function ChangesPreviewPane() {
   const repoPath = useRepoStore((state) => state.repoPath);
   const selectedChange = useRepoStore((state) => state.selectedChange);
   const entries = useRepoStore((state) => state.status?.entries ?? EMPTY_ENTRIES);
+  const repoState = useRepoStore((state) => state.repoState);
+  const conflictPreviewRef = useRef<ConflictFilePreviewHandle | null>(null);
 
   const [encoding, setEncoding] = useState(DEFAULT_TEXT_ENCODING);
   const [diffHidden, setDiffHidden] = useState(false);
   const [diff, setDiff] = useState<GitDiffResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conflictBusy, setConflictBusy] = useState(false);
 
   const selectionKey = selectedChange
     ? `${selectedChange.side}:${selectedChange.path}`
     : "";
+
+  const handleConflictBusyChange = useCallback((busy: boolean) => {
+    setConflictBusy(busy);
+  }, []);
 
   // 切换文件时恢复显示差异
   useEffect(() => {
@@ -123,39 +135,40 @@ export function ChangesPreviewPane() {
     ? normalizeGitStatusLetter(rawStatusCode)
     : null;
   const statusConflict = statusEntry
-    ? statusEntry.indexStatus === "U" ||
-      statusEntry.worktreeStatus === "U" ||
-      (statusEntry.indexStatus === "A" && statusEntry.worktreeStatus === "A") ||
-      (statusEntry.indexStatus === "D" && statusEntry.worktreeStatus === "D")
+    ? isConflictStatus(statusEntry.indexStatus, statusEntry.worktreeStatus)
     : false;
 
   const isImageBinary = Boolean(diff?.binary && isImagePath(selectedChange.path));
+  const oursLabel = repoState?.oursLabel || t("repo.conflictOursFallback");
+  const theirsLabel = repoState?.theirsLabel || t("repo.conflictTheirsFallback");
 
   return (
     <div className="bg-background flex h-full min-h-0 flex-col overflow-hidden">
       <div className="border-border flex h-8 shrink-0 items-center gap-1.5 border-b px-2">
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground size-6 shrink-0 [&_svg]:size-3.5"
-              aria-label={diffHidden ? t("repo.diffShow") : t("repo.diffHide")}
-              aria-pressed={diffHidden}
-              onClick={() => setDiffHidden((prev) => !prev)}
-            >
-              {diffHidden ? (
-                <EyeOff aria-hidden="true" />
-              ) : (
-                <Eye aria-hidden="true" />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent align="center">
-            {diffHidden ? t("repo.diffShow") : t("repo.diffHide")}
-          </TooltipContent>
-        </Tooltip>
+        {!statusConflict ? (
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground size-6 shrink-0 [&_svg]:size-3.5"
+                aria-label={diffHidden ? t("repo.diffShow") : t("repo.diffHide")}
+                aria-pressed={diffHidden}
+                onClick={() => setDiffHidden((prev) => !prev)}
+              >
+                {diffHidden ? (
+                  <EyeOff aria-hidden="true" />
+                ) : (
+                  <Eye aria-hidden="true" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent align="center">
+              {diffHidden ? t("repo.diffShow") : t("repo.diffHide")}
+            </TooltipContent>
+          </Tooltip>
+        ) : null}
         {statusLetter && rawStatusCode ? (
           <span
             className={cn(
@@ -167,6 +180,12 @@ export function ChangesPreviewPane() {
             {statusLetter}
           </span>
         ) : null}
+        {statusConflict ? (
+          <TriangleAlert
+            className="text-destructive size-3.5 shrink-0"
+            aria-label={t("repo.conflictWarning")}
+          />
+        ) : null}
         <MaterialFileIcon
           name={selectedChange.path}
           isDir={false}
@@ -174,11 +193,54 @@ export function ChangesPreviewPane() {
         />
         <CopyablePathLabel
           path={selectedChange.path}
-          className="hover:text-foreground"
+          className="hover:text-foreground min-w-0"
         />
+        {statusConflict ? (
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-6 max-w-48 truncate px-2 text-[11px]"
+              disabled={conflictBusy}
+              title={t("repo.conflictUseOurs", { branch: oursLabel })}
+              onClick={() => void conflictPreviewRef.current?.take("ours")}
+            >
+              {t("repo.conflictUseOurs", { branch: oursLabel })}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-6 max-w-48 truncate px-2 text-[11px]"
+              disabled={conflictBusy}
+              title={t("repo.conflictUseTheirs", { branch: theirsLabel })}
+              onClick={() => void conflictPreviewRef.current?.take("theirs")}
+            >
+              {t("repo.conflictUseTheirs", { branch: theirsLabel })}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-6 shrink-0 px-2 text-[11px]"
+              disabled={conflictBusy}
+              onClick={() => void conflictPreviewRef.current?.markResolved()}
+            >
+              {t("repo.conflictMarkResolved")}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
-      {diffHidden ? (
+      {statusConflict ? (
+        <ConflictFilePreview
+          ref={conflictPreviewRef}
+          filePath={selectedChange.path}
+          encoding={encoding}
+          onEncodingChange={setEncoding}
+          onBusyChange={handleConflictBusyChange}
+        />
+      ) : diffHidden ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
           <EyeOff
             className="text-muted-foreground size-12 opacity-40"

@@ -1,5 +1,7 @@
 import {
+  forwardRef,
   useEffect,
+  useImperativeHandle,
   useRef,
   useState,
   type ComponentProps,
@@ -14,7 +16,6 @@ import {
   type OnMount,
 } from "@monaco-editor/react";
 
-import { CodeSidePreview } from "@/components/git/CodeSidePreview";
 import { DiffSidePreview, type DiffPreviewChange } from "@/components/git/DiffSidePreview";
 import {
   DiffPreviewToolbar,
@@ -27,6 +28,7 @@ import {
   isDocumentDark,
   languageFromPath,
   monacoCommonOptions,
+  monacoFileMinimapOptions,
   navigateDiffHunk,
   readMonoFont,
   revealFirstDiffHunk,
@@ -55,14 +57,31 @@ export interface TextDiffPreviewProps {
    * 默认 false：显示「无法以文本预览」提示。
    */
   allowBinaryEditor?: boolean;
+  /** 为 false 时不渲染顶栏（由外层统一提供工具栏） */
+  showToolbar?: boolean;
+  /** 受控：差异布局（外层工具栏驱动时传入） */
+  diffLayout?: DiffPreviewLayout;
+  onDiffLayoutChange?: (layout: DiffPreviewLayout) => void;
+  /** 受控：折叠未变更区域 */
+  foldUnchanged?: boolean;
+  onFoldUnchangedChange?: (fold: boolean) => void;
   className?: string;
+}
+
+/** 外层工具栏调用的差异块导航 */
+export interface TextDiffPreviewHandle {
+  goPrevHunk: () => void;
+  goNextHunk: () => void;
+  canNavigateHunk: boolean;
 }
 
 /**
  * 只读文本 Diff 预览：工具栏 + Monaco + 右侧变更预览条。
  * 供工作区变更、历史提交对比、分支比较复用。
  */
-export function TextDiffPreview({
+export const TextDiffPreview = forwardRef<TextDiffPreviewHandle, TextDiffPreviewProps>(
+function TextDiffPreview(
+  {
   path,
   diff,
   selectionKey,
@@ -72,12 +91,38 @@ export function TextDiffPreview({
   newLabel,
   binaryEncodingLabel = "—",
   allowBinaryEditor = false,
+  showToolbar = true,
+  diffLayout: controlledDiffLayout,
+  onDiffLayoutChange,
+  foldUnchanged: controlledFoldUnchanged,
+  onFoldUnchangedChange,
   className,
-}: TextDiffPreviewProps) {
+}: TextDiffPreviewProps,
+  ref,
+) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<DiffPreviewMode>("diff");
-  const [diffLayout, setDiffLayout] = useState<DiffPreviewLayout>("sideBySide");
-  const [foldUnchanged, setFoldUnchanged] = useState(false);
+  const [innerDiffLayout, setInnerDiffLayout] =
+    useState<DiffPreviewLayout>("sideBySide");
+  const [innerFoldUnchanged, setInnerFoldUnchanged] = useState(false);
+  const diffLayout = controlledDiffLayout ?? innerDiffLayout;
+  const foldUnchanged = controlledFoldUnchanged ?? innerFoldUnchanged;
+
+  function setDiffLayout(layout: DiffPreviewLayout): void {
+    if (onDiffLayoutChange) {
+      onDiffLayoutChange(layout);
+      return;
+    }
+    setInnerDiffLayout(layout);
+  }
+
+  function setFoldUnchanged(fold: boolean): void {
+    if (onFoldUnchangedChange) {
+      onFoldUnchangedChange(fold);
+      return;
+    }
+    setInnerFoldUnchanged(fold);
+  }
   const [dark, setDark] = useState(isDocumentDark);
   const monacoRef = useRef<Monaco | null>(null);
   const diffEditorRef = useRef<Parameters<DiffOnMount>[0] | null>(null);
@@ -252,21 +297,9 @@ export function TextDiffPreview({
     if (size.width > 0 && size.height > 0) {
       editor.layout({ width: size.width, height: size.height });
     }
-
+    // 文件视图用原生 minimap，无需再同步自定义侧栏视口
     previewDisposeRef.current?.();
-    const syncViewport = (): void => {
-      const layout = editor.getLayoutInfo();
-      setPreviewViewport({
-        scrollTop: editor.getScrollTop(),
-        scrollHeight: editor.getScrollHeight(),
-        clientHeight: layout.height,
-      });
-    };
-    syncViewport();
-    const scrollSub = editor.onDidScrollChange(syncViewport);
-    previewDisposeRef.current = () => {
-      scrollSub.dispose();
-    };
+    previewDisposeRef.current = null;
   };
 
   function goPrevHunk(): void {
@@ -283,6 +316,16 @@ export function TextDiffPreview({
     navigateDiffHunk(diffEditorRef.current, "next");
   }
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      goPrevHunk,
+      goNextHunk,
+      canNavigateHunk,
+    }),
+    [canNavigateHunk],
+  );
+
   function jumpModified(ratio: number): void {
     const modified = diffEditorRef.current?.getModifiedEditor();
     if (!modified) {
@@ -296,37 +339,26 @@ export function TextDiffPreview({
     modified.focus();
   }
 
-  function jumpFile(ratio: number): void {
-    const editor = fileEditorRef.current;
-    if (!editor) {
-      return;
-    }
-    const maxScroll = Math.max(
-      0,
-      editor.getScrollHeight() - editor.getLayoutInfo().height,
-    );
-    editor.setScrollTop(ratio * maxScroll);
-    editor.focus();
-  }
-
   return (
     <div className={className ?? "flex h-full min-h-0 min-w-0 flex-col overflow-hidden"}>
-      <DiffPreviewToolbar
-        encoding={encoding}
-        onEncodingChange={onEncodingChange}
-        encodingDisabled={diff.binary}
-        encodingDisplayLabel={diff.binary ? binaryEncodingLabel : undefined}
-        mode={mode}
-        onModeChange={setMode}
-        canNavigateHunk={canNavigateHunk}
-        onPrevHunk={goPrevHunk}
-        onNextHunk={goNextHunk}
-        diffLayout={diffLayout}
-        onDiffLayoutChange={setDiffLayout}
-        foldUnchanged={foldUnchanged}
-        onFoldUnchangedChange={setFoldUnchanged}
-        diffToolsDisabled={mode !== "diff" || (diff.binary && !allowBinaryEditor)}
-      />
+      {showToolbar ? (
+        <DiffPreviewToolbar
+          encoding={encoding}
+          onEncodingChange={onEncodingChange}
+          encodingDisabled={diff.binary}
+          encodingDisplayLabel={diff.binary ? binaryEncodingLabel : undefined}
+          mode={mode}
+          onModeChange={setMode}
+          canNavigateHunk={canNavigateHunk}
+          onPrevHunk={goPrevHunk}
+          onNextHunk={goNextHunk}
+          diffLayout={diffLayout}
+          onDiffLayoutChange={setDiffLayout}
+          foldUnchanged={foldUnchanged}
+          onFoldUnchangedChange={setFoldUnchanged}
+          diffToolsDisabled={mode !== "diff" || (diff.binary && !allowBinaryEditor)}
+        />
+      ) : null}
 
       {!showEditor ? (
         <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 text-center text-sm">
@@ -439,42 +471,35 @@ export function TextDiffPreview({
               </div>
             </>
           ) : (
-            <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-              <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-                <div ref={setHost} className="jlgit-monaco-host">
-                  {ready ? (
-                    <Editor
-                      key={editorKey}
-                      width={size.width}
-                      height={size.height}
-                      value={diff.newText}
-                      language={language}
-                      theme={monacoTheme}
-                      beforeMount={handleBeforeMount}
-                      onMount={handleFileMount}
-                      options={{
-                        ...monacoCommonOptions,
-                        fontFamily,
-                      }}
-                      loading={
-                        <div className="bg-background text-muted-foreground flex h-full items-center justify-center text-sm">
-                          {t("common.loading")}
-                        </div>
-                      }
-                    />
-                  ) : null}
-                </div>
+            <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+              <div ref={setHost} className="jlgit-monaco-host">
+                {ready ? (
+                  <Editor
+                    key={editorKey}
+                    width={size.width}
+                    height={size.height}
+                    value={diff.newText}
+                    language={language}
+                    theme={monacoTheme}
+                    beforeMount={handleBeforeMount}
+                    onMount={handleFileMount}
+                    options={{
+                      ...monacoCommonOptions,
+                      fontFamily,
+                      minimap: monacoFileMinimapOptions,
+                    }}
+                    loading={
+                      <div className="bg-background text-muted-foreground flex h-full items-center justify-center text-sm">
+                        {t("common.loading")}
+                      </div>
+                    }
+                  />
+                ) : null}
               </div>
-              <CodeSidePreview
-                text={diff.newText}
-                viewport={previewViewport}
-                dark={dark}
-                onJumpRatio={jumpFile}
-              />
             </div>
           )}
         </div>
       )}
     </div>
   );
-}
+});

@@ -213,6 +213,17 @@ export const monacoCommonOptions = {
   },
 };
 
+/** 文件视图：Monaco 原生 minimap（字符缩略，非自定义灰条） */
+export const monacoFileMinimapOptions = {
+  enabled: true,
+  side: "right" as const,
+  size: "proportional" as const,
+  showSlider: "mouseover" as const,
+  renderCharacters: true,
+  maxColumn: 120,
+  scale: 1,
+};
+
 /**
  * 左右 Diff 滚动联动：滚一侧另一侧跟随；左侧隐藏竖条，视觉上共用右侧滚动条。
  */

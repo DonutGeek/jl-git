@@ -21,6 +21,7 @@ import { useRepoStore } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
 import { GitCommitSummary, GitStatusEntry } from "@/types/git";
+import { isStagedChangeEntry } from "@/utils/gitConflict";
 
 /** 提交信息历史展示最近几条标题；选择后填入完整提交文案。 */
 const COMMIT_MESSAGE_HISTORY_LIMIT = 5;
@@ -64,9 +65,12 @@ async function loadFullCommitMessage(
   }
 }
 
-/** 已暂存：index 侧存在实际变更（非 "." 且非未跟踪的 "?"） */
-function isStagedEntry(entry: GitStatusEntry): boolean {
-  return entry.indexStatus !== "." && entry.indexStatus !== "?";
+/** 已暂存（含未 demote 的冲突）；提交仍由 conflictCount 拦截 */
+function isStagedEntry(
+  entry: GitStatusEntry,
+  demotedConflictPaths: ReadonlySet<string>,
+): boolean {
+  return isStagedChangeEntry(entry, demotedConflictPaths);
 }
 
 /** 中栏底部：推送勾选、提交信息、提交按钮、未推送提示 */
@@ -85,6 +89,8 @@ export function CommitBox() {
   const identity = useRepoStore((state) => state.identity);
   const commits = useRepoStore((state) => state.commits);
   const repoPath = useRepoStore((state) => state.repoPath);
+  const conflictCount = useRepoStore((state) => state.repoState?.conflictCount ?? 0);
+  const demotedConflictPaths = useRepoStore((state) => state.demotedConflictPaths);
   const defaultPushAfterCommit = useAppPrefsStore((state) => state.pushAfterCommit);
 
   const [pushAfterCommit, setPushAfterCommit] = useState(defaultPushAfterCommit);
@@ -102,11 +108,19 @@ export function CommitBox() {
   useEffect(() => {
     setPushAfterCommit(defaultPushAfterCommit);
   }, [defaultPushAfterCommit]);
-
-  const stagedCount = status?.entries.filter(isStagedEntry).length ?? 0;
+  const demotedSet = useMemo(
+    () => new Set(demotedConflictPaths),
+    [demotedConflictPaths],
+  );
+  const stagedCount =
+    status?.entries.filter((entry) => isStagedEntry(entry, demotedSet)).length ?? 0;
   const working = loading || busy;
-  // 待提交为空时不可提交（即使已填提交信息也不高亮）
-  const canCommit = !working && commitMessage.trim().length > 0 && stagedCount > 0;
+  // 待提交为空或仍有冲突时不可提交
+  const canCommit =
+    !working &&
+    conflictCount === 0 &&
+    commitMessage.trim().length > 0 &&
+    stagedCount > 0;
   const branchLabel = status?.branch ?? (status?.detached ? t("repo.detached") : "");
   const ahead = status?.ahead ?? 0;
   const hasUnpushed = ahead > 0;

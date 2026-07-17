@@ -1,6 +1,7 @@
 pub mod branch;
 pub mod branch_compare;
 pub mod commit;
+pub mod conflict;
 pub mod diff;
 pub mod fs_list;
 pub mod identity;
@@ -10,6 +11,7 @@ pub mod merge;
 pub mod oplog;
 pub mod path;
 pub mod remote;
+pub mod repo_state;
 pub mod reset;
 pub mod runner;
 pub mod show;

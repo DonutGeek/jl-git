@@ -6,6 +6,7 @@ use crate::error::AppError;
 use crate::git::{
     branch::{self, GitBranch},
     branch_compare::{self, GitBranchCompareResult},
+    conflict::{self, ConflictSide, GitWorktreeFileResult},
     diff::{self, GitDiffResult, GitStagedDiffResult},
     fs_list::{self, FsFileSizeResult, FsListResult},
     identity::{self, GitIdentity},
@@ -18,6 +19,7 @@ use crate::git::{
         validate_repo_relative_paths,
     },
     remote::{self, GitFetchResult, GitPullResult, GitPushResult, GitRemote},
+    repo_state::{self, GitRepoState},
     reset::{self, GitResetResult},
     runner,
     show::{
@@ -590,6 +592,109 @@ pub async fn git_merge(
     })
     .await
     .map_err(|error| AppError::new("INTERNAL", "合并任务失败").with_details(error.to_string()))?
+}
+
+/// 仓库进行中状态（合并/变基等）与冲突文件列表
+#[tauri::command]
+pub fn git_repo_state(path: String) -> Result<GitRepoState, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    repo_state::get_repo_state(&repo_path)
+}
+
+/// 冲突整文件取 ours / theirs 并标记已解决
+#[tauri::command]
+pub async fn git_conflict_take(
+    app: AppHandle,
+    path: String,
+    file_path: String,
+    side: ConflictSide,
+) -> Result<conflict::OkResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    let file_path = file_path;
+    let repo_key = path;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "conflictTake", || {
+            conflict::take_side(&repo_path, &file_path, side)
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "冲突处理任务失败").with_details(error.to_string())
+    })?
+}
+
+/// 读取工作区文件文本（含冲突标记）
+#[tauri::command]
+pub fn git_read_worktree_file(
+    path: String,
+    file_path: String,
+    max_bytes: Option<usize>,
+    encoding: Option<String>,
+) -> Result<GitWorktreeFileResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    conflict::read_worktree_file(
+        &repo_path,
+        &file_path,
+        max_bytes,
+        encoding.as_deref(),
+    )
+}
+
+/// 写入工作区文件；可选 stage 标记已解决
+#[tauri::command]
+pub async fn git_write_worktree_file(
+    app: AppHandle,
+    path: String,
+    file_path: String,
+    content: String,
+    stage: Option<bool>,
+    encoding: Option<String>,
+) -> Result<conflict::OkResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    let file_path = file_path;
+    let content = content;
+    let stage = stage.unwrap_or(false);
+    let encoding = encoding;
+    let repo_key = path;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "writeWorktree", || {
+            conflict::write_worktree_file(
+                &repo_path,
+                &file_path,
+                &content,
+                stage,
+                encoding.as_deref(),
+            )
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "写入工作区任务失败").with_details(error.to_string())
+    })?
+}
+
+/// 标记冲突文件已解决（`git add`）
+#[tauri::command]
+pub async fn git_conflict_mark_resolved(
+    app: AppHandle,
+    path: String,
+    file_path: String,
+) -> Result<conflict::OkResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    let file_path = file_path;
+    let repo_key = path;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "conflictResolve", || {
+            conflict::mark_resolved(&repo_path, &file_path)
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "标记已解决任务失败").with_details(error.to_string())
+    })?
 }
 
 #[tauri::command]

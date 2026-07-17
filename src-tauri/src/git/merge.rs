@@ -38,7 +38,7 @@ pub fn merge(
         });
     }
 
-    if has_conflict(&status::get_status(repo_path)?) {
+    if status::has_unmerged_entries(&status::get_status(repo_path)?) {
         return Ok(GitMergeResult {
             ok: false,
             conflict: true,
@@ -68,17 +68,10 @@ fn build_merge_args(source: &str, mode: MergeMode, autostash: bool) -> Vec<&str>
     args
 }
 
-fn has_conflict(result: &status::GitStatusResult) -> bool {
-    result.entries.iter().any(|entry| {
-        entry.index_status.eq_ignore_ascii_case("u")
-            || entry.worktree_status.eq_ignore_ascii_case("u")
-    })
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{build_merge_args, has_conflict, MergeMode};
-    use crate::git::status::{GitStatusEntry, GitStatusResult};
+    use super::{build_merge_args, MergeMode};
+    use crate::git::status::{self, GitStatusEntry, GitStatusResult};
 
     #[test]
     fn builds_args_for_each_supported_merge_mode() {
@@ -118,7 +111,7 @@ mod tests {
 
     #[test]
     fn detects_unmerged_status_entry_as_conflict() {
-        assert!(has_conflict(&GitStatusResult {
+        assert!(status::has_unmerged_entries(&GitStatusResult {
             branch: Some("main".to_string()),
             upstream: None,
             ahead: 0,

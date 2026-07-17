@@ -104,10 +104,10 @@
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| Merge | Planned | 冲突状态展示 |
+| Merge | Done | 含冲突检测 |
 | Rebase | Planned | |
 | Cherry-pick | Planned | |
-| 冲突解决引导 | Planned | 可外开编辑器 |
+| 冲突解决引导 | Done | 变更区聚焦、整文件/逐块解决、手动提交 |
 
 ## Worktree
 

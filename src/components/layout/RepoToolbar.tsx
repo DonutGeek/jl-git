@@ -43,6 +43,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useConflictOperationGuard } from "@/hooks/useConflictOperationGuard";
 import { cn } from "@/lib/utils";
 
 import { systemOpenService } from "@/services/system/system.open";
@@ -86,6 +87,8 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
   const [pulling, setPulling] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [projectFilter, setProjectFilter] = useState("");
+  const { guard: guardWriteOp, dialog: conflictGuardDialog } =
+    useConflictOperationGuard();
 
   const changeCount = useMemo(() => {
     return status?.entries.length ?? 0;
@@ -146,6 +149,9 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     if (branchName === status?.branch) {
       return;
     }
+    if (!guardWriteOp()) {
+      return;
+    }
 
     setCheckingOut(true);
     try {
@@ -182,6 +188,9 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     if (syncBusy || needsPublish) {
       return;
     }
+    if (!guardWriteOp()) {
+      return;
+    }
 
     setPulling(true);
     const toastId = toast.loading(t("repo.pullStart"));
@@ -193,9 +202,13 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
         branch,
       });
       const seconds = (result.elapsedMs / 1000).toFixed(3);
-      toast.success(t("repo.pullSuccess", { remote: result.remote, seconds }), {
-        id: toastId,
-      });
+      if (result.conflict) {
+        toast.error(t("repo.pullConflict"), { id: toastId });
+      } else {
+        toast.success(t("repo.pullSuccess", { remote: result.remote, seconds }), {
+          id: toastId,
+        });
+      }
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     } finally {
@@ -250,6 +263,9 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
   function handleUndoCommit(): void {
     if (syncBusy || ahead <= 0) {
       toast.message(t("repo.errors.nothingToUndo"));
+      return;
+    }
+    if (!guardWriteOp()) {
       return;
     }
     void (async () => {
@@ -628,6 +644,8 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
           <TooltipContent>{t("repo.openInTerminal")}</TooltipContent>
         </Tooltip>
       </div>
+
+      {conflictGuardDialog}
     </div>
   );
 }

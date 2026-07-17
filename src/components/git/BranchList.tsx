@@ -38,6 +38,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useConflictOperationGuard } from "@/hooks/useConflictOperationGuard";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { cn } from "@/lib/utils";
 
@@ -92,6 +93,8 @@ export function BranchList() {
 
   const [mergeTarget, setMergeTarget] = useState<GitBranch | null>(null);
   const [mergeBusy, setMergeBusy] = useState(false);
+  const { guard: guardWriteOp, dialog: conflictGuardDialog } =
+    useConflictOperationGuard();
 
   const filterLower = filter.trim().toLowerCase();
 
@@ -158,6 +161,9 @@ export function BranchList() {
   }
 
   async function handleCheckout(branch: GitBranch): Promise<void> {
+    if (!guardWriteOp()) {
+      return;
+    }
     setCheckingOutName(branch.name);
     setSelectedName(branch.name);
 
@@ -176,6 +182,9 @@ export function BranchList() {
   }
 
   async function handlePull(branch: GitBranch): Promise<void> {
+    if (!guardWriteOp()) {
+      return;
+    }
     const toastId = toast.loading(t("repo.pullStart"));
     try {
       const result = await pullRemote({
@@ -183,9 +192,13 @@ export function BranchList() {
         branch: branch.name,
       });
       const seconds = (result.elapsedMs / 1000).toFixed(3);
-      toast.success(t("repo.pullSuccess", { remote: result.remote, seconds }), {
-        id: toastId,
-      });
+      if (result.conflict) {
+        toast.error(t("repo.pullConflict"), { id: toastId });
+      } else {
+        toast.success(t("repo.pullSuccess", { remote: result.remote, seconds }), {
+          id: toastId,
+        });
+      }
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     }
@@ -272,6 +285,9 @@ export function BranchList() {
 
   function openMerge(branch: GitBranch): void {
     if (!currentBranch || branch.name === currentBranch || mergeBusy) {
+      return;
+    }
+    if (!guardWriteOp()) {
       return;
     }
     setMergeTarget(branch);
@@ -398,7 +414,12 @@ export function BranchList() {
           size="icon"
           className="text-muted-foreground hover:text-foreground size-6 shrink-0 hover:bg-transparent [&_svg]:size-3.5"
           aria-label={t("repo.newBranch")}
-          onClick={() => setCreateOpen(true)}
+          onClick={() => {
+            if (!guardWriteOp()) {
+              return;
+            }
+            setCreateOpen(true);
+          }}
         >
           <Plus aria-hidden="true" />
         </Button>
@@ -478,7 +499,12 @@ export function BranchList() {
                   size="icon"
                   className="text-muted-foreground size-7 [&_svg]:size-3.5"
                   aria-label={t("repo.newBranch")}
-                  onClick={() => setCreateOpen(true)}
+                  onClick={() => {
+                    if (!guardWriteOp()) {
+                      return;
+                    }
+                    setCreateOpen(true);
+                  }}
                 >
                   <Plus aria-hidden="true" />
                 </Button>
@@ -601,6 +627,8 @@ export function BranchList() {
         }}
         onConfirm={(options) => void confirmMerge(options)}
       />
+
+      {conflictGuardDialog}
 
       <Dialog
         open={Boolean(renameTarget)}

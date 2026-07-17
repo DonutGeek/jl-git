@@ -52,6 +52,29 @@ fn empty_entry(path: String, index_status: String, worktree_status: String, rena
     }
 }
 
+/// 是否存在未合并条目（U / AA / DD），供 merge/pull 冲突判定。
+pub fn has_unmerged_entries(result: &GitStatusResult) -> bool {
+    result.entries.iter().any(is_unmerged_entry)
+}
+
+pub fn is_unmerged_entry(entry: &GitStatusEntry) -> bool {
+    let index = entry.index_status.as_str();
+    let worktree = entry.worktree_status.as_str();
+    index.eq_ignore_ascii_case("u")
+        || worktree.eq_ignore_ascii_case("u")
+        || (index.eq_ignore_ascii_case("a") && worktree.eq_ignore_ascii_case("a"))
+        || (index.eq_ignore_ascii_case("d") && worktree.eq_ignore_ascii_case("d"))
+}
+
+pub fn conflict_paths(result: &GitStatusResult) -> Vec<String> {
+    result
+        .entries
+        .iter()
+        .filter(|entry| is_unmerged_entry(entry))
+        .map(|entry| entry.path.clone())
+        .collect()
+}
+
 pub fn get_status(repo_path: &Path) -> Result<GitStatusResult, AppError> {
     // 关闭 quotePath，避免中文路径被八进制转义后破坏解析。
     // --untracked-files=all：展开未跟踪目录内的文件（与 GitHub Desktop 一致），
