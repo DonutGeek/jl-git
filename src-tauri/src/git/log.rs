@@ -40,6 +40,10 @@ pub fn get_log(
     skip: u32,
     limit: u32,
     ref_name: Option<&str>,
+    // 为 true 时使用 `git log --all`（所有本地/远端引用可达的历史）
+    all: bool,
+    // None / "default"：git 默认序；"topo" → --topo-order；"date" → --date-order
+    order: Option<&str>,
 ) -> Result<GitLogResult, AppError> {
     if limit == 0 {
         return Err(AppError::new("VALIDATION", "提交数量必须大于 0"));
@@ -49,9 +53,25 @@ pub fn get_log(
         return Err(AppError::new("VALIDATION", "提交数量不能超过 200"));
     }
 
+    if all && ref_name.is_some() {
+        return Err(AppError::new("VALIDATION", "不能同时指定 all 与 ref"));
+    }
+
     if let Some(ref_name) = ref_name {
         validate_git_ref(ref_name)?;
     }
+
+    let order_flag = match order.map(str::trim).filter(|value| !value.is_empty()) {
+        None | Some("default") => None,
+        Some("topo") => Some("--topo-order"),
+        Some("date") => Some("--date-order"),
+        Some(_) => {
+            return Err(AppError::new(
+                "VALIDATION",
+                "order 仅支持 default / topo / date",
+            ));
+        }
+    };
 
     let fetch_limit = limit + 1;
     let mut args = vec![
@@ -60,10 +80,16 @@ pub fn get_log(
         "--format=%H%x00%h%x00%an%x00%ae%x00%aI%x00%s%x00%P%x00%D%x00%(trailers:key=Co-authored-by,valueonly,separator=%x01)".to_string(),
         "--decorate=short".to_string(),
     ];
+    if let Some(flag) = order_flag {
+        args.push(flag.to_string());
+    }
     args.push(format!("--skip={skip}"));
     args.push(format!("--max-count={fetch_limit}"));
 
-    if let Some(ref_name) = ref_name {
+    // --all 必须在 revision 位置以选项形式传入，不能当作 ref 字符串（防注入校验会拒 - 前缀）
+    if all {
+        args.push("--all".to_string());
+    } else if let Some(ref_name) = ref_name {
         args.push(ref_name.to_string());
     }
 
@@ -291,15 +317,32 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07
 
     #[test]
     fn rejects_zero_limit_before_running_git() {
-        let error = get_log(Path::new("."), 0, 0, None).expect_err("zero limit should fail");
+        let error =
+            get_log(Path::new("."), 0, 0, None, false, None).expect_err("zero limit should fail");
 
         assert_eq!(error.code, "VALIDATION");
     }
 
     #[test]
     fn rejects_option_like_ref_before_running_git() {
-        let error =
-            get_log(Path::new("."), 0, 50, Some("-main")).expect_err("invalid ref should fail");
+        let error = get_log(Path::new("."), 0, 50, Some("-main"), false, None)
+            .expect_err("invalid ref should fail");
+
+        assert_eq!(error.code, "VALIDATION");
+    }
+
+    #[test]
+    fn rejects_all_together_with_ref() {
+        let error = get_log(Path::new("."), 0, 50, Some("main"), true, None)
+            .expect_err("all+ref should fail");
+
+        assert_eq!(error.code, "VALIDATION");
+    }
+
+    #[test]
+    fn rejects_unknown_order() {
+        let error = get_log(Path::new("."), 0, 50, None, false, Some("author"))
+            .expect_err("unknown order should fail");
 
         assert_eq!(error.code, "VALIDATION");
     }

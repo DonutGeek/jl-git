@@ -225,11 +225,11 @@ interface GitBranch {
 | | |
 |--|--|
 | **目的** | 提交历史（分页） |
-| **输入** | `{ path: string; skip?: number; limit?: number; ref?: string }` |
+| **输入** | `{ path: string; skip?: number; limit?: number; ref?: string; all?: boolean; order?: "default" \| "topo" \| "date" }` |
 | **输出** | `{ commits: GitCommitSummary[]; hasMore: boolean }`（`GitCommitSummary` 含 `id/shortId/authorName/authorEmail/authoredAt/subject/parentIds/refs/coAuthors`） |
-| **错误** | 同 status 类；`VALIDATION`（limit 过大） |
+| **错误** | 同 status 类；`VALIDATION`（limit 过大 / `all` 与 `ref` 同时指定 / 非法 order） |
 
-默认 `limit=50`，硬上限建议 200。`parentIds` 来自 `%P`，用于历史图谱的分叉与合并连线。`refs` 来自 `git log --decorate` 的 `%D`（远端分支展示为 `origin&name`）。`coAuthors` 来自 `Co-authored-by` trailer（`%(trailers:key=Co-authored-by)`）。
+默认 `limit=50`，硬上限建议 200。`all=true` 时等价 `git log --all`（所有引用可达历史，与 UI「所有分支」对齐）；`ref` 指定单分支/标签；二者互斥。未传 `all` 且无 `ref` 时仍为当前 HEAD。`order`：`topo` → `--topo-order`，`date` → `--date-order`，省略/`default` 为 git 默认序。`parentIds` 来自 `%P`，用于历史图谱的分叉与合并连线。`refs` 来自 `git log --decorate` 的 `%D`（远端分支展示为 `origin&name`）。`coAuthors` 来自 `Co-authored-by` trailer（`%(trailers:key=Co-authored-by)`）。
 
 ### `git_show`
 

@@ -31,7 +31,7 @@ JLGit 是基于 **Tauri 2 + React + TypeScript** 的现代 Git 桌面客户端�
 | UI | React 19 + TypeScript（strict） | 函数组件 + Hooks |
 | 构建 | Vite | 前端打包 |
 | 样式 | Tailwind CSS 4 + CSS Variables | 禁止硬编码颜色 |
-| 组件 | [shadcn/ui](https://ui.shadcn.com/) + lucide-react | 按需 `pnpm dlx shadcn@latest add <name>` 引入官方组件；**UI 图标**仅 lucide。工作区文件/目录类型图标例外：用 [material-icon-theme](https://www.npmjs.com/package/material-icon-theme)（VS Code Material Icon Theme 同源）。细则见 [ui-guidelines](docs/development/ui-guidelines.md) |
+| 组件 | [shadcn/ui](https://ui.shadcn.com/) + lucide-react | 按需 `pnpm dlx shadcn@latest add <name>` 引入官方组件；**UI 图标**仅 lucide。工作区文件/目录类型图标例外：用 [material-icon-theme](https://www.npmjs.com/package/material-icon-theme)（VS Code Material Icon Theme 同源）。**面板主滚动**必须用 `@/components/ui/scroll-area`（见 §15）。细则见 [ui-guidelines](docs/development/ui-guidelines.md) |
 | 状态 | Zustand | 唯一全局状态方案 |
 | 路由 | React Router | 见 routing 文档 |
 | 表单 | React Hook Form + Zod | 校验与提交 |
@@ -218,6 +218,7 @@ Local State → Zustand → SQLite
 - 颜色 / 圆角 / 阴影只用 Design Tokens（CSS Variables）
 - 必须支持 Light / Dark
 - 图标：UI 仅 `lucide-react`；工作区文件类型图标用 `material-icon-theme`（禁止再用 lucide 冒充文件类型）
+- **滚动区域（硬性）**：面板 / 列表 / 侧栏等**主滚动容器**必须使用 shadcn `@/components/ui/scroll-area`；**禁止**以裸 `overflow-auto` / `overflow-x-auto` / `overflow-y-auto` 作为交付用的主滚动方案（调试对照除外）。滚动条默认悬停/滚动时显示（不设 `type="always"`）。大列表另须虚拟滚动，见 §16 与 [performance](docs/development/performance.md)。细则见 [ui-guidelines](docs/development/ui-guidelines.md)
 
 详见：[docs/development/theme.md](docs/development/theme.md)、[docs/development/ui-guidelines.md](docs/development/ui-guidelines.md)
 
@@ -349,6 +350,7 @@ AI 修改代码时必须：
 10. 在文档中留 TODO / 占位假内容冒充完成
 11. 带着 **S0/S1**（崩溃、无限重渲染、核心路径不可用）声称完成或请用户验收
 12. 只跑类型检查、不跑与改动相关的运行时冒烟就交付
+13. 用裸 `overflow-*-auto` 替代 shadcn `ScrollArea` 作为面板主滚动交付方案
 
 ---
 

@@ -12,6 +12,7 @@ import {
   Folder,
   FolderGit2,
   GitBranch as GitBranchIcon,
+  GitCompareArrows,
   LayoutDashboard,
   ListTree,
   RotateCcw,
@@ -47,13 +48,36 @@ import { useConflictOperationGuard } from "@/hooks/useConflictOperationGuard";
 import { cn } from "@/lib/utils";
 
 import { systemOpenService } from "@/services/system/system.open";
+import { openBranchCompareWindow } from "@/services/window/branchCompareWindow";
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { useProjectStore } from "@/store/useProjectStore";
 import { useRepoStore } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
+import type { GitBranch } from "@/types/git";
 import { Project } from "@/types/project";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
+
+/**
+ * 工具栏默认比较：源=当前分支；目标优先 upstream，其次 origin/<name>，否则自身。
+ */
+function resolveDefaultCompareTarget(
+  branches: readonly GitBranch[],
+  currentBranch: string,
+): string {
+  const local = branches.find(
+    (branch) => !branch.isRemote && branch.name === currentBranch,
+  );
+  const upstream = local?.upstream?.trim() ?? "";
+  if (upstream) {
+    return upstream;
+  }
+  const originTwin = `origin/${currentBranch}`;
+  if (branches.some((branch) => branch.isRemote && branch.name === originTwin)) {
+    return originTwin;
+  }
+  return currentBranch;
+}
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
 
@@ -302,6 +326,23 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     } catch (error) {
       toast.error(toUserMessage(error));
     }
+  }
+
+  function handleOpenBranchCompare(): void {
+    const currentBranch =
+      status?.branch ?? branches.find((branch) => branch.isCurrent)?.name;
+    if (!currentBranch) {
+      toast.error(t("repo.openBranchCompareNoBranch"));
+      return;
+    }
+    void openBranchCompareWindow({
+      projectId: project.id,
+      mode: "branch",
+      base: currentBranch,
+      target: resolveDefaultCompareTarget(branches, currentBranch),
+    }).catch((error: unknown) => {
+      toast.error(toUserMessage(error) || t("agent.compareBranchesFailed"));
+    });
   }
 
   const viewItems: Array<{
@@ -594,7 +635,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
         ) : null}
       </div>
 
-      {/* 右侧：外部打开 */}
+      {/* 右侧：分支比较 + 外部打开 */}
       <div className="ml-auto flex shrink-0 items-center gap-0.5" style={noDragStyle}>
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
@@ -610,6 +651,22 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
             </Button>
           </TooltipTrigger>
           <TooltipContent>{t("repo.openInEditor")}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              aria-label={t("repo.openBranchCompare")}
+              onClick={handleOpenBranchCompare}
+            >
+              <GitCompareArrows className="size-3.5" aria-hidden="true" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t("repo.openBranchCompare")}</TooltipContent>
         </Tooltip>
 
         <Tooltip delayDuration={300}>

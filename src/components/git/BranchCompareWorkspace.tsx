@@ -138,7 +138,7 @@ export function BranchCompareWorkspace({ project, branches, initialMode, initial
         defaultRatio={25}
         minFirstPx={200}
         minSecondPx={420}
-        storageKey="jlgit:split:branch-compare-files-v1"
+        storageKey="jlgit:split:branch-compare-files"
         first={(
           <aside className="flex h-full min-h-0 flex-col">
             <div className="border-border border-b px-3 py-2 text-xs font-medium">

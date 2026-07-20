@@ -1,146 +1,198 @@
-import { type ReactElement, memo, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Gitgraph, Mode, TemplateName, templateExtend } from "@gitgraph/react";
+
+import { cn } from "@/lib/utils";
 
 import { GitCommitSummary } from "@/types/git";
 
+import {
+  computeHistoryGraphLayout,
+  rewriteParentsForVisibleCommits,
+} from "@/utils/historyGraphLayout";
+
 interface HistoryGraphProps {
+  /** 当前列表可见行（与行高一一对齐） */
   commits: GitCommitSummary[];
-  width: number;
-  /** 相对面板左缘的留白，与列表行右侧间隙对齐 */
-  edgeGap?: number;
+  /**
+   * 已加载全量拓扑（含被客户端筛选掉的提交），用于改写不可见 parent。
+   * 默认等于 commits。
+   */
+  topologyCommits?: GitCommitSummary[];
+  /** 当前检出分支名；用于 tip 空心圆（log decorate 不含 HEAD 字面量） */
+  currentBranch?: string | null;
   /** 悬停圆点时同步高亮历史行；移出传 null */
   onHoverCommit?: (commitId: string | null) => void;
   /** 点击圆点选中提交 */
   onSelectCommit?: (commitId: string) => void;
-}
-
-interface GitgraphImportCommit {
-  hash: string;
-  parents: string[];
-  subject: string;
-  author: {
-    name: string;
-    email: string;
-  };
-  refs: string[];
-  onClick: () => void;
-  onMouseOver: () => void;
-  onMouseOut: () => void;
-  renderDot: (commit: {
-    style: { dot: { size: number; color: string; strokeColor?: string; strokeWidth?: number } };
-  }) => ReactElement;
+  /** SVG 内容宽度（供父级 ScrollArea 横滑内容盒，不用于加宽列） */
+  onContentWidthChange?: (contentWidth: number) => void;
 }
 
 interface GraphHoverTooltip {
   commitId: string;
   title: string;
   subject: string;
-  /** 视口坐标：浮层用 fixed，避免被分隔线 z-index 压住 */
   dotX: number;
   dotY: number;
+  shape: "circle" | "square";
 }
 
-/** 与历史行 32px 高度对齐的轻量提交图谱列。 */
-const HISTORY_GRAPH_OPTIONS = {
-  mode: Mode.Compact,
-  initCommitOffsetY: 12,
-  template: templateExtend(TemplateName.Metro, {
-    colors: ["currentColor"],
-    branch: {
-      lineWidth: 1.5,
-      spacing: 18,
-      label: { display: false },
-    },
-    commit: {
-      spacing: 32,
-      // 必须关闭：库内 Tooltip 在自定义 renderTooltip 时仍访问空 ref，会直接崩溃
-      hasTooltipInCompactMode: false,
-      dot: {
-        size: 6,
-        strokeWidth: 1,
-        strokeColor: "var(--background)",
-      },
-      message: {
-        display: false,
-        displayAuthor: false,
-        displayHash: false,
-      },
-    },
-  }),
-};
+/** 与 HistoryList 行高 / pt-1.5 对齐 */
+const ROW_HEIGHT = 32;
+const LIST_PADDING_TOP = 6;
+const LANE_SPACING = 18;
+const PAD_X = 10;
+const DOT_SIZE = 5;
+const STROKE_WIDTH = 1.5;
 
-const DOT_SIZE = 6;
+function isCurrentBranchTip(refs: string[], currentBranch: string | null | undefined): boolean {
+  if (!currentBranch) {
+    return false;
+  }
+  return refs.some((ref) => ref === currentBranch || ref.endsWith(`&${currentBranch}`));
+}
+
+function laneX(col: number): number {
+  return PAD_X + col * LANE_SPACING;
+}
+
+function rowCenterY(rowIndex: number): number {
+  return LIST_PADDING_TOP + rowIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
+}
+
+function rowTopY(rowIndex: number): number {
+  return LIST_PADDING_TOP + rowIndex * ROW_HEIGHT;
+}
+
+function rowBottomY(rowIndex: number): number {
+  return LIST_PADDING_TOP + (rowIndex + 1) * ROW_HEIGHT;
+}
+
+/** 竖轨 + 斜线（铁路观感）：同列竖直，跨列半行内直线斜接（约 45°） */
+function linkPath(
+  fromCol: number,
+  toCol: number,
+  y0: number,
+  y1: number,
+): string {
+  const x0 = laneX(fromCol);
+  const x1 = laneX(toCol);
+  return `M ${x0} ${y0} L ${x1} ${y1}`;
+}
 
 /**
- * 使用 Gitgraph 的 git2json 导入格式渲染真实提交 DAG。
- * `commits` 保持 Git 日志的最新在前顺序，组件会在导入时逆序建立拓扑。
- *
- * 注意：
- * - 不用库的 compact tooltip（renderTooltip 会触发 Tooltip 空 ref 崩溃）
- * - 悬停浮层 portal 到 body + fixed，避免被分隔线 / ScrollArea 压住或裁切
- * - 窗口外 parent 过滤，避免拓扑把线拖出列表底部形成半截圆
- * - 自定义 renderDot，避免默认实现用 hash 作 SVG id（常以数字开头，非法）
+ * 自绘铁路图：lane 布局 + SVG 竖轨/斜线 + 合并方块 / tip 空心 / 普通实心圆。
+ * 数据仍用 git log 的 parentIds，不依赖 @gitgraph/react。
  */
 export const HistoryGraph = memo(function HistoryGraph({
   commits,
-  width,
-  edgeGap = 0,
+  topologyCommits,
+  currentBranch = null,
   onHoverCommit,
   onSelectCommit,
+  onContentWidthChange,
 }: HistoryGraphProps) {
   const { t } = useTranslation();
   const onHoverRef = useRef(onHoverCommit);
   const onSelectRef = useRef(onSelectCommit);
+  const onContentWidthRef = useRef(onContentWidthChange);
   const [tooltip, setTooltip] = useState<GraphHoverTooltip | null>(null);
   onHoverRef.current = onHoverCommit;
   onSelectRef.current = onSelectCommit;
+  onContentWidthRef.current = onContentWidthChange;
 
-  const graphCommits = useMemo<GitgraphImportCommit[]>(() => {
-    const knownHashes = new Set(commits.map((commit) => commit.id));
-    return commits.map((commit) => {
-      const title = t("repo.historyGraphCommit", { hash: commit.shortId });
+  const topology = topologyCommits ?? commits;
 
-      function showTooltip(target: Element): void {
-        const dotRect = target.getBoundingClientRect();
-        setTooltip({
-          commitId: commit.id,
-          title,
-          subject: commit.subject,
-          dotX: dotRect.left + dotRect.width / 2,
-          dotY: dotRect.top + dotRect.height / 2,
-        });
-      }
+  const layout = useMemo(() => {
+    const inputs = rewriteParentsForVisibleCommits(commits, topology);
+    return computeHistoryGraphLayout(inputs);
+  }, [commits, topology]);
 
-      function hideTooltip(): void {
-        setTooltip((current) => (current?.commitId === commit.id ? null : current));
-      }
+  const width = Math.max(PAD_X * 2 + Math.max(layout.columns, 1) * LANE_SPACING, 40);
+  const height = LIST_PADDING_TOP + commits.length * ROW_HEIGHT;
 
-      return {
-        hash: commit.id,
-        // 仅保留本页已加载的 parent，避免线延伸出列表底部形成半截圆
-        parents: commit.parentIds.filter((parentId) => knownHashes.has(parentId)),
-        subject: commit.subject,
-        author: {
-          name: commit.authorName,
-          email: commit.authorEmail,
-        },
-        refs: commit.refs ?? [],
-        onClick: () => {
-          onSelectRef.current?.(commit.id);
-        },
-        onMouseOver: () => {
-          onHoverRef.current?.(commit.id);
-        },
-        onMouseOut: () => {
-          onHoverRef.current?.(null);
-        },
-        renderDot: (graphCommit) => {
-          const size = graphCommit.style.dot.size;
+  useEffect(() => {
+    onContentWidthRef.current?.(Math.ceil(width));
+  }, [width]);
+
+  if (commits.length === 0 || layout.rows.length === 0) {
+    return null;
+  }
+
+  const tipHalf = DOT_SIZE + 1.5;
+
+  // 单色：跟随 text-muted-foreground（currentColor），不按 lane 上色
+  return (
+    <div className="text-muted-foreground pointer-events-auto w-max" aria-hidden="true">
+      <svg
+        width={width}
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        className="block overflow-visible"
+      >
+        {layout.rows.map((row, rowIndex) => {
+          const centerY = rowCenterY(rowIndex);
+          const topY = rowTopY(rowIndex);
+          const bottomY = rowBottomY(rowIndex);
+          return (
+            <g key={`links-${commits[rowIndex]?.id ?? rowIndex}`}>
+              {row.topLinks.map((link, linkIndex) => (
+                <path
+                  key={`t-${linkIndex}`}
+                  d={linkPath(link.fromCol, link.toCol, topY, centerY)}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={STROKE_WIDTH}
+                />
+              ))}
+              {row.bottomLinks.map((link, linkIndex) => (
+                <path
+                  key={`b-${linkIndex}`}
+                  d={linkPath(link.fromCol, link.toCol, centerY, bottomY)}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={STROKE_WIDTH}
+                />
+              ))}
+            </g>
+          );
+        })}
+
+        {layout.rows.map((row, rowIndex) => {
+          const commit = commits[rowIndex];
+          if (!commit) {
+            return null;
+          }
+          const cx = laneX(row.col);
+          const cy = rowCenterY(rowIndex);
+          const refs = commit.refs ?? [];
+          // 合并形态看原始 parent 数（筛选掉一侧父提交仍应显示方块）
+          const isMerge = commit.parentIds.length > 1;
+          const isTip = isCurrentBranchTip(refs, currentBranch);
+          const shape: "circle" | "square" = isMerge ? "square" : "circle";
+          const title = t("repo.historyGraphCommit", { hash: commit.shortId });
+
+          function showTooltip(target: Element): void {
+            const rect = target.getBoundingClientRect();
+            setTooltip({
+              commitId: commit.id,
+              title,
+              subject: commit.subject,
+              dotX: rect.left + rect.width / 2,
+              dotY: rect.top + rect.height / 2,
+              shape,
+            });
+          }
+
+          function hideTooltip(): void {
+            setTooltip((current) => (current?.commitId === commit.id ? null : current));
+          }
+
           return (
             <g
-              style={{ cursor: "pointer" }}
+              key={commit.id}
+              className="cursor-pointer"
               onClick={() => onSelectRef.current?.(commit.id)}
               onMouseOver={(event) => {
                 onHoverRef.current?.(commit.id);
@@ -151,59 +203,57 @@ export const HistoryGraph = memo(function HistoryGraph({
                 hideTooltip();
               }}
             >
-              <circle
-                cx={size}
-                cy={size}
-                r={size}
-                fill={graphCommit.style.dot.color}
-                stroke={graphCommit.style.dot.strokeColor}
-                strokeWidth={graphCommit.style.dot.strokeWidth}
-              />
-              {/* 扩大可点区域，避免 6px 圆点难悬停 */}
-              <circle cx={size} cy={size} r={size + 4} fill="transparent" />
+              {isMerge ? (
+                <rect
+                  x={cx - DOT_SIZE}
+                  y={cy - DOT_SIZE}
+                  width={DOT_SIZE * 2}
+                  height={DOT_SIZE * 2}
+                  // 轻微圆角，避免直角方块过硬（约 2px）
+                  rx={2}
+                  ry={2}
+                  fill="currentColor"
+                  stroke="var(--background)"
+                  strokeWidth={1}
+                />
+              ) : isTip ? (
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={DOT_SIZE}
+                  fill="var(--background)"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                />
+              ) : (
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={DOT_SIZE}
+                  fill="currentColor"
+                  stroke="var(--background)"
+                  strokeWidth={1}
+                />
+              )}
+              <circle cx={cx} cy={cy} r={DOT_SIZE + 4} fill="transparent" />
             </g>
           );
-        },
-      };
-    });
-  }, [commits, t]);
+        })}
+      </svg>
 
-  const graphKey = useMemo(
-    () =>
-      graphCommits
-        .map((commit) => `${commit.hash}:${commit.parents.join(",")}:${commit.refs.join(",")}`)
-        .join("|"),
-    [graphCommits],
-  );
-
-  if (graphCommits.length === 0) {
-    return null;
-  }
-
-  return (
-    <div
-      className="text-muted-foreground pointer-events-auto absolute top-0 z-10 overflow-hidden [&_svg]:block"
-      style={{ width, left: edgeGap }}
-      aria-hidden="true"
-    >
-      <Gitgraph key={graphKey} options={HISTORY_GRAPH_OPTIONS}>
-        {(gitgraph) => {
-          // children 仅在 mount 时调用一次；key 变化会重挂载并重新 import
-          gitgraph.import(graphCommits);
-        }}
-      </Gitgraph>
-
-      {/* 提到 body：分隔线 z-20 高于图谱 z-10，容器内再高也压不住 */}
       {tooltip
         ? createPortal(
             <div className="pointer-events-none fixed inset-0 z-[100] overflow-visible">
               <div
-                className="border-primary bg-background absolute rounded-full border-[1.5px]"
+                className={cn(
+                  "border-primary bg-background absolute border-[1.5px]",
+                  tooltip.shape === "square" ? "rounded-[3px]" : "rounded-full",
+                )}
                 style={{
-                  left: tooltip.dotX - (DOT_SIZE + 1.5),
-                  top: tooltip.dotY - (DOT_SIZE + 1.5),
-                  width: (DOT_SIZE + 1.5) * 2,
-                  height: (DOT_SIZE + 1.5) * 2,
+                  left: tooltip.dotX - tipHalf,
+                  top: tooltip.dotY - tipHalf,
+                  width: tipHalf * 2,
+                  height: tipHalf * 2,
                 }}
               />
               <div

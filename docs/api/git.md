@@ -35,10 +35,14 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 - **Command：** `git_identity`
 - **说明：** 返回生效的 `user.name` / `user.email`；未配置时字段为 `null`
 
-### `getLog(repoPath, options?: { skip?; limit?; ref? }): Promise<{ commits; hasMore }>`
+### `getLog(repoPath, options?: { skip?; limit?; ref?; all?; order? }): Promise<{ commits; hasMore }>`
 
 - **Command：** `git_log`
-- **说明：** 每条 `GitCommitSummary` 含 `authorEmail`、`parentIds`（用于历史图谱）与 `coAuthors`（来自 `Co-authored-by` trailer）
+- **说明：** 每条 `GitCommitSummary` 含 `authorEmail`、`parentIds`（用于历史图谱）与 `coAuthors`（来自 `Co-authored-by` trailer）。历史页经 `buildHistoryLogOptions`：打开仓库默认 `logRef` 为当前分支；UI 选「所有分支」时 `logRef == null` 传 `all: true`；选中分支/标签时传 `ref`。`order`：`topo` / `date` 对应 `--topo-order` / `--date-order`。
+
+### `buildHistoryLogOptions({ skip?; limit?; logRef; order? }): GitLogOptions`
+
+- **说明：** Store / 历史列表用的查询构造器；`logRef == null` → `{ all: true }`（所有分支），否则 → `{ ref: logRef }`；冷启动默认会先写入当前分支再查询。附带 `order`（`default` 时不传给后端）。
 
 ### `getCommit(repoPath, rev: string): Promise<GitCommitDetail>`
 

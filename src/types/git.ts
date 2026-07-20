@@ -308,10 +308,18 @@ export interface GitCommitFileDiffOptions {
   encoding?: string;
 }
 
+/** 历史 log 排序：对应 git log 默认 / --topo-order / --date-order */
+export type GitLogOrder = "default" | "topo" | "date";
+
 export interface GitLogOptions {
   skip?: number;
   limit?: number;
+  /** 指定 revision / 分支 / 标签；与 all 互斥 */
   ref?: string;
+  /** true 时拉取所有引用可达历史（`git log --all`）；与 ref 互斥 */
+  all?: boolean;
+  /** 排序策略；省略或 default 为 git 默认序 */
+  order?: GitLogOrder;
 }
 
 export interface GitCommitOptions {

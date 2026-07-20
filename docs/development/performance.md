@@ -62,7 +62,7 @@ flowchart TB
 - 分支树（`BranchList`，展平可见行）
 - 标签列表（`TagList`）
 
-约定：`ScrollArea` + Radix viewport 作为 `getScrollElement`（见 `useScrollAreaViewport`）；树结构先按展开状态展平再虚拟化。
+约定（硬性，见 [AGENTS.md §15](../../AGENTS.md) / [ui-guidelines](ui-guidelines.md)）：面板主滚动用 shadcn `ScrollArea`，禁止裸 `overflow-*-auto` 交付；`ScrollArea` + Radix viewport 作为 `getScrollElement`（见 `useScrollAreaViewport`）；树结构先按展开状态展平再虚拟化。
 
 ---
 

@@ -40,7 +40,7 @@ const SIDEBAR_MAIN_SPLIT_KEY = "jlgit:split:sidebar-main";
 const SIDEBAR_MIN_WIDTH_PX = 240;
 /** 变更列表在纵向分栏中的最小高度。 */
 const CHANGES_LIST_MIN_HEIGHT_PX = 320;
-const HISTORY_DETAIL_SPLIT_KEY = "jlgit:split:history-detail-v10";
+const HISTORY_DETAIL_SPLIT_KEY = "jlgit:split:history-detail";
 /** 历史详情栏标记：弹层右缘相对此元素左缘对齐 */
 const HISTORY_DETAIL_PANE_ATTR = "data-history-detail-pane";
 /** SplitPane 水平分隔条为 w-1.5（6px）；弹层右缘让出，露出拖拽线 */
@@ -54,10 +54,29 @@ function lookupProject(projectId: string | undefined): Project | null {
   return useProjectStore.getState().findById(projectId) ?? null;
 }
 
-// 清理历史分栏旧 key，避免读到过期比例
+// 清理带 :vN / -vN 的旧 localStorage key（现已改用稳定名 + 读时校验）
+const LEGACY_STORAGE_KEY_PREFIXES = [
+  "jlgit:split:history-detail",
+  "jlgit:split:changes-preview",
+  "jlgit:split:changes-commit",
+  "jlgit:split:branch-compare-files",
+  "jlgit:history-graph-width",
+  "jlgit:history-view-prefs",
+] as const;
+const CURRENT_STORAGE_KEYS = new Set([
+  HISTORY_DETAIL_SPLIT_KEY,
+  "jlgit:split:changes-preview",
+  "jlgit:split:changes-commit",
+  "jlgit:split:branch-compare-files",
+  "jlgit:history-graph-width",
+  "jlgit:history-view-prefs",
+]);
 try {
   for (const key of Object.keys(localStorage)) {
-    if (key.startsWith("jlgit:split:history-detail") && key !== HISTORY_DETAIL_SPLIT_KEY) {
+    const isLegacyPrefixed = LEGACY_STORAGE_KEY_PREFIXES.some(
+      (prefix) => key === prefix || key.startsWith(`${prefix}:`) || key.startsWith(`${prefix}-`),
+    );
+    if (isLegacyPrefixed && !CURRENT_STORAGE_KEYS.has(key)) {
       localStorage.removeItem(key);
     }
   }
@@ -371,7 +390,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       defaultRatio={32}
       minFirstPx={320}
       minSecondPx={280}
-      storageKey="jlgit:split:changes-preview-v2"
+      storageKey="jlgit:split:changes-preview"
       first={
         <section className="flex h-full min-h-0 flex-col overflow-hidden">
           <SplitPane
@@ -380,7 +399,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
             minFirstPx={CHANGES_LIST_MIN_HEIGHT_PX}
             // 提交区：勾选 + 信息框 + 提交按钮 + 可选「已提交」条，不可再压扁
             minSecondPx={200}
-            storageKey="jlgit:split:changes-commit-v2"
+            storageKey="jlgit:split:changes-commit"
             first={
               <div className="h-full min-h-0 overflow-hidden">
                 <ChangesPanel />

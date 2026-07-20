@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import {
@@ -13,13 +13,13 @@ import {
   ListTree,
   Loader2,
   Search,
-  Tag,
   User,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { CommitFileTree, getCommitFileTreeFolderPaths } from "@/components/git/CommitFileTree";
 import { DiffLineStats } from "@/components/git/DiffLineStats";
+import { CopyableGitRefTag } from "@/components/git/GitRefTag";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,8 +56,8 @@ import { copyToClipboard } from "@/utils/clipboard";
 import { getPathBasename } from "@/utils/getPathBasename";
 import { gitStatusLetterClass } from "@/utils/gitStatusStyle";
 
-/** 人类可读字节大小（与状态栏口径一致） */
-function formatBytes(bytes: number): string {
+/** 提交「显示大小」：对齐参考端，如 394.2KB（KB 及以上保留 1 位小数） */
+function formatChangeSizeBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) {
     return "0B";
   }
@@ -71,59 +71,7 @@ function formatBytes(bytes: number): string {
     value /= 1024;
     unitIndex += 1;
   }
-  const digits = value >= 100 ? 0 : value >= 10 ? 1 : 2;
-  return `${value.toFixed(digits)}${units[unitIndex]}`;
-}
-
-/** 远端展示用 origin&name，复制时还原为 origin/name 便于粘贴到 Git 命令 */
-function refClipboardText(ref: string): string {
-  const amp = ref.indexOf("&");
-  if (amp > 0) {
-    return `${ref.slice(0, amp)}/${ref.slice(amp + 1)}`;
-  }
-  return ref;
-}
-
-interface CopyableRefTagProps {
-  refName: string;
-}
-
-/** 历史详情分支 / 标签：点击复制（悬停提示，成功短暂反馈） */
-function CopyableRefTag({ refName }: CopyableRefTagProps) {
-  const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
-
-  async function copyRef(): Promise<void> {
-    try {
-      await copyToClipboard(refClipboardText(refName));
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
-    } catch (error) {
-      toast.error(toUserMessage(error) || t("repo.copyFailed"));
-    }
-  }
-
-  return (
-    <Tooltip open={copied ? true : undefined} delayDuration={200}>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          className="bg-muted text-foreground hover:bg-accent inline-flex h-5 max-w-[160px] cursor-pointer items-center gap-1 overflow-hidden rounded-md border-0 px-1.5 text-[11px] leading-none transition-colors"
-          title={refName}
-          aria-label={t("repo.copy")}
-          onClick={() => {
-            void copyRef();
-          }}
-        >
-          <Tag className="text-primary size-3 shrink-0" aria-hidden="true" />
-          <span className="truncate">{refName}</span>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>
-        {copied ? t("repo.copySuccess") : t("repo.copy")}
-      </TooltipContent>
-    </Tooltip>
-  );
+  return `${value.toFixed(1)}${units[unitIndex]}`;
 }
 
 function summarizeFiles(files: GitChangedFile[]): {
@@ -147,13 +95,249 @@ function summarizeFiles(files: GitChangedFile[]): {
   return { total: files.length, added, modified, deleted };
 }
 
+/** 文件统计：省略为 0 的项，避免「0 新增」与行数 +N 并排造成误解 */
+function formatFileStatsParts(
+  t: (key: string, options?: Record<string, number>) => string,
+  summary: { total: number; added: number; modified: number; deleted: number },
+): string {
+  const parts = [t("repo.commitStatTotal", { count: summary.total })];
+  if (summary.added > 0) {
+    parts.push(t("repo.commitStatAdded", { count: summary.added }));
+  }
+  if (summary.modified > 0) {
+    parts.push(t("repo.commitStatModified", { count: summary.modified }));
+  }
+  if (summary.deleted > 0) {
+    parts.push(t("repo.commitStatDeleted", { count: summary.deleted }));
+  }
+  return parts.join(" · ");
+}
+
+/**
+ * 列表摆放：优先按状态（与变更面板 / 参考端一致）
+ * A → M/T → D → R/C → 无状态；同状态再按路径
+ */
+function changedFileSortRank(status: string): number {
+  const letter = status.trim().charAt(0).toUpperCase();
+  switch (letter) {
+    case "A":
+      return 0;
+    case "M":
+    case "T":
+      return 1;
+    case "D":
+      return 2;
+    case "R":
+    case "C":
+      return 3;
+    default:
+      return 9;
+  }
+}
+
+function compareChangedFiles(a: GitChangedFile, b: GitChangedFile): number {
+  const rank = changedFileSortRank(a.status) - changedFileSortRank(b.status);
+  if (rank !== 0) {
+    return rank;
+  }
+  return a.path.localeCompare(b.path);
+}
+
+function sortChangedFiles(files: GitChangedFile[]): GitChangedFile[] {
+  return [...files].sort(compareChangedFiles);
+}
+
+/** 详情顶栏短 hash：固定 7 位（%h 会随 core.abbrev 变长） */
+const COMMIT_DETAIL_HASH_LEN = 7;
+
+type CommitFilesView = "list" | "tree";
+
+/** 顶栏「全部展开 / 全部折叠」广播到各 parent 文件区 */
+interface TreeExpandSignal {
+  type: "all" | "none";
+  nonce: number;
+}
+
+interface CommitFilesToolbarProps {
+  view: CommitFilesView;
+  showAllFiles: boolean;
+  allFilesLoading: boolean;
+  showLineStats: boolean;
+  /** 任一区域仍有可展开目录时启用「全部展开」 */
+  canExpandTree: boolean;
+  onShowList: () => void;
+  onShowTree: () => void;
+  onExpandAll: () => void;
+  onCollapseAll: () => void;
+  onToggleShowAllFiles: () => void;
+  onShowLineStatsChange: (checked: boolean) => void;
+}
+
+/** 列表/树形等控件：合并提交时只渲染一份，同时控制所有 parent 区域 */
+function CommitFilesToolbar({
+  view,
+  showAllFiles,
+  allFilesLoading,
+  showLineStats,
+  canExpandTree,
+  onShowList,
+  onShowTree,
+  onExpandAll,
+  onCollapseAll,
+  onToggleShowAllFiles,
+  onShowLineStatsChange,
+}: CommitFilesToolbarProps) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="flex shrink-0 items-center gap-1 px-2 py-1">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className={cn(
+          "h-6 gap-1 px-1.5 text-xs transition-colors",
+          showAllFiles && "disabled:pointer-events-auto",
+          view === "list" && !showAllFiles
+            ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+            : "text-muted-foreground",
+        )}
+        aria-pressed={view === "list" && !showAllFiles}
+        disabled={showAllFiles}
+        onClick={onShowList}
+      >
+        <List className="size-3.5" aria-hidden="true" />
+        {t("repo.viewList")}
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className={cn(
+          "h-6 gap-1 px-1.5 text-xs transition-colors",
+          view === "tree"
+            ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+            : "text-muted-foreground",
+        )}
+        aria-pressed={view === "tree"}
+        onClick={onShowTree}
+      >
+        <ListTree className="size-3.5" aria-hidden="true" />
+        {t("repo.viewTree")}
+      </Button>
+
+      <div className="ml-auto flex items-center gap-0.5">
+        {view === "tree" ? (
+          <>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground size-6"
+                  aria-label={t("repo.expandAll")}
+                  onClick={onExpandAll}
+                  disabled={!canExpandTree}
+                >
+                  <ChevronsUpDown className="size-3.5" aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("repo.expandAll")}</TooltipContent>
+            </Tooltip>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground size-6"
+                  aria-label={t("repo.collapseAll")}
+                  onClick={onCollapseAll}
+                  disabled={!canExpandTree}
+                >
+                  <ChevronsDownUp className="size-3.5" aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("repo.collapseAll")}</TooltipContent>
+            </Tooltip>
+          </>
+        ) : null}
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "size-6",
+                showAllFiles
+                  ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                  : "text-muted-foreground",
+              )}
+              aria-label={
+                showAllFiles ? t("repo.commitShowChangedFiles") : t("repo.commitShowAllFiles")
+              }
+              aria-pressed={showAllFiles}
+              disabled={allFilesLoading}
+              onClick={onToggleShowAllFiles}
+            >
+              {allFilesLoading ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Camera className="size-3.5" aria-hidden="true" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {showAllFiles ? t("repo.commitShowChangedFiles") : t("repo.commitShowAllFiles")}
+          </TooltipContent>
+        </Tooltip>
+        <DropdownMenu>
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground size-6 data-[state=open]:bg-accent"
+                  aria-label={t("repo.historyMore")}
+                >
+                  <EllipsisVertical className="size-3.5" aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>{t("repo.historyMore")}</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="end" className="min-w-[11rem]">
+            <DropdownMenuCheckboxItem
+              checked={showLineStats}
+              onCheckedChange={(checked) => onShowLineStatsChange(checked === true)}
+            >
+              {t("repo.commitShowLineStats")}
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
+
 interface ParentDiffSectionProps {
   diff: GitCommitParentDiff;
   index: number;
   parentCount: number;
   rootName: string;
   commitId: string;
-  repoPath: string;
+  view: CommitFilesView;
+  showAllFiles: boolean;
+  allFiles: GitChangedFile[] | null;
+  allFilesLoading: boolean;
+  showLineStats: boolean;
+  treeExpandSignal: TreeExpandSignal | null;
+  /** 向父级汇报本区树是否仍有可展开目录 */
+  onTreeExpandabilityChange: (sectionKey: string, canExpand: boolean) => void;
 }
 
 function ParentDiffSection({
@@ -162,27 +346,23 @@ function ParentDiffSection({
   parentCount,
   rootName,
   commitId,
-  repoPath,
+  view,
+  showAllFiles,
+  allFiles,
+  allFilesLoading,
+  showLineStats,
+  treeExpandSignal,
+  onTreeExpandabilityChange,
 }: ParentDiffSectionProps) {
   const { t } = useTranslation();
   const selectedCommitFile = useRepoStore((state) => state.selectedCommitFile);
   const selectCommitFile = useRepoStore((state) => state.selectCommitFile);
   const [filter, setFilter] = useState("");
-  const [view, setView] = useState<"list" | "tree">("list");
   const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(new Set());
-  /** 显示该提交树下全部文件（非仅改动） */
-  const [showAllFiles, setShowAllFiles] = useState(false);
-  const [allFiles, setAllFiles] = useState<GitChangedFile[] | null>(null);
-  const [allFilesLoading, setAllFilesLoading] = useState(false);
-  /** 列表 / 树中显示 +/- 行数 */
-  const [showLineStats, setShowLineStats] = useState(false);
+  const sectionKey = diff.parentId || `root-${index}`;
 
-  // 切换提交时退出「显示所有文件」，避免串数据
+  // 切换提交时清空本区筛选与展开态
   useEffect(() => {
-    setShowAllFiles(false);
-    setAllFiles(null);
-    setAllFilesLoading(false);
-    setView("list");
     setFilter("");
     setExpandedTreePaths(new Set());
   }, [commitId]);
@@ -198,7 +378,8 @@ function ParentDiffSection({
 
   const sourceFiles = useMemo(() => {
     if (!showAllFiles) {
-      return diff.files;
+      // 始终按状态优先排序，避免缓存/树序导致 A 沉底
+      return sortChangedFiles(diff.files);
     }
     const treePaths = allFiles ?? [];
     const seen = new Set<string>();
@@ -218,7 +399,7 @@ function ParentDiffSection({
         merged.push(file);
       }
     }
-    return merged;
+    return sortChangedFiles(merged);
   }, [showAllFiles, allFiles, diff.files, changedFileByPath]);
 
   const visible = useMemo(() => {
@@ -226,10 +407,41 @@ function ParentDiffSection({
     if (!q) {
       return sourceFiles;
     }
-    return sourceFiles.filter((file) => file.path.toLowerCase().includes(q));
+    // 筛选后仍保持状态优先顺序
+    return sortChangedFiles(
+      sourceFiles.filter((file) => file.path.toLowerCase().includes(q)),
+    );
   }, [sourceFiles, filter]);
 
   const treeFolderPaths = useMemo(() => getCommitFileTreeFolderPaths(visible), [visible]);
+
+  // 切到树形 / 显示全量 / 全量树加载完成时，默认展开
+  useEffect(() => {
+    if (view !== "tree") {
+      return;
+    }
+    setExpandedTreePaths(new Set(getCommitFileTreeFolderPaths(sourceFiles)));
+    // 仅跟视图模式与数据源切换，避免筛选变化时打乱用户折叠
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sourceFiles 随 showAllFiles/allFiles/commit 变
+  }, [view, showAllFiles, commitId, allFiles]);
+
+  // 顶栏「全部展开 / 全部折叠」（只响应信号，不跟 filter 重跑）
+  useEffect(() => {
+    if (!treeExpandSignal || view !== "tree") {
+      return;
+    }
+    if (treeExpandSignal.type === "all") {
+      setExpandedTreePaths(new Set(treeFolderPaths));
+    } else {
+      setExpandedTreePaths(new Set());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅 nonce 触发
+  }, [treeExpandSignal]);
+
+  useEffect(() => {
+    onTreeExpandabilityChange(sectionKey, view === "tree" && treeFolderPaths.length > 0);
+    return () => onTreeExpandabilityChange(sectionKey, false);
+  }, [sectionKey, view, treeFolderPaths.length, onTreeExpandabilityChange]);
 
   /** 仅有实际改动状态的文件可点击；再点已选中项则关闭对比弹层 */
   function handleFileClick(file: GitChangedFile): void {
@@ -260,20 +472,6 @@ function ParentDiffSection({
     );
   }
 
-  const placeholder = showAllFiles
-    ? t("repo.commitAllFilesFilter")
-    : parentCount > 1 && diff.parentShortId
-      ? t("repo.commitDiffWithParent", {
-          index: index + 1,
-          hash: diff.parentShortId,
-        })
-      : t("repo.commitChangedFiles");
-
-  function showTreeView(): void {
-    setView("tree");
-    setExpandedTreePaths(new Set(getCommitFileTreeFolderPaths(sourceFiles)));
-  }
-
   function toggleTreeFolder(path: string): void {
     setExpandedTreePaths((current) => {
       const next = new Set(current);
@@ -286,207 +484,37 @@ function ParentDiffSection({
     });
   }
 
-  async function enableShowAllFiles(): Promise<void> {
-    if (!repoPath) {
-      toast.error(t("repo.commitDetailLoadFailed"));
-      return;
-    }
-    setShowAllFiles(true);
-    setView("tree");
+  const isMultiParent = parentCount > 1 && Boolean(diff.parentShortId);
+  const sectionSummary = useMemo(() => summarizeFiles(diff.files), [diff.files]);
 
-    function expandMergedTree(treeFiles: GitChangedFile[]): void {
-      const seen = new Set(treeFiles.map((file) => file.path));
-      const merged: GitChangedFile[] = treeFiles.map((file) => {
-        const changed = changedFileByPath.get(file.path);
-        return {
-          path: file.path,
-          status: changed?.status ?? "",
-          additions: changed?.additions,
-          deletions: changed?.deletions,
-        };
-      });
-      for (const file of diff.files) {
-        if (!seen.has(file.path)) {
-          merged.push(file);
-        }
-      }
-      setExpandedTreePaths(new Set(getCommitFileTreeFolderPaths(merged)));
-    }
-
-    if (allFiles != null) {
-      expandMergedTree(allFiles);
-      return;
-    }
-
-    setAllFilesLoading(true);
-    try {
-      const result = await gitService.listTree(repoPath, commitId);
-      const files: GitChangedFile[] = result.paths.map((path) => ({
-        path,
-        status: "",
-      }));
-      setAllFiles(files);
-      expandMergedTree(files);
-    } catch (error) {
-      setShowAllFiles(false);
-      toast.error(toUserMessage(error));
-    } finally {
-      setAllFilesLoading(false);
-    }
-  }
-
-  function disableShowAllFiles(): void {
-    setShowAllFiles(false);
-    setView("list");
-    setExpandedTreePaths(new Set());
-  }
-
-  function handleShowAllFilesClick(): void {
-    if (showAllFiles) {
-      disableShowAllFiles();
-      return;
-    }
-    void enableShowAllFiles();
-  }
+  // 「与 parentN 的差异」只做搜索框 placeholder，不占标题行（避免窄列截成「与 pa...」）
+  const placeholder = showAllFiles
+    ? t("repo.commitAllFilesFilter")
+    : isMultiParent && diff.parentShortId
+      ? t("repo.commitDiffWithParent", {
+          index: index + 1,
+          hash: diff.parentShortId,
+        })
+      : t("repo.commitChangedFiles");
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      {/* 分隔线只在上方元信息区 border-b，此处不再加 border-t，避免叠成双线 */}
-      <div className="flex shrink-0 items-center gap-1 px-2 py-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
+      {/* 多 parent：标题行只留文件数统计，不含合计 +/- */}
+      {isMultiParent ? (
+        <div
           className={cn(
-            "h-6 gap-1 px-1.5 text-xs transition-colors",
-            // disabled 默认 pointer-events-none 会导致 not-allowed 光标看不到
-            showAllFiles && "disabled:pointer-events-auto",
-            view === "list" && !showAllFiles
-              ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-              : "text-muted-foreground",
+            "text-muted-foreground flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-[11px] leading-none",
+            index > 0 && "border-border border-t",
           )}
-          aria-pressed={view === "list" && !showAllFiles}
-          disabled={showAllFiles}
-          onClick={() => setView("list")}
         >
-          <List className="size-3.5" aria-hidden="true" />
-          {t("repo.viewList")}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className={cn(
-            "h-6 gap-1 px-1.5 text-xs transition-colors",
-            view === "tree"
-              ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-              : "text-muted-foreground",
-          )}
-          aria-pressed={view === "tree"}
-          onClick={showTreeView}
-        >
-          <ListTree className="size-3.5" aria-hidden="true" />
-          {t("repo.viewTree")}
-        </Button>
-
-        <div className="ml-auto flex items-center gap-0.5">
-          {view === "tree" ? (
-            <>
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground size-6"
-                    aria-label={t("repo.expandAll")}
-                    onClick={() => setExpandedTreePaths(new Set(treeFolderPaths))}
-                    disabled={treeFolderPaths.length === 0}
-                  >
-                    <ChevronsUpDown className="size-3.5" aria-hidden="true" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("repo.expandAll")}</TooltipContent>
-              </Tooltip>
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground size-6"
-                    aria-label={t("repo.collapseAll")}
-                    onClick={() => setExpandedTreePaths(new Set())}
-                    disabled={treeFolderPaths.length === 0}
-                  >
-                    <ChevronsDownUp className="size-3.5" aria-hidden="true" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("repo.collapseAll")}</TooltipContent>
-              </Tooltip>
-            </>
-          ) : null}
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "size-6",
-                  showAllFiles
-                    ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                    : "text-muted-foreground",
-                )}
-                aria-label={
-                  showAllFiles ? t("repo.commitShowChangedFiles") : t("repo.commitShowAllFiles")
-                }
-                aria-pressed={showAllFiles}
-                disabled={allFilesLoading}
-                onClick={handleShowAllFilesClick}
-              >
-                {allFilesLoading ? (
-                  <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Camera className="size-3.5" aria-hidden="true" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {showAllFiles ? t("repo.commitShowChangedFiles") : t("repo.commitShowAllFiles")}
-            </TooltipContent>
-          </Tooltip>
-          <DropdownMenu>
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground size-6 data-[state=open]:bg-accent"
-                    aria-label={t("repo.historyMore")}
-                  >
-                    <EllipsisVertical className="size-3.5" aria-hidden="true" />
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>{t("repo.historyMore")}</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="end" className="min-w-[11rem]">
-              {/* 勾选项：开关行数；后续其它项可在此追加并打开独立弹窗 */}
-              <DropdownMenuCheckboxItem
-                checked={showLineStats}
-                onCheckedChange={(checked) => setShowLineStats(checked === true)}
-              >
-                {t("repo.commitShowLineStats")}
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <FileDiff className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="shrink-0 tabular-nums">
+            {formatFileStatsParts(t, sectionSummary)}
+          </span>
         </div>
-      </div>
+      ) : null}
 
-      <div className="shrink-0 px-2 pb-1.5">
+      <div className="shrink-0 px-2 pb-1.5 pt-1">
         <div className="relative">
           <Search
             className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
@@ -597,6 +625,17 @@ export function HistoryDetailPane() {
   );
   const [sizeLoading, setSizeLoading] = useState(false);
 
+  /** 文件区共享控件：一份工具栏控制所有 parent 列表/树 */
+  const [filesView, setFilesView] = useState<CommitFilesView>("list");
+  const [showAllFiles, setShowAllFiles] = useState(false);
+  const [allFiles, setAllFiles] = useState<GitChangedFile[] | null>(null);
+  const [allFilesLoading, setAllFilesLoading] = useState(false);
+  const [showLineStats, setShowLineStats] = useState(false);
+  const [treeExpandSignal, setTreeExpandSignal] = useState<TreeExpandSignal | null>(null);
+  const [treeExpandableBySection, setTreeExpandableBySection] = useState<Record<string, boolean>>(
+    {},
+  );
+
   const summary: GitCommitSummary | null = useMemo(() => {
     if (!selectedCommitId) {
       return null;
@@ -607,7 +646,7 @@ export function HistoryDetailPane() {
   const refs = summary?.refs ?? [];
   const rootName = getPathBasename(repoPath ?? "") || t("project.repoLabel");
 
-  // 切换选中提交时恢复「显示分支 / 显示大小」按钮
+  // 切换选中提交时恢复「显示分支 / 显示大小」按钮，并重置文件区共享控件
   useEffect(() => {
     setContainingBranches(null);
     setChangeSize(null);
@@ -615,7 +654,61 @@ export function HistoryDetailPane() {
     setSizeLoading(false);
     setMessagePreviewOpen(false);
     setMessageCopied(false);
+    setFilesView("list");
+    setShowAllFiles(false);
+    setAllFiles(null);
+    setAllFilesLoading(false);
+    setShowLineStats(false);
+    setTreeExpandSignal(null);
+    setTreeExpandableBySection({});
   }, [selectedCommitId]);
+
+  const canExpandTree = useMemo(
+    () => Object.values(treeExpandableBySection).some(Boolean),
+    [treeExpandableBySection],
+  );
+
+  const handleTreeExpandabilityChange = useCallback((sectionKey: string, canExpand: boolean) => {
+    setTreeExpandableBySection((current) => {
+      if (current[sectionKey] === canExpand) {
+        return current;
+      }
+      return { ...current, [sectionKey]: canExpand };
+    });
+  }, []);
+
+  async function enableShowAllFiles(): Promise<void> {
+    if (!repoPath || !selectedCommitId) {
+      toast.error(t("repo.commitDetailLoadFailed"));
+      return;
+    }
+    setShowAllFiles(true);
+    setFilesView("tree");
+
+    if (allFiles != null) {
+      return;
+    }
+
+    setAllFilesLoading(true);
+    try {
+      const result = await gitService.listTree(repoPath, selectedCommitId);
+      setAllFiles(result.paths.map((path) => ({ path, status: "" })));
+    } catch (error) {
+      setShowAllFiles(false);
+      toast.error(toUserMessage(error));
+    } finally {
+      setAllFilesLoading(false);
+    }
+  }
+
+  function handleToggleShowAllFiles(): void {
+    if (showAllFiles) {
+      setShowAllFiles(false);
+      setFilesView("list");
+      return;
+    }
+    void enableShowAllFiles();
+  }
 
   if (!selectedCommitId) {
     return (
@@ -651,12 +744,14 @@ export function HistoryDetailPane() {
     ? detail.parentShortIds.join(", ")
     : t("repo.commitNoParent");
 
-  // 仅展示有实际改动的 parent 差异；无变更的不渲染文件区
+  // 仅展示有实际改动的 parent 差异；无变更的不渲染文件区（列表内再按状态排序）
   const changedDiffs = detail.diffs
     .map((diff, index) => ({ diff, index }))
     .filter(({ diff }) => diff.files.length > 0);
 
-  const firstSummary = summarizeFiles(changedDiffs.flatMap(({ diff }) => diff.files));
+  // 顶栏统计对齐 git show / 参考客户端：只用第一父提交（勿把各 parent 文件相加）
+  const firstSummary = summarizeFiles(detail.diffs[0]?.files ?? []);
+  const displayShortId = detail.id.slice(0, COMMIT_DETAIL_HASH_LEN) || detail.shortId.slice(0, COMMIT_DETAIL_HASH_LEN);
   const fullCommitId = detail.id;
   const commitMessage = [detail.subject, detail.body].filter(Boolean).join("\n\n");
 
@@ -729,7 +824,7 @@ export function HistoryDetailPane() {
                   void copyCommitHash();
                 }}
               >
-                {detail.shortId}
+                {displayShortId}
               </button>
             </TooltipTrigger>
             <TooltipContent>
@@ -803,10 +898,11 @@ export function HistoryDetailPane() {
           <div className="text-muted-foreground flex items-center gap-1.5 text-[11px] leading-none">
             <FileDiff className="size-3.5 shrink-0" aria-hidden="true" />
             <span>
-              {t("repo.commitFileStatsShort", {
+              {t("repo.commitFileStats", {
                 total: firstSummary.total,
-                modified: firstSummary.modified,
                 added: firstSummary.added,
+                modified: firstSummary.modified,
+                deleted: firstSummary.deleted,
               })}
             </span>
           </div>
@@ -815,7 +911,8 @@ export function HistoryDetailPane() {
         {refs.length > 0 ? (
           <div className="flex flex-wrap items-center gap-1">
             {refs.map((ref) => (
-              <CopyableRefTag key={ref} refName={ref} />
+              // 详情区始终全文展示；与历史列表「展开分支名」无关
+              <CopyableGitRefTag key={ref} refName={ref} expand />
             ))}
           </div>
         ) : null}
@@ -835,7 +932,7 @@ export function HistoryDetailPane() {
           <p className="text-muted-foreground text-[11px] leading-snug tabular-nums">
             {t("repo.commitChangeSize", {
               count: changeSize.fileCount,
-              size: formatBytes(changeSize.totalBytes),
+              size: formatChangeSizeBytes(changeSize.totalBytes),
             })}
           </p>
         ) : null}
@@ -876,8 +973,31 @@ export function HistoryDetailPane() {
         ) : null}
       </div>
 
-      {/* 改动文件区独立占满剩余高度并滚动；无改动时仍可「显示所有文件」 */}
+      {/* 改动文件区：顶栏控件一份，同时控制下方所有 parent 区域 */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <CommitFilesToolbar
+          view={filesView}
+          showAllFiles={showAllFiles}
+          allFilesLoading={allFilesLoading}
+          showLineStats={showLineStats}
+          canExpandTree={canExpandTree}
+          onShowList={() => setFilesView("list")}
+          onShowTree={() => setFilesView("tree")}
+          onExpandAll={() =>
+            setTreeExpandSignal((current) => ({
+              type: "all",
+              nonce: (current?.nonce ?? 0) + 1,
+            }))
+          }
+          onCollapseAll={() =>
+            setTreeExpandSignal((current) => ({
+              type: "none",
+              nonce: (current?.nonce ?? 0) + 1,
+            }))
+          }
+          onToggleShowAllFiles={handleToggleShowAllFiles}
+          onShowLineStatsChange={setShowLineStats}
+        />
         {changedDiffs.length === 0 ? (
           <ParentDiffSection
             diff={{ parentId: "", parentShortId: "", files: [] }}
@@ -885,7 +1005,13 @@ export function HistoryDetailPane() {
             parentCount={detail.diffs.length || 1}
             rootName={rootName}
             commitId={detail.id}
-            repoPath={repoPath ?? ""}
+            view={filesView}
+            showAllFiles={showAllFiles}
+            allFiles={allFiles}
+            allFilesLoading={allFilesLoading}
+            showLineStats={showLineStats}
+            treeExpandSignal={treeExpandSignal}
+            onTreeExpandabilityChange={handleTreeExpandabilityChange}
           />
         ) : (
           changedDiffs.map(({ diff, index }) => (
@@ -896,7 +1022,13 @@ export function HistoryDetailPane() {
               parentCount={detail.diffs.length}
               rootName={rootName}
               commitId={detail.id}
-              repoPath={repoPath ?? ""}
+              view={filesView}
+              showAllFiles={showAllFiles}
+              allFiles={allFiles}
+              allFilesLoading={allFilesLoading}
+              showLineStats={showLineStats}
+              treeExpandSignal={treeExpandSignal}
+              onTreeExpandabilityChange={handleTreeExpandabilityChange}
             />
           ))
         )}

@@ -44,11 +44,26 @@ pnpm dlx shadcn@latest add dropdown-menu
 
 规则：
 
-1. `src/components/ui/` 只存放 shadcn CLI 官方生成件，**禁止手动修改**；更新或恢复组件必须执行 `pnpm dlx shadcn@latest add <component> --overwrite`
+1. `src/components/ui/` 只存放 shadcn CLI 官方生成件，**禁止手写第二套视觉实现**；更新或恢复组件优先 `pnpm dlx shadcn@latest add <component> --overwrite`。例外：`scroll-area` 可保留官方结构并同时挂载纵向 + 横向 `ScrollBar`（双轴滚动所需，见下节）
 2. 业务组件（`components/git` 等）**组合** ui 层，不复制其视觉实现
 3. 只添加当前功能用到的组件，避免一次性 `add` 全量目录
 4. 新增官方组件若引入额外 Radix / 依赖，在 PR 中说明用途；仍遵守「不引入第二套 UI 体系」
 5. 官方没有、且属于领域 UI 的控件，放 `components/common` 或对应域目录，而不是硬塞进 `ui/`
+
+### 滚动区域（硬性）
+
+面板主滚动**必须**使用 `@/components/ui/scroll-area`（shadcn `ScrollArea`），与 [AGENTS.md §15 / Never Rules](../../AGENTS.md) 一致。
+
+| 要求 | 说明 |
+|------|------|
+| 组件 | `import { ScrollArea } from "@/components/ui/scroll-area"` |
+| 禁止 | 以裸 `overflow-auto` / `overflow-x-auto` / `overflow-y-auto` 作为列表、侧栏、主内容区的交付滚动方案 |
+| 滚动条 | 默认悬停/滚动可见；不设 `type="always"` |
+| 高度链 | Root 用 `h-full` / `flex-1 min-h-0`；**禁止**在 ScrollArea Root 上用 `absolute` 定高（会弄坏 viewport） |
+| 虚拟列表 | 大列表另加 `@tanstack/react-virtual`，`getScrollElement` 绑 Radix viewport（见 [performance](performance.md)、`useScrollAreaViewport`） |
+| 局部裁切 | `overflow-hidden` 仅用于裁切/叠层，不代替可滚动面板 |
+
+例外：极短的调试对照、或非交互装饰性裁切。History 图谱列等横向溢出也走 `ScrollArea`（可配合 `overflow-y-hidden` 仅保留横轴）。
 
 ---
 
@@ -244,6 +259,7 @@ pnpm dlx shadcn@latest add dropdown-menu
 - [ ] 空状态与加载态已覆盖主路径
 - [ ] 异步操作有防重复与错误提示
 - [ ] 分隔线悬停有视觉反馈且**不挤动布局**
+- [ ] 面板主滚动使用 shadcn `ScrollArea`（无裸 `overflow-*-auto` 交付）
 - [ ] 无硬编码产品文案（除品牌名）
 
 ---

@@ -86,7 +86,7 @@
 |------|------|------|
 | 分页提交日志 | Done | 「加载更多」skip/limit |
 | 提交详情 | Planned | |
-| 提交图（Graph） | Planned | `@gitgraph/react` 等 |
+| 提交图（Graph） | Partial | 自研 SVG 铁路图（lane + 竖轨/斜线 + 三态节点）；`git_graph_commits` 未落地 |
 
 ## Tag
 

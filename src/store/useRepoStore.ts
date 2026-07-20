@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import i18n from "@/i18n";
 import { gitService } from "@/services/git";
+import { buildHistoryLogOptions } from "@/services/git/git.log";
 import { useOpLogStore } from "@/store/useOpLogStore";
 
 import { AppError, toUserMessage } from "@/types/error";
@@ -18,6 +19,7 @@ import {
   GitStatusResult,
   GitTag,
   GitCreateTagOptions,
+  GitLogOrder,
   GitTagCreateResult,
 } from "@/types/git";
 import {
@@ -44,6 +46,14 @@ const LOG_PAGE_SIZE = 50;
 const COMMIT_DETAIL_CACHE_MAX = 24;
 /** 多标签会话缓存上限（按最近使用） */
 const REPO_SESSION_CACHE_MAX = 8;
+
+/** 历史默认范围：当前检出分支；游离 HEAD 用 HEAD */
+function historyLogRefFromStatus(status: GitStatusResult | null): string {
+  if (!status || status.detached || !status.branch) {
+    return "HEAD";
+  }
+  return status.branch;
+}
 
 /** 变更列表选中：worktree=变更区，index=待提交 */
 export type ChangeSide = "worktree" | "index";
@@ -74,6 +84,7 @@ interface RepoSessionSnapshot {
   commits: GitCommitSummary[];
   hasMore: boolean;
   logRef: string | null;
+  logOrder: GitLogOrder;
   commitMessage: string;
   selectedCommitId: string | null;
   selectedChange: SelectedChange | null;
@@ -156,6 +167,7 @@ function saveRepoSession(repoPath: string, state: RepoStoreState): void {
     commits,
     hasMore: state.hasMore,
     logRef: state.logRef,
+    logOrder: state.logOrder,
     commitMessage: state.commitMessage,
     selectedCommitId: state.selectedCommitId,
     selectedChange: state.selectedChange,
@@ -195,6 +207,7 @@ export function restoreRepoSession(repoPath: string): boolean {
     commits: cached.commits,
     hasMore: cached.hasMore,
     logRef: cached.logRef,
+    logOrder: cached.logOrder ?? "default",
     commitMessage: cached.commitMessage,
     selectedCommitId: cached.selectedCommitId,
     selectedCommitDetail: detail,
@@ -229,6 +242,7 @@ export function beginRepoSwitch(repoPath: string): void {
     commits: [],
     hasMore: false,
     logRef: null,
+    // 排序偏好跨仓保留，不在此重置
     commitMessage: "",
     selectedCommitId: null,
     selectedCommitDetail: null,
@@ -316,6 +330,8 @@ interface RepoStoreState {
   hasMore: boolean;
   /** 历史列表范围；空值表示当前默认历史。 */
   logRef: string | null;
+  /** 历史 log 排序（git 默认 / topo / date） */
+  logOrder: GitLogOrder;
   commitMessage: string;
   /** 历史列表当前选中的提交 id */
   selectedCommitId: string | null;
@@ -350,6 +366,8 @@ interface RepoStoreActions {
   refreshTags: () => Promise<void>;
   refreshLog: (reset?: boolean) => Promise<void>;
   selectLogRef: (ref: string | null) => Promise<void>;
+  /** 切换历史排序并重新拉取 log */
+  setLogOrder: (order: GitLogOrder) => Promise<void>;
   createTag: (options: GitCreateTagOptions) => Promise<GitTagCreateResult>;
   deleteTag: (name: string) => Promise<void>;
   loadMoreLog: () => Promise<void>;
@@ -400,6 +418,7 @@ const initialState: RepoStoreState = {
   commits: [],
   hasMore: false,
   logRef: null,
+  logOrder: "default",
   commitMessage: "",
   selectedCommitId: null,
   selectedCommitDetail: null,
@@ -582,6 +601,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         commits: cached.commits,
         hasMore: cached.hasMore,
         logRef: cached.logRef,
+        logOrder: cached.logOrder ?? "default",
         commitMessage: cached.commitMessage,
         selectedCommitId: cached.selectedCommitId,
         selectedCommitDetail: detail,
@@ -601,7 +621,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           gitService.getIdentity(repoPath),
           gitService.listBranches(repoPath, true),
           gitService.listTags(repoPath),
-          gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE, ref: cached.logRef ?? undefined }),
+          gitService.getLog(
+            repoPath,
+            buildHistoryLogOptions({
+              limit: LOG_PAGE_SIZE,
+              logRef: cached.logRef,
+              order: cached.logOrder ?? "default",
+            }),
+          ),
           gitService.getRepoState(repoPath),
         ]);
 
@@ -633,7 +660,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       return;
     }
 
-    // 冷启动：清空旧数据再并行拉取（只清本仓详情，保留其它标签页缓存）
+    // 冷启动：清空旧数据；历史默认「当前分支」（先 status 再 log）
     set({
       repoPath,
       status: null,
@@ -656,12 +683,24 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     clearCommitDetailCacheForRepo(repoPath);
 
     try {
-      const [status, identity, branches, tags, log, repoState] = await Promise.all([
-        gitService.getStatus(repoPath),
+      const status = await gitService.getStatus(repoPath);
+      if (get().repoPath !== repoPath) {
+        return;
+      }
+
+      const defaultLogRef = historyLogRefFromStatus(status);
+      const [identity, branches, tags, log, repoState] = await Promise.all([
         gitService.getIdentity(repoPath),
         gitService.listBranches(repoPath, true),
         gitService.listTags(repoPath),
-        gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+        gitService.getLog(
+          repoPath,
+          buildHistoryLogOptions({
+            limit: LOG_PAGE_SIZE,
+            logRef: defaultLogRef,
+            order: get().logOrder,
+          }),
+        ),
         gitService.getRepoState(repoPath),
       ]);
 
@@ -676,6 +715,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         tags: tags.tags,
         commits: log.commits,
         hasMore: log.hasMore,
+        logRef: defaultLogRef,
         repoState,
         loading: false,
       });
@@ -742,11 +782,15 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const repoPath = requireRepoPath(get().repoPath);
       const currentCommits = get().commits;
       const skip = reset ? 0 : currentCommits.length;
-      const log = await gitService.getLog(repoPath, {
-        skip,
-        limit: LOG_PAGE_SIZE,
-        ref: get().logRef ?? undefined,
-      });
+      const log = await gitService.getLog(
+        repoPath,
+        buildHistoryLogOptions({
+          skip,
+          limit: LOG_PAGE_SIZE,
+          logRef: get().logRef,
+          order: get().logOrder,
+        }),
+      );
 
       set({
         commits: reset ? log.commits : [...currentCommits, ...log.commits],
@@ -776,6 +820,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     await get().refreshLog(true);
   },
 
+  async setLogOrder(order) {
+    if (get().logOrder === order) {
+      return;
+    }
+    set({ logOrder: order });
+    await get().refreshLog(true);
+  },
+
   async createTag(options) {
     try {
       const repoPath = requireRepoPath(get().repoPath);
@@ -795,7 +847,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const deletedSelectedRef = get().logRef === name;
       await get().refreshTags();
       if (deletedSelectedRef) {
-        await get().selectLogRef(null);
+        await get().selectLogRef(historyLogRefFromStatus(get().status));
       }
     } catch (error) {
       setError(set, error);
@@ -814,11 +866,15 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     try {
       const repoPath = requireRepoPath(get().repoPath);
       const skip = get().commits.length;
-      const log = await gitService.getLog(repoPath, {
-        skip,
-        limit: LOG_PAGE_SIZE,
-        ref: get().logRef ?? undefined,
-      });
+      const log = await gitService.getLog(
+        repoPath,
+        buildHistoryLogOptions({
+          skip,
+          limit: LOG_PAGE_SIZE,
+          logRef: get().logRef,
+          order: get().logOrder,
+        }),
+      );
 
       if (get().repoPath !== repoPath) {
         return;
@@ -1040,7 +1096,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       });
       const [status, log, repoState] = await Promise.all([
         gitService.getStatus(repoPath),
-        gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+        gitService.getLog(
+          repoPath,
+          buildHistoryLogOptions({
+            limit: LOG_PAGE_SIZE,
+            logRef: get().logRef,
+            order: get().logOrder,
+          }),
+        ),
         gitService.getRepoState(repoPath),
       ]);
 
@@ -1080,7 +1143,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const result = await gitService.undoCommit(repoPath, target);
       const [status, log] = await Promise.all([
         gitService.getStatus(repoPath),
-        gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+        gitService.getLog(
+          repoPath,
+          buildHistoryLogOptions({
+            limit: LOG_PAGE_SIZE,
+            logRef: get().logRef,
+            order: get().logOrder,
+          }),
+        ),
       ]);
 
       set({
@@ -1117,7 +1187,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const result = await gitService.merge(repoPath, ref, options);
       const [branches, log] = await Promise.all([
         gitService.listBranches(repoPath, true),
-        gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+        gitService.getLog(
+          repoPath,
+          buildHistoryLogOptions({
+            limit: LOG_PAGE_SIZE,
+            logRef: get().logRef,
+            order: get().logOrder,
+          }),
+        ),
       ]);
       await syncAfterConflictOp(set, get, {
         focusConflict: result.conflict,
@@ -1149,7 +1226,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const [status, branches, log] = await Promise.all([
         gitService.getStatus(repoPath),
         gitService.listBranches(repoPath, true),
-        gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+        gitService.getLog(
+          repoPath,
+          buildHistoryLogOptions({
+            limit: LOG_PAGE_SIZE,
+            logRef: get().logRef,
+            order: get().logOrder,
+          }),
+        ),
       ]);
 
       set({
@@ -1185,7 +1269,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const [status, branches, log] = await Promise.all([
         gitService.getStatus(repoPath),
         gitService.listBranches(repoPath, true),
-        gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+        gitService.getLog(
+          repoPath,
+          buildHistoryLogOptions({
+            limit: LOG_PAGE_SIZE,
+            logRef: get().logRef,
+            order: get().logOrder,
+          }),
+        ),
       ]);
 
       set({
@@ -1246,7 +1337,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const [status, branches, log] = await Promise.all([
         gitService.getStatus(repoPath),
         gitService.listBranches(repoPath, true),
-        gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+        gitService.getLog(
+          repoPath,
+          buildHistoryLogOptions({
+            limit: LOG_PAGE_SIZE,
+            logRef: get().logRef,
+            order: get().logOrder,
+          }),
+        ),
       ]);
 
       set({
@@ -1297,7 +1395,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const result = await gitService.pull(repoPath, options);
       const [branches, log] = await Promise.all([
         gitService.listBranches(repoPath, true),
-        gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+        gitService.getLog(
+          repoPath,
+          buildHistoryLogOptions({
+            limit: LOG_PAGE_SIZE,
+            logRef: get().logRef,
+            order: get().logOrder,
+          }),
+        ),
       ]);
       // 冲突时也刷新 status（不再吞掉现场）
       await syncAfterConflictOp(set, get, {
@@ -1348,7 +1453,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const [nextStatus, branches, log] = await Promise.all([
         gitService.getStatus(repoPath),
         gitService.listBranches(repoPath, true),
-        gitService.getLog(repoPath, { limit: LOG_PAGE_SIZE }),
+        gitService.getLog(
+          repoPath,
+          buildHistoryLogOptions({
+            limit: LOG_PAGE_SIZE,
+            logRef: get().logRef,
+            order: get().logOrder,
+          }),
+        ),
       ]);
 
       set({

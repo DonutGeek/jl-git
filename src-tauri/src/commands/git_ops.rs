@@ -231,12 +231,23 @@ pub fn git_log(
     skip: Option<u32>,
     limit: Option<u32>,
     r#ref: Option<String>,
+    // 为 true 时等价 `git log --all`；与 ref 互斥
+    all: Option<bool>,
+    // default | topo | date；缺省为 git 默认序
+    order: Option<String>,
 ) -> Result<GitLogResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
     let skip = skip.unwrap_or(0);
     let limit = limit.unwrap_or(50);
 
-    log::get_log(&repo_path, skip, limit, r#ref.as_deref())
+    log::get_log(
+        &repo_path,
+        skip,
+        limit,
+        r#ref.as_deref(),
+        all.unwrap_or(false),
+        order.as_deref(),
+    )
 }
 
 #[tauri::command]

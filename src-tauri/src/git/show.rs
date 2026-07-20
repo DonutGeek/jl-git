@@ -379,6 +379,7 @@ fn list_diff_files(
         &mut files,
         &["diff-tree", "--no-commit-id", "--numstat", "-r", "-z", parent, commit],
     )?;
+    sort_changed_files(&mut files);
     Ok(files)
 }
 
@@ -420,7 +421,28 @@ fn list_root_files(repo_path: &Path, commit: &str) -> Result<Vec<GitChangedFile>
             commit,
         ],
     )?;
+    sort_changed_files(&mut files);
     Ok(files)
+}
+
+/// A → M/T → D → R/C → 其余，同状态按路径；对齐常见 Git GUI 列表顺序
+fn sort_changed_files(files: &mut [GitChangedFile]) {
+    files.sort_by(|a, b| {
+        status_sort_rank(&a.status)
+            .cmp(&status_sort_rank(&b.status))
+            .then_with(|| a.path.cmp(&b.path))
+    });
+}
+
+fn status_sort_rank(status: &str) -> u8 {
+    // 取首字母，兼容可能带分数的 R100 等
+    match status.chars().next().unwrap_or('?') {
+        'A' => 0,
+        'M' | 'T' => 1,
+        'D' => 2,
+        'R' | 'C' => 3,
+        _ => 9,
+    }
 }
 
 /// 将 `--numstat` 增删行数合并进已有 name-status 列表
@@ -551,6 +573,39 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn sorts_changed_files_by_status_then_path() {
+        let mut files = vec![
+            GitChangedFile {
+                path: "z.txt".into(),
+                status: "M".into(),
+                additions: None,
+                deletions: None,
+            },
+            GitChangedFile {
+                path: "a.txt".into(),
+                status: "D".into(),
+                additions: None,
+                deletions: None,
+            },
+            GitChangedFile {
+                path: "b.txt".into(),
+                status: "A".into(),
+                additions: None,
+                deletions: None,
+            },
+            GitChangedFile {
+                path: "c.txt".into(),
+                status: "A".into(),
+                additions: None,
+                deletions: None,
+            },
+        ];
+        sort_changed_files(&mut files);
+        let paths: Vec<&str> = files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(paths, vec!["b.txt", "c.txt", "z.txt", "a.txt"]);
     }
 
     #[test]
