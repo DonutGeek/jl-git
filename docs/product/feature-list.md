@@ -129,7 +129,7 @@
 | 功能 | 状态 | 说明 |
 |------|------|------|
 | 主题 Light/Dark/System | Done | 设置抽屉 + 状态栏昼夜切换 |
-| 设置抽屉 | Done | 分组：外观 / Git / SSH / 外部工具 / 通用 |
+| 设置抽屉 | Done | 分组：外观 / Git / SSH / 鲸灵 / 外部工具 / 简历帮 / 通用 |
 | 语言 | Done | 设置抽屉 + 状态栏中英文切换 |
 | Git 全局身份 | Done | 设置内读写 user.name / user.email |
 | SSH 密钥管理 | Planned | 设置内 UI 占位（新增 / 选择本地） |
@@ -146,6 +146,7 @@
 | AI Git 指令 | Done | 可配置提交指令与拉取请求指令；提交指令已接入提交文案生成 |
 | AI Commit Message | Done | 根据限长、脱敏后的暂存区 Diff 生成 Conventional Commit 文案，用户确认后提交 |
 | 鲸灵对话入口 | In Progress | 左侧面板、虚拟消息列表、多对话标签和 DeepSeek 流式回复已就绪；会话按项目 ID 隔离并仅在当前应用会话中保留，仓库上下文后续接入 |
+| 简历帮 | Done | 设置入口打开单例子窗；扫描全部已登记仓库 Git 画像；独立 prompt + 复用鲸灵 Key；对话产出 Markdown 简历（会话不持久化） |
 | AI Diff Explain | Planned | |
 | AI Review | Planned | |
 | AI Branch Naming | Planned | |

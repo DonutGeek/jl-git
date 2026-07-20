@@ -1,0 +1,46 @@
+/** 简历帮联系信息（Git 账号复用设置 → Git 公共列表） */
+export interface ResumeHelperIdentity {
+  /** 简历展示姓名 */
+  displayName: string;
+  phone: string;
+  /** 联系邮箱（可与 Git 邮箱不同） */
+  email: string;
+}
+
+/** 单仓简历画像（只读汇总，注入 Agent 上下文） */
+export interface ResumeProjectProfile {
+  projectId: string;
+  projectName: string;
+  /** 仓库绝对路径仅前端拉取证据用，不注入模型 */
+  projectPath?: string;
+  /** 是否汇总失败 */
+  error?: string;
+  firstCommitAt: string | null;
+  lastCommitAt: string | null;
+  sampledCommitCount: number;
+  techStackHints: string[];
+  /** 抽样提交（可按作者再过滤后重算） */
+  recentCommits: ResumeCommitSample[];
+}
+
+/** 提交内改动文件的只读摘要（含可选 diff 摘录） */
+export interface ResumeCommitChangedFile {
+  path: string;
+  status: string;
+  additions?: number | null;
+  deletions?: number | null;
+  /** 代码/补丁摘录，已截断脱敏前原文 */
+  snippet?: string;
+}
+
+export interface ResumeCommitSample {
+  /** 完整 commit id，供只读拉取 diff */
+  id: string;
+  shortId: string;
+  subject: string;
+  authorName: string;
+  authorEmail: string;
+  authoredAt: string;
+  /** 只读查询得到的改动文件与代码摘录 */
+  changedFiles?: ResumeCommitChangedFile[];
+}

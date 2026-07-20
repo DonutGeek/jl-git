@@ -5,6 +5,7 @@ export * from "./git.commit";
 export * from "./git.conflict";
 export * from "./git.diff";
 export * from "./git.fs";
+export * from "./git.accounts";
 export * from "./git.identity";
 export * from "./git.log";
 export * from "./git.merge";
@@ -33,6 +34,14 @@ import {
 } from "./git.conflict";
 import { getCommitFileDiff, getDiff, getFileMedia, getStagedDiff } from "./git.diff";
 import { getFileSize, listDir } from "./git.fs";
+import {
+  createGitIdentityAccount,
+  deleteGitIdentityAccount,
+  listAllGitAuthorsForMatching,
+  listGitIdentityAccounts,
+  setGitIdentityAccountEnabled,
+  updateGitIdentityAccount,
+} from "./git.accounts";
 import { getGlobalIdentity, getIdentity, setGlobalIdentity } from "./git.identity";
 import { getLog } from "./git.log";
 import { merge } from "./git.merge";
@@ -53,6 +62,12 @@ export const gitService = {
   getIdentity,
   getGlobalIdentity,
   setGlobalIdentity,
+  listGitIdentityAccounts,
+  listAllGitAuthorsForMatching,
+  createGitIdentityAccount,
+  setGitIdentityAccountEnabled,
+  updateGitIdentityAccount,
+  deleteGitIdentityAccount,
   listBranches,
   listTags,
   listDir,

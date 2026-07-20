@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  FileUser,
   GitBranch,
   KeyRound,
   Palette,
@@ -49,9 +50,23 @@ import {
   setAiInstructions,
 } from "@/services/ai";
 import type { AiApiKey } from "@/services/ai";
-import { gitService } from "@/services/git";
+import {
+  createGitIdentityAccount,
+  deleteGitIdentityAccount,
+  listGitIdentityAccounts,
+  setGitIdentityAccountEnabled,
+  updateGitIdentityAccount,
+  type GitIdentityAccount,
+} from "@/services/git/git.accounts";
 import { listSystemFonts } from "@/services/system/system.info";
 import type { ThemeMode } from "@/services/theme/theme.service";
+import {
+  emptyResumeHelperIdentity,
+  getResumeHelperIdentity,
+  setResumeHelperIdentity,
+} from "@/services/resume/resume.identity";
+import { openResumeHelperWindow } from "@/services/window/resumeHelperWindow";
+import type { ResumeHelperIdentity } from "@/types/resumeHelper";
 import {
   CLIENT_FONT_SYSTEM,
   EDITOR_FONT_SYSTEM,
@@ -67,10 +82,18 @@ interface SettingsSectionProps {
   icon: ReactNode;
   title: string;
   description?: string;
+  /** 标题行右侧操作（如「新增」），与标题垂直对齐 */
+  action?: ReactNode;
   children: ReactNode;
 }
 
-function SettingsSection({ icon, title, description, children }: SettingsSectionProps) {
+function SettingsSection({
+  icon,
+  title,
+  description,
+  action,
+  children,
+}: SettingsSectionProps) {
   return (
     <section className="space-y-3">
       <div className="flex items-start gap-2.5">
@@ -78,12 +101,17 @@ function SettingsSection({ icon, title, description, children }: SettingsSection
           {icon}
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-medium">{title}</h3>
-          {description ? (
-            <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">
-              {description}
-            </p>
-          ) : null}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-medium">{title}</h3>
+              {description ? (
+                <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">
+                  {description}
+                </p>
+              ) : null}
+            </div>
+            {action ? <div className="shrink-0 self-start">{action}</div> : null}
+          </div>
         </div>
       </div>
       <div className="space-y-3 pl-6">{children}</div>
@@ -101,7 +129,14 @@ const settingsFieldClassName =
 const settingsTextareaClassName =
   "border-border min-h-28 resize-y px-2.5 py-2 text-xs shadow-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/40";
 
-type SettingsCategory = "appearance" | "git" | "ssh" | "ai" | "tools" | "general";
+type SettingsCategory =
+  | "appearance"
+  | "git"
+  | "ssh"
+  | "ai"
+  | "tools"
+  | "resumeHelper"
+  | "general";
 
 function maskApiKey(key: string): string {
   if (key.length <= 12) {
@@ -191,9 +226,19 @@ export function SettingsDrawer() {
   const setLaunchAtLogin = useAppPrefsStore((state) => state.setLaunchAtLogin);
   const setPushAfterCommit = useAppPrefsStore((state) => state.setPushAfterCommit);
 
-  const [gitName, setGitName] = useState("");
-  const [gitEmail, setGitEmail] = useState("");
-  const [identityLoading, setIdentityLoading] = useState(false);
+  const [gitAccounts, setGitAccounts] = useState<GitIdentityAccount[]>([]);
+  const [gitAccountsLoading, setGitAccountsLoading] = useState(false);
+  const [gitAccountActionId, setGitAccountActionId] = useState<string | null>(null);
+  const [gitAccountDialogOpen, setGitAccountDialogOpen] = useState(false);
+  const [gitAccountPendingDeletion, setGitAccountPendingDeletion] =
+    useState<GitIdentityAccount | null>(null);
+  const [gitAccountEditing, setGitAccountEditing] = useState<GitIdentityAccount | null>(null);
+  const [editedGitAccountName, setEditedGitAccountName] = useState("");
+  const [editedGitAccountEmail, setEditedGitAccountEmail] = useState("");
+  const [gitAccountSaving, setGitAccountSaving] = useState(false);
+  const [newGitAccountName, setNewGitAccountName] = useState("");
+  const [newGitAccountEmail, setNewGitAccountEmail] = useState("");
+  const [gitAccountCreating, setGitAccountCreating] = useState(false);
 
   const [apiKeys, setApiKeys] = useState<AiApiKey[]>([]);
   const [apiKeysLoading, setApiKeysLoading] = useState(false);
@@ -208,16 +253,26 @@ export function SettingsDrawer() {
   const [apiKeyCreating, setApiKeyCreating] = useState(false);
   const [commitInstructions, setCommitInstructions] = useState("");
   const [pullRequestInstructions, setPullRequestInstructions] = useState("");
+  const [resumeHelperInstructions, setResumeHelperInstructions] = useState("");
   const [instructionsLoading, setInstructionsLoading] = useState(false);
   const [instructionsReady, setInstructionsReady] = useState(false);
+  const [resumeIdentity, setResumeIdentity] = useState<ResumeHelperIdentity>(
+    emptyResumeHelperIdentity(),
+  );
+  const [resumeIdentityLoading, setResumeIdentityLoading] = useState(false);
+  const [resumeIdentityReady, setResumeIdentityReady] = useState(false);
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("appearance");
 
   const [systemFonts, setSystemFonts] = useState<string[]>([]);
   const [fontsLoading, setFontsLoading] = useState(false);
 
-  const savedIdentityRef = useRef({ name: "", email: "" });
-  const identityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const savedInstructionsRef = useRef({ commit: "", pullRequest: "" });
+  const savedResumeIdentityRef = useRef<ResumeHelperIdentity>(emptyResumeHelperIdentity());
+  const resumeIdentityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedInstructionsRef = useRef({
+    commit: "",
+    pullRequest: "",
+    resumeHelper: "",
+  });
   const instructionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -226,33 +281,28 @@ export function SettingsDrawer() {
     }
 
     let cancelled = false;
-    setIdentityLoading(true);
+    setGitAccountsLoading(true);
     setApiKeysLoading(true);
     setInstructionsLoading(true);
     setInstructionsReady(false);
+    setResumeIdentityLoading(true);
+    setResumeIdentityReady(false);
     setFontsLoading(true);
 
-    void gitService
-      .getGlobalIdentity()
-      .then((identity) => {
+    void listGitIdentityAccounts()
+      .then((accounts) => {
         if (!cancelled) {
-          const name = identity.name ?? "";
-          const email = identity.email ?? "";
-          setGitName(name);
-          setGitEmail(email);
-          savedIdentityRef.current = { name, email };
+          setGitAccounts(accounts);
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (!cancelled) {
-          setGitName("");
-          setGitEmail("");
-          savedIdentityRef.current = { name: "", email: "" };
+          toast.error(toUserMessage(error));
         }
       })
       .finally(() => {
         if (!cancelled) {
-          setIdentityLoading(false);
+          setGitAccountsLoading(false);
         }
       });
 
@@ -278,6 +328,7 @@ export function SettingsDrawer() {
         if (!cancelled) {
           setCommitInstructions(instructions.commit);
           setPullRequestInstructions(instructions.pullRequest);
+          setResumeHelperInstructions(instructions.resumeHelper);
           savedInstructionsRef.current = instructions;
           setInstructionsReady(true);
         }
@@ -290,6 +341,25 @@ export function SettingsDrawer() {
       .finally(() => {
         if (!cancelled) {
           setInstructionsLoading(false);
+        }
+      });
+
+    void getResumeHelperIdentity()
+      .then((identity) => {
+        if (!cancelled) {
+          setResumeIdentity(identity);
+          savedResumeIdentityRef.current = identity;
+          setResumeIdentityReady(true);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          toast.error(toUserMessage(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setResumeIdentityLoading(false);
         }
       });
 
@@ -313,81 +383,17 @@ export function SettingsDrawer() {
 
     return () => {
       cancelled = true;
-      if (identityTimerRef.current) {
-        clearTimeout(identityTimerRef.current);
-        identityTimerRef.current = null;
+      if (resumeIdentityTimerRef.current) {
+        clearTimeout(resumeIdentityTimerRef.current);
+        resumeIdentityTimerRef.current = null;
       }
     };
   }, [open]);
 
-  async function persistIdentity(name: string, email: string): Promise<void> {
-    const trimmedName = name.trim();
-    const trimmedEmail = email.trim();
-    if (!trimmedName || !trimmedEmail) {
-      return;
-    }
-    if (
-      trimmedName === savedIdentityRef.current.name &&
-      trimmedEmail === savedIdentityRef.current.email
-    ) {
-      return;
-    }
-
-    try {
-      const identity = await gitService.setGlobalIdentity({
-        name: trimmedName,
-        email: trimmedEmail,
-      });
-      const nextName = identity.name ?? trimmedName;
-      const nextEmail = identity.email ?? trimmedEmail;
-      savedIdentityRef.current = { name: nextName, email: nextEmail };
-      setGitName(nextName);
-      setGitEmail(nextEmail);
-      toast.success(t("settings.gitIdentitySaved"));
-    } catch (error) {
-      toast.error(toUserMessage(error));
-    }
-  }
-
-  const persistIdentityRef = useRef(persistIdentity);
-  persistIdentityRef.current = persistIdentity;
-
-  /** 输入停顿后自动写入全局 Git 身份 */
-  useEffect(() => {
-    if (!open || identityLoading) {
-      return;
-    }
-
-    const name = gitName.trim();
-    const email = gitEmail.trim();
-    if (!name || !email) {
-      return;
-    }
-    if (
-      name === savedIdentityRef.current.name &&
-      email === savedIdentityRef.current.email
-    ) {
-      return;
-    }
-
-    if (identityTimerRef.current) {
-      clearTimeout(identityTimerRef.current);
-    }
-    identityTimerRef.current = setTimeout(() => {
-      void persistIdentityRef.current(gitName, gitEmail);
-    }, 600);
-
-    return () => {
-      if (identityTimerRef.current) {
-        clearTimeout(identityTimerRef.current);
-        identityTimerRef.current = null;
-      }
-    };
-  }, [gitName, gitEmail, open, identityLoading]);
-
   async function persistInstructions(instructions: {
     commit: string;
     pullRequest: string;
+    resumeHelper: string;
   }): Promise<void> {
     try {
       await setAiInstructions(instructions);
@@ -396,6 +402,7 @@ export function SettingsDrawer() {
       savedInstructionsRef.current = effective;
       setCommitInstructions(effective.commit);
       setPullRequestInstructions(effective.pullRequest);
+      setResumeHelperInstructions(effective.resumeHelper);
       toast.success(t("settings.aiInstructionsSaved"));
     } catch (error) {
       toast.error(toUserMessage(error));
@@ -405,7 +412,7 @@ export function SettingsDrawer() {
   const persistInstructionsRef = useRef(persistInstructions);
   persistInstructionsRef.current = persistInstructions;
 
-  /** 输入停顿后自动保存 AI Git 指令，首次加载不回写。 */
+  /** 输入停顿后自动保存 AI 指令（Git / 简历帮），首次加载不回写。 */
   useEffect(() => {
     if (!open || instructionsLoading || !instructionsReady) {
       return;
@@ -414,10 +421,12 @@ export function SettingsDrawer() {
     const next = {
       commit: commitInstructions,
       pullRequest: pullRequestInstructions,
+      resumeHelper: resumeHelperInstructions,
     };
     if (
       next.commit === savedInstructionsRef.current.commit &&
-      next.pullRequest === savedInstructionsRef.current.pullRequest
+      next.pullRequest === savedInstructionsRef.current.pullRequest &&
+      next.resumeHelper === savedInstructionsRef.current.resumeHelper
     ) {
       return;
     }
@@ -435,7 +444,14 @@ export function SettingsDrawer() {
         instructionsTimerRef.current = null;
       }
     };
-  }, [commitInstructions, instructionsLoading, instructionsReady, open, pullRequestInstructions]);
+  }, [
+    commitInstructions,
+    instructionsLoading,
+    instructionsReady,
+    open,
+    pullRequestInstructions,
+    resumeHelperInstructions,
+  ]);
 
   async function handleCreateApiKey(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -541,8 +557,134 @@ export function SettingsDrawer() {
     { id: "ssh", label: t("settings.sectionSsh"), icon: <KeyRound /> },
     { id: "ai", label: t("settings.sectionAi"), icon: <Sparkles /> },
     { id: "tools", label: t("settings.sectionTools"), icon: <Terminal /> },
+    {
+      id: "resumeHelper",
+      label: t("resumeHelper.sectionTitle"),
+      icon: <FileUser />,
+    },
     { id: "general", label: t("settings.sectionGeneral"), icon: <Power /> },
   ];
+
+  async function handleOpenResumeHelper(): Promise<void> {
+    try {
+      await openResumeHelperWindow();
+    } catch (error) {
+      toast.error(toUserMessage(error) || t("resumeHelper.openFailed"));
+    }
+  }
+
+  async function persistResumeIdentity(identity: ResumeHelperIdentity): Promise<void> {
+    try {
+      const saved = await setResumeHelperIdentity(identity);
+      savedResumeIdentityRef.current = saved;
+      setResumeIdentity(saved);
+      toast.success(t("resumeHelper.identitySaved"));
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    }
+  }
+
+  const persistResumeIdentityRef = useRef(persistResumeIdentity);
+  persistResumeIdentityRef.current = persistResumeIdentity;
+
+  /** 输入停顿后自动保存简历帮身份 */
+  useEffect(() => {
+    if (!open || resumeIdentityLoading || !resumeIdentityReady) {
+      return;
+    }
+    const saved = savedResumeIdentityRef.current;
+    if (
+      resumeIdentity.displayName === saved.displayName &&
+      resumeIdentity.phone === saved.phone &&
+      resumeIdentity.email === saved.email
+    ) {
+      return;
+    }
+    if (resumeIdentityTimerRef.current) {
+      clearTimeout(resumeIdentityTimerRef.current);
+    }
+    resumeIdentityTimerRef.current = setTimeout(() => {
+      void persistResumeIdentityRef.current(resumeIdentity);
+    }, 600);
+    return () => {
+      if (resumeIdentityTimerRef.current) {
+        clearTimeout(resumeIdentityTimerRef.current);
+        resumeIdentityTimerRef.current = null;
+      }
+    };
+  }, [open, resumeIdentity, resumeIdentityLoading, resumeIdentityReady]);
+
+  async function handleCreateGitAccount(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!newGitAccountName.trim() || !newGitAccountEmail.trim()) {
+      toast.error(t("settings.gitAccountRequired"));
+      return;
+    }
+    setGitAccountCreating(true);
+    try {
+      setGitAccounts(await createGitIdentityAccount(newGitAccountName, newGitAccountEmail));
+      setGitAccountDialogOpen(false);
+      setNewGitAccountName("");
+      setNewGitAccountEmail("");
+      toast.success(t("settings.gitAccountCreated"));
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setGitAccountCreating(false);
+    }
+  }
+
+  async function handleUpdateGitAccount(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    const account = gitAccountEditing;
+    if (!account) return;
+    if (!editedGitAccountName.trim() || !editedGitAccountEmail.trim()) {
+      toast.error(t("settings.gitAccountRequired"));
+      return;
+    }
+    setGitAccountSaving(true);
+    try {
+      setGitAccounts(
+        await updateGitIdentityAccount(
+          account.id,
+          editedGitAccountName,
+          editedGitAccountEmail,
+        ),
+      );
+      setGitAccountEditing(null);
+      toast.success(t("settings.gitAccountUpdated"));
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setGitAccountSaving(false);
+    }
+  }
+
+  async function handleGitAccountEnabled(account: GitIdentityAccount): Promise<void> {
+    setGitAccountActionId(account.id);
+    try {
+      setGitAccounts(await setGitIdentityAccountEnabled(account.id, !account.enabled));
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setGitAccountActionId(null);
+    }
+  }
+
+  async function handleDeleteGitAccount(): Promise<void> {
+    const account = gitAccountPendingDeletion;
+    if (!account) return;
+    setGitAccountActionId(account.id);
+    try {
+      setGitAccounts(await deleteGitIdentityAccount(account.id));
+      setGitAccountPendingDeletion(null);
+      toast.success(t("settings.gitAccountDeleted"));
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setGitAccountActionId(null);
+    }
+  }
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -579,7 +721,12 @@ export function SettingsDrawer() {
                           ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
                           : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                       )}
-                      onClick={() => setActiveCategory(category.id)}
+                      onClick={() => {
+                        setActiveCategory(category.id);
+                        if (category.id === "resumeHelper") {
+                          void handleOpenResumeHelper();
+                        }
+                      }}
                     >
                       <span className="[&_svg]:size-3.5" aria-hidden>
                         {category.icon}
@@ -693,36 +840,299 @@ export function SettingsDrawer() {
             icon={<GitBranch />}
             title={t("settings.sectionGit")}
             description={t("settings.sectionGitHint")}
+            action={
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 shrink-0"
+                onClick={() => setGitAccountDialogOpen(true)}
+              >
+                <Plus aria-hidden="true" />
+                {t("settings.createGitAccount")}
+              </Button>
+            }
           >
-            <div>
-              <FieldLabel>{t("settings.gitUserName")}</FieldLabel>
-              <Input
-                className={settingsFieldClassName}
-                value={gitName}
-                onChange={(event) => setGitName(event.target.value)}
-                onBlur={() => void persistIdentity(gitName, gitEmail)}
-                placeholder={t("settings.gitUserNamePlaceholder")}
-                disabled={identityLoading}
-                autoComplete="username"
-              />
-            </div>
-            <div>
-              <FieldLabel>{t("settings.gitEmail")}</FieldLabel>
-              <Input
-                className={settingsFieldClassName}
-                type="email"
-                value={gitEmail}
-                onChange={(event) => setGitEmail(event.target.value)}
-                onBlur={() => void persistIdentity(gitName, gitEmail)}
-                placeholder={t("settings.gitEmailPlaceholder")}
-                disabled={identityLoading}
-                autoComplete="email"
-              />
-              <p className="text-muted-foreground mt-1 text-[11px] leading-relaxed">
-                {t("settings.gitIdentityAutoSaveHint")}
-              </p>
+            <div className="border-border overflow-hidden rounded-md border">
+              <div className="bg-muted/40 text-muted-foreground grid grid-cols-[minmax(80px,0.9fr)_minmax(120px,1.35fr)_52px_100px] gap-3 border-b px-3 py-2 text-[11px] font-medium">
+                <span>{t("settings.gitUserName")}</span>
+                <span>{t("settings.gitEmail")}</span>
+                <span>{t("settings.apiKeyStatus")}</span>
+                <span>{t("settings.apiKeyActions")}</span>
+              </div>
+              {gitAccountsLoading ? (
+                <p className="text-muted-foreground px-3 py-6 text-center text-xs">
+                  {t("common.loading")}
+                </p>
+              ) : gitAccounts.length === 0 ? (
+                <p className="text-muted-foreground px-3 py-6 text-center text-xs">
+                  {t("settings.gitAccountEmpty")}
+                </p>
+              ) : (
+                <ul>
+                  {gitAccounts.map((account) => {
+                    const actionBusy = gitAccountActionId === account.id;
+                    return (
+                      <li
+                        key={account.id}
+                        className="grid grid-cols-[minmax(80px,0.9fr)_minmax(120px,1.35fr)_52px_100px] items-center gap-3 px-3 py-3 not-last:border-b"
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="truncate text-xs font-medium">{account.name}</span>
+                          </TooltipTrigger>
+                          <TooltipContent>{account.name}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-muted-foreground truncate font-mono text-[11px]">
+                              {account.email}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>{account.email}</TooltipContent>
+                        </Tooltip>
+                        <span
+                          className={cn(
+                            "justify-self-start rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                            account.enabled
+                              ? "bg-primary/10 text-primary"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {account.enabled
+                            ? t("settings.apiKeyEnabled")
+                            : t("settings.apiKeyDisabled")}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className={cn(
+                                  "size-7",
+                                  account.enabled
+                                    ? "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    : "border-primary/30 text-primary hover:bg-primary/10 hover:text-primary",
+                                )}
+                                aria-label={
+                                  account.enabled
+                                    ? t("settings.disableGitAccount")
+                                    : t("settings.enableGitAccount")
+                                }
+                                disabled={actionBusy}
+                                onClick={() => void handleGitAccountEnabled(account)}
+                              >
+                                {account.enabled ? (
+                                  <PowerOff aria-hidden="true" />
+                                ) : (
+                                  <Power aria-hidden="true" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {account.enabled
+                                ? t("settings.disableGitAccount")
+                                : t("settings.enableGitAccount")}
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="size-7"
+                                aria-label={t("settings.editGitAccount", {
+                                  name: account.name,
+                                })}
+                                disabled={actionBusy}
+                                onClick={() => {
+                                  setGitAccountEditing(account);
+                                  setEditedGitAccountName(account.name);
+                                  setEditedGitAccountEmail(account.email);
+                                }}
+                              >
+                                <Pencil aria-hidden="true" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t("settings.edit")}</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive size-7"
+                                aria-label={t("settings.deleteGitAccount", {
+                                  name: account.name,
+                                })}
+                                disabled={actionBusy}
+                                onClick={() => setGitAccountPendingDeletion(account)}
+                              >
+                                <Trash2 aria-hidden="true" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t("settings.delete")}</TooltipContent>
+                          </Tooltip>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           </SettingsSection> : null}
+
+          <Dialog
+            open={gitAccountDialogOpen}
+            onOpenChange={(nextOpen) => {
+              setGitAccountDialogOpen(nextOpen);
+              if (!nextOpen && !gitAccountCreating) {
+                setNewGitAccountName("");
+                setNewGitAccountEmail("");
+              }
+            }}
+          >
+            <DialogContent>
+              <form className="space-y-4" onSubmit={(event) => void handleCreateGitAccount(event)}>
+                <DialogHeader>
+                  <DialogTitle>{t("settings.createGitAccount")}</DialogTitle>
+                  <DialogDescription>
+                    {t("settings.createGitAccountDescription")}
+                  </DialogDescription>
+                </DialogHeader>
+                <div>
+                  <FieldLabel>{t("settings.gitUserName")}</FieldLabel>
+                  <Input
+                    className={settingsFieldClassName}
+                    value={newGitAccountName}
+                    onChange={(event) => setNewGitAccountName(event.target.value)}
+                    placeholder={t("settings.gitUserNamePlaceholder")}
+                    disabled={gitAccountCreating}
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <FieldLabel>{t("settings.gitEmail")}</FieldLabel>
+                  <Input
+                    className={settingsFieldClassName}
+                    type="email"
+                    value={newGitAccountEmail}
+                    onChange={(event) => setNewGitAccountEmail(event.target.value)}
+                    placeholder={t("settings.gitEmailPlaceholder")}
+                    disabled={gitAccountCreating}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={gitAccountCreating}
+                    onClick={() => setGitAccountDialogOpen(false)}
+                  >
+                    {t("common.cancel")}
+                  </Button>
+                  <Button type="submit" disabled={gitAccountCreating}>
+                    {t("settings.createGitAccount")}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={gitAccountEditing !== null}
+            onOpenChange={(nextOpen) => {
+              if (!nextOpen && !gitAccountSaving) {
+                setGitAccountEditing(null);
+              }
+            }}
+          >
+            <DialogContent>
+              <form className="space-y-4" onSubmit={(event) => void handleUpdateGitAccount(event)}>
+                <DialogHeader>
+                  <DialogTitle>{t("settings.editGitAccountTitle")}</DialogTitle>
+                  <DialogDescription>
+                    {t("settings.editGitAccountDescription")}
+                  </DialogDescription>
+                </DialogHeader>
+                <div>
+                  <FieldLabel>{t("settings.gitUserName")}</FieldLabel>
+                  <Input
+                    className={settingsFieldClassName}
+                    value={editedGitAccountName}
+                    onChange={(event) => setEditedGitAccountName(event.target.value)}
+                    disabled={gitAccountSaving}
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <FieldLabel>{t("settings.gitEmail")}</FieldLabel>
+                  <Input
+                    className={settingsFieldClassName}
+                    type="email"
+                    value={editedGitAccountEmail}
+                    onChange={(event) => setEditedGitAccountEmail(event.target.value)}
+                    disabled={gitAccountSaving}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={gitAccountSaving}
+                    onClick={() => setGitAccountEditing(null)}
+                  >
+                    {t("common.cancel")}
+                  </Button>
+                  <Button type="submit" disabled={gitAccountSaving}>
+                    {t("settings.saveGitAccount")}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={gitAccountPendingDeletion !== null}
+            onOpenChange={(nextOpen) => {
+              if (!nextOpen && gitAccountActionId === null) {
+                setGitAccountPendingDeletion(null);
+              }
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{t("settings.deleteGitAccountTitle")}</DialogTitle>
+                <DialogDescription>
+                  {t("settings.deleteGitAccountDescription", {
+                    name: gitAccountPendingDeletion?.name ?? "",
+                  })}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={gitAccountActionId !== null}
+                  onClick={() => setGitAccountPendingDeletion(null)}
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={gitAccountActionId !== null}
+                  onClick={() => void handleDeleteGitAccount()}
+                >
+                  <Trash2 aria-hidden="true" />
+                  {t("settings.delete")}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* 3. SSH */}
           {activeCategory === "ssh" ? <SettingsSection
@@ -765,11 +1175,7 @@ export function SettingsDrawer() {
           {activeCategory === "ai" ? <SettingsSection
             icon={<Sparkles />}
             title={t("settings.sectionAi")}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-muted-foreground text-xs">
-                {t("settings.apiKeyListHint")}
-              </p>
+            action={
               <Button
                 type="button"
                 size="sm"
@@ -779,7 +1185,8 @@ export function SettingsDrawer() {
                 <Plus aria-hidden="true" />
                 {t("settings.createApiKey")}
               </Button>
-            </div>
+            }
+          >
             <div className="border-border overflow-hidden rounded-md border">
               <div className="bg-muted/40 text-muted-foreground grid grid-cols-[minmax(80px,0.9fr)_minmax(120px,1.35fr)_52px_78px_100px] gap-3 border-b px-3 py-2 text-[11px] font-medium">
                 <span>{t("settings.apiKeyName")}</span>
@@ -902,31 +1309,64 @@ export function SettingsDrawer() {
                 </ul>
               )}
             </div>
-            <div>
-              <FieldLabel>{t("settings.commitInstructions")}</FieldLabel>
-              <p className="text-muted-foreground mb-1 text-[11px] leading-relaxed">
-                {t("settings.commitInstructionsHint")}
-              </p>
-              <Textarea
-                className={settingsTextareaClassName}
-                value={commitInstructions}
-                onChange={(event) => setCommitInstructions(event.target.value)}
-                placeholder={t("settings.commitInstructionsPlaceholder")}
-                disabled={instructionsLoading}
-              />
+            <div className="space-y-3">
+              <div>
+                <p className="text-foreground text-xs font-medium">
+                  {t("settings.aiInstructionsGitLabel")}
+                </p>
+                <p className="text-muted-foreground mt-0.5 text-[11px] leading-relaxed">
+                  {t("settings.aiInstructionsGitHint")}
+                </p>
+              </div>
+              <div>
+                <FieldLabel>{t("settings.commitInstructions")}</FieldLabel>
+                <p className="text-muted-foreground mb-1 text-[11px] leading-relaxed">
+                  {t("settings.commitInstructionsHint")}
+                </p>
+                <Textarea
+                  className={settingsTextareaClassName}
+                  value={commitInstructions}
+                  onChange={(event) => setCommitInstructions(event.target.value)}
+                  placeholder={t("settings.commitInstructionsPlaceholder")}
+                  disabled={instructionsLoading}
+                />
+              </div>
+              <div>
+                <FieldLabel>{t("settings.pullRequestInstructions")}</FieldLabel>
+                <p className="text-muted-foreground mb-1 text-[11px] leading-relaxed">
+                  {t("settings.pullRequestInstructionsHint")}
+                </p>
+                <Textarea
+                  className={settingsTextareaClassName}
+                  value={pullRequestInstructions}
+                  onChange={(event) => setPullRequestInstructions(event.target.value)}
+                  placeholder={t("settings.pullRequestInstructionsPlaceholder")}
+                  disabled={instructionsLoading}
+                />
+              </div>
             </div>
-            <div>
-              <FieldLabel>{t("settings.pullRequestInstructions")}</FieldLabel>
-              <p className="text-muted-foreground mb-1 text-[11px] leading-relaxed">
-                {t("settings.pullRequestInstructionsHint")}
-              </p>
-              <Textarea
-                className={settingsTextareaClassName}
-                value={pullRequestInstructions}
-                onChange={(event) => setPullRequestInstructions(event.target.value)}
-                placeholder={t("settings.pullRequestInstructionsPlaceholder")}
-                disabled={instructionsLoading}
-              />
+            <div className="space-y-3">
+              <div>
+                <p className="text-foreground text-xs font-medium">
+                  {t("settings.aiInstructionsResumeLabel")}
+                </p>
+                <p className="text-muted-foreground mt-0.5 text-[11px] leading-relaxed">
+                  {t("settings.aiInstructionsResumeHint")}
+                </p>
+              </div>
+              <div>
+                <FieldLabel>{t("settings.resumeHelperInstructions")}</FieldLabel>
+                <p className="text-muted-foreground mb-1 text-[11px] leading-relaxed">
+                  {t("settings.resumeHelperInstructionsHint")}
+                </p>
+                <Textarea
+                  className={settingsTextareaClassName}
+                  value={resumeHelperInstructions}
+                  onChange={(event) => setResumeHelperInstructions(event.target.value)}
+                  placeholder={t("settings.resumeHelperInstructionsPlaceholder")}
+                  disabled={instructionsLoading}
+                />
+              </div>
             </div>
           </SettingsSection> : null}
 
@@ -1132,7 +1572,85 @@ export function SettingsDrawer() {
             </div>
           </SettingsSection> : null}
 
-          {/* 6. 通用 */}
+          {/* 6. 简历帮 */}
+          {activeCategory === "resumeHelper" ? (
+            <SettingsSection
+              icon={<FileUser />}
+              title={t("resumeHelper.sectionTitle")}
+              description={t("resumeHelper.sectionHint")}
+            >
+              <Button
+                type="button"
+                size="sm"
+                className="h-8"
+                onClick={() => {
+                  void handleOpenResumeHelper();
+                }}
+              >
+                {t("resumeHelper.openButton")}
+              </Button>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-foreground text-xs font-medium">
+                    {t("resumeHelper.identityTitle")}
+                  </p>
+                  <p className="text-muted-foreground mt-0.5 text-[11px] leading-relaxed">
+                    {t("resumeHelper.identityHint")}
+                  </p>
+                </div>
+                <div>
+                  <FieldLabel>{t("resumeHelper.displayName")}</FieldLabel>
+                  <Input
+                    className={settingsFieldClassName}
+                    value={resumeIdentity.displayName}
+                    onChange={(event) =>
+                      setResumeIdentity((current) => ({
+                        ...current,
+                        displayName: event.target.value,
+                      }))
+                    }
+                    placeholder={t("resumeHelper.displayNamePlaceholder")}
+                    disabled={resumeIdentityLoading}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>{t("resumeHelper.phone")}</FieldLabel>
+                  <Input
+                    className={settingsFieldClassName}
+                    value={resumeIdentity.phone}
+                    onChange={(event) =>
+                      setResumeIdentity((current) => ({
+                        ...current,
+                        phone: event.target.value,
+                      }))
+                    }
+                    placeholder={t("resumeHelper.phonePlaceholder")}
+                    disabled={resumeIdentityLoading}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>{t("resumeHelper.contactEmail")}</FieldLabel>
+                  <Input
+                    className={settingsFieldClassName}
+                    value={resumeIdentity.email}
+                    onChange={(event) =>
+                      setResumeIdentity((current) => ({
+                        ...current,
+                        email: event.target.value,
+                      }))
+                    }
+                    placeholder={t("resumeHelper.contactEmailPlaceholder")}
+                    disabled={resumeIdentityLoading}
+                  />
+                </div>
+                <p className="text-muted-foreground text-[11px] leading-relaxed">
+                  {t("resumeHelper.gitAccountsSharedHint")}
+                </p>
+              </div>
+            </SettingsSection>
+          ) : null}
+
+          {/* 7. 通用 */}
           {activeCategory === "general" ? <SettingsSection
             icon={<Power />}
             title={t("settings.sectionGeneral")}

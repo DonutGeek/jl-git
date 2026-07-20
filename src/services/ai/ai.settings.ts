@@ -9,10 +9,13 @@ const API_KEYS = "apiKeys";
 const LEGACY_AGENT_KEY = "agentKey";
 const COMMIT_INSTRUCTIONS = "commitInstructions";
 const PULL_REQUEST_INSTRUCTIONS = "pullRequestInstructions";
+const RESUME_HELPER_INSTRUCTIONS = "resumeHelperInstructions";
 
 export interface AiInstructions {
   commit: string;
   pullRequest: string;
+  /** 简历帮对话文案约束（与 Git 提交/PR 指令隔离） */
+  resumeHelper: string;
 }
 
 export interface AiApiKey {
@@ -154,15 +157,18 @@ async function saveApiKeys(keys: AiApiKey[]): Promise<void> {
   await store.save();
 }
 
-/** 读取 AI Git 文案约束；未配置时回退 JLGit 默认规则。 */
+/** 读取 AI 文案约束（Git / 简历帮）；未配置时回退 JLGit 默认规则。 */
 export async function getAiInstructions(): Promise<AiInstructions> {
   const store = await getStore();
   const commit = await store.get<string>(COMMIT_INSTRUCTIONS);
   const pullRequest = await store.get<string>(PULL_REQUEST_INSTRUCTIONS);
+  const resumeHelper = await store.get<string>(RESUME_HELPER_INSTRUCTIONS);
   const defaults = getDefaultAiInstructions(i18n.language ?? "zh-CN");
   return {
     commit: typeof commit === "string" ? commit : defaults.commit,
     pullRequest: typeof pullRequest === "string" ? pullRequest : defaults.pullRequest,
+    resumeHelper:
+      typeof resumeHelper === "string" ? resumeHelper : defaults.resumeHelper,
   };
 }
 
@@ -174,6 +180,7 @@ export async function setAiInstructions(
   const entries: Array<[key: string, value: string | undefined]> = [
     [COMMIT_INSTRUCTIONS, instructions.commit],
     [PULL_REQUEST_INSTRUCTIONS, instructions.pullRequest],
+    [RESUME_HELPER_INSTRUCTIONS, instructions.resumeHelper],
   ];
 
   for (const [key, value] of entries) {

@@ -8,6 +8,7 @@ import {
   Loader2,
   Moon,
   ScrollText,
+  Settings,
   Sun,
   XCircle,
 } from "lucide-react";
@@ -36,6 +37,7 @@ import {
 } from "@/store/useOpLogStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
+import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
 import { useThemeStore } from "@/store/useThemeStore";
 
 import { GitIdentity } from "@/types/git";
@@ -50,7 +52,7 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(value >= 100 || exp === 0 ? 0 : 2)}${units[exp]}`;
 }
 
-/** 应用底部状态栏：版本 | 语言 / 主题 / 磁盘 / 操作日志 / Git 身份 */
+/** 应用底部状态栏：版本 | 语言 / 主题 / 磁盘 / 操作日志 / Git 身份 / 设置 */
 export function StatusBar() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
@@ -59,6 +61,8 @@ export function StatusBar() {
   const toggleDayNight = useThemeStore((state) => state.toggleDayNight);
   const locale = useLocaleStore((state) => state.locale);
   const toggleZhEn = useLocaleStore((state) => state.toggleZhEn);
+  const openDrawer = useSettingsDrawerStore((state) => state.openDrawer);
+  const settingsOpen = useSettingsDrawerStore((state) => state.open);
 
   const repoPath = useRepoStore((state) => state.repoPath);
   const repoIdentity = useRepoStore((state) => state.identity);
@@ -354,6 +358,28 @@ export function StatusBar() {
           </TooltipTrigger>
         <TooltipContent>{identityLabel}</TooltipContent>
         </Tooltip></> : null}
+
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "size-6 [&_svg]:size-3.5",
+                settingsOpen
+                  ? "bg-accent text-accent-foreground hover:bg-accent/80"
+                  : "text-muted-foreground",
+              )}
+              aria-label={t("statusBar.settings")}
+              aria-pressed={settingsOpen}
+              onClick={openDrawer}
+            >
+              <Settings aria-hidden="true" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t("statusBar.settings")}</TooltipContent>
+        </Tooltip>
       </div>
     </footer>
   );

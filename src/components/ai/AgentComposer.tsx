@@ -4,6 +4,7 @@ import {
   useRef,
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
   type Ref,
   type WheelEvent,
 } from "react";
@@ -70,6 +71,10 @@ interface AgentComposerProps {
   branchOptions: readonly AgentMentionOption[];
   isReplying: boolean;
   canSubmit: boolean;
+  /** 覆盖默认占位文案 */
+  placeholder?: string;
+  /** 输入框上方附件区（如快捷操作），计入表单高度供消息列表垫底 */
+  topAccessory?: ReactNode;
   inputRef?: Ref<HTMLInputElement | HTMLTextAreaElement>;
   onDraftChange: (next: {
     markup: string;
@@ -88,6 +93,8 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
       branchOptions,
       isReplying,
       canSubmit,
+      placeholder,
+      topAccessory,
       inputRef,
       onDraftChange,
       onSubmit,
@@ -95,6 +102,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
     ref,
   ) {
     const { t } = useTranslation();
+    const inputPlaceholder = placeholder ?? t("agent.inputPlaceholder");
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     // 中文等 IME：选词回车时部分环境 isComposing 已是 false，需组合态标记 + keyCode 229
     const isComposingRef = useRef(false);
@@ -167,6 +175,11 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
         className="bg-background absolute inset-x-3 bottom-3 z-10 rounded-md"
         onSubmit={onSubmit}
       >
+        {topAccessory ? (
+          <div className="mb-2 flex min-w-0 flex-wrap items-center gap-1.5">
+            {topAccessory}
+          </div>
+        ) : null}
         <div className="relative">
           {/* 边框在外层，避免 h-28+border 把内部 min-h-28 挤出视口从而空态也出滚动条 */}
           <div
@@ -207,8 +220,8 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                 onCompositionStart={handleCompositionStart}
                 onCompositionEnd={handleCompositionEnd}
                 onWheel={handleInputWheel}
-                aria-label={t("agent.inputPlaceholder")}
-                placeholder={t("agent.inputPlaceholder")}
+                aria-label={inputPlaceholder}
+                placeholder={inputPlaceholder}
                 a11ySuggestionsListLabel={t("agent.branchMentions")}
                 // 贴输入框左缘展开；库默认 portal+fixed，勿再写 absolute/bottom-full
                 anchorMode="left"

@@ -10,6 +10,7 @@ import openRepo from "./openRepo.json";
 import opLog from "./opLog.json";
 import projectManager from "./projectManager.json";
 import repo from "./repo.json";
+import resumeHelper from "./resumeHelper.json";
 import settings from "./settings.json";
 import statusBar from "./statusBar.json";
 
@@ -29,6 +30,7 @@ const zhCN = {
   branchManage,
   fileHistory,
   repo,
+  resumeHelper,
 };
 
 export default zhCN;

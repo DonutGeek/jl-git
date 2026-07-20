@@ -1,3 +1,4 @@
+import { buildCommitMessageSystemPrompt } from "@/prompts/git";
 import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getStagedDiff } from "@/services/git/git.diff";
@@ -56,7 +57,10 @@ export async function generateCommitMessage(
         model: DEEPSEEK_COMMIT_MODEL,
         temperature: 0.2,
         messages: [
-          { role: "system", content: buildSystemPrompt(locale, commitInstructions) },
+          {
+            role: "system",
+            content: buildCommitMessageSystemPrompt(locale, commitInstructions),
+          },
           {
             role: "user",
             content: [
@@ -91,25 +95,6 @@ export async function generateCommitMessage(
   } finally {
     window.clearTimeout(timeoutId);
   }
-}
-
-function buildSystemPrompt(locale: string, commitInstructions: string): string {
-  const language = locale === "zh-CN" ? "简体中文" : "English";
-  const prompt = [
-    "You generate a Git commit message from a staged diff.",
-    `Write the summary in ${language}.`,
-    "Return a commit message with a Conventional Commit subject and a concise body.",
-    "Format: <type>(<scope>): <summary>\\n\\n- <specific change or user-facing effect>\\n- <specific change or user-facing effect>.",
-    "The subject must be one line. The body must contain 2-4 factual bullet points when the diff provides enough detail.",
-    "Omit the body when the diff does not support reliable details; never guess.",
-    "Scope is optional when uncertain.",
-    "Allowed types: feat, fix, refactor, style, docs, test, perf, build, ci, chore.",
-    "Use the actual user-facing effect, not implementation process. Never include headings, code fences, or secrets.",
-  ].join(" ");
-  if (!commitInstructions.trim()) {
-    return prompt;
-  }
-  return `${prompt}\n\nRepository-specific commit instructions:\n${commitInstructions.trim()}`;
 }
 
 function normalizeCommitMessage(content: string | null | undefined): string | null {

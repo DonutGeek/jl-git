@@ -11,3 +11,4 @@ export {
 export type { AiApiKey, AiInstructions } from "./ai.settings";
 export { generateCommitMessage } from "./ai.commit";
 export { streamAgentReply } from "./ai.agent";
+export { streamResumeHelperReply } from "./ai.resume";
