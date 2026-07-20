@@ -32,7 +32,7 @@ function TooltipTrigger({
 
 function TooltipContent({
   className,
-  sideOffset = 0,
+  sideOffset = 4,
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
@@ -48,7 +48,12 @@ function TooltipContent({
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground" />
+        {/* 使用 Radix 默认 SVG 三角；勿对 Arrow 再 rotate/translate，否则箭头易被气泡盖住或四向对齐错乱 */}
+        <TooltipPrimitive.Arrow
+          width={11}
+          height={5}
+          className="z-50 fill-foreground"
+        />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   )

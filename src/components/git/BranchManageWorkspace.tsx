@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import dayjs from "dayjs";
-import { RefreshCw, Search, TriangleAlert } from "lucide-react";
+import { GitBranch as GitBranchIcon, RefreshCw, Search, TriangleAlert } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import { EmptyState } from "@/components/common/EmptyState";
 import {
   BranchManageTable,
   type BranchManageSortDirection,
@@ -24,7 +25,6 @@ import { toUserMessage } from "@/types/error";
 import type { GitBranch } from "@/types/git";
 import type { Project } from "@/types/project";
 import { isBranchActive } from "@/utils/branchActivity";
-import { copyToClipboard } from "@/utils/clipboard";
 
 type ScopeFilter = "local" | "remote";
 type ActivityFilter = "all" | "active" | "inactive";
@@ -171,15 +171,6 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
     }
   }
 
-  async function handleCopyName(branch: GitBranch): Promise<void> {
-    try {
-      await copyToClipboard(branch.name);
-      toast.success(t("branchManage.copyBranchNameSuccess"));
-    } catch {
-      toast.error(t("branchManage.copyBranchNameFailed"));
-    }
-  }
-
   const deleteHasRemote = useMemo(() => {
     if (!deleteTarget || deleteTarget.isRemote) {
       return false;
@@ -310,10 +301,13 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
         </p>
       ) : null}
       {!loading && !error && visibleBranches.length === 0 ? (
-        <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-1 px-4 text-center text-sm">
-          <p>{t("branchManage.empty")}</p>
-          <p className="text-xs">{t("branchManage.emptyDescription")}</p>
-        </div>
+        <EmptyState
+          compact
+          className="min-h-0 flex-1"
+          icon={<GitBranchIcon />}
+          title={t("branchManage.empty")}
+          description={t("branchManage.emptyDescription")}
+        />
       ) : null}
       {!loading && !error && visibleBranches.length > 0 ? (
         <BranchManageTable
@@ -322,9 +316,9 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
           onToggleSort={() =>
             setSortDir((prev) => (prev === "desc" ? "asc" : "desc"))
           }
-          onCopyName={(branch) => void handleCopyName(branch)}
           onDelete={openDelete}
           deletingName={deletingName}
+          showTracking={scope === "local"}
         />
       ) : null}
 

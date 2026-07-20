@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import dayjs from "dayjs";
-import { ArrowDown, ArrowUp, Check, Copy, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { TruncateStartHoverLabel } from "@/components/common/TruncateStartHoverLabel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,9 +20,14 @@ import { isBranchActive } from "@/utils/branchActivity";
 
 const ROW_HEIGHT_PX = 30;
 const VIRTUAL_OVERSCAN = 16;
-/** 列：分支 / 跟踪 / 提交 / 时间 / 作者 / 状态 / 操作（复制+删除） */
-const TABLE_COLS =
-  "grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_72px_minmax(0,1fr)_minmax(0,1fr)_72px_64px]";
+/**
+ * 列宽：分支略收、跟踪加宽（origin/… 更长）；提交/时间按内容定宽，作者有上限，避免空白全挤在分支列。
+ * 本地含跟踪；远端无跟踪。
+ */
+const TABLE_COLS_WITH_TRACKING =
+  "grid-cols-[minmax(0,1.1fr)_minmax(0,1.5fr)_5.5rem_8.5rem_minmax(0,6rem)_4rem_2.25rem]";
+const TABLE_COLS_WITHOUT_TRACKING =
+  "grid-cols-[minmax(0,1.4fr)_5.5rem_8.5rem_minmax(0,7rem)_4rem_2.25rem]";
 
 export type BranchManageSortDirection = "asc" | "desc";
 
@@ -29,10 +35,11 @@ interface BranchManageTableProps {
   branches: GitBranch[];
   sortDir: BranchManageSortDirection;
   onToggleSort: () => void;
-  onCopyName: (branch: GitBranch) => void;
   onDelete: (branch: GitBranch) => void;
   /** 正在删除的分支名（禁用该行删除） */
   deletingName?: string | null;
+  /** 是否显示跟踪列；远端列表应为 false */
+  showTracking?: boolean;
 }
 
 /** 紧凑分支表格：虚拟滚动 + 可切换时间排序 */
@@ -40,9 +47,9 @@ export function BranchManageTable({
   branches,
   sortDir,
   onToggleSort,
-  onCopyName,
   onDelete,
   deletingName = null,
+  showTracking = true,
 }: BranchManageTableProps) {
   const { t } = useTranslation();
   const { viewport, bindScrollArea } = useScrollAreaViewport();
@@ -55,17 +62,20 @@ export function BranchManageTable({
   });
 
   const SortIcon = sortDir === "desc" ? ArrowDown : ArrowUp;
+  const tableCols = showTracking
+    ? TABLE_COLS_WITH_TRACKING
+    : TABLE_COLS_WITHOUT_TRACKING;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div
         className={cn(
           "border-border bg-muted/30 text-muted-foreground grid shrink-0 items-center gap-2 border-b px-3 py-1.5 text-[11px] font-medium",
-          TABLE_COLS,
+          tableCols,
         )}
       >
         <span>{t("branchManage.columnBranch")}</span>
-        <span>{t("branchManage.columnTracking")}</span>
+        {showTracking ? <span>{t("branchManage.columnTracking")}</span> : null}
         <span>{t("branchManage.columnCommit")}</span>
         <button
           type="button"
@@ -104,46 +114,34 @@ export function BranchManageTable({
                 data-index={virtualItem.index}
                 className={cn(
                   "border-border/60 absolute top-0 left-0 grid w-full items-center gap-2 border-b px-3 text-xs",
-                  TABLE_COLS,
+                  tableCols,
                 )}
                 style={{
+                  // 用 top 而非 translateY：后者会让行内 Tooltip/浮层锚点算到列表顶部（错位）
                   height: `${virtualItem.size}px`,
-                  transform: `translateY(${virtualItem.start}px)`,
+                  top: `${virtualItem.start}px`,
                 }}
               >
                 <BranchNameCell branch={branch} />
-                <span
-                  className="text-muted-foreground truncate font-mono text-[11px]"
-                  title={branch.upstream ?? undefined}
-                >
-                  {branch.upstream?.trim() || t("branchManage.noTracking")}
-                </span>
+                {showTracking ? (
+                  <TrackingCell
+                    upstream={branch.upstream}
+                    emptyLabel={t("branchManage.noTracking")}
+                  />
+                ) : null}
                 <span className="text-muted-foreground truncate font-mono text-[11px]">
                   {branch.tipShortId.trim() || t("branchManage.noCommit")}
                 </span>
-                <span className="text-muted-foreground truncate text-[11px]">
+                <span className="text-muted-foreground truncate text-[11px] tabular-nums">
                   {formatBranchTime(branch.tipAuthoredAt)}
                 </span>
-                <span className="text-muted-foreground truncate text-[11px]">
-                  {branch.tipAuthorName.trim() || t("branchManage.noCommit")}
+                <span className="truncate text-[11px]">
+                  {branch.tipAuthorName.trim() || (
+                    <span className="text-muted-foreground">{t("branchManage.noCommit")}</span>
+                  )}
                 </span>
                 <BranchStatusCell branch={branch} />
-                <div className="flex items-center justify-end gap-0.5">
-                  <Tooltip delayDuration={300}>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground size-6 [&_svg]:size-3.5"
-                        aria-label={t("branchManage.copyBranchName")}
-                        onClick={() => onCopyName(branch)}
-                      >
-                        <Copy aria-hidden="true" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{t("branchManage.copyBranchName")}</TooltipContent>
-                  </Tooltip>
+                <div className="flex items-center justify-end">
                   <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
                       {/* disabled 按钮外包一层，保证悬停仍能出 Tooltip */}
@@ -173,27 +171,52 @@ export function BranchManageTable({
   );
 }
 
+/** 跟踪：前省略，悬停 Tooltip 展开全文 */
+function TrackingCell({
+  upstream,
+  emptyLabel,
+}: {
+  upstream: string | null | undefined;
+  emptyLabel: string;
+}) {
+  const value = upstream?.trim() ?? "";
+  if (!value) {
+    return (
+      <span className="text-muted-foreground block min-w-0 truncate font-mono text-[11px]">
+        {emptyLabel}
+      </span>
+    );
+  }
+
+  return <TruncateStartHoverLabel text={value} />;
+}
+
 function BranchNameCell({ branch }: { branch: GitBranch }) {
   const { t } = useTranslation();
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
-      {branch.isCurrent ? (
-        <Check className="text-primary size-3 shrink-0" aria-hidden="true" />
-      ) : (
-        <span className="size-3 shrink-0" aria-hidden="true" />
-      )}
-      <span className="truncate font-mono" title={branch.name}>
-        {branch.name}
-      </span>
-      {branch.isDefault ? (
-        <Badge variant="secondary" className="h-4 px-1.5 text-[10px]">
-          {t("branchManage.defaultBranch")}
-        </Badge>
-      ) : null}
-      {branch.isCurrent ? (
-        <span className="sr-only">{t("branchManage.currentBranch")}</span>
-      ) : null}
-    </div>
+    <TruncateStartHoverLabel
+      text={branch.name}
+      textClassName="text-foreground"
+      leading={
+        branch.isCurrent ? (
+          <Check className="text-primary size-3 shrink-0" aria-hidden="true" />
+        ) : (
+          <span className="size-3 shrink-0" aria-hidden="true" />
+        )
+      }
+      trailing={
+        <>
+          {branch.isDefault ? (
+            <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[10px]">
+              {t("branchManage.defaultBranch")}
+            </Badge>
+          ) : null}
+          {branch.isCurrent ? (
+            <span className="sr-only">{t("branchManage.currentBranch")}</span>
+          ) : null}
+        </>
+      }
+    />
   );
 }
 

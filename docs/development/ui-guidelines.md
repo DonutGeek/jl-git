@@ -33,6 +33,22 @@
 
 ---
 
+## 前省略 + 悬停展开（硬性）
+
+表格内长路径 / 分支名等「前省略 + 悬停看全文」**优先**用 `@/components/common/TruncateStartHoverLabel`，不要每次手拼 flex。
+
+| 规则 | 说明 |
+|------|------|
+| 预算与视觉拆开 | 外层挂 `TRUNCATE_BUDGET_ATTR` 占满列宽；内层 `w-max max-w-full` |
+| 禁止 | 给内层壳加 `flex-1`（后缀徽章会被顶到列尾） |
+| 同壳 | `leading` / 文案 / `trailing`（如「默认」徽章）必须同一 flex 壳，量宽才能扣除徽章 |
+| 悬停展开 | Tooltip 展示全文；宽触发器**禁止** `align="start"`（否则 Floating UI 隐藏箭头） |
+| 虚拟列表 | 行定位优先用 `top: start`，**避免**行上 `transform: translateY`（会导致浮层锚点漂到列表顶） |
+
+仅「可点复制路径」继续用 `CopyablePathLabel`；分支管理表等只读展开用 `TruncateStartHoverLabel`。
+
+---
+
 ## shadcn/ui
 
 JLGit 以 [shadcn/ui](https://ui.shadcn.com/) 作为基础组件来源（代码生成进仓库，而非运行时依赖整包 UI 库）。

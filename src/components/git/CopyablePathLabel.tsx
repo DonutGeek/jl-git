@@ -66,8 +66,8 @@ export function CopyablePathLabel({ path, className }: CopyablePathLabelProps) {
             <TruncateStartPath path={path} className="font-mono" />
           </button>
         </TooltipTrigger>
-        {/* 触发器虽 flex-1 很宽，但文案在左侧：用 start + top 贴在路径正上方 */}
-        <TooltipContent side="top" align="start" sideOffset={6}>
+        {/* 勿 align=start：宽触发器下 Floating UI 会隐藏无法居中的箭头 */}
+        <TooltipContent side="top">
           {copied ? t("repo.copySuccess") : t("repo.copy")}
         </TooltipContent>
       </Tooltip>
