@@ -74,7 +74,7 @@ flowchart LR
 
 - 提供商：DeepSeek
 - Endpoint：`https://api.deepseek.com/chat/completions`
-- 模型：鲸灵 Agent / 提交文案当前为 `deepseek-chat`；**简历帮**为 `deepseek-v4-pro`（开启 thinking，仅展示最终正文）
+- 模型：提交文案为 `deepseek-chat`；**鲸灵 Agent** 与 **简历帮** 为 `deepseek-v4-pro`（开启 thinking；共用 `AgentReasoningBlock` 展示可折叠深度思考，正文流式输出）
 - 设置项：用户可创建多个 `DeepSeek API Key`（名称、Key、创建日期）；同一时刻仅允许一个 Key 启用，启用新 Key 会自动禁用其它 Key；删除需二次确认
 - 附加指令：设置中提供「提交指令」「拉取请求指令」；未配置时使用 JLGit 默认规则（Conventional Commits、要点式说明、PR Summary/Test plan 等），用户可按团队规范自行修改。前者会附加到提交文案请求，后者保留给后续 PR 文案生成
 
@@ -85,7 +85,7 @@ flowchart LR
 ## UX 要点
 
 - Commit 区：「生成提交信息」按钮；仅有待提交文件时可用，生成中禁用
-- 鲸灵对话：发送后立即展示思考状态，DeepSeek 的增量内容按动画帧写入消息列表；请求失败或超时保留已收到的内容并提示用户
+- 鲸灵对话：发送后展示深度思考（`AgentReasoningBlock`）与正文流式输出；增量按动画帧写入消息列表；请求失败或超时保留已收到的内容并提示用户
 - 建议结果默认包含 Conventional Commit 标题及基于 diff 的简短要点；用户可编辑后再提交
 - Review 结果用列表 + 严重级别，避免墙式散文
 - 全员文案走 i18n；模型输出保持原语言或按设置请求语言

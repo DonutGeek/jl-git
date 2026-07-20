@@ -1,19 +1,19 @@
 /** 简历帮：设置中的默认「简历指令」（用户可改） */
 
 const ZH = [
-  "先吃透该仓全部已提供证据，再直接输出可粘贴项目简历；禁止「共 N 次提交请指定方向」这类半成品。",
-  "默认只输出项目简历；联系信息未齐时不要写基本信息/待补充。",
-  "高识别度项目名 + 做什么 + 技术栈 + 2–5 条有技术优势的贡献要点；简单需求不写。",
-  "正文只写技术思路/技术栈，禁止业务逻辑代码、字段名、魔法值、条件表达式、接口路径。",
-  "多项目必须彼此可区分；无匹配本人提交的仓库不要输出；无数据不编造指标。",
+  "先吃透证据，再输出可粘贴的标准项目经历；禁止半成品与反问。",
+  "模板固定：`## 项目经历` → `### 标题` → **时间** → **项目描述** → **技术栈** → **职责业绩**（- 列表 2–5 条）。",
+  "时间格式 YYYY.MM – YYYY.MM（作者首末提交）；技术栈用顿号「、」分隔；职责用完整句。",
+  "文风像工程师自述；禁止赋能/闭环等套话；禁止泄露业务逻辑代码与字段/魔法值。",
+  "无匹配提交的仓库不输出；无数据不编造指标；联系信息未齐时不要写基本信息。",
 ].join("\n");
 
 const EN = [
-  "Fully digest all provided repo evidence first, then deliver a paste-ready project resume — never a “N commits, tell me which direction” stub.",
-  "Default to project resume only; if contact info is incomplete, never emit a basics/placeholder section.",
-  "Highly recognizable titles + purpose + stack + 2–5 high-signal approach bullets; skip trivial work.",
-  "Write design/approach and stack only — never leak business logic code, field names, magic numbers, conditionals, or API paths.",
-  "Projects must be distinguishable; omit repos with no matching author commits; never invent metrics.",
+  "Digest evidence first, then output a paste-ready standard project-experience block — no stubs or questions back.",
+  "Fixed template: ## Project Experience → ### Title → **Duration** → **Description** → **Tech stack** → **Responsibilities** (2–5 `-` bullets).",
+  "Duration: YYYY.MM – YYYY.MM from author first/last commit; stack joined with `、` in Chinese (commas in English); full-sentence bullets.",
+  "Senior-engineer tone; no buzzwords; never leak logic code, field names, or magic values.",
+  "Omit repos with no matching commits; never invent metrics; skip basics if contact info incomplete.",
 ].join("\n");
 
 /** 按界面语言返回默认简历指令 */

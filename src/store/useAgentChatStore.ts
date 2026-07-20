@@ -17,7 +17,16 @@ interface AgentChatState {
     projectId: string,
     conversationId: string,
     messageId: string,
-    update: Partial<Pick<AgentChatMessage, "content" | "isStreaming" | "createdAt">>,
+    update: Partial<
+      Pick<
+        AgentChatMessage,
+        | "content"
+        | "isStreaming"
+        | "createdAt"
+        | "reasoningContent"
+        | "reasoningDurationMs"
+      >
+    >,
   ) => void;
   removeMessage: (projectId: string, conversationId: string, messageId: string) => void;
 }

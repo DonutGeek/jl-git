@@ -188,11 +188,26 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     const controller = new AbortController();
     replyAbortControllerRef.current = controller;
     let contentBuffer = "";
+    let reasoningBuffer = "";
     let animationFrameId: number | null = null;
+    let reasoningStartedAt: number | null = null;
+    let reasoningDurationSettled = false;
+    const settleReasoningDuration = (): void => {
+      if (reasoningDurationSettled || reasoningStartedAt == null) {
+        return;
+      }
+      reasoningDurationSettled = true;
+      updateMessage(projectId, conversationId, assistantMessage.id, {
+        reasoningDurationMs: Date.now() - reasoningStartedAt,
+      });
+    };
     const flushReply = (): void => {
       animationFrameId = null;
       updateMessage(projectId, conversationId, assistantMessage.id, {
         content: contentBuffer,
+        ...(reasoningBuffer
+          ? { reasoningContent: reasoningBuffer }
+          : {}),
       });
     };
 
@@ -202,7 +217,18 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
         repoPath,
         locale,
         signal: controller.signal,
+        onReasoningDelta: (delta) => {
+          if (reasoningStartedAt == null) {
+            reasoningStartedAt = Date.now();
+          }
+          reasoningBuffer += delta;
+          if (animationFrameId == null) {
+            animationFrameId = window.requestAnimationFrame(flushReply);
+          }
+        },
         onDelta: (delta) => {
+          // 正文开始视为深度思考结束
+          settleReasoningDuration();
           contentBuffer += delta;
           if (animationFrameId == null) {
             animationFrameId = window.requestAnimationFrame(flushReply);
@@ -213,6 +239,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
         window.cancelAnimationFrame(animationFrameId);
         flushReply();
       }
+      settleReasoningDuration();
       updateMessage(projectId, conversationId, assistantMessage.id, {
         isStreaming: false,
         createdAt: new Date().toISOString(),
@@ -222,7 +249,8 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
         window.cancelAnimationFrame(animationFrameId);
         flushReply();
       }
-      if (contentBuffer) {
+      settleReasoningDuration();
+      if (contentBuffer || reasoningBuffer) {
         updateMessage(projectId, conversationId, assistantMessage.id, {
           isStreaming: false,
           createdAt: new Date().toISOString(),

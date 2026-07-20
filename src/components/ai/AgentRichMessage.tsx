@@ -4,6 +4,7 @@ import { GitCompareArrows } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { isRecord } from "@/types/error";
 
 export interface CompareBranchesAction {
@@ -19,7 +20,18 @@ interface ParsedAgentMessage {
 
 interface AgentRichMessageProps extends ParsedAgentMessage {
   onCompareBranches: (action: CompareBranchesAction) => void;
+  /** 流式输出时把光标挂在最后一个块级元素末尾，避免掉到正文下方单独一行 */
+  trailingCursor?: boolean;
 }
+
+/** 挂在末段 p / 末条 li / 末级标题后的流式光标 */
+const TRAILING_CURSOR_CLASS =
+  "[&>p:last-child]:after:bg-foreground [&>p:last-child]:after:ml-0.5 [&>p:last-child]:after:inline-block [&>p:last-child]:after:h-3 [&>p:last-child]:after:w-0.5 [&>p:last-child]:after:animate-pulse [&>p:last-child]:after:align-middle [&>p:last-child]:after:content-[''] " +
+  "[&>ul:last-child>li:last-child]:after:bg-foreground [&>ul:last-child>li:last-child]:after:ml-0.5 [&>ul:last-child>li:last-child]:after:inline-block [&>ul:last-child>li:last-child]:after:h-3 [&>ul:last-child>li:last-child]:after:w-0.5 [&>ul:last-child>li:last-child]:after:animate-pulse [&>ul:last-child>li:last-child]:after:align-middle [&>ul:last-child>li:last-child]:after:content-[''] " +
+  "[&>ol:last-child>li:last-child]:after:bg-foreground [&>ol:last-child>li:last-child]:after:ml-0.5 [&>ol:last-child>li:last-child]:after:inline-block [&>ol:last-child>li:last-child]:after:h-3 [&>ol:last-child>li:last-child]:after:w-0.5 [&>ol:last-child>li:last-child]:after:animate-pulse [&>ol:last-child>li:last-child]:after:align-middle [&>ol:last-child>li:last-child]:after:content-[''] " +
+  "[&>h1:last-child]:after:bg-foreground [&>h1:last-child]:after:ml-0.5 [&>h1:last-child]:after:inline-block [&>h1:last-child]:after:h-3 [&>h1:last-child]:after:w-0.5 [&>h1:last-child]:after:animate-pulse [&>h1:last-child]:after:align-middle [&>h1:last-child]:after:content-[''] " +
+  "[&>h2:last-child]:after:bg-foreground [&>h2:last-child]:after:ml-0.5 [&>h2:last-child]:after:inline-block [&>h2:last-child]:after:h-3 [&>h2:last-child]:after:w-0.5 [&>h2:last-child]:after:animate-pulse [&>h2:last-child]:after:align-middle [&>h2:last-child]:after:content-[''] " +
+  "[&>h3:last-child]:after:bg-foreground [&>h3:last-child]:after:ml-0.5 [&>h3:last-child]:after:inline-block [&>h3:last-child]:after:h-3 [&>h3:last-child]:after:w-0.5 [&>h3:last-child]:after:animate-pulse [&>h3:last-child]:after:align-middle [&>h3:last-child]:after:content-['']";
 
 const ACTION_MARKER_PATTERN = /<!--\s*jlgit-action:(\{[\s\S]*?\})\s*-->\s*$/;
 
@@ -36,10 +48,23 @@ export function parseAgentMessage(content: string): ParsedAgentMessage {
   };
 }
 
-export function AgentRichMessage({ content, action, onCompareBranches }: AgentRichMessageProps) {
+export function AgentRichMessage({
+  content,
+  action,
+  onCompareBranches,
+  trailingCursor = false,
+}: AgentRichMessageProps) {
   const { t } = useTranslation();
   return (
-    <div className="agent-markdown text-xs leading-relaxed">
+    <div
+      className={cn(
+        "agent-markdown text-xs leading-relaxed",
+        // 「## 项目经历」后的第一个 ### 不要顶部分隔带，避免标题下多出一条灰块
+        "[&>h2+h3]:mt-1.5 [&>h2+h3]:border-t-0 [&>h2+h3]:pt-0",
+        "[&>h1+h3]:mt-1.5 [&>h1+h3]:border-t-0 [&>h1+h3]:pt-0",
+        trailingCursor && TRAILING_CURSOR_CLASS,
+      )}
+    >
       {content ? (
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
@@ -64,10 +89,39 @@ export function AgentRichMessage({ content, action, onCompareBranches }: AgentRi
                 {children}
               </code>
             ),
-            ul: ({ children }) => <ul className="my-1 list-disc pl-4">{children}</ul>,
-            ol: ({ children }) => <ol className="my-1 list-decimal pl-4">{children}</ol>,
+            h1: ({ children }) => (
+              <h1 className="text-foreground mt-3 mb-2 border-border/60 border-b pb-1 text-sm font-semibold first:mt-0">
+                {children}
+              </h1>
+            ),
+            h2: ({ children }) => (
+              <h2 className="text-foreground mt-3 mb-1.5 border-border/60 border-b pb-1 text-sm font-semibold first:mt-0">
+                {children}
+              </h2>
+            ),
+            // 项目标题：仅「第二个及以后的 ###」加顶部分隔，用于分清多项目边界
+            h3: ({ children }) => (
+              <h3 className="text-foreground border-border/50 mt-4 mb-1.5 border-t pt-3 text-[13px] font-semibold">
+                {children}
+              </h3>
+            ),
+            h4: ({ children }) => (
+              <h4 className="text-foreground mt-2 mb-1 text-xs font-semibold first:mt-0">
+                {children}
+              </h4>
+            ),
+            strong: ({ children }) => (
+              <strong className="text-foreground font-semibold">{children}</strong>
+            ),
+            ul: ({ children }) => (
+              <ul className="my-1.5 list-disc space-y-0.5 pl-4">{children}</ul>
+            ),
+            ol: ({ children }) => (
+              <ol className="my-1.5 list-decimal space-y-0.5 pl-4">{children}</ol>
+            ),
             li: ({ children }) => <li className="my-0">{children}</li>,
-            p: ({ children }) => <p className="my-0">{children}</p>,
+            p: ({ children }) => <p className="my-1">{children}</p>,
+            hr: () => <hr className="border-border/60 my-3" />,
           }}
         >
           {content}

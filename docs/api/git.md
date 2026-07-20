@@ -41,7 +41,7 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 行追溯；`rev` 省略则 blame 工作区文件。
 
 - **Command：** `git_log`
-- **说明：** 每条 `GitCommitSummary` 含 `authorEmail`、`parentIds`（用于历史图谱）与 `coAuthors`（来自 `Co-authored-by` trailer）。历史页经 `buildHistoryLogOptions`：打开仓库默认 `logRef` 为当前分支；UI 选「所有分支」时 `logRef == null` 传 `all: true`；选中分支/标签时传 `ref`。`order`：`topo` / `date` 对应 `--topo-order` / `--date-order`。
+- **说明：** 每条 `GitCommitSummary` 含 `authorEmail`、`parentIds`（用于历史图谱）与 `coAuthors`（来自 `Co-authored-by` trailer）。历史页经 `buildHistoryLogOptions`：打开仓库默认 `logRef` 为当前分支；UI 选「所有分支」时 `logRef == null` 传 `all: true`；选中分支/标签时传 `ref`。`order`：`topo` / `date` 对应 `--topo-order` / `--date-order`。可选 `authors: string[]`（多条 `--author` OR；简历帮用于按账号拉取，调用方需转义正则特殊字符）。可选 `reverse`（`git log --reverse`；简历帮取作者最早提交）。
 
 ### `buildHistoryLogOptions({ skip?; limit?; logRef; order? }): GitLogOptions`
 

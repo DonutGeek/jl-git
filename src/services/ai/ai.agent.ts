@@ -22,8 +22,9 @@ import type {
 } from "@/types/git";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
-const DEEPSEEK_AGENT_MODEL = "deepseek-chat";
-const AGENT_REQUEST_TIMEOUT_MS = 60_000;
+/** 与简历帮一致：V4 Pro + thinking，正文只消费 content */
+const DEEPSEEK_AGENT_MODEL = "deepseek-v4-pro";
+const AGENT_REQUEST_TIMEOUT_MS = 150_000;
 const AGENT_HISTORY_LIMIT = 20;
 const AGENT_LOG_LIMIT = 16;
 const AGENT_FILE_LIMIT = 120;
@@ -42,6 +43,8 @@ interface StreamAgentReplyOptions {
   locale: string;
   signal?: AbortSignal;
   onDelta: (content: string) => void;
+  /** DeepSeek thinking 的 reasoning_content 增量 */
+  onReasoningDelta?: (content: string) => void;
 }
 
 /**
@@ -54,6 +57,7 @@ export async function streamAgentReply({
   locale,
   signal,
   onDelta,
+  onReasoningDelta,
 }: StreamAgentReplyOptions): Promise<void> {
   const apiKey = await getAgentKey();
   if (!apiKey) {
@@ -77,11 +81,14 @@ export async function streamAgentReply({
         model: DEEPSEEK_AGENT_MODEL,
         stream: true,
         temperature: 0.3,
+        thinking: { type: "enabled" },
+        reasoning_effort: "high",
         messages: [
           {
             role: "system",
             content: buildAgentSystemPrompt(locale, repositoryContext),
           },
+          // 只回传正文；reasoning 仅 UI 展示，不进入下一轮上下文
           ...messages.slice(-AGENT_HISTORY_LIMIT).map((message) => ({
             role: message.role,
             content: message.content,
@@ -99,7 +106,7 @@ export async function streamAgentReply({
       throw appError("INTERNAL", i18n.t("agent.replyFailed"));
     }
 
-    await readSseStream(response.body, onDelta);
+    await readSseStream(response.body, onDelta, onReasoningDelta);
   } catch (error) {
     if (controller.signal.aborted) {
       throw appError("INTERNAL", i18n.t("agent.replyTimeout"));
@@ -517,6 +524,7 @@ async function readCommitPatches(repoPath: string, detail: GitCommitDetail): Pro
 async function readSseStream(
   stream: ReadableStream<Uint8Array>,
   onDelta: (content: string) => void,
+  onReasoningDelta?: (content: string) => void,
 ): Promise<void> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
@@ -529,15 +537,19 @@ async function readSseStream(
         break;
       }
       buffer += decoder.decode(result.value, { stream: true });
-      buffer = consumeSseLines(buffer, onDelta);
+      buffer = consumeSseLines(buffer, onDelta, onReasoningDelta);
     }
-    consumeSseLines(`${buffer}\n`, onDelta);
+    consumeSseLines(`${buffer}\n`, onDelta, onReasoningDelta);
   } finally {
     reader.releaseLock();
   }
 }
 
-function consumeSseLines(buffer: string, onDelta: (content: string) => void): string {
+function consumeSseLines(
+  buffer: string,
+  onDelta: (content: string) => void,
+  onReasoningDelta?: (content: string) => void,
+): string {
   let lineEnd = buffer.indexOf("\n");
   while (lineEnd >= 0) {
     const line = buffer.slice(0, lineEnd).trim();
@@ -545,10 +557,7 @@ function consumeSseLines(buffer: string, onDelta: (content: string) => void): st
     if (line.startsWith("data:")) {
       const data = line.slice(5).trim();
       if (data && data !== "[DONE]") {
-        const content = readDeltaContent(data);
-        if (content) {
-          onDelta(content);
-        }
+        applySseDelta(data, onDelta, onReasoningDelta);
       }
     }
     lineEnd = buffer.indexOf("\n");
@@ -556,21 +565,34 @@ function consumeSseLines(buffer: string, onDelta: (content: string) => void): st
   return buffer;
 }
 
-function readDeltaContent(data: string): string | null {
+function applySseDelta(
+  data: string,
+  onDelta: (content: string) => void,
+  onReasoningDelta?: (content: string) => void,
+): void {
   try {
     const payload: unknown = JSON.parse(data);
     if (!isRecord(payload) || !Array.isArray(payload.choices)) {
-      return null;
+      return;
     }
     for (const choice of payload.choices) {
-      if (!isRecord(choice) || !isRecord(choice.delta) || typeof choice.delta.content !== "string") {
+      if (!isRecord(choice) || !isRecord(choice.delta)) {
         continue;
       }
-      return choice.delta.content;
+      const delta = choice.delta;
+      if (
+        typeof delta.reasoning_content === "string" &&
+        delta.reasoning_content &&
+        onReasoningDelta
+      ) {
+        onReasoningDelta(delta.reasoning_content);
+      }
+      if (typeof delta.content === "string" && delta.content) {
+        onDelta(delta.content);
+      }
     }
-    return null;
   } catch {
-    return null;
+    // 忽略残缺 SSE 行
   }
 }
 

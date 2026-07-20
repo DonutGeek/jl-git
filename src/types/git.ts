@@ -341,6 +341,13 @@ export interface GitLogOptions {
   order?: GitLogOrder;
   /** 仅该仓库相对路径的历史（`git log -- <path>`） */
   path?: string;
+  /**
+   * 作者匹配模式（`git log --author`，多条为 OR）。
+   * 调用方应对邮箱/姓名中的正则特殊字符转义。
+   */
+  authors?: string[];
+  /** true 时 `git log --reverse`（从旧到新） */
+  reverse?: boolean;
 }
 
 export interface GitCommitOptions {

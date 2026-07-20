@@ -238,6 +238,10 @@ pub fn git_log(
     order: Option<String>,
     // 可选：仅跟踪该相对路径的提交
     file_path: Option<String>,
+    // 可选：作者匹配模式（多条为 OR，对应多个 `--author`）
+    authors: Option<Vec<String>>,
+    // 为 true 时等价 `git log --reverse`
+    reverse: Option<bool>,
 ) -> Result<GitLogResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
     let skip = skip.unwrap_or(0);
@@ -251,6 +255,8 @@ pub fn git_log(
         all.unwrap_or(false),
         order.as_deref(),
         file_path.as_deref(),
+        authors.as_deref(),
+        reverse.unwrap_or(false),
     )
 }
 

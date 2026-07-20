@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { flushSync } from "react-dom";
 import { FileCode2, FileStack, FileUser, ListTree } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -24,10 +31,24 @@ import { useLocaleStore } from "@/store/useLocaleStore";
 import { useResumeHelperStore } from "@/store/useResumeHelperStore";
 import { toUserMessage } from "@/types/error";
 import type { AgentChatMessage } from "@/types/ai";
+import type { ResumeProjectProfile } from "@/types/resumeHelper";
+
+interface SendResumeOptions {
+  /** 仅这些仓库进入上下文（逐个写简历） */
+  projectIds?: string[];
+  /** 是否拉 diff 证据；列表类可关 */
+  enrich?: boolean;
+  /**
+   * 成稿后再提示「无提交/失败未生成」的仓库。
+   * 仅全量/列出类为 true；单项目成稿不要开，避免答非所问。
+   */
+  notifySkipped?: boolean;
+}
 
 const COMPOSER_BOTTOM_OFFSET_PX = 12;
 /** 含快捷操作行的底栏预估高度，避免首帧消息被遮挡 */
-const COMPOSER_PAD_FALLBACK_PX = 188;
+/** 含快捷操作 + 项目点选行的底栏预估高度 */
+const COMPOSER_PAD_FALLBACK_PX = 220;
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 
 /** 简历帮子窗主界面：画像加载 + 对话 */
@@ -38,6 +59,8 @@ export function ResumeHelperWorkspace() {
   const replyAbortRef = useRef<AbortController | null>(null);
   const messageSeq = useRef(0);
   const greetedRef = useRef(false);
+  /** 最近一次成稿目标仓，供「加强表述」复用 */
+  const lastTargetProjectIdRef = useRef<string | null>(null);
 
   const [draftMarkup, setDraftMarkup] = useState("");
   const [draftPlainText, setDraftPlainText] = useState("");
@@ -96,12 +119,22 @@ export function ResumeHelperWorkspace() {
     };
   }, [setGitAuthors]);
 
+  // 作者账号就绪后再拉画像：有账号时走 --author 全量，避免他人提交占抽样预算
+  const authorsKey = gitAuthors
+    .map((author) => `${author.name.trim().toLowerCase()}<${author.email.trim().toLowerCase()}>`)
+    .join("|");
+
   useEffect(() => {
+    if (!gitAuthorsReady) {
+      return;
+    }
     let active = true;
     setProfilesLoading(true);
     void projectService
       .list()
-      .then((projects) => buildResumeProfiles(projects))
+      .then((projects) =>
+        buildResumeProfiles(projects, useResumeHelperStore.getState().gitAuthors),
+      )
       .then((next) => {
         if (active) setProfiles(next);
       })
@@ -113,7 +146,7 @@ export function ResumeHelperWorkspace() {
     return () => {
       active = false;
     };
-  }, [setProfiles, setProfilesLoading, t]);
+  }, [gitAuthorsReady, authorsKey, setProfiles, setProfilesLoading, t]);
 
   useEffect(() => {
     if (
@@ -224,10 +257,32 @@ export function ResumeHelperWorkspace() {
     });
   }
 
-  async function sendUserContent(content: string): Promise<void> {
+  const matchedProfiles = useMemo(
+    () => filterProfilesByAuthor(profiles, gitAuthors),
+    [profiles, gitAuthors],
+  );
+
+  async function sendUserContent(
+    content: string,
+    options: SendResumeOptions = {},
+  ): Promise<void> {
     const trimmed = content.trim();
     if (!trimmed || isReplying || profilesLoading) {
       return;
+    }
+
+    const currentAuthors = useResumeHelperStore.getState().gitAuthors;
+    const filtered = filterProfilesByAuthor(
+      useResumeHelperStore.getState().profiles,
+      currentAuthors,
+    );
+    const targets = resolveTargetProfiles(filtered, trimmed, options.projectIds);
+    if (targets.length === 0) {
+      toast.message(t("resumeHelper.pickProjectHint"));
+      return;
+    }
+    if (targets.length === 1) {
+      lastTargetProjectIdRef.current = targets[0]!.projectId;
     }
 
     const askedAt = new Date().toISOString();
@@ -265,18 +320,28 @@ export function ResumeHelperWorkspace() {
     replyAbortRef.current = controller;
 
     const currentIdentity = useResumeHelperStore.getState().identity;
-    const currentAuthors = useResumeHelperStore.getState().gitAuthors;
     const history = [...useResumeHelperStore.getState().messages].filter(
       (message) => message.id !== assistantId,
     );
 
+    let reasoningStartedAt: number | null = null;
+    let reasoningDurationSettled = false;
+    const settleReasoningDuration = (): void => {
+      if (reasoningDurationSettled || reasoningStartedAt == null) {
+        return;
+      }
+      reasoningDurationSettled = true;
+      updateMessage(assistantId, {
+        reasoningDurationMs: Date.now() - reasoningStartedAt,
+      });
+    };
+
     try {
-      const filtered = filterProfilesByAuthor(
-        useResumeHelperStore.getState().profiles,
-        currentAuthors,
-      );
-      // 只读拉取提交改动文件与 diff 摘录，禁止任何写操作
-      const withCode = await enrichProfilesWithCodeEvidence(filtered);
+      // 默认只 enrich 目标仓；列表类可跳过 diff，降低内存与 IO
+      const withCode =
+        options.enrich === false
+          ? targets
+          : await enrichProfilesWithCodeEvidence(targets);
       await streamResumeHelperReply({
         messages: history,
         profiles: withCode,
@@ -284,7 +349,23 @@ export function ResumeHelperWorkspace() {
         gitAuthors: currentAuthors,
         locale,
         signal: controller.signal,
+        onReasoningDelta: (delta) => {
+          if (reasoningStartedAt == null) {
+            reasoningStartedAt = Date.now();
+          }
+          flushSync(() => {
+            const current = useResumeHelperStore
+              .getState()
+              .messages.find((message) => message.id === assistantId);
+            updateMessage(assistantId, {
+              reasoningContent: `${current?.reasoningContent ?? ""}${delta}`,
+              isStreaming: true,
+            });
+          });
+        },
         onDelta: (delta) => {
+          // 正文开始视为深度思考结束
+          settleReasoningDuration();
           flushSync(() => {
             const current = useResumeHelperStore
               .getState()
@@ -296,10 +377,28 @@ export function ResumeHelperWorkspace() {
           });
         },
       });
+      settleReasoningDuration();
       updateMessage(assistantId, {
         isStreaming: false,
         createdAt: new Date().toISOString(),
       });
+
+      // 仅全量/列出等显式开启时，再提示未生成的仓库；单项目成稿不追加
+      if (options.notifySkipped === true) {
+        const followUp = buildSkippedProjectsFollowUp(
+          useResumeHelperStore.getState().profiles,
+          currentAuthors,
+          t,
+        );
+        if (followUp) {
+          appendMessage({
+            id: nextMessageId(),
+            role: "assistant",
+            content: followUp,
+            createdAt: new Date().toISOString(),
+          });
+        }
+      }
     } catch (error) {
       removeMessage(assistantId);
       toast.error(toUserMessage(error) || t("resumeHelper.replyFailed"));
@@ -317,27 +416,219 @@ export function ResumeHelperWorkspace() {
     await sendUserContent(draftPlainText);
   }
 
+  /**
+   * 全量成稿：按仓库串行 enrich + 请求模型（一次只打一个仓），
+   * 宁可更久，避免并发把机器打满。
+   */
+  async function draftAllProjectsSequentially(): Promise<void> {
+    if (isReplying || profilesLoading) {
+      return;
+    }
+
+    const currentAuthors = useResumeHelperStore.getState().gitAuthors;
+    const targets = filterProfilesByAuthor(
+      useResumeHelperStore.getState().profiles,
+      currentAuthors,
+    );
+    if (targets.length === 0) {
+      toast.message(t("resumeHelper.pickProjectHint"));
+      return;
+    }
+
+    const askedAt = new Date().toISOString();
+    const userMessage: AgentChatMessage = {
+      id: nextMessageId(),
+      role: "user",
+      content: t("resumeHelper.quickDraftAllPrompt"),
+      createdAt: askedAt,
+    };
+    const progressId = nextMessageId();
+
+    flushSync(() => {
+      clearDraft();
+      appendMessage(userMessage);
+      appendMessage({
+        id: progressId,
+        role: "assistant",
+        content: t("resumeHelper.sequentialProgress", {
+          current: 0,
+          total: targets.length,
+          name: "…",
+        }),
+        createdAt: askedAt,
+        isStreaming: true,
+      });
+      setIsReplying(true);
+    });
+
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+
+    const controller = new AbortController();
+    replyAbortRef.current = controller;
+    const currentIdentity = useResumeHelperStore.getState().identity;
+    let completed = 0;
+
+    try {
+      for (let index = 0; index < targets.length; index += 1) {
+        if (controller.signal.aborted) {
+          break;
+        }
+        const profile = targets[index]!;
+        lastTargetProjectIdRef.current = profile.projectId;
+
+        updateMessage(progressId, {
+          content: t("resumeHelper.sequentialProgress", {
+            current: index + 1,
+            total: targets.length,
+            name: profile.projectName,
+          }),
+          isStreaming: true,
+        });
+
+        // 一次只 enrich / 请求一个仓
+        const withCode = await enrichProfilesWithCodeEvidence([profile]);
+        if (controller.signal.aborted) {
+          break;
+        }
+
+        const draftId = nextMessageId();
+        const draftAskedAt = new Date().toISOString();
+        flushSync(() => {
+          appendMessage({
+            id: draftId,
+            role: "assistant",
+            content: "",
+            createdAt: draftAskedAt,
+            isStreaming: true,
+          });
+        });
+
+        const turnMessages: AgentChatMessage[] = [
+          {
+            id: `resume-seq-user-${index}`,
+            role: "user",
+            content: t("resumeHelper.quickDraftOnePrompt", {
+              name: profile.projectName,
+            }),
+            createdAt: draftAskedAt,
+          },
+        ];
+
+        let reasoningStartedAt: number | null = null;
+        let reasoningDurationSettled = false;
+        const settleReasoningDuration = (): void => {
+          if (reasoningDurationSettled || reasoningStartedAt == null) {
+            return;
+          }
+          reasoningDurationSettled = true;
+          updateMessage(draftId, {
+            reasoningDurationMs: Date.now() - reasoningStartedAt,
+          });
+        };
+
+        try {
+          await streamResumeHelperReply({
+            messages: turnMessages,
+            profiles: withCode,
+            identity: currentIdentity,
+            gitAuthors: currentAuthors,
+            locale,
+            signal: controller.signal,
+            onReasoningDelta: (delta) => {
+              if (reasoningStartedAt == null) {
+                reasoningStartedAt = Date.now();
+              }
+              flushSync(() => {
+                const current = useResumeHelperStore
+                  .getState()
+                  .messages.find((message) => message.id === draftId);
+                updateMessage(draftId, {
+                  reasoningContent: `${current?.reasoningContent ?? ""}${delta}`,
+                  isStreaming: true,
+                });
+              });
+            },
+            onDelta: (delta) => {
+              settleReasoningDuration();
+              flushSync(() => {
+                const current = useResumeHelperStore
+                  .getState()
+                  .messages.find((message) => message.id === draftId);
+                updateMessage(draftId, {
+                  content: `${current?.content ?? ""}${delta}`,
+                  isStreaming: true,
+                });
+              });
+            },
+          });
+          settleReasoningDuration();
+          updateMessage(draftId, {
+            isStreaming: false,
+            createdAt: new Date().toISOString(),
+          });
+          completed += 1;
+        } catch (error) {
+          removeMessage(draftId);
+          if (controller.signal.aborted) {
+            throw error;
+          }
+          // 单仓失败不中断后续，提示后继续
+          appendMessage({
+            id: nextMessageId(),
+            role: "assistant",
+            content: t("resumeHelper.sequentialItemFailed", {
+              name: profile.projectName,
+              reason: toUserMessage(error) || t("resumeHelper.replyFailed"),
+            }),
+            createdAt: new Date().toISOString(),
+          });
+        }
+
+        // 让出事件循环，避免长时间占满主线程
+        await new Promise<void>((resolve) => {
+          window.setTimeout(() => resolve(), 0);
+        });
+      }
+
+      updateMessage(progressId, {
+        content: t("resumeHelper.sequentialDone", { count: completed }),
+        isStreaming: false,
+        createdAt: new Date().toISOString(),
+      });
+
+      const followUp = buildSkippedProjectsFollowUp(
+        useResumeHelperStore.getState().profiles,
+        currentAuthors,
+        t,
+      );
+      if (followUp) {
+        appendMessage({
+          id: nextMessageId(),
+          role: "assistant",
+          content: followUp,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    } catch (error) {
+      updateMessage(progressId, {
+        content: t("resumeHelper.sequentialAborted", { count: completed }),
+        isStreaming: false,
+      });
+      toast.error(toUserMessage(error) || t("resumeHelper.replyFailed"));
+    } finally {
+      if (replyAbortRef.current === controller) {
+        replyAbortRef.current = null;
+      }
+      setIsReplying(false);
+      window.requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }
+
   const quickActionsDisabled = isReplying || profilesLoading;
-  const quickActions = [
-    {
-      id: "draft-all",
-      label: t("resumeHelper.quickDraftAll"),
-      prompt: t("resumeHelper.quickDraftAllPrompt"),
-      icon: FileStack,
-    },
-    {
-      id: "list-projects",
-      label: t("resumeHelper.quickListProjects"),
-      prompt: t("resumeHelper.quickListProjectsPrompt"),
-      icon: ListTree,
-    },
-    {
-      id: "rewrite-evidence",
-      label: t("resumeHelper.quickRewriteEvidence"),
-      prompt: t("resumeHelper.quickRewriteEvidencePrompt"),
-      icon: FileCode2,
-    },
-  ] as const;
 
   return (
     <main className="bg-background text-foreground flex h-screen min-h-0 w-full flex-col overflow-hidden">
@@ -354,6 +645,11 @@ export function ResumeHelperWorkspace() {
         ) : (
           <span className="text-muted-foreground ml-auto text-xs">
             {t("resumeHelper.projectCount", { count: profiles.length })}
+            {matchedProfiles.length > 0
+              ? ` · ${t("resumeHelper.matchedProjectCount", {
+                  count: matchedProfiles.length,
+                })}`
+              : ""}
           </span>
         )}
       </header>
@@ -385,30 +681,105 @@ export function ResumeHelperWorkspace() {
           canSubmit={!profilesLoading && draftPlainText.trim().length > 0}
           placeholder={t("resumeHelper.inputPlaceholder")}
           topAccessory={
-            <div
-              className="flex min-w-0 flex-wrap items-center gap-1.5"
-              role="group"
-              aria-label={t("resumeHelper.quickActionsAria")}
-            >
-              {quickActions.map((action) => {
-                const Icon = action.icon;
-                return (
-                  <Button
-                    key={action.id}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="border-border h-7 shrink-0 gap-1 px-2 text-[11px] shadow-none"
-                    disabled={quickActionsDisabled}
-                    onClick={() => {
-                      void sendUserContent(action.prompt);
-                    }}
-                  >
-                    <Icon className="size-3.5" aria-hidden="true" />
-                    {action.label}
-                  </Button>
-                );
-              })}
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <div
+                className="flex min-w-0 flex-wrap items-center gap-1.5"
+                role="group"
+                aria-label={t("resumeHelper.quickActionsAria")}
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-border h-7 shrink-0 gap-1 px-2 text-[11px] shadow-none"
+                  disabled={quickActionsDisabled || matchedProfiles.length === 0}
+                  title={t("resumeHelper.quickDraftAllHint")}
+                  onClick={() => {
+                    void draftAllProjectsSequentially();
+                  }}
+                >
+                  <FileStack className="size-3.5" aria-hidden="true" />
+                  {t("resumeHelper.quickDraftAll")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-border h-7 shrink-0 gap-1 px-2 text-[11px] shadow-none"
+                  disabled={quickActionsDisabled}
+                  title={t("resumeHelper.quickListProjectsHint")}
+                  onClick={() => {
+                    void sendUserContent(t("resumeHelper.quickListProjectsPrompt"), {
+                      enrich: false,
+                      projectIds: matchedProfiles.map((item) => item.projectId),
+                      notifySkipped: true,
+                    });
+                  }}
+                >
+                  <ListTree className="size-3.5" aria-hidden="true" />
+                  {t("resumeHelper.quickListProjects")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-border h-7 shrink-0 gap-1 px-2 text-[11px] shadow-none"
+                  disabled={quickActionsDisabled}
+                  onClick={() => {
+                    const lastId = lastTargetProjectIdRef.current;
+                    const projectIds = lastId
+                      ? [lastId]
+                      : matchedProfiles.length === 1
+                        ? [matchedProfiles[0]!.projectId]
+                        : undefined;
+                    if (!projectIds) {
+                      toast.message(t("resumeHelper.pickProjectHint"));
+                      return;
+                    }
+                    void sendUserContent(t("resumeHelper.quickRewriteEvidencePrompt"), {
+                      enrich: false,
+                      projectIds,
+                      notifySkipped: false,
+                    });
+                  }}
+                >
+                  <FileCode2 className="size-3.5" aria-hidden="true" />
+                  {t("resumeHelper.quickRewriteEvidence")}
+                </Button>
+              </div>
+              {matchedProfiles.length > 0 ? (
+                <div
+                  className="flex max-h-16 min-w-0 flex-wrap gap-1 overflow-y-auto"
+                  role="group"
+                  aria-label={t("resumeHelper.projectPickerAria")}
+                >
+                  {matchedProfiles.map((profile) => (
+                    <Button
+                      key={profile.projectId}
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-7 max-w-[11rem] shrink-0 truncate px-2 text-[11px] shadow-none"
+                      disabled={quickActionsDisabled}
+                      title={profile.projectName}
+                      onClick={() => {
+                        void sendUserContent(
+                          t("resumeHelper.quickDraftOnePrompt", {
+                            name: profile.projectName,
+                          }),
+                          {
+                            projectIds: [profile.projectId],
+                            enrich: true,
+                            notifySkipped: false,
+                          },
+                        );
+                      }}
+                    >
+                      {profile.projectName}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           }
           onDraftChange={({ markup, plainText }) => {
@@ -422,4 +793,80 @@ export function ResumeHelperWorkspace() {
       </div>
     </main>
   );
+}
+
+/**
+ * 解析本轮目标仓库：优先显式 projectIds，其次消息里点名的项目名。
+ * 多仓且未点名时返回空，迫使逐个点选，避免全量 enrich 打满机器。
+ */
+function resolveTargetProfiles(
+  filtered: readonly ResumeProjectProfile[],
+  content: string,
+  projectIds?: string[],
+): ResumeProjectProfile[] {
+  if (projectIds && projectIds.length > 0) {
+    const idSet = new Set(projectIds);
+    return filtered.filter((profile) => idSet.has(profile.projectId));
+  }
+
+  const named = filtered.filter((profile) => {
+    const name = profile.projectName.trim();
+    return name.length > 0 && content.includes(name);
+  });
+  if (named.length > 0) {
+    return named;
+  }
+
+  if (filtered.length <= 1) {
+    return [...filtered];
+  }
+  return [];
+}
+
+type ResumeTranslate = (
+  key: string,
+  options?: Record<string, string | number>,
+) => string;
+
+/** 根据画像汇总「无更改记录 / 扫描失败」未生成清单，作为第二条助手消息 */
+function buildSkippedProjectsFollowUp(
+  profiles: readonly ResumeProjectProfile[],
+  authors: ReadonlyArray<{ name: string; email: string }>,
+  t: ResumeTranslate,
+): string | null {
+  if (profiles.length === 0) {
+    return null;
+  }
+
+  const matchedIds = new Set(
+    filterProfilesByAuthor(profiles, authors).map((profile) => profile.projectId),
+  );
+  const noCommits: string[] = [];
+  const failed: string[] = [];
+
+  for (const profile of profiles) {
+    if (profile.error) {
+      failed.push(profile.projectName);
+      continue;
+    }
+    if (!matchedIds.has(profile.projectId)) {
+      noCommits.push(profile.projectName);
+    }
+  }
+
+  const parts: string[] = [];
+  if (noCommits.length > 0) {
+    parts.push(
+      t("resumeHelper.skippedNoCommits", { names: noCommits.join("、") }),
+    );
+  }
+  if (failed.length > 0) {
+    parts.push(
+      t("resumeHelper.skippedScanFailed", { names: failed.join("、") }),
+    );
+  }
+  if (parts.length === 0) {
+    return null;
+  }
+  return parts.join("\n");
 }

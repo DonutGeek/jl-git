@@ -15,7 +15,9 @@ export interface ResumeProjectProfile {
   projectPath?: string;
   /** 是否汇总失败 */
   error?: string;
+  /** 作者参与：最早提交（接手）ISO 时间 */
   firstCommitAt: string | null;
+  /** 作者参与：最晚提交 ISO 时间 */
   lastCommitAt: string | null;
   sampledCommitCount: number;
   /**

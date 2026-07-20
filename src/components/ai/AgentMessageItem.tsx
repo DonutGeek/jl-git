@@ -3,6 +3,7 @@ import { LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AgentMessageCopyButton } from "@/components/ai/AgentMessageCopyButton";
+import { AgentReasoningBlock } from "@/components/ai/AgentReasoningBlock";
 import {
   AgentRichMessage,
   parseAgentMessage,
@@ -43,25 +44,26 @@ export function AgentMessageItem({ message, onCompareBranches }: AgentMessageIte
             : "bg-muted text-foreground whitespace-normal",
         )}
       >
+        {!isUser && message.reasoningContent ? (
+          <AgentReasoningBlock
+            reasoning={message.reasoningContent}
+            isStreaming={Boolean(message.isStreaming)}
+            hasAnswer={Boolean(message.content.trim())}
+            durationMs={message.reasoningDurationMs}
+          />
+        ) : null}
         {message.content ? (
           <AgentRichMessage
             {...parseAgentMessage(message.content)}
             onCompareBranches={onCompareBranches}
+            trailingCursor={Boolean(message.isStreaming)}
           />
         ) : null}
-        {message.isStreaming ? (
-          message.content ? (
-            // 流式出字：末尾光标，避免转圈抢注意力
-            <span
-              className="bg-foreground ml-0.5 inline-block h-3 w-0.5 animate-pulse align-middle"
-              aria-hidden="true"
-            />
-          ) : (
-            <span className="inline-flex items-center gap-1.5">
-              <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
-              <span>{t("agent.thinking")}</span>
-            </span>
-          )
+        {message.isStreaming && !message.content && !message.reasoningContent ? (
+          <span className="inline-flex items-center gap-1.5">
+            <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
+            <span>{t("agent.thinking")}</span>
+          </span>
         ) : null}
       </div>
       {!message.isStreaming && message.content.trim() ? (

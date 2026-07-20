@@ -231,13 +231,13 @@ interface GitBranch {
 | | |
 |--|--|
 | **目的** | 提交历史（分页） |
-| **输入** | `{ path: string; skip?: number; limit?: number; ref?: string; all?: boolean; order?: "default" \| "topo" \| "date"; filePath?: string }` |
+| **输入** | `{ path: string; skip?: number; limit?: number; ref?: string; all?: boolean; order?: "default" \| "topo" \| "date"; filePath?: string; authors?: string[]; reverse?: boolean }` |
 | **输出** | `{ commits: GitCommitSummary[]; hasMore: boolean }`（`GitCommitSummary` 含 `id/shortId/authorName/authorEmail/authoredAt/subject/parentIds/refs/coAuthors`） |
-| **错误** | 同 status 类；`VALIDATION`（limit 过大 / `all` 与 `ref` 同时指定 / 非法 order） |
+| **错误** | 同 status 类；`VALIDATION`（limit 过大 / `all` 与 `ref` 同时指定 / 非法 order / 非法 authors） |
 
-默认 `limit=50`，硬上限建议 200。`all=true` 时等价 `git log --all`（所有引用可达历史，与 UI「所有分支」对齐）；`ref` 指定单分支/标签；二者互斥。未传 `all` 且无 `ref` 时仍为当前 HEAD。`order`：`topo` → `--topo-order`，`date` → `--date-order`，省略/`default` 为 git 默认序。`parentIds` 来自 `%P`，用于历史图谱的分叉与合并连线。`refs` 来自 `git log --decorate` 的 `%D`（远端分支展示为 `origin&name`）。`coAuthors` 来自 `Co-authored-by` trailer（`%(trailers:key=Co-authored-by)`）。
+默认 `limit=50`，硬上限建议 200。`all=true` 时等价 `git log --all`（所有引用可达历史，与 UI「所有分支」对齐）；`ref` 指定单分支/标签；二者互斥。未传 `all` 且无 `ref` 时仍为当前 HEAD。`order`：`topo` → `--topo-order`，`date` → `--date-order`，省略/`default` 为 git 默认序。`authors` 为可选作者匹配模式（多条对应多个 `--author`，OR；最多 16 条；调用方转义正则特殊字符）。`reverse=true` 时加 `--reverse`（从旧到新）。`parentIds` 来自 `%P`，用于历史图谱的分叉与合并连线。`refs` 来自 `git log --decorate` 的 `%D`（远端分支展示为 `origin&name`）。`coAuthors` 来自 `Co-authored-by` trailer（`%(trailers:key=Co-authored-by)`）。
 
-**消费方补充：**「简历帮」通过前端循环调用只读 Command 汇总画像：`git_log`（分页抽样，单次 ≤200、累计约 400）+ `git_ls_tree`（定位 `package.json` / README）+ `git_read_worktree_file`（解析依赖主技术栈与 README 摘录）+ `git_show` / `git_commit_file_diff`（作者改动文件与 diff 摘录）。项目名/简介由模型判断 README 是否可用后再写入。**禁止**对简历帮路径开放任何写操作；**不新增**专用 `git_resume_*` Command。
+**消费方补充：**「简历帮」通过前端循环调用只读 Command 汇总画像：`git_log`（有 Git 账号时带 `authors` 分页，单次 ≤200、累计约 500，再时间分桶；并用 `reverse+limit=1` 取作者最早接手时间；无账号时近期窗口约 400）+ `git_ls_tree`（定位 `package.json` / README）+ `git_read_worktree_file`（解析依赖主技术栈与 README 摘录）+ `git_show` / `git_commit_file_diff`（**按用户点选的单仓**拉取 diff 摘录，避免全量并发）。成稿须含 **项目周期**（作者首提交→末次提交）。项目名/简介由模型判断 README 是否可用后再写入。**禁止**对简历帮路径开放任何写操作；**不新增**专用 `git_resume_*` Command。
 
 ### `git_blame`
 

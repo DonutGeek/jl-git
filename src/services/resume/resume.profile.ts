@@ -17,21 +17,28 @@ import type {
   ResumeProjectProfile,
 } from "@/types/resumeHelper";
 
-/** git_log 单次硬上限 200；分页累加到此总量 */
+/** git_log 单次硬上限 200 */
 const LOG_PAGE_SIZE = 200;
+/** 未配置作者时：全库近期窗口抽样上限 */
 const LOG_SAMPLE_LIMIT = 400;
+/** 已配置作者时：按 --author 分页拉取上限（他人提交不占预算） */
+const AUTHOR_LOG_CAP = 500;
+/** 时间分桶后写入画像 / 模型 subjectIndex 的提交上限 */
 const AUTHOR_COMMIT_LIMIT = 48;
-const PROFILE_CONCURRENCY = 3;
+/** 时间分桶数量（覆盖职业生涯各阶段） */
+const TIME_BUCKET_COUNT = 8;
+/** 扫描并发压低，避免多仓同时打满机器 */
+const PROFILE_CONCURRENCY = 1;
 
 /** 每仓最多为多少条提交拉取代码证据（只读） */
-const CODE_EVIDENCE_COMMIT_LIMIT = 8;
+const CODE_EVIDENCE_COMMIT_LIMIT = 6;
 /** 为技术栈使用证据额外拉取改动路径的提交数 */
-const TECH_PATH_COMMIT_LIMIT = 24;
+const TECH_PATH_COMMIT_LIMIT = 12;
 /** 每条提交最多取样几个文件的 diff */
 const CODE_EVIDENCE_FILES_PER_COMMIT = 2;
 const CODE_DIFF_MAX_BYTES = 4_096;
 const CODE_SNIPPET_MAX_CHARS = 1_200;
-const CODE_ENRICH_CONCURRENCY = 2;
+const CODE_ENRICH_CONCURRENCY = 1;
 const PACKAGE_JSON_MAX_BYTES = 256_000;
 const README_MAX_BYTES = 48_000;
 const README_EXCERPT_CHARS = 3_500;
@@ -59,13 +66,21 @@ const FALLBACK_TECH_FILES: ReadonlyArray<{ file: string; hint: string }> = [
   { file: "tauri.conf.json", hint: "Tauri" },
 ];
 
+export interface ResumeAuthorFilter {
+  name: string;
+  email: string;
+}
+
 /**
  * 并行汇总全部已登记仓库画像（限并发）。
- * 时间范围为抽样窗口内最早/最晚提交，非全库精确首 commit（MVP）。
+ * 已配置作者时：`git log --author` 尽量全量拉取；发送前再时间分桶。
+ * 未配置时：近期窗口抽样（兼容旧行为）。
  */
 export async function buildResumeProfiles(
   projects: readonly Project[],
+  authors: readonly ResumeAuthorFilter[] = [],
 ): Promise<ResumeProjectProfile[]> {
+  const authorPatterns = toGitAuthorPatterns(authors);
   const results: ResumeProjectProfile[] = new Array(projects.length);
   let cursor = 0;
 
@@ -75,7 +90,7 @@ export async function buildResumeProfiles(
       cursor += 1;
       const project = projects[index];
       if (!project) continue;
-      results[index] = await buildOneProfile(project);
+      results[index] = await buildOneProfile(project, authorPatterns);
     }
   }
 
@@ -85,11 +100,6 @@ export async function buildResumeProfiles(
   );
   await Promise.all(workers);
   return results;
-}
-
-export interface ResumeAuthorFilter {
-  name: string;
-  email: string;
 }
 
 /**
@@ -111,14 +121,20 @@ export function filterProfilesByAuthor(
     // 未配置作者时仍只保留有抽样提交的仓，避免空仓进成稿
     return profiles
       .filter((profile) => !profile.error && profile.recentCommits.length > 0)
-      .map((profile) => ({
-        ...profile,
-        recentCommits: profile.recentCommits.slice(0, AUTHOR_COMMIT_LIMIT),
-        sampledCommitCount: Math.min(
-          profile.recentCommits.length,
+      .map((profile) => {
+        const sampled = selectTimeBucketedCommits(
+          profile.recentCommits,
           AUTHOR_COMMIT_LIMIT,
-        ),
-      }));
+        );
+        // 周期用全量抽样窗口，不被分桶截断
+        return {
+          ...profile,
+          recentCommits: sampled,
+          sampledCommitCount: sampled.length,
+          firstCommitAt: earliestAuthoredAt(profile.recentCommits),
+          lastCommitAt: latestAuthoredAt(profile.recentCommits),
+        };
+      });
   }
 
   const next: ResumeProjectProfile[] = [];
@@ -126,23 +142,125 @@ export function filterProfilesByAuthor(
     if (profile.error) {
       continue;
     }
-    const matched = profile.recentCommits
-      .filter((commit) =>
-        filters.some((filter) => commitMatchesAuthor(commit, filter)),
-      )
-      .slice(0, AUTHOR_COMMIT_LIMIT);
+    const matched = profile.recentCommits.filter((commit) =>
+      filters.some((filter) => commitMatchesAuthor(commit, filter)),
+    );
     if (matched.length === 0) {
       continue;
     }
+    const sampled = selectTimeBucketedCommits(matched, AUTHOR_COMMIT_LIMIT);
+    // 接手/末次：优先保留构建期 reverse 精确值，并与匹配集取并集
     next.push({
       ...profile,
-      recentCommits: matched,
-      sampledCommitCount: matched.length,
-      firstCommitAt: earliestAuthoredAt(matched),
-      lastCommitAt: latestAuthoredAt(matched),
+      recentCommits: sampled,
+      sampledCommitCount: sampled.length,
+      firstCommitAt: minIsoDate(
+        profile.firstCommitAt,
+        earliestAuthoredAt(matched),
+      ),
+      lastCommitAt: maxIsoDate(
+        profile.lastCommitAt,
+        latestAuthoredAt(matched),
+      ),
     });
   }
   return next;
+}
+
+/**
+ * 将 `--author` 用的正则特殊字符转义；优先邮箱，否则姓名。
+ */
+export function toGitAuthorPatterns(
+  authors: readonly ResumeAuthorFilter[],
+): string[] {
+  const patterns: string[] = [];
+  for (const author of authors) {
+    const email = author.email.trim();
+    const name = author.name.trim();
+    if (email) {
+      patterns.push(escapeGitAuthorRegex(email));
+    } else if (name) {
+      patterns.push(escapeGitAuthorRegex(name));
+    }
+  }
+  return [...new Set(patterns)];
+}
+
+function escapeGitAuthorRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * 按时间分桶均匀抽样，覆盖早期→近期各阶段（非仅最近窗口）。
+ * 返回按 authoredAt 从新到旧。
+ */
+export function selectTimeBucketedCommits<T extends { id: string; authoredAt: string }>(
+  commits: readonly T[],
+  limit: number,
+): T[] {
+  if (limit <= 0 || commits.length === 0) {
+    return [];
+  }
+  if (commits.length <= limit) {
+    return [...commits].sort((a, b) => b.authoredAt.localeCompare(a.authoredAt));
+  }
+
+  const sorted = [...commits].sort((a, b) =>
+    a.authoredAt.localeCompare(b.authoredAt),
+  );
+  const bucketCount = Math.min(TIME_BUCKET_COUNT, limit, sorted.length);
+  const basePerBucket = Math.floor(limit / bucketCount);
+  let remainder = limit % bucketCount;
+  const picked: T[] = [];
+  const seen = new Set<string>();
+
+  for (let i = 0; i < bucketCount; i += 1) {
+    const start = Math.floor((i / bucketCount) * sorted.length);
+    const end = Math.floor(((i + 1) / bucketCount) * sorted.length);
+    const bucket = sorted.slice(start, Math.max(start + 1, end));
+    const take = basePerBucket + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) {
+      remainder -= 1;
+    }
+    for (const commit of pickEvenlySpaced(bucket, take)) {
+      if (seen.has(commit.id)) continue;
+      seen.add(commit.id);
+      picked.push(commit);
+    }
+  }
+
+  // 若分桶未凑满（极端重复时间戳等），用全局均匀补齐
+  if (picked.length < limit) {
+    for (const commit of pickEvenlySpaced(sorted, limit)) {
+      if (seen.has(commit.id)) continue;
+      seen.add(commit.id);
+      picked.push(commit);
+      if (picked.length >= limit) break;
+    }
+  }
+
+  return picked
+    .slice(0, limit)
+    .sort((a, b) => b.authoredAt.localeCompare(a.authoredAt));
+}
+
+/** 在序列内均匀取 n 个（含首尾），保序 */
+function pickEvenlySpaced<T>(items: readonly T[], count: number): T[] {
+  if (count <= 0 || items.length === 0) {
+    return [];
+  }
+  if (count >= items.length) {
+    return [...items];
+  }
+  if (count === 1) {
+    return [items[Math.floor(items.length / 2)]!];
+  }
+  const result: T[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const index = Math.round((i * (items.length - 1)) / (count - 1));
+    result.push(items[index]!);
+  }
+  return result;
 }
 
 function earliestAuthoredAt(
@@ -169,6 +287,18 @@ function latestAuthoredAt(
     }
   }
   return latest;
+}
+
+function minIsoDate(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return a < b ? a : b;
+}
+
+function maxIsoDate(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return a > b ? a : b;
 }
 
 /**
@@ -216,13 +346,17 @@ function commitMatchesAuthor(
   return (filter.name ? nameOk : true) && (filter.email ? emailOk : true);
 }
 
-async function buildOneProfile(project: Project): Promise<ResumeProjectProfile> {
+async function buildOneProfile(
+  project: Project,
+  authorPatterns: readonly string[],
+): Promise<ResumeProjectProfile> {
   try {
     const [logCommits, treeResult] = await Promise.all([
-      loadSampledLogCommits(project.path),
+      loadSampledLogCommits(project.path, authorPatterns),
       listTree(project.path, "HEAD").catch(() => ({ paths: [] as string[] })),
     ]);
 
+    // 构建阶段先保留作者侧全量（或近期窗口），发送前再分桶/二次过滤
     const commits: ResumeCommitSample[] = logCommits.map((commit) => ({
       id: commit.id,
       shortId: commit.shortId,
@@ -232,17 +366,11 @@ async function buildOneProfile(project: Project): Promise<ResumeProjectProfile> 
       authoredAt: commit.authoredAt,
     }));
 
-    let firstCommitAt: string | null = null;
-    let lastCommitAt: string | null = null;
-    for (const commit of commits) {
-      if (!commit.authoredAt) continue;
-      if (!firstCommitAt || commit.authoredAt < firstCommitAt) {
-        firstCommitAt = commit.authoredAt;
-      }
-      if (!lastCommitAt || commit.authoredAt > lastCommitAt) {
-        lastCommitAt = commit.authoredAt;
-      }
-    }
+    const range = await resolveAuthorInvolvementRange(
+      project.path,
+      authorPatterns,
+      commits,
+    );
 
     const [packageTechStack, readme] = await Promise.all([
       loadPackageTechStack(project.path, treeResult.paths),
@@ -257,14 +385,13 @@ async function buildOneProfile(project: Project): Promise<ResumeProjectProfile> 
       projectId: project.id,
       projectName: project.name,
       projectPath: project.path,
-      firstCommitAt,
-      lastCommitAt,
+      firstCommitAt: range.firstCommitAt,
+      lastCommitAt: range.lastCommitAt,
       sampledCommitCount: commits.length,
       packageTechStack,
       techStackHints,
       readmePath: readme?.path,
       readmeExcerpt: readme?.excerpt,
-      // 保留抽样窗口内全部提交，供作者匹配后再截断
       recentCommits: commits,
     };
   } catch (error) {
@@ -283,30 +410,38 @@ async function buildOneProfile(project: Project): Promise<ResumeProjectProfile> 
   }
 }
 
-/** 分页拉取抽样提交（单次 ≤200，累计到 LOG_SAMPLE_LIMIT） */
-async function loadSampledLogCommits(repoPath: string): Promise<
-  Array<{
-    id: string;
-    shortId: string;
-    subject: string;
-    authorName: string;
-    authorEmail: string;
-    authoredAt: string;
-  }>
-> {
-  const commits: Array<{
-    id: string;
-    shortId: string;
-    subject: string;
-    authorName: string;
-    authorEmail: string;
-    authoredAt: string;
-  }> = [];
+type LogCommitRow = {
+  id: string;
+  shortId: string;
+  subject: string;
+  authorName: string;
+  authorEmail: string;
+  authoredAt: string;
+};
+
+/**
+ * 分页拉取提交。
+ * - 有作者模式：`git log --all --author=...`，累计到 AUTHOR_LOG_CAP
+ * - 无作者：近期窗口到 LOG_SAMPLE_LIMIT
+ */
+async function loadSampledLogCommits(
+  repoPath: string,
+  authorPatterns: readonly string[],
+): Promise<LogCommitRow[]> {
+  const cap =
+    authorPatterns.length > 0 ? AUTHOR_LOG_CAP : LOG_SAMPLE_LIMIT;
+  const commits: LogCommitRow[] = [];
   let skip = 0;
 
-  while (commits.length < LOG_SAMPLE_LIMIT) {
-    const limit = Math.min(LOG_PAGE_SIZE, LOG_SAMPLE_LIMIT - commits.length);
-    const page = await getLog(repoPath, { limit, skip, all: true });
+  while (commits.length < cap) {
+    const limit = Math.min(LOG_PAGE_SIZE, cap - commits.length);
+    const page = await getLog(repoPath, {
+      limit,
+      skip,
+      all: true,
+      authors:
+        authorPatterns.length > 0 ? [...authorPatterns] : undefined,
+    });
     if (page.commits.length === 0) {
       break;
     }
@@ -319,6 +454,42 @@ async function loadSampledLogCommits(repoPath: string): Promise<
 
   return commits;
 }
+
+/**
+ * 作者参与周期：末次取抽样中最新；有作者时再用 --reverse 精确取最早接手时间
+ * （避免 AUTHOR_LOG_CAP 截断导致「开始时间」偏晚）。
+ */
+async function resolveAuthorInvolvementRange(
+  repoPath: string,
+  authorPatterns: readonly string[],
+  commits: readonly ResumeCommitSample[],
+): Promise<{ firstCommitAt: string | null; lastCommitAt: string | null }> {
+  let firstCommitAt = earliestAuthoredAt(commits);
+  let lastCommitAt = latestAuthoredAt(commits);
+
+  if (authorPatterns.length === 0 || commits.length === 0) {
+    return { firstCommitAt, lastCommitAt };
+  }
+
+  try {
+    const oldestPage = await getLog(repoPath, {
+      limit: 1,
+      skip: 0,
+      all: true,
+      reverse: true,
+      authors: [...authorPatterns],
+    });
+    const oldestAt = oldestPage.commits[0]?.authoredAt;
+    if (oldestAt) {
+      firstCommitAt = minIsoDate(firstCommitAt, oldestAt);
+    }
+  } catch {
+    // 精确最早提交失败时回退抽样窗口内最早值
+  }
+
+  return { firstCommitAt, lastCommitAt };
+}
+
 async function enrichOneProfile(
   profile: ResumeProjectProfile,
 ): Promise<ResumeProjectProfile> {
@@ -327,17 +498,26 @@ async function enrichOneProfile(
   }
 
   const repoPath = profile.projectPath;
-  const targets = profile.recentCommits.slice(0, CODE_EVIDENCE_COMMIT_LIMIT);
-  const enriched = await Promise.all(
+  // 证据提交也按时间分桶，避免只抽最近几条
+  const targets = selectTimeBucketedCommits(
+    profile.recentCommits,
+    CODE_EVIDENCE_COMMIT_LIMIT,
+  );
+  const enrichedList = await Promise.all(
     targets.map((commit) => enrichCommit(repoPath, commit)),
   );
-  const recentCommits = [
-    ...enriched,
-    ...profile.recentCommits.slice(CODE_EVIDENCE_COMMIT_LIMIT),
-  ];
+  const enrichedById = new Map(
+    enrichedList.map((commit) => [commit.id, commit] as const),
+  );
+  const recentCommits = profile.recentCommits.map(
+    (commit) => enrichedById.get(commit.id) ?? commit,
+  );
 
   // 额外收集更多提交的改动路径，用于判断作者实际用过哪些技术
-  const pathCommits = recentCommits.slice(0, TECH_PATH_COMMIT_LIMIT);
+  const pathCommits = selectTimeBucketedCommits(
+    recentCommits,
+    TECH_PATH_COMMIT_LIMIT,
+  );
   const extraPaths = await collectTouchedPaths(repoPath, pathCommits);
 
   const paths = new Set<string>(extraPaths);

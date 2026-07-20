@@ -46,6 +46,10 @@ pub fn get_log(
     order: Option<&str>,
     // 可选：仅该仓库相对路径的历史（`git log -- <path>`）
     path: Option<&str>,
+    // 可选：作者匹配模式（`git log --author`，多条为 OR）
+    authors: Option<&[String]>,
+    // 为 true 时等价 `git log --reverse`（从旧到新；常用于取作者最早提交）
+    reverse: bool,
 ) -> Result<GitLogResult, AppError> {
     if limit == 0 {
         return Err(AppError::new("VALIDATION", "提交数量必须大于 0"));
@@ -66,6 +70,8 @@ pub fn get_log(
     if let Some(path) = path {
         crate::git::path::validate_repo_relative_paths(&[path.to_string()])?;
     }
+
+    let author_patterns = validate_author_patterns(authors)?;
 
     let order_flag = match order.map(str::trim).filter(|value| !value.is_empty()) {
         None | Some("default") => None,
@@ -89,8 +95,16 @@ pub fn get_log(
     if let Some(flag) = order_flag {
         args.push(flag.to_string());
     }
+    if reverse {
+        args.push("--reverse".to_string());
+    }
     args.push(format!("--skip={skip}"));
     args.push(format!("--max-count={fetch_limit}"));
+
+    // 多个 --author 为 OR；模式由调用方负责转义正则特殊字符
+    for pattern in &author_patterns {
+        args.push(format!("--author={pattern}"));
+    }
 
     // --all 必须在 revision 位置以选项形式传入，不能当作 ref 字符串（防注入校验会拒 - 前缀）
     if all {
@@ -173,6 +187,44 @@ pub fn parse_log(stdout: &str, limit: usize) -> GitLogResult {
 
 fn parse_parent_ids(raw: &str) -> Vec<String> {
     raw.split_whitespace().map(ToString::to_string).collect()
+}
+
+const MAX_AUTHOR_PATTERNS: usize = 16;
+const MAX_AUTHOR_PATTERN_LEN: usize = 256;
+
+/// 校验 `--author` 模式：禁控制字符，限制条数与长度（参数数组传递，不做 shell）
+fn validate_author_patterns(authors: Option<&[String]>) -> Result<Vec<String>, AppError> {
+    let Some(list) = authors else {
+        return Ok(Vec::new());
+    };
+    if list.len() > MAX_AUTHOR_PATTERNS {
+        return Err(AppError::new(
+            "VALIDATION",
+            format!("作者过滤最多 {MAX_AUTHOR_PATTERNS} 条"),
+        ));
+    }
+
+    let mut patterns = Vec::with_capacity(list.len());
+    for raw in list {
+        let pattern = raw.trim();
+        if pattern.is_empty() {
+            return Err(AppError::new("VALIDATION", "作者过滤不能为空"));
+        }
+        if pattern.len() > MAX_AUTHOR_PATTERN_LEN {
+            return Err(AppError::new(
+                "VALIDATION",
+                format!("作者过滤长度不能超过 {MAX_AUTHOR_PATTERN_LEN}"),
+            ));
+        }
+        if pattern.chars().any(|ch| ch.is_control()) {
+            return Err(AppError::new(
+                "VALIDATION",
+                "作者过滤不能包含控制字符",
+            ));
+        }
+        patterns.push(pattern.to_string());
+    }
+    Ok(patterns)
 }
 
 /// 解析 `Name <email>`；格式异常则跳过
@@ -329,7 +381,7 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07
     #[test]
     fn rejects_zero_limit_before_running_git() {
         let error =
-            get_log(Path::new("."), 0, 0, None, false, None, None)
+            get_log(Path::new("."), 0, 0, None, false, None, None, None, false)
                 .expect_err("zero limit should fail");
 
         assert_eq!(error.code, "VALIDATION");
@@ -337,24 +389,73 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07
 
     #[test]
     fn rejects_option_like_ref_before_running_git() {
-        let error = get_log(Path::new("."), 0, 50, Some("-main"), false, None, None)
-            .expect_err("invalid ref should fail");
+        let error = get_log(
+            Path::new("."),
+            0,
+            50,
+            Some("-main"),
+            false,
+            None,
+            None,
+            None,
+            false,
+        )
+        .expect_err("invalid ref should fail");
 
         assert_eq!(error.code, "VALIDATION");
     }
 
     #[test]
     fn rejects_all_together_with_ref() {
-        let error = get_log(Path::new("."), 0, 50, Some("main"), true, None, None)
-            .expect_err("all+ref should fail");
+        let error = get_log(
+            Path::new("."),
+            0,
+            50,
+            Some("main"),
+            true,
+            None,
+            None,
+            None,
+            false,
+        )
+        .expect_err("all+ref should fail");
 
         assert_eq!(error.code, "VALIDATION");
     }
 
     #[test]
     fn rejects_unknown_order() {
-        let error = get_log(Path::new("."), 0, 50, None, false, Some("author"), None)
-            .expect_err("unknown order should fail");
+        let error = get_log(
+            Path::new("."),
+            0,
+            50,
+            None,
+            false,
+            Some("author"),
+            None,
+            None,
+            false,
+        )
+        .expect_err("unknown order should fail");
+
+        assert_eq!(error.code, "VALIDATION");
+    }
+
+    #[test]
+    fn rejects_empty_author_pattern() {
+        let authors = vec!["".to_string()];
+        let error = get_log(
+            Path::new("."),
+            0,
+            50,
+            None,
+            false,
+            None,
+            None,
+            Some(&authors),
+            false,
+        )
+        .expect_err("empty author should fail");
 
         assert_eq!(error.code, "VALIDATION");
     }

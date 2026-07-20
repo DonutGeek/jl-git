@@ -13,9 +13,10 @@ const REQUEST_TIMEOUT_MS = 150_000;
 const HISTORY_LIMIT = 24;
 const CONTEXT_CHAR_BUDGET = 48_000;
 /** 每仓注入「主题索引」的提交条数（轻量，便于全面归类） */
-const CONTEXT_SUBJECT_COMMITS_PER_PROJECT = 40;
+/** 与画像时间分桶上限对齐，避免再按「最近」截断丢掉早期桶 */
+const CONTEXT_SUBJECT_COMMITS_PER_PROJECT = 48;
 /** 每仓注入带改动/摘录的详细提交条数 */
-const CONTEXT_DETAIL_COMMITS_PER_PROJECT = 8;
+const CONTEXT_DETAIL_COMMITS_PER_PROJECT = 6;
 /** README 注入上限，避免挤掉提交主题 */
 const CONTEXT_README_CHARS = 1_800;
 
@@ -27,6 +28,8 @@ interface StreamResumeHelperReplyOptions {
   locale: string;
   signal?: AbortSignal;
   onDelta: (content: string) => void;
+  /** DeepSeek thinking 的 reasoning_content 增量 */
+  onReasoningDelta?: (content: string) => void;
 }
 
 /** 简历帮专用流式对话（复用鲸灵 Key，独立 system prompt）。 */
@@ -38,6 +41,7 @@ export async function streamResumeHelperReply({
   locale,
   signal,
   onDelta,
+  onReasoningDelta,
 }: StreamResumeHelperReplyOptions): Promise<void> {
   const apiKey = await getAgentKey();
   if (!apiKey) {
@@ -65,7 +69,7 @@ export async function streamResumeHelperReply({
         stream: true,
         // 略提高以利于简历表述升维，仍靠 system 硬规则约束事实与禁写依据
         temperature: 0.55,
-        // Flash + thinking：内部推理不展示，仅流式输出最终 content
+        // Pro + thinking：reasoning 流式展示，正文只消费 content
         thinking: { type: "enabled" },
         reasoning_effort: "high",
         messages: [
@@ -97,7 +101,7 @@ export async function streamResumeHelperReply({
       throw appError("INTERNAL", i18n.t("resumeHelper.replyFailed"));
     }
 
-    await readSseStream(response.body, onDelta);
+    await readSseStream(response.body, onDelta, onReasoningDelta);
   } catch (error) {
     if (controller.signal.aborted) {
       throw appError("INTERNAL", i18n.t("resumeHelper.replyTimeout"));
@@ -219,10 +223,21 @@ function formatProfileBlock(
       ].join("\n")
     : "readmeExcerpt: (none)";
 
+  const involvementStart = formatResumeMonth(profile.firstCommitAt);
+  const involvementEnd = formatResumeMonth(profile.lastCommitAt);
+  const involvementRange =
+    involvementStart && involvementEnd
+      ? `${involvementStart} – ${involvementEnd}`
+      : "—";
+
   return [
     `### ${profile.projectName}`,
     `repoFolderName: ${profile.projectName}`,
-    `first≈${profile.firstCommitAt ?? "—"} last≈${profile.lastCommitAt ?? "—"} matchedCommits=${profile.sampledCommitCount}`,
+    // 作者参与周期（接手首提交 → 末次提交）；成稿必须写入 **项目周期**
+    `authorInvolvementRange: ${involvementRange}`,
+    `authorFirstCommitAt: ${profile.firstCommitAt ?? "—"}`,
+    `authorLastCommitAt: ${profile.lastCommitAt ?? "—"}`,
+    `matchedCommits=${profile.sampledCommitCount}`,
     `techStack (package.json ∩ author usage): ${profile.techStackHints.join(", ") || "—"}`,
     profile.packageTechStack && profile.packageTechStack.length > 0
       ? `packageTechCandidates: ${profile.packageTechStack.join(", ")}`
@@ -309,6 +324,7 @@ function indentBlock(text: string, prefix: string): string {
 async function readSseStream(
   body: ReadableStream<Uint8Array>,
   onDelta: (content: string) => void,
+  onReasoningDelta?: (content: string) => void,
 ): Promise<void> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -333,8 +349,17 @@ async function readSseStream(
         const first = choices[0];
         if (!isRecord(first)) continue;
         const delta = first.delta;
-        if (!isRecord(delta) || typeof delta.content !== "string") continue;
-        if (delta.content) onDelta(delta.content);
+        if (!isRecord(delta)) continue;
+        if (
+          typeof delta.reasoning_content === "string" &&
+          delta.reasoning_content &&
+          onReasoningDelta
+        ) {
+          onReasoningDelta(delta.reasoning_content);
+        }
+        if (typeof delta.content === "string" && delta.content) {
+          onDelta(delta.content);
+        }
       } catch {
         // 忽略残缺 SSE 行
       }
@@ -360,6 +385,14 @@ function readErrorMessage(payload: unknown): string | null {
     return payload.message;
   }
   return null;
+}
+
+/** 简历周期展示：YYYY.MM；无效则 null */
+function formatResumeMonth(iso: string | null): string | null {
+  if (!iso) return null;
+  const match = /^(\d{4})-(\d{2})/.exec(iso);
+  if (!match) return null;
+  return `${match[1]}.${match[2]}`;
 }
 
 function appError(code: AppError["code"], message: string): AppError {
