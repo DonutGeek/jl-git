@@ -95,6 +95,112 @@ pub fn run_git_allow_nonzero(cwd: &Path, args: &[&str]) -> Result<GitOutput, App
     run_git_allow_nonzero_timeout(cwd, args, None)
 }
 
+const CAPPED_STDERR_MAX_BYTES: usize = 65_536;
+
+/// 执行 git 并限制 stdout 读取字节数。
+/// 超限则截断并 kill 子进程，避免大 diff 一次性进内存导致进程/WebView 闪退。
+/// 返回 `(stdout_text, truncated)`。
+pub fn run_git_stdout_capped(
+    cwd: &Path,
+    args: &[&str],
+    max_stdout_bytes: usize,
+) -> Result<(String, bool), AppError> {
+    let max_stdout_bytes = max_stdout_bytes.max(1);
+    let started = Instant::now();
+    oplog::begin_command(args);
+
+    let mut child = git_command(cwd, args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| {
+            AppError::new("GIT_NOT_FOUND", "无法执行 git").with_details(error.to_string())
+        })?;
+
+    let mut stdout_pipe = child.stdout.take().ok_or_else(|| {
+        AppError::new("GIT_FAILED", "无法打开 git stdout")
+    })?;
+    let stderr_pipe = child.stderr.take();
+
+    let stderr_handle = thread::spawn(move || {
+        let mut buf = Vec::new();
+        if let Some(mut pipe) = stderr_pipe {
+            let mut chunk = [0_u8; 8_192];
+            loop {
+                match pipe.read(&mut chunk) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        if buf.len() < CAPPED_STDERR_MAX_BYTES {
+                            let room = CAPPED_STDERR_MAX_BYTES - buf.len();
+                            buf.extend_from_slice(&chunk[..n.min(room)]);
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        }
+        String::from_utf8_lossy(&buf).into_owned()
+    });
+
+    let mut out = Vec::with_capacity(max_stdout_bytes.min(64 * 1024));
+    let mut chunk = [0_u8; 8_192];
+    let mut truncated = false;
+    loop {
+        let n = match stdout_pipe.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(_) => break,
+        };
+        let remaining = max_stdout_bytes.saturating_sub(out.len());
+        if remaining == 0 {
+            truncated = true;
+            break;
+        }
+        let take = n.min(remaining);
+        out.extend_from_slice(&chunk[..take]);
+        if take < n {
+            truncated = true;
+            break;
+        }
+    }
+
+    if truncated {
+        // 停止 git 继续吐数据，避免后台仍占用 CPU/内存
+        let _ = child.kill();
+    }
+    let status = child.wait().map_err(|error| {
+        AppError::new("GIT_FAILED", "等待 git 进程失败").with_details(error.to_string())
+    })?;
+    let stderr = stderr_handle.join().unwrap_or_default();
+    let stdout = String::from_utf8_lossy(&out).into_owned();
+    let code = status.code().unwrap_or(-1);
+
+    let git_output = GitOutput {
+        stdout: stdout.clone(),
+        stderr: stderr.clone(),
+        code,
+    };
+    record(args, &git_output, started);
+
+    // 主动截断时 kill 可能导致非 0；有输出则仍视为成功
+    if truncated {
+        return Ok((stdout, true));
+    }
+    if code == 0 {
+        return Ok((stdout, false));
+    }
+    // 未截断却失败：走统一错误语义
+    Err(error_from_failed_output(
+        args,
+        GitOutput {
+            stdout,
+            stderr,
+            code,
+        },
+    ))
+}
+
 /// 带超时的 git 执行（fetch/push 等网络操作必须用，避免 UI/线程永久挂起）
 pub fn run_git_timeout(
     cwd: &Path,

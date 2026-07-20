@@ -53,15 +53,12 @@ pub fn get_staged_diff(
     let limit = max_bytes
         .unwrap_or(DEFAULT_STAGED_CONTEXT_MAX_BYTES)
         .clamp(1_024, DEFAULT_STAGED_CONTEXT_MAX_BYTES);
-    let output = runner::run_git_allow_nonzero(
+    // 流式截断：禁止先把完整 `git diff --cached` 读进内存（大 lockfile 会导致闪退）
+    let (patch, truncated) = runner::run_git_stdout_capped(
         repo_path,
         &["diff", "--cached", "--no-ext-diff", "--unified=3"],
+        limit,
     )?;
-    let mut patch = output.stdout;
-    let truncated = patch.len() > limit;
-    if truncated {
-        patch.truncate(limit);
-    }
 
     Ok(GitStagedDiffResult { patch, truncated })
 }

@@ -301,6 +301,10 @@ export function CommitBox() {
 
     setBusy(true);
     setIsGenerating(true);
+    // 先让出一帧，避免点击时同步卡死 UI；大 diff 已在 Rust 侧流式截断
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
     try {
       const message = await generateCommitMessage(repoPath, locale);
       setCommitMessage(message);
