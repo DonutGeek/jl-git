@@ -1,4 +1,15 @@
-import { getCommit, getCommitFileDiff, getLog, listTree } from "@/services/git";
+import {
+  getCommit,
+  getCommitFileDiff,
+  getLog,
+  listTree,
+  readWorktreeFile,
+} from "@/services/git";
+import {
+  extractTechFromPackageJson,
+  filterTechByAuthorUsage,
+  mergePackageTech,
+} from "@/services/resume/resume.techStack";
 import type { Project } from "@/types/project";
 import type {
   ResumeCommitChangedFile,
@@ -6,17 +17,24 @@ import type {
   ResumeProjectProfile,
 } from "@/types/resumeHelper";
 
-const LOG_SAMPLE_LIMIT = 80;
-const AUTHOR_COMMIT_LIMIT = 24;
+/** git_log 单次硬上限 200；分页累加到此总量 */
+const LOG_PAGE_SIZE = 200;
+const LOG_SAMPLE_LIMIT = 400;
+const AUTHOR_COMMIT_LIMIT = 48;
 const PROFILE_CONCURRENCY = 3;
 
 /** 每仓最多为多少条提交拉取代码证据（只读） */
-const CODE_EVIDENCE_COMMIT_LIMIT = 5;
+const CODE_EVIDENCE_COMMIT_LIMIT = 8;
+/** 为技术栈使用证据额外拉取改动路径的提交数 */
+const TECH_PATH_COMMIT_LIMIT = 24;
 /** 每条提交最多取样几个文件的 diff */
 const CODE_EVIDENCE_FILES_PER_COMMIT = 2;
 const CODE_DIFF_MAX_BYTES = 4_096;
 const CODE_SNIPPET_MAX_CHARS = 1_200;
 const CODE_ENRICH_CONCURRENCY = 2;
+const PACKAGE_JSON_MAX_BYTES = 256_000;
+const README_MAX_BYTES = 48_000;
+const README_EXCERPT_CHARS = 3_500;
 
 const SKIP_FILE_PATTERN =
   /(?:^|\/)(?:node_modules|dist|build|coverage|\.git)\//i;
@@ -25,10 +43,8 @@ const SKIP_FILE_NAME_PATTERN =
 const SKIP_BINARY_EXT =
   /\.(png|jpe?g|gif|webp|ico|pdf|zip|gz|tgz|bz2|7z|rar|woff2?|ttf|eot|mp4|mov|webm|wasm|exe|dll|so|dylib|bin)$/i;
 
-const TECH_FILE_HINTS: ReadonlyArray<{ file: string; hint: string }> = [
-  { file: "package.json", hint: "JavaScript/TypeScript (Node)" },
-  { file: "pnpm-lock.yaml", hint: "pnpm" },
-  { file: "yarn.lock", hint: "Yarn" },
+/** 无 package.json 时的非 JS 仓库兜底线索 */
+const FALLBACK_TECH_FILES: ReadonlyArray<{ file: string; hint: string }> = [
   { file: "Cargo.toml", hint: "Rust" },
   { file: "go.mod", hint: "Go" },
   { file: "pom.xml", hint: "Java (Maven)" },
@@ -41,19 +57,6 @@ const TECH_FILE_HINTS: ReadonlyArray<{ file: string; hint: string }> = [
   { file: "Podfile", hint: "iOS/CocoaPods" },
   { file: "pubspec.yaml", hint: "Flutter/Dart" },
   { file: "tauri.conf.json", hint: "Tauri" },
-  { file: "next.config.js", hint: "Next.js" },
-  { file: "next.config.mjs", hint: "Next.js" },
-  { file: "vite.config.ts", hint: "Vite" },
-  { file: "vite.config.js", hint: "Vite" },
-];
-
-const TECH_DIR_HINTS: ReadonlyArray<{ dir: string; hint: string }> = [
-  { dir: "src/", hint: "src layout" },
-  { dir: "app/", hint: "app router / application root" },
-  { dir: "android/", hint: "Android" },
-  { dir: "ios/", hint: "iOS" },
-  { dir: "crates/", hint: "Rust workspace" },
-  { dir: "packages/", hint: "monorepo packages" },
 ];
 
 /**
@@ -89,7 +92,10 @@ export interface ResumeAuthorFilter {
   email: string;
 }
 
-/** 按多个 Git 作者过滤各仓提交摘要（命中任一账号即保留） */
+/**
+ * 按多个 Git 作者过滤各仓提交摘要（命中任一账号即保留）。
+ * 已配置作者时：无匹配提交的仓库直接丢弃，不进入简历上下文。
+ */
 export function filterProfilesByAuthor(
   profiles: readonly ResumeProjectProfile[],
   authors: readonly ResumeAuthorFilter[],
@@ -102,25 +108,67 @@ export function filterProfilesByAuthor(
     .filter((author) => author.name || author.email);
 
   if (filters.length === 0) {
-    return profiles.map((profile) => ({
-      ...profile,
-      recentCommits: profile.recentCommits.slice(0, AUTHOR_COMMIT_LIMIT),
-    }));
+    // 未配置作者时仍只保留有抽样提交的仓，避免空仓进成稿
+    return profiles
+      .filter((profile) => !profile.error && profile.recentCommits.length > 0)
+      .map((profile) => ({
+        ...profile,
+        recentCommits: profile.recentCommits.slice(0, AUTHOR_COMMIT_LIMIT),
+        sampledCommitCount: Math.min(
+          profile.recentCommits.length,
+          AUTHOR_COMMIT_LIMIT,
+        ),
+      }));
   }
 
-  return profiles.map((profile) => {
+  const next: ResumeProjectProfile[] = [];
+  for (const profile of profiles) {
     if (profile.error) {
-      return profile;
+      continue;
     }
     const matched = profile.recentCommits
-      .filter((commit) => filters.some((filter) => commitMatchesAuthor(commit, filter)))
+      .filter((commit) =>
+        filters.some((filter) => commitMatchesAuthor(commit, filter)),
+      )
       .slice(0, AUTHOR_COMMIT_LIMIT);
-    return {
+    if (matched.length === 0) {
+      continue;
+    }
+    next.push({
       ...profile,
       recentCommits: matched,
       sampledCommitCount: matched.length,
-    };
-  });
+      firstCommitAt: earliestAuthoredAt(matched),
+      lastCommitAt: latestAuthoredAt(matched),
+    });
+  }
+  return next;
+}
+
+function earliestAuthoredAt(
+  commits: readonly ResumeCommitSample[],
+): string | null {
+  let earliest: string | null = null;
+  for (const commit of commits) {
+    if (!commit.authoredAt) continue;
+    if (!earliest || commit.authoredAt < earliest) {
+      earliest = commit.authoredAt;
+    }
+  }
+  return earliest;
+}
+
+function latestAuthoredAt(
+  commits: readonly ResumeCommitSample[],
+): string | null {
+  let latest: string | null = null;
+  for (const commit of commits) {
+    if (!commit.authoredAt) continue;
+    if (!latest || commit.authoredAt > latest) {
+      latest = commit.authoredAt;
+    }
+  }
+  return latest;
 }
 
 /**
@@ -170,12 +218,12 @@ function commitMatchesAuthor(
 
 async function buildOneProfile(project: Project): Promise<ResumeProjectProfile> {
   try {
-    const [logResult, treeResult] = await Promise.all([
-      getLog(project.path, { limit: LOG_SAMPLE_LIMIT, all: true }),
+    const [logCommits, treeResult] = await Promise.all([
+      loadSampledLogCommits(project.path),
       listTree(project.path, "HEAD").catch(() => ({ paths: [] as string[] })),
     ]);
 
-    const commits: ResumeCommitSample[] = logResult.commits.map((commit) => ({
+    const commits: ResumeCommitSample[] = logCommits.map((commit) => ({
       id: commit.id,
       shortId: commit.shortId,
       subject: commit.subject,
@@ -196,6 +244,15 @@ async function buildOneProfile(project: Project): Promise<ResumeProjectProfile> 
       }
     }
 
+    const [packageTechStack, readme] = await Promise.all([
+      loadPackageTechStack(project.path, treeResult.paths),
+      loadReadmeExcerpt(project.path, treeResult.paths),
+    ]);
+    const fallbackTech = inferFallbackTechHints(treeResult.paths);
+    // 作者使用过滤在 enrich 后完成；此处先用 package 主栈占位
+    const techStackHints =
+      packageTechStack.length > 0 ? packageTechStack : fallbackTech;
+
     return {
       projectId: project.id,
       projectName: project.name,
@@ -203,8 +260,12 @@ async function buildOneProfile(project: Project): Promise<ResumeProjectProfile> 
       firstCommitAt,
       lastCommitAt,
       sampledCommitCount: commits.length,
-      techStackHints: inferTechHints(treeResult.paths),
-      recentCommits: commits.slice(0, AUTHOR_COMMIT_LIMIT),
+      packageTechStack,
+      techStackHints,
+      readmePath: readme?.path,
+      readmeExcerpt: readme?.excerpt,
+      // 保留抽样窗口内全部提交，供作者匹配后再截断
+      recentCommits: commits,
     };
   } catch (error) {
     return {
@@ -216,11 +277,48 @@ async function buildOneProfile(project: Project): Promise<ResumeProjectProfile> 
       lastCommitAt: null,
       sampledCommitCount: 0,
       techStackHints: [],
+      packageTechStack: [],
       recentCommits: [],
     };
   }
 }
 
+/** 分页拉取抽样提交（单次 ≤200，累计到 LOG_SAMPLE_LIMIT） */
+async function loadSampledLogCommits(repoPath: string): Promise<
+  Array<{
+    id: string;
+    shortId: string;
+    subject: string;
+    authorName: string;
+    authorEmail: string;
+    authoredAt: string;
+  }>
+> {
+  const commits: Array<{
+    id: string;
+    shortId: string;
+    subject: string;
+    authorName: string;
+    authorEmail: string;
+    authoredAt: string;
+  }> = [];
+  let skip = 0;
+
+  while (commits.length < LOG_SAMPLE_LIMIT) {
+    const limit = Math.min(LOG_PAGE_SIZE, LOG_SAMPLE_LIMIT - commits.length);
+    const page = await getLog(repoPath, { limit, skip, all: true });
+    if (page.commits.length === 0) {
+      break;
+    }
+    commits.push(...page.commits);
+    if (!page.hasMore) {
+      break;
+    }
+    skip += page.commits.length;
+  }
+
+  return commits;
+}
 async function enrichOneProfile(
   profile: ResumeProjectProfile,
 ): Promise<ResumeProjectProfile> {
@@ -233,14 +331,158 @@ async function enrichOneProfile(
   const enriched = await Promise.all(
     targets.map((commit) => enrichCommit(repoPath, commit)),
   );
+  const recentCommits = [
+    ...enriched,
+    ...profile.recentCommits.slice(CODE_EVIDENCE_COMMIT_LIMIT),
+  ];
+
+  // 额外收集更多提交的改动路径，用于判断作者实际用过哪些技术
+  const pathCommits = recentCommits.slice(0, TECH_PATH_COMMIT_LIMIT);
+  const extraPaths = await collectTouchedPaths(repoPath, pathCommits);
+
+  const paths = new Set<string>(extraPaths);
+  const texts: string[] = [];
+  for (const commit of recentCommits) {
+    for (const file of commit.changedFiles ?? []) {
+      paths.add(file.path);
+      if (file.snippet) {
+        texts.push(file.snippet);
+      }
+    }
+  }
+
+  const packageTech = profile.packageTechStack ?? [];
+  const techStackHints = filterTechByAuthorUsage(packageTech, {
+    paths: [...paths],
+    texts,
+    subjects: recentCommits.map((commit) => commit.subject),
+  });
 
   return {
     ...profile,
-    recentCommits: [
-      ...enriched,
-      ...profile.recentCommits.slice(CODE_EVIDENCE_COMMIT_LIMIT),
-    ],
+    recentCommits,
+    techStackHints:
+      techStackHints.length > 0 ? techStackHints : profile.techStackHints,
   };
+}
+
+/** 读取根目录 README 摘录，供项目名/简介判断 */
+async function loadReadmeExcerpt(
+  repoPath: string,
+  treePaths: readonly string[],
+): Promise<{ path: string; excerpt: string } | null> {
+  const readmePath = pickReadmePath(treePaths);
+  if (!readmePath) {
+    return null;
+  }
+  try {
+    const result = await readWorktreeFile(repoPath, readmePath, {
+      maxBytes: README_MAX_BYTES,
+    });
+    if (result.binary) {
+      return null;
+    }
+    const text = result.text.replace(/\r\n/g, "\n").trim();
+    if (!text) {
+      return null;
+    }
+    const excerpt =
+      text.length > README_EXCERPT_CHARS
+        ? `${text.slice(0, README_EXCERPT_CHARS)}\n…[truncated]`
+        : text;
+    return { path: readmePath, excerpt };
+  } catch {
+    return null;
+  }
+}
+
+function pickReadmePath(treePaths: readonly string[]): string | null {
+  const rootReadmes = treePaths.filter((path) => {
+    if (path.includes("/")) return false;
+    return /^readme(?:\.[a-z0-9._-]+)?$/i.test(path);
+  });
+  if (rootReadmes.length === 0) {
+    return null;
+  }
+  const rank = (name: string): number => {
+    const lower = name.toLowerCase();
+    if (lower === "readme.md") return 0;
+    if (lower === "readme.zh-cn.md" || lower === "readme.zh.md") return 1;
+    if (lower.startsWith("readme.") && lower.endsWith(".md")) return 2;
+    if (lower === "readme") return 3;
+    return 4;
+  };
+  rootReadmes.sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+  return rootReadmes[0] ?? null;
+}
+
+/** 读取仓库内 package.json（根目录 + 浅层 packages/*），解析主技术栈候选 */
+async function loadPackageTechStack(
+  repoPath: string,
+  treePaths: readonly string[],
+): Promise<string[]> {
+  const candidates = pickPackageJsonPaths(treePaths);
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  const lists = await Promise.all(
+    candidates.map(async (filePath) => {
+      try {
+        const result = await readWorktreeFile(repoPath, filePath, {
+          maxBytes: PACKAGE_JSON_MAX_BYTES,
+        });
+        if (result.binary || !result.text.trim()) {
+          return [] as string[];
+        }
+        return extractTechFromPackageJson(result.text);
+      } catch {
+        return [] as string[];
+      }
+    }),
+  );
+
+  return mergePackageTech(lists);
+}
+
+function pickPackageJsonPaths(treePaths: readonly string[]): string[] {
+  const matches = treePaths.filter((path) => {
+    if (!/(^|\/)package\.json$/i.test(path)) return false;
+    if (SKIP_FILE_PATTERN.test(path)) return false;
+    const depth = path.split("/").length;
+    // 根 package.json，或 packages/foo/package.json 一层
+    return depth <= 3;
+  });
+  // 根优先
+  matches.sort((a, b) => a.split("/").length - b.split("/").length || a.localeCompare(b));
+  return matches.slice(0, 5);
+}
+
+/** 只读收集提交改动路径（不拉 diff），供技术栈使用判定 */
+async function collectTouchedPaths(
+  repoPath: string,
+  commits: readonly ResumeCommitSample[],
+): Promise<string[]> {
+  const paths = new Set<string>();
+  for (const commit of commits) {
+    if (commit.changedFiles && commit.changedFiles.length > 0) {
+      for (const file of commit.changedFiles) {
+        paths.add(file.path);
+      }
+      continue;
+    }
+    try {
+      const { commit: detail } = await getCommit(repoPath, commit.id);
+      for (const file of detail.diffs[0]?.files ?? []) {
+        if (isInterestingPath(file.path)) {
+          paths.add(file.path);
+        }
+      }
+    } catch {
+      // 单条失败忽略
+    }
+  }
+  return [...paths];
 }
 
 async function enrichCommit(
@@ -255,12 +497,15 @@ async function enrichCommit(
     const { commit: detail } = await getCommit(repoPath, commit.id);
     const parentDiff = detail.diffs[0];
     const parentRev = parentDiff?.parentId;
-    const files = (parentDiff?.files ?? [])
-      .filter((file) => isInterestingPath(file.path))
-      .slice(0, CODE_EVIDENCE_FILES_PER_COMMIT);
+    const interesting = (parentDiff?.files ?? []).filter((file) =>
+      isInterestingPath(file.path),
+    );
+    // 前 N 个拉 diff 摘录；其余只保留路径供技术栈使用判定
+    const filesForDiff = interesting.slice(0, CODE_EVIDENCE_FILES_PER_COMMIT);
+    const pathOnly = interesting.slice(CODE_EVIDENCE_FILES_PER_COMMIT);
 
     const changedFiles: ResumeCommitChangedFile[] = [];
-    for (const file of files) {
+    for (const file of filesForDiff) {
       const base: ResumeCommitChangedFile = {
         path: file.path,
         status: file.status,
@@ -292,6 +537,15 @@ async function enrichCommit(
       }
     }
 
+    for (const file of pathOnly) {
+      changedFiles.push({
+        path: file.path,
+        status: file.status,
+        additions: file.additions,
+        deletions: file.deletions,
+      });
+    }
+
     return { ...commit, changedFiles };
   } catch {
     return commit;
@@ -313,7 +567,7 @@ function truncateSnippet(text: string): string {
   return `${text.slice(0, CODE_SNIPPET_MAX_CHARS)}\n…[truncated]`;
 }
 
-function inferTechHints(paths: readonly string[]): string[] {
+function inferFallbackTechHints(paths: readonly string[]): string[] {
   const hints = new Set<string>();
   const rootFiles = new Set(
     paths
@@ -321,19 +575,11 @@ function inferTechHints(paths: readonly string[]): string[] {
       .map((path) => path.toLowerCase()),
   );
 
-  for (const { file, hint } of TECH_FILE_HINTS) {
+  for (const { file, hint } of FALLBACK_TECH_FILES) {
     if (rootFiles.has(file.toLowerCase())) {
       hints.add(hint);
     }
   }
 
-  const pathSet = new Set(paths.map((path) => path.toLowerCase()));
-  for (const { dir, hint } of TECH_DIR_HINTS) {
-    const prefix = dir.toLowerCase();
-    if ([...pathSet].some((path) => path === prefix.slice(0, -1) || path.startsWith(prefix))) {
-      hints.add(hint);
-    }
-  }
-
-  return [...hints].slice(0, 12);
+  return [...hints].slice(0, 8);
 }

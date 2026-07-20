@@ -18,7 +18,17 @@ export interface ResumeProjectProfile {
   firstCommitAt: string | null;
   lastCommitAt: string | null;
   sampledCommitCount: number;
+  /**
+   * 写入简历的技术栈：优先 package.json 主栈 ∩ 该作者使用证据；
+   * 无 package.json 时由改动路径/代码推断。
+   */
   techStackHints: string[];
+  /** package.json 解析出的候选主栈（未按作者过滤） */
+  packageTechStack?: string[];
+  /** 命中的 README 相对路径（若有） */
+  readmePath?: string;
+  /** README 摘录（截断），供判断项目名/简介是否可用 */
+  readmeExcerpt?: string;
   /** 抽样提交（可按作者再过滤后重算） */
   recentCommits: ResumeCommitSample[];
 }

@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import {
   CheckCircle2,
   Download,
+  FileUser,
   HardDrive,
   Loader2,
   Moon,
@@ -12,6 +13,7 @@ import {
   Sun,
   XCircle,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +32,7 @@ import {
   type SystemAppInfo,
   type SystemDiskSpace,
 } from "@/services/system/system.info";
+import { openResumeHelperWindow } from "@/services/window/resumeHelperWindow";
 import {
   selectLatestEntry,
   selectRepoEntries,
@@ -39,6 +42,7 @@ import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
 import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
 import { useThemeStore } from "@/store/useThemeStore";
+import { toUserMessage } from "@/types/error";
 
 import { GitIdentity } from "@/types/git";
 
@@ -52,7 +56,7 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(value >= 100 || exp === 0 ? 0 : 2)}${units[exp]}`;
 }
 
-/** 应用底部状态栏：版本 | 语言 / 主题 / 磁盘 / 操作日志 / Git 身份 / 设置 */
+/** 应用底部状态栏：版本 | 语言 / 主题 / 磁盘 / 操作日志 / Git 身份 / 简历帮 / 设置 */
 export function StatusBar() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
@@ -63,6 +67,14 @@ export function StatusBar() {
   const toggleZhEn = useLocaleStore((state) => state.toggleZhEn);
   const openDrawer = useSettingsDrawerStore((state) => state.openDrawer);
   const settingsOpen = useSettingsDrawerStore((state) => state.open);
+
+  async function handleOpenResumeHelper(): Promise<void> {
+    try {
+      await openResumeHelperWindow();
+    } catch (error) {
+      toast.error(toUserMessage(error) || t("resumeHelper.openFailed"));
+    }
+  }
 
   const repoPath = useRepoStore((state) => state.repoPath);
   const repoIdentity = useRepoStore((state) => state.identity);
@@ -358,6 +370,24 @@ export function StatusBar() {
           </TooltipTrigger>
         <TooltipContent>{identityLabel}</TooltipContent>
         </Tooltip></> : null}
+
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground size-6 [&_svg]:size-3.5"
+              aria-label={t("statusBar.resumeHelper")}
+              onClick={() => {
+                void handleOpenResumeHelper();
+              }}
+            >
+              <FileUser aria-hidden="true" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t("statusBar.resumeHelper")}</TooltipContent>
+        </Tooltip>
 
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>

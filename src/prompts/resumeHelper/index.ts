@@ -7,3 +7,4 @@ export { getDefaultResumeHelperInstructions } from "./instructions";
 export { buildResumeHelperIdentityPrompt } from "./identity";
 export { RESUME_HELPER_DUTIES_PROMPT } from "./duties";
 export { RESUME_HELPER_PERMISSIONS_PROMPT } from "./permissions";
+export { RESUME_HELPER_WRITING_PROMPT } from "./writing";

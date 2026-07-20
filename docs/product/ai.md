@@ -74,7 +74,7 @@ flowchart LR
 
 - 提供商：DeepSeek
 - Endpoint：`https://api.deepseek.com/chat/completions`
-- 模型：`deepseek-chat`
+- 模型：鲸灵 Agent / 提交文案当前为 `deepseek-chat`；**简历帮**为 `deepseek-v4-pro`（开启 thinking，仅展示最终正文）
 - 设置项：用户可创建多个 `DeepSeek API Key`（名称、Key、创建日期）；同一时刻仅允许一个 Key 启用，启用新 Key 会自动禁用其它 Key；删除需二次确认
 - 附加指令：设置中提供「提交指令」「拉取请求指令」；未配置时使用 JLGit 默认规则（Conventional Commits、要点式说明、PR Summary/Test plan 等），用户可按团队规范自行修改。前者会附加到提交文案请求，后者保留给后续 PR 文案生成
 

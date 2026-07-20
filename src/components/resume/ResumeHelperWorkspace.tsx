@@ -135,29 +135,47 @@ export function ResumeHelperWorkspace() {
     const greetingKey = hasAuthors
       ? "resumeHelper.greetingConfigured"
       : "resumeHelper.greeting";
-    // 避免用 <>，i18next 会把尖括号当 HTML 标签吃掉
+    // 问候语只展示 Git 用户名（匹配仍用 name+email）
     const authorsLabel = gitAuthors
-      .filter((author) => author.name.trim() || author.email.trim())
-      .map((author) => `${author.name || "—"} / ${author.email || "—"}`)
+      .map((author) => author.name.trim())
+      .filter((name) => name.length > 0)
       .join("；");
+    const missingIdentity: string[] = [];
+    if (!identity.displayName.trim()) {
+      missingIdentity.push(t("resumeHelper.identityFieldName"));
+    }
+    if (!identity.phone.trim()) {
+      missingIdentity.push(t("resumeHelper.identityFieldPhone"));
+    }
+    if (!identity.email.trim()) {
+      missingIdentity.push(t("resumeHelper.identityFieldEmail"));
+    }
+    const greetingBody = t(greetingKey, {
+      total: profiles.length,
+      ok: okCount,
+      fail: failCount,
+      authors: authorsLabel || "—",
+      authorCount: gitAuthors.filter(
+        (author) => author.name.trim() || author.email.trim(),
+      ).length,
+    });
+    const identityHint =
+      missingIdentity.length > 0
+        ? `\n\n${t("resumeHelper.greetingIdentityMissing", {
+            missing: missingIdentity.join("、"),
+          })}`
+        : "";
     appendMessage({
       id: nextMessageId(),
       role: "assistant",
-      content: t(greetingKey, {
-        total: profiles.length,
-        ok: okCount,
-        fail: failCount,
-        authors: authorsLabel || "—",
-        authorCount: gitAuthors.filter(
-          (author) => author.name.trim() || author.email.trim(),
-        ).length,
-      }),
+      content: `${greetingBody}${identityHint}`,
       createdAt: new Date().toISOString(),
     });
   }, [
     appendMessage,
     gitAuthors,
     gitAuthorsReady,
+    identity,
     identityReady,
     messages.length,
     profiles,
@@ -212,36 +230,51 @@ export function ResumeHelperWorkspace() {
       return;
     }
 
-    absorbContactFromText(trimmed);
+    const askedAt = new Date().toISOString();
     const userMessage: AgentChatMessage = {
       id: nextMessageId(),
       role: "user",
       content: trimmed,
-      createdAt: new Date().toISOString(),
+      createdAt: askedAt,
     };
     const assistantId = nextMessageId();
-    clearDraft();
-    appendMessage(userMessage);
-    appendMessage({
-      id: assistantId,
-      role: "assistant",
-      content: "",
-      createdAt: new Date().toISOString(),
-      isStreaming: true,
+
+    // 先同步上屏用户消息与「思考中」，避免 enrich/模型请求拖住点击反馈
+    flushSync(() => {
+      absorbContactFromText(trimmed);
+      clearDraft();
+      appendMessage(userMessage);
+      appendMessage({
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        createdAt: askedAt,
+        isStreaming: true,
+      });
+      setIsReplying(true);
+    });
+
+    // 等浏览器画出本帧后再拉代码证据 / 请求模型
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => resolve());
+      });
     });
 
     const controller = new AbortController();
     replyAbortRef.current = controller;
-    setIsReplying(true);
 
     const currentIdentity = useResumeHelperStore.getState().identity;
     const currentAuthors = useResumeHelperStore.getState().gitAuthors;
-    const filtered = filterProfilesByAuthor(profiles, currentAuthors);
     const history = [...useResumeHelperStore.getState().messages].filter(
       (message) => message.id !== assistantId,
     );
 
     try {
+      const filtered = filterProfilesByAuthor(
+        useResumeHelperStore.getState().profiles,
+        currentAuthors,
+      );
       // 只读拉取提交改动文件与 diff 摘录，禁止任何写操作
       const withCode = await enrichProfilesWithCodeEvidence(filtered);
       await streamResumeHelperReply({

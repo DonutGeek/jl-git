@@ -237,7 +237,7 @@ interface GitBranch {
 
 默认 `limit=50`，硬上限建议 200。`all=true` 时等价 `git log --all`（所有引用可达历史，与 UI「所有分支」对齐）；`ref` 指定单分支/标签；二者互斥。未传 `all` 且无 `ref` 时仍为当前 HEAD。`order`：`topo` → `--topo-order`，`date` → `--date-order`，省略/`default` 为 git 默认序。`parentIds` 来自 `%P`，用于历史图谱的分叉与合并连线。`refs` 来自 `git log --decorate` 的 `%D`（远端分支展示为 `origin&name`）。`coAuthors` 来自 `Co-authored-by` trailer（`%(trailers:key=Co-authored-by)`）。
 
-**消费方补充：**「简历帮」通过前端循环调用只读 Command 汇总画像：`git_log`（抽样）+ `git_ls_tree`（技术栈启发式）+ `git_show` / `git_commit_file_diff`（提交改动文件与 diff 摘录）。**禁止**对简历帮路径开放任何写操作；**不新增**专用 `git_resume_*` Command。
+**消费方补充：**「简历帮」通过前端循环调用只读 Command 汇总画像：`git_log`（分页抽样，单次 ≤200、累计约 400）+ `git_ls_tree`（定位 `package.json` / README）+ `git_read_worktree_file`（解析依赖主技术栈与 README 摘录）+ `git_show` / `git_commit_file_diff`（作者改动文件与 diff 摘录）。项目名/简介由模型判断 README 是否可用后再写入。**禁止**对简历帮路径开放任何写操作；**不新增**专用 `git_resume_*` Command。
 
 ### `git_blame`
 

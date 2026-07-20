@@ -722,10 +722,8 @@ export function SettingsDrawer() {
                           : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                       )}
                       onClick={() => {
+                        // 仅切换右侧分区；简历帮窗口由分区内按钮手动打开
                         setActiveCategory(category.id);
-                        if (category.id === "resumeHelper") {
-                          void handleOpenResumeHelper();
-                        }
                       }}
                     >
                       <span className="[&_svg]:size-3.5" aria-hidden>

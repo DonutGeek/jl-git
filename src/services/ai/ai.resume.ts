@@ -7,10 +7,17 @@ import type { AgentChatMessage } from "@/types/ai";
 import type { ResumeHelperIdentity, ResumeProjectProfile } from "@/types/resumeHelper";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
-const DEEPSEEK_MODEL = "deepseek-chat";
-const REQUEST_TIMEOUT_MS = 90_000;
+/** 简历帮使用 V4 Pro；thinking 提升成稿质量，正文只消费 content */
+const DEEPSEEK_RESUME_MODEL = "deepseek-v4-pro";
+const REQUEST_TIMEOUT_MS = 150_000;
 const HISTORY_LIMIT = 24;
-const CONTEXT_CHAR_BUDGET = 28_000;
+const CONTEXT_CHAR_BUDGET = 48_000;
+/** 每仓注入「主题索引」的提交条数（轻量，便于全面归类） */
+const CONTEXT_SUBJECT_COMMITS_PER_PROJECT = 40;
+/** 每仓注入带改动/摘录的详细提交条数 */
+const CONTEXT_DETAIL_COMMITS_PER_PROJECT = 8;
+/** README 注入上限，避免挤掉提交主题 */
+const CONTEXT_README_CHARS = 1_800;
 
 interface StreamResumeHelperReplyOptions {
   messages: readonly AgentChatMessage[];
@@ -54,9 +61,13 @@ export async function streamResumeHelperReply({
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: DEEPSEEK_MODEL,
+        model: DEEPSEEK_RESUME_MODEL,
         stream: true,
-        temperature: 0.45,
+        // 略提高以利于简历表述升维，仍靠 system 硬规则约束事实与禁写依据
+        temperature: 0.55,
+        // Flash + thinking：内部推理不展示，仅流式输出最终 content
+        thinking: { type: "enabled" },
+        reasoning_effort: "high",
         messages: [
           {
             role: "system",
@@ -98,6 +109,14 @@ export async function streamResumeHelperReply({
   }
 }
 
+function identityContactComplete(identity: ResumeHelperIdentity): boolean {
+  return (
+    identity.displayName.trim().length > 0 &&
+    identity.phone.trim().length > 0 &&
+    identity.email.trim().length > 0
+  );
+}
+
 function formatProfilesContext(
   profiles: readonly ResumeProjectProfile[],
   identity: ResumeHelperIdentity,
@@ -118,68 +137,163 @@ function formatProfilesContext(
 
   const header = [
     `Registered projects: ${profiles.length}.`,
-    "Evidence policy: commit messages are clues only; prefer changed files + code/diff excerpts when present. All Git data below is from read-only queries.",
+    "Evidence policy: subjectIndex + changed paths are enough to write approach bullets; diff excerpts are optional boosts. Never refuse or ask user for more evidence because excerpts are truncated. All Git data below is from read-only queries.",
     "## 用户身份配置（设置中已保存；已填字段勿重复追问）",
     `- 姓名: ${identity.displayName.trim() || "（未配置）"}`,
     `- 手机: ${identity.phone.trim() || "（未配置）"}`,
     `- 联系邮箱: ${identity.email.trim() || "（未配置）"}`,
+    identityContactComplete(identity)
+      ? "联系信息已齐：仅当用户明确要完整简历时才可写入文首；默认仍可只输出项目简历。"
+      : "联系信息未齐：成稿不要输出基本信息/待补充段，也不要在回复里再催填（首条问候已提示）。",
     "Git 作者账号（来自设置 → Git 的全部配置项，与启用/停用无关；提交命中任一即计入）：",
     authorLines,
     authors.length > 0
-      ? "提交过滤：已按上述全部 Git 账号过滤仓库画像中的提交样本（启用状态仅影响全局 git config 提交身份，不影响本过滤）。"
-      : "Git 作者未配置：请引导用户去设置 → Git 添加账号，或对话中补充后再写贡献。",
-    "Time ranges are from sampled commits (not necessarily the absolute first commit of huge repos).",
+      ? "提交过滤：下列仓库均已按上述 Git 账号过滤，且仅包含有匹配提交的仓库；无本人提交的仓已省略，成稿不要输出它们。"
+      : "Git 作者未配置：请引导用户去设置 → Git 添加账号；下列仅含有抽样提交的仓库。",
+    "Time ranges are from matched sampled commits (not necessarily the absolute first commit of huge repos).",
   ].join("\n");
 
-  const blocks = profiles.map((profile) => {
-    if (profile.error) {
-      return `### ${profile.projectName}\nERROR: ${profile.error}`;
-    }
-    const commits = profile.recentCommits
-      .slice(0, 12)
-      .map((commit) => formatCommitEvidence(commit))
-      .join("\n\n");
-    return [
-      `### ${profile.projectName}`,
-      `first≈${profile.firstCommitAt ?? "—"} last≈${profile.lastCommitAt ?? "—"} sampled=${profile.sampledCommitCount}`,
-      `techHints: ${profile.techStackHints.join(", ") || "—"}`,
-      commits ? `commits:\n${commits}` : "commits: (none in sample)",
-    ].join("\n");
-  });
+  // 先拼「主题索引优先」的块，超预算时按仓公平缩短，避免整段截断导致后半仓库证据丢失
+  const blocks = profiles
+    .map((profile) => formatProfileBlock(profile, "full"))
+    .filter((block): block is string => block !== null);
 
   let text = `${header}\n\n${blocks.join("\n\n")}`;
-  if (text.length > CONTEXT_CHAR_BUDGET) {
-    text = `${text.slice(0, CONTEXT_CHAR_BUDGET)}\n\n[truncated]`;
+  if (text.length <= CONTEXT_CHAR_BUDGET) {
+    return text;
+  }
+
+  const compactBlocks = profiles
+    .map((profile) => formatProfileBlock(profile, "compact"))
+    .filter((block): block is string => block !== null);
+  text = `${header}\n\n${compactBlocks.join("\n\n")}`;
+  if (text.length <= CONTEXT_CHAR_BUDGET) {
+    return text;
+  }
+
+  return fairTruncateBlocks(header, compactBlocks, CONTEXT_CHAR_BUDGET);
+}
+
+function formatProfileBlock(
+  profile: ResumeProjectProfile,
+  mode: "full" | "compact",
+): string | null {
+  if (profile.error) {
+    return `### ${profile.projectName}\nERROR: ${profile.error}`;
+  }
+  if (profile.recentCommits.length === 0) {
+    return null;
+  }
+
+  const subjectLimit =
+    mode === "full"
+      ? CONTEXT_SUBJECT_COMMITS_PER_PROJECT
+      : Math.min(24, CONTEXT_SUBJECT_COMMITS_PER_PROJECT);
+  const detailLimit =
+    mode === "full" ? CONTEXT_DETAIL_COMMITS_PER_PROJECT : 3;
+  const readmeLimit = mode === "full" ? CONTEXT_README_CHARS : 800;
+
+  const subjectIndex = profile.recentCommits
+    .slice(0, subjectLimit)
+    .map(
+      (commit) =>
+        `- ${commit.authoredAt.slice(0, 10)} ${commit.shortId} ${commit.subject}`,
+    )
+    .join("\n");
+
+  const detailCommits = profile.recentCommits
+    .slice(0, detailLimit)
+    .map((commit) => formatCommitEvidence(commit, mode === "compact"))
+    .join("\n\n");
+
+  const readmeRaw = profile.readmeExcerpt?.trim() ?? "";
+  const readmeExcerpt =
+    readmeRaw.length > readmeLimit
+      ? `${readmeRaw.slice(0, readmeLimit)}\n…[truncated]`
+      : readmeRaw;
+  const readmeBlock = readmeExcerpt
+    ? [
+        `readmePath: ${profile.readmePath ?? "README"}`,
+        "readmeExcerpt (judge usefulness yourself; ignore boilerplate/placeholder):",
+        readmeExcerpt,
+      ].join("\n")
+    : "readmeExcerpt: (none)";
+
+  return [
+    `### ${profile.projectName}`,
+    `repoFolderName: ${profile.projectName}`,
+    `first≈${profile.firstCommitAt ?? "—"} last≈${profile.lastCommitAt ?? "—"} matchedCommits=${profile.sampledCommitCount}`,
+    `techStack (package.json ∩ author usage): ${profile.techStackHints.join(", ") || "—"}`,
+    profile.packageTechStack && profile.packageTechStack.length > 0
+      ? `packageTechCandidates: ${profile.packageTechStack.join(", ")}`
+      : null,
+    readmeBlock,
+    "subjectIndex (cluster by theme; enough for approach bullets):",
+    subjectIndex || "(none)",
+    detailCommits
+      ? `commitDetails (paths/excerpts when available):\n${detailCommits}`
+      : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
+}
+
+/** 超预算时按仓库轮转截取，避免只保留前几个仓 */
+function fairTruncateBlocks(
+  header: string,
+  blocks: readonly string[],
+  budget: number,
+): string {
+  if (blocks.length === 0) {
+    return `${header.slice(0, budget)}\n\n[truncated]`;
+  }
+  const overhead = header.length + 2;
+  const perBlock = Math.max(
+    1_200,
+    Math.floor((budget - overhead) / blocks.length) - 8,
+  );
+  const trimmed = blocks.map((block) =>
+    block.length <= perBlock
+      ? block
+      : `${block.slice(0, perBlock)}\n…[project truncated]`,
+  );
+  let text = `${header}\n\n${trimmed.join("\n\n")}`;
+  if (text.length > budget) {
+    text = `${text.slice(0, budget)}\n\n[truncated]`;
   }
   return text;
 }
 
-function formatCommitEvidence(commit: {
-  shortId: string;
-  subject: string;
-  authorEmail: string;
-  authoredAt: string;
-  changedFiles?: ReadonlyArray<{
-    path: string;
-    status: string;
-    additions?: number | null;
-    deletions?: number | null;
-    snippet?: string;
-  }>;
-}): string {
+function formatCommitEvidence(
+  commit: {
+    shortId: string;
+    subject: string;
+    authorEmail: string;
+    authoredAt: string;
+    changedFiles?: ReadonlyArray<{
+      path: string;
+      status: string;
+      additions?: number | null;
+      deletions?: number | null;
+      snippet?: string;
+    }>;
+  },
+  pathsOnly = false,
+): string {
   const head = `- ${commit.authoredAt.slice(0, 10)} ${commit.shortId} <${commit.authorEmail}> ${commit.subject}`;
   const files = commit.changedFiles ?? [];
   if (files.length === 0) {
-    return `${head}\n  (no code evidence loaded; do not invent implementation details)`;
+    return `${head}\n  (paths not loaded; use subject for approach-level bullets)`;
   }
   const fileBlocks = files.map((file) => {
     const stats =
       file.additions != null || file.deletions != null
         ? ` +${file.additions ?? 0}/-${file.deletions ?? 0}`
         : "";
-    const snippet = file.snippet
-      ? `\n    code excerpt:\n${indentBlock(file.snippet, "    ")}`
-      : "";
+    const snippet =
+      !pathsOnly && file.snippet
+        ? `\n    code excerpt:\n${indentBlock(file.snippet, "    ")}`
+        : "";
     return `  · ${file.status} ${file.path}${stats}${snippet}`;
   });
   return [head, ...fileBlocks].join("\n");
