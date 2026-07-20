@@ -93,6 +93,7 @@ Git 状态色：
 ## 间距与字体
 
 - 间距走 Tailwind 间距尺度（4 的倍数），页面边距一致
+- **宽高 / max-width 等同理**：优先 `w-*` / `max-w-*` / `h-*` 内置档位，避免随意 `w-[Npx]`；细则与例外见 [ui-guidelines · Tailwind 尺寸](ui-guidelines.md#tailwind-尺寸硬性偏好)
 - 字体：系统 UI 栈或项目选定的开发者友好字体；**等宽**用于 commit hash、路径、diff
 - 字号阶梯：`text-xs` 辅助 → `text-sm` 正文 → `text-base` 标题；避免过多标题层级
 

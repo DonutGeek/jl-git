@@ -15,6 +15,21 @@
 4. 所有颜色来自 Tokens（[theme](theme.md)）
 5. UI 图标仅 `lucide-react`；工作区文件/目录类型图标用 `material-icon-theme`（VS Code Material Icon Theme），禁止用 lucide 冒充文件类型
 6. 基础控件优先用 **shadcn/ui 官方组件**，按需引入，不手写第二套 Button/Dialog/Input
+7. 宽高 / 间距 / 圆角等尺寸**尽量使用 Tailwind 内置尺度**（见下节），避免随意 `w-[140px]` 一类任意值
+
+---
+
+## Tailwind 尺寸（硬性偏好）
+
+布局与控件尺寸优先走 Tailwind 默认 spacing / sizing 阶梯（如 `w-28`、`max-w-60`、`h-7`、`gap-1.5`、`p-1.5`），与 [theme · 间距与字体](theme.md#间距与字体) 一致。
+
+| 偏好 | 说明 |
+|------|------|
+| 优先 | `w-28`、`w-44`、`max-w-60`、`min-w-0`、`h-7`、`h-8` 等内置类 |
+| 避免 | 无必要的任意像素：`w-[140px]`、`max-w-[180px]`、`h-[28px]` |
+| 可接受例外 | 视口复合约束（如 `max-w-[min(360px,calc(100vw-24px))]`）、与外部规范对齐的固定稿、无法用阶梯表达的数学表达式 |
+
+选型时取**最接近**的内置档位即可（例如约 110–112px → `w-28`，240px → `w-60` / `max-w-60`），不必为「刚好 N px」开任意值。颜色仍只用 Design Tokens，禁止硬编码色值。
 
 ---
 

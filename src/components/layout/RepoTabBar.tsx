@@ -87,7 +87,7 @@ function TabChrome({ tab, isActive, dragging = false, onSelect, onClose, closeLa
   return (
     <div
       className={cn(
-        "group relative flex h-7 max-w-[180px] items-center rounded-md font-mono text-xs leading-none transition-colors",
+        "group relative flex h-7 max-w-44 items-center rounded-md font-mono text-xs leading-none transition-colors",
         isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/60",
         dragging && "bg-primary/10 text-primary ring-1 ring-border",
       )}

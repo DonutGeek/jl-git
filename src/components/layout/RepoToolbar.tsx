@@ -17,6 +17,7 @@ import {
   ListTree,
   RotateCcw,
   RotateCw,
+  Search,
   Terminal,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,8 +34,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -107,6 +106,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
   const undoCommit = useRepoStore((state) => state.undoCommit);
 
   const [checkingOut, setCheckingOut] = useState(false);
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [pushing, setPushing] = useState(false);
@@ -123,6 +123,18 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     () => branches.filter((branch) => !branch.isRemote),
     [branches],
   );
+  /** 下拉：本地在上；仅纳入 origin/ 开头的远端；组内按名称排序 */
+  const menuBranches = useMemo(() => {
+    const byName = (left: GitBranch, right: GitBranch) =>
+      left.name.localeCompare(right.name);
+    const local = branches.filter((branch) => !branch.isRemote).sort(byName);
+    const originRemote = branches
+      .filter(
+        (branch) => branch.isRemote && branch.name.startsWith("origin/"),
+      )
+      .sort(byName);
+    return [...local, ...originRemote];
+  }, [branches]);
   // 当前检出分支尚未发布到远端时，在「推送」右侧显示「发布分支」
   const needsPublish = useMemo(() => {
     if (!status?.branch || status.detached) {
@@ -378,7 +390,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
           <Button
             type="button"
             variant="ghost"
-            className="h-8 w-[180px] shrink-0 justify-start gap-1.5 px-2"
+            className="h-8 w-44 shrink-0 justify-start gap-1.5 px-2"
             style={noDragStyle}
             aria-label={t("repo.switchProject")}
           >
@@ -390,23 +402,30 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-72 overflow-hidden p-0">
-          <div className="border-border border-b p-2">
-            <Input
-              value={projectFilter}
-              onChange={(event) => setProjectFilter(event.target.value)}
-              placeholder={t("repo.switchProjectFilter")}
-              className="h-7 text-xs"
-              aria-label={t("repo.switchProjectFilter")}
-              autoFocus
-              // 避免方向键/空格被菜单抢走，保证输入框可正常编辑
-              onKeyDown={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
-            />
+          {/* 间距对齐历史「用户」筛选 / 分支下拉 */}
+          <div className="border-border border-b p-1.5">
+            <div className="relative">
+              <Search
+                className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
+                aria-hidden="true"
+              />
+              <Input
+                value={projectFilter}
+                onChange={(event) => setProjectFilter(event.target.value)}
+                placeholder={t("repo.switchProjectFilter")}
+                className="h-7 pl-7 text-xs shadow-none"
+                aria-label={t("repo.switchProjectFilter")}
+                autoFocus
+                onKeyDown={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              />
+            </div>
           </div>
-          <ScrollArea className="max-h-80 [&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+          <ScrollArea className="max-h-72 [&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
             <div className="min-w-0 p-1">
               {filteredProjects.length === 0 ? (
-                <p className="text-muted-foreground px-2 py-3 text-xs">
+                <p className="text-muted-foreground px-2 py-3 text-center text-xs">
                   {t("repo.switchProjectNoMatch")}
                 </p>
               ) : (
@@ -419,9 +438,14 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
                     }}
                   >
                     <div className="flex w-full max-w-full min-w-0 items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
+                      <span className="min-w-0 flex-1 truncate font-medium">
+                        {item.name}
+                      </span>
                       {item.id === project.id ? (
-                        <Check className="text-primary size-3.5 shrink-0" aria-hidden="true" />
+                        <Check
+                          className="size-3.5 shrink-0"
+                          aria-hidden="true"
+                        />
                       ) : null}
                     </div>
                     <span
@@ -482,12 +506,12 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
       <div className="bg-border h-6 w-px shrink-0" aria-hidden="true" />
 
       {/* 分支：无「分支」小字；宽度随内容，上限截断；轻边框无重阴影 */}
-      <DropdownMenu>
+      <DropdownMenu open={branchMenuOpen} onOpenChange={setBranchMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
             variant="ghost"
-            className="border-border h-8 w-auto max-w-[240px] gap-1.5 border px-2.5 shadow-none"
+            className="border-border h-8 w-auto max-w-60 gap-1.5 border px-2.5 shadow-none"
             style={noDragStyle}
             disabled={checkingOut || loading}
             aria-label={t("repo.branchLabel")}
@@ -499,16 +523,13 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          // 禁止 Content 原生滚动，滚动交给内部 ScrollArea
+          // 禁止 Content 原生滚动，滚动交给内部 ScrollArea；p-0 对齐历史用户筛选
           className="w-72 overflow-hidden p-0"
         >
-          <div className="p-1 pb-0">
-            <DropdownMenuLabel>{t("repo.local")}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-          </div>
           <LocalBranchMenuList
-            branches={localBranches}
+            branches={menuBranches}
             checkingOut={checkingOut}
+            open={branchMenuOpen}
             onCheckout={(branchName) => {
               void handleCheckout(branchName);
             }}

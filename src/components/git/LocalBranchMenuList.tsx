@@ -1,44 +1,46 @@
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check } from "lucide-react";
+import { Check, Search } from "lucide-react";
 
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
-import { cn } from "@/lib/utils";
 import type { GitBranch } from "@/types/git";
-
-const BRANCH_MENU_MAX_HEIGHT_PX = 320;
-const BRANCH_MENU_ROW_PX = 32;
-const BRANCH_MENU_OVERSCAN = 8;
-
-const scrollAreaClassName = cn(
-  "w-full",
-  "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
-  "[&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden",
-);
 
 interface LocalBranchMenuListProps {
   branches: readonly GitBranch[];
   checkingOut: boolean;
   onCheckout: (branchName: string) => void;
+  /** 菜单是否打开；关闭时清空搜索 */
+  open?: boolean;
 }
 
-/** 工具栏等下拉中的本地分支列表：ScrollArea + 虚拟列表 */
+/**
+ * 工具栏分支下拉。
+ * 结构/间距对齐 HistoryList 用户筛选：搜索 border-b p-1.5，列表 max-h-72 + p-1。
+ */
 export function LocalBranchMenuList({
   branches,
   checkingOut,
   onCheckout,
+  open = true,
 }: LocalBranchMenuListProps) {
   const { t } = useTranslation();
-  const { viewport, bindScrollArea } = useScrollAreaViewport();
+  const [filter, setFilter] = useState("");
 
-  const virtualizer = useVirtualizer({
-    count: branches.length,
-    getScrollElement: () => viewport,
-    estimateSize: () => BRANCH_MENU_ROW_PX,
-    overscan: BRANCH_MENU_OVERSCAN,
-  });
+  useEffect(() => {
+    if (!open) {
+      setFilter("");
+    }
+  }, [open]);
+
+  const filteredBranches = useMemo(() => {
+    const query = filter.trim().toLowerCase();
+    if (!query) {
+      return branches;
+    }
+    return branches.filter((branch) => branch.name.toLowerCase().includes(query));
+  }, [branches, filter]);
 
   if (branches.length === 0) {
     return (
@@ -48,51 +50,56 @@ export function LocalBranchMenuList({
     );
   }
 
-  const listHeight = Math.min(
-    BRANCH_MENU_MAX_HEIGHT_PX,
-    branches.length * BRANCH_MENU_ROW_PX + 8,
-  );
-
   return (
-    <ScrollArea
-      ref={bindScrollArea}
-      className={scrollAreaClassName}
-      style={{ height: listHeight, maxHeight: BRANCH_MENU_MAX_HEIGHT_PX }}
-    >
-      <div
-        className="relative w-full p-1"
-        style={{ height: `${virtualizer.getTotalSize()}px` }}
-      >
-        {virtualizer.getVirtualItems().map((virtualRow) => {
-          const branch = branches[virtualRow.index];
-          if (!branch) {
-            return null;
-          }
-          return (
-            <div
-              key={branch.name}
-              data-index={virtualRow.index}
-              className="absolute top-0 left-0 w-full"
-              style={{
-                height: `${virtualRow.size}px`,
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-            >
+    <div className="flex min-h-0 flex-col">
+      <div className="border-border border-b p-1.5">
+        <div className="relative">
+          <Search
+            className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
+            aria-hidden="true"
+          />
+          <Input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            placeholder={t("repo.filter")}
+            className="h-7 pl-7 text-xs shadow-none"
+            aria-label={t("repo.filter")}
+            autoFocus
+            onKeyDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+          />
+        </div>
+      </div>
+
+      <ScrollArea className="max-h-72 [&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+        <div className="p-1">
+          {filteredBranches.length === 0 ? (
+            <p className="text-muted-foreground px-2 py-3 text-center text-xs">
+              {t("repo.branchesNoMatch")}
+            </p>
+          ) : (
+            filteredBranches.map((branch) => (
               <DropdownMenuItem
-                disabled={branch.isCurrent || checkingOut}
+                key={branch.name}
+                // 当前分支不灰显（对齐历史用户筛选：勾选即可）；切换中才禁用
+                disabled={checkingOut}
                 onSelect={() => {
+                  if (branch.isCurrent) {
+                    return;
+                  }
                   onCheckout(branch.name);
                 }}
               >
                 <span className="min-w-0 flex-1 truncate">{branch.name}</span>
                 {branch.isCurrent ? (
-                  <Check className="text-primary size-3.5 shrink-0" aria-hidden="true" />
+                  <Check className="size-3.5 shrink-0" aria-hidden="true" />
                 ) : null}
               </DropdownMenuItem>
-            </div>
-          );
-        })}
-      </div>
-    </ScrollArea>
+            ))
+          )}
+        </div>
+      </ScrollArea>
+    </div>
   );
 }

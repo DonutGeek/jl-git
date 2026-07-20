@@ -167,7 +167,7 @@ export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogPro
                   {startPoint || "—"}
                 </span>
               </p>
-              <div className="relative w-[140px] shrink-0">
+              <div className="relative w-36 shrink-0">
                 <Search
                   className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
                   aria-hidden="true"

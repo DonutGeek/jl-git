@@ -333,8 +333,8 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
         role="option"
         aria-selected={isSelected}
         className={cn(
-          // 固定四列：文案 | 时间 | 作者 | hash，避免时间随左侧内容左右漂移
-          "grid h-full w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_138px_7rem_7ch] items-center gap-1.5 rounded-md border-0 px-2 text-left shadow-none transition-colors duration-150",
+          // 固定四列：文案 | 时间 | 作者 | hash；作者约 avatar+短名（5.5rem），避免与 hash 间大空档
+          "grid h-full w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_138px_5.5rem_7ch] items-center gap-1.5 rounded-md border-0 px-2 text-left shadow-none transition-colors duration-150",
           isSelected
             ? "bg-primary/15 text-foreground hover:bg-primary/20"
             : isHovered
@@ -458,20 +458,26 @@ export function HistoryList() {
   const currentBranch = status?.branch ?? null;
   /** 历史「当前分支」范围：检出分支名；游离 HEAD 时用 HEAD */
   const currentBranchLogRef = status?.detached ? "HEAD" : currentBranch;
-  const localBranches = useMemo(
-    () => branches.filter((branch) => !branch.isRemote),
-    [branches],
-  );
+  /** 历史范围下拉：本地在上 + origin/ 远端（此前误只列本地） */
+  const historyScopeBranches = useMemo(() => {
+    const byName = (left: (typeof branches)[number], right: (typeof branches)[number]) =>
+      left.name.localeCompare(right.name);
+    const local = branches.filter((branch) => !branch.isRemote).sort(byName);
+    const originRemote = branches
+      .filter((branch) => branch.isRemote && branch.name.startsWith("origin/"))
+      .sort(byName);
+    return [...local, ...originRemote];
+  }, [branches]);
 
   const branchMenuFilterNormalized = branchMenuFilter.trim().toLowerCase();
-  const filteredLocalBranches = useMemo(() => {
+  const filteredScopeBranches = useMemo(() => {
     if (!branchMenuFilterNormalized) {
-      return localBranches;
+      return historyScopeBranches;
     }
-    return localBranches.filter((branch) =>
+    return historyScopeBranches.filter((branch) =>
       branch.name.toLowerCase().includes(branchMenuFilterNormalized),
     );
-  }, [localBranches, branchMenuFilterNormalized]);
+  }, [historyScopeBranches, branchMenuFilterNormalized]);
 
   const showCurrentBranchItem =
     !branchMenuFilterNormalized ||
@@ -873,13 +879,16 @@ export function HistoryList() {
               type="button"
               variant="outline"
               size="sm"
-              className="h-7 max-w-[140px] shrink-0 gap-1 px-2 text-xs font-normal shadow-none"
+              // 固定宽度：避免「当前分支」与长远端名切换时按钮伸缩挤乱筛选条
+              className="h-7 w-28 shrink-0 justify-between gap-1 px-2 text-xs font-normal shadow-none"
+              title={branchLabel}
             >
-              <span className="min-w-0 truncate">{branchLabel}</span>
+              <span className="min-w-0 flex-1 truncate text-left">{branchLabel}</span>
               <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56 p-0">
+          {/* 固定宽度 + overflow，避免长分支名把菜单撑开（对齐工具栏分支下拉） */}
+          <DropdownMenuContent align="start" className="w-72 overflow-hidden p-0">
             <div className="border-border border-b p-1.5">
               <div className="relative">
                 <Search
@@ -898,11 +907,12 @@ export function HistoryList() {
                 />
               </div>
             </div>
-            <ScrollArea className="max-h-72">
-              <div className="p-1">
+            <ScrollArea className="max-h-72 [&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+              <div className="min-w-0 p-1">
                 {showCurrentBranchItem ? (
                   <DropdownMenuItem
                     disabled={currentBranchLogRef == null}
+                    className="max-w-full min-w-0"
                     onSelect={() => {
                       if (currentBranchLogRef == null) {
                         return;
@@ -920,6 +930,7 @@ export function HistoryList() {
                 ) : null}
                 {showAllBranchesItem ? (
                   <DropdownMenuItem
+                    className="max-w-full min-w-0"
                     onSelect={() => {
                       void selectLogRef(null).catch((error: unknown) => {
                         toast.error(toUserMessage(error));
@@ -930,16 +941,19 @@ export function HistoryList() {
                     {logRef == null ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
                   </DropdownMenuItem>
                 ) : null}
-                {filteredLocalBranches.map((branch) => (
+                {filteredScopeBranches.map((branch) => (
                   <DropdownMenuItem
                     key={branch.name}
+                    className="max-w-full min-w-0"
                     onSelect={() => {
                       void selectLogRef(branch.name).catch((error: unknown) => {
                         toast.error(toUserMessage(error));
                       });
                     }}
                   >
-                    <span className="min-w-0 flex-1 truncate">{branch.name}</span>
+                    <span className="min-w-0 flex-1 truncate" title={branch.name}>
+                      {branch.name}
+                    </span>
                     {logRef === branch.name ? (
                       <Check className="size-3.5 shrink-0" aria-hidden="true" />
                     ) : null}
@@ -947,7 +961,7 @@ export function HistoryList() {
                 ))}
                 {!showCurrentBranchItem &&
                 !showAllBranchesItem &&
-                filteredLocalBranches.length === 0 ? (
+                filteredScopeBranches.length === 0 ? (
                   <p className="text-muted-foreground px-2 py-3 text-center text-xs">
                     {t("repo.historyBranchFilterEmpty")}
                   </p>
@@ -1000,7 +1014,7 @@ export function HistoryList() {
               variant="outline"
               size="sm"
               className={cn(
-                "h-7 max-w-[120px] shrink-0 gap-1 px-2 text-xs font-normal shadow-none",
+                "h-7 max-w-30 shrink-0 gap-1 px-2 text-xs font-normal shadow-none",
                 author && "bg-primary/10 text-primary border-transparent",
               )}
             >
