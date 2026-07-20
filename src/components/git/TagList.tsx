@@ -17,7 +17,8 @@ import { useRepoStore } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
 
-const TAG_ROW_HEIGHT_PX = 28;
+/** 与过滤框 h-8 对齐，略高于分支树行，避免标签名显得挤 */
+const TAG_ROW_HEIGHT_PX = 32;
 const TAG_VIRTUAL_OVERSCAN = 12;
 
 interface TagListProps {
@@ -182,7 +183,7 @@ export function TagList({ onSelectTag }: TagListProps) {
                 >
                   <div
                     className={cn(
-                      "group flex h-7 w-full min-w-0 items-center gap-1 rounded-md px-1.5",
+                      "group flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-2",
                       logRef === tag.name
                         ? "bg-primary/15"
                         : "hover:bg-accent/60",
@@ -190,11 +191,11 @@ export function TagList({ onSelectTag }: TagListProps) {
                   >
                     <button
                       type="button"
-                      className="flex h-7 min-w-0 flex-1 items-center gap-1 text-left text-xs"
+                      className="flex h-8 min-w-0 flex-1 items-center gap-1.5 text-left text-sm"
                       onClick={() => void select(tag.name)}
                     >
                       <Tag
-                        className="text-muted-foreground size-3 shrink-0"
+                        className="text-muted-foreground size-3.5 shrink-0"
                         aria-hidden="true"
                       />
                       <span className="min-w-0 truncate">{tag.name}</span>
@@ -203,12 +204,12 @@ export function TagList({ onSelectTag }: TagListProps) {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-6 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                      className="size-7 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [&_svg]:size-3.5"
                       aria-label={t("repo.deleteTag")}
                       disabled={busyName === tag.name}
                       onClick={() => void remove(tag.name)}
                     >
-                      <Trash2 className="size-3" aria-hidden="true" />
+                      <Trash2 aria-hidden="true" />
                     </Button>
                   </div>
                 </div>

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { ArrowUpDown } from "lucide-react";
+import { ListFilter } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -53,7 +53,7 @@ export function BranchListFilterMenu({
               )}
               aria-label={t("repo.branchFilterActions")}
             >
-              <ArrowUpDown aria-hidden="true" />
+              <ListFilter aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>

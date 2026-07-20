@@ -15,7 +15,6 @@ import {
   List,
   ListTree,
   MoreVertical,
-  RotateCw,
   Search,
   TriangleAlert,
 } from "lucide-react";
@@ -852,7 +851,6 @@ export function ChangesPanel() {
   const demotedConflictPaths = useRepoStore(
     (state) => state.demotedConflictPaths,
   );
-  const refreshStatus = useRepoStore((state) => state.refreshStatus);
   const selectChange = useRepoStore((state) => state.selectChange);
   const stage = useRepoStore((state) => state.stage);
   const unstage = useRepoStore((state) => state.unstage);
@@ -873,7 +871,6 @@ export function ChangesPanel() {
   const [unstagedGroupOpen, setUnstagedGroupOpen] = useState(true);
   const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(() => new Set());
   const [mutating, setMutating] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
   const demotedSet = useMemo(
     () => new Set(demotedConflictPaths),
@@ -939,21 +936,6 @@ export function ChangesPanel() {
 
   async function handleUnstageAll(): Promise<void> {
     await runMutation(() => unstageAll());
-  }
-
-  async function handleRefresh(): Promise<void> {
-    if (refreshing) {
-      return;
-    }
-
-    setRefreshing(true);
-    try {
-      await refreshStatus();
-    } catch (error) {
-      toast.error(toUserMessage(error));
-    } finally {
-      setRefreshing(false);
-    }
   }
 
   function showTreeView(): void {
@@ -1126,25 +1108,6 @@ export function ChangesPanel() {
             view === "tree" && "-translate-x-1",
           )}
         >
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground size-6"
-                aria-label={t("repo.refreshChanges")}
-                onClick={() => void handleRefresh()}
-                disabled={refreshing}
-              >
-                <RotateCw
-                  className={cn("size-3.5", refreshing && "animate-spin")}
-                  aria-hidden="true"
-                />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t("repo.refreshChanges")}</TooltipContent>
-          </Tooltip>
           {view === "tree" ? (
             <>
               <Tooltip delayDuration={300}>
