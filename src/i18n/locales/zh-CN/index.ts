@@ -1,8 +1,11 @@
 import agent from "./agent.json";
 import ai from "./ai.json";
 import branchCompare from "./branchCompare.json";
+import branchHistory from "./branchHistory.json";
+import branchManage from "./branchManage.json";
 import common from "./common.json";
 import dashboard from "./dashboard.json";
+import fileHistory from "./fileHistory.json";
 import openRepo from "./openRepo.json";
 import opLog from "./opLog.json";
 import projectManager from "./projectManager.json";
@@ -22,6 +25,9 @@ const zhCN = {
   ai,
   agent,
   branchCompare,
+  branchHistory,
+  branchManage,
+  fileHistory,
   repo,
 };
 

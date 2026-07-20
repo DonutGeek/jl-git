@@ -1,0 +1,19 @@
+{
+  "windowTitle": "View in History - {{ref}}",
+  "windowTitleAll": "View in History - All branches",
+  "loading": "Loading branch history…",
+  "projectNotFound": "Project not found",
+  "loadFailed": "Failed to open branch history",
+  "loadCommitsFailed": "Failed to load commits",
+  "loadDetailFailed": "Failed to load commit detail",
+  "empty": "No commits",
+  "emptyDescription": "There are no commits in the current scope.",
+  "selectCommit": "Select a commit to view details",
+  "selectCommitDescription": "Choose a commit on the left to see its details and changed files.",
+  "searchPlaceholder": "Search commits",
+  "allBranches": "All branches",
+  "currentScope": "Current scope",
+  "files": "{{total}} files {{added}} added {{modified}} modified {{deleted}} deleted",
+  "parents": "Parents",
+  "author": "Author"
+}

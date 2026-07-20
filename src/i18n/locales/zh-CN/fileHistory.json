@@ -1,0 +1,13 @@
+{
+  "windowTitle": "在历史中查看 - {{path}}",
+  "loading": "正在加载文件历史…",
+  "projectNotFound": "未找到该项目",
+  "loadFailed": "无法加载文件历史窗口",
+  "loadCommitsFailed": "读取文件提交历史失败",
+  "loadDiffFailed": "读取文件差异失败",
+  "empty": "该文件没有提交历史",
+  "emptyDescription": "当前范围内没有触及此文件的提交。",
+  "selectCommit": "选择提交以查看差异",
+  "selectCommitDescription": "左侧选择一条提交后，将显示该文件在父提交与此提交之间的差异。",
+  "noDiff": "此提交对该文件无文本差异"
+}

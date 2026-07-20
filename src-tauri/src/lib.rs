@@ -65,6 +65,7 @@ pub fn run() {
             commands::git_ops::git_tag_create,
             commands::git_ops::git_tag_delete,
             commands::git_ops::git_log,
+            commands::git_ops::git_blame,
             commands::git_ops::git_show,
             commands::git_ops::git_commit_message,
             commands::git_ops::git_ls_tree,

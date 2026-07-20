@@ -7,11 +7,17 @@ import {
 
 import { AppLayout } from "@/layouts/AppLayout";
 import { BranchComparePage } from "@/pages/BranchComparePage";
+import { BranchHistoryPage } from "@/pages/BranchHistoryPage";
+import { BranchManagePage } from "@/pages/BranchManagePage";
+import { FileHistoryPage } from "@/pages/FileHistoryPage";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
     <>
       <Route path="branch-compare" element={<BranchComparePage />} />
+      <Route path="file-history" element={<FileHistoryPage />} />
+      <Route path="branch-history" element={<BranchHistoryPage />} />
+      <Route path="branch-manage" element={<BranchManagePage />} />
       <Route element={<AppLayout />}>
         <Route index element={null} />
         <Route path="tab/:tabId" element={null} />

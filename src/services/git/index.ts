@@ -1,3 +1,4 @@
+export * from "./git.blame";
 export * from "./git.branch";
 export * from "./git.branch-compare";
 export * from "./git.commit";
@@ -12,6 +13,7 @@ export * from "./git.show";
 export * from "./git.status";
 export * from "./git.tag";
 
+import { getBlame } from "./git.blame";
 import { checkout, createBranch, deleteBranch, listBranches, renameBranch } from "./git.branch";
 import { getBranchCompare, getBranchFileDiff } from "./git.branch-compare";
 import {
@@ -46,6 +48,7 @@ import { getStatus } from "./git.status";
 import { createTag, deleteTag, listTags } from "./git.tag";
 
 export const gitService = {
+  getBlame,
   getStatus,
   getIdentity,
   getGlobalIdentity,

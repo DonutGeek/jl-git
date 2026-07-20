@@ -35,7 +35,10 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 - **Command：** `git_identity`
 - **说明：** 返回生效的 `user.name` / `user.email`；未配置时字段为 `null`
 
-### `getLog(repoPath, options?: { skip?; limit?; ref?; all?; order? }): Promise<{ commits; hasMore }>`
+### `getLog(repoPath, options?: { skip?; limit?; ref?; all?; order?; filePath? }): Promise<{ commits; hasMore }>`
+
+### `getBlame(repoPath, filePath, rev?): Promise<GitBlameResult>`
+行追溯；`rev` 省略则 blame 工作区文件。
 
 - **Command：** `git_log`
 - **说明：** 每条 `GitCommitSummary` 含 `authorEmail`、`parentIds`（用于历史图谱）与 `coAuthors`（来自 `Co-authored-by` trailer）。历史页经 `buildHistoryLogOptions`：打开仓库默认 `logRef` 为当前分支；UI 选「所有分支」时 `logRef == null` 传 `all: true`；选中分支/标签时传 `ref`。`order`：`topo` / `date` 对应 `--topo-order` / `--date-order`。
@@ -135,6 +138,8 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 | `renameBranch(repoPath, oldName, newName)` | `git_branch_rename` |
 | `checkout(repoPath, ref: string)` | `git_checkout` |
 | `merge(repoPath, ref, options?: { mode?: GitMergeMode; autostash?: boolean })` | `git_merge` |
+
+`listBranches` 返回 `GitBranch[]`，每项含 `name/isCurrent/isDefault/isRemote/upstream?`，以及 tip 元数据 `tipShortId/tipAuthoredAt/tipAuthorName`（无数据时为空串）。
 
 `createBranch` 默认 `checkout: true`（创建后切换到新分支）。
 

@@ -12,6 +12,8 @@ import { TextDiffPreview } from "@/components/git/TextDiffPreview";
 import { cn } from "@/lib/utils";
 
 import { gitService } from "@/services/git";
+import { openFileHistoryWindow } from "@/services/window/historyWindows";
+import { useProjectStore } from "@/store/useProjectStore";
 import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { GitDiffResult } from "@/types/git";
@@ -243,9 +245,39 @@ export function CommitFileDiffPane() {
           selectionKey={commitFileKey}
           encoding={encoding}
           onEncodingChange={setEncoding}
+          repoPath={repoPath}
+          blameRev={selectedCommitFile.commitId}
           oldLabel={oldLabel}
           newLabel={newLabel}
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          onOpenHistory={() => {
+            if (!repoPath) return;
+            const filePath = selectedCommitFile.path;
+            void (async () => {
+              try {
+                const store = useProjectStore.getState();
+                let project = store.projects.find((item) => item.path === repoPath);
+                if (!project) {
+                  // 分支历史等子窗可能尚未灌入 project store
+                  const projects = await store.loadProjects();
+                  project = projects.find((item) => item.path === repoPath);
+                }
+                if (!project) {
+                  toast.error(t("repo.diffOpenFileHistoryFailed"));
+                  return;
+                }
+                await openFileHistoryWindow({
+                  projectId: project.id,
+                  filePath,
+                  ref: useRepoStore.getState().logRef,
+                });
+              } catch (error: unknown) {
+                toast.error(
+                  toUserMessage(error) || t("repo.diffOpenFileHistoryFailed"),
+                );
+              }
+            })();
+          }}
         />
       ) : null}
     </div>

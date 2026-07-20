@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Eye, EyeOff, FileText, TriangleAlert } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +20,8 @@ import { TextDiffPreview } from "@/components/git/TextDiffPreview";
 import { cn } from "@/lib/utils";
 
 import { gitService } from "@/services/git";
+import { openFileHistoryWindow } from "@/services/window/historyWindows";
+import { useProjectStore } from "@/store/useProjectStore";
 import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { GitDiffResult, GitStatusEntry } from "@/types/git";
@@ -282,9 +285,26 @@ export function ChangesPreviewPane() {
               selectionKey={selectionKey}
               encoding={encoding}
               onEncodingChange={setEncoding}
+              repoPath={repoPath}
               oldLabel={<span className="truncate">{baseLabel}</span>}
               newLabel={<span className="truncate">{localLabel}</span>}
               className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              onOpenHistory={() => {
+                if (!repoPath || !selectedChange) return;
+                const project = useProjectStore
+                  .getState()
+                  .projects.find((item) => item.path === repoPath);
+                if (!project) {
+                  toast.error(t("repo.diffOpenFileHistoryFailed"));
+                  return;
+                }
+                void openFileHistoryWindow({
+                  projectId: project.id,
+                  filePath: selectedChange.path,
+                }).catch((error: unknown) => {
+                  toast.error(toUserMessage(error) || t("repo.diffOpenFileHistoryFailed"));
+                });
+              }}
             />
           ) : null}
         </>

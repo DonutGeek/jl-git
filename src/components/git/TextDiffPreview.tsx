@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
+import dayjs from "dayjs";
 import {
   DiffEditor,
   Editor,
@@ -15,6 +16,10 @@ import {
   type Monaco,
   type OnMount,
 } from "@monaco-editor/react";
+import { toast } from "sonner";
+
+type MonacoCodeEditor = Parameters<OnMount>[0];
+type MonacoDecoration = Parameters<MonacoCodeEditor["deltaDecorations"]>[1][number];
 
 import { DiffSidePreview, type DiffPreviewChange } from "@/components/git/DiffSidePreview";
 import {
@@ -31,6 +36,7 @@ import {
   monacoFileMinimapOptions,
   navigateDiffHunk,
   readMonoFont,
+  readSansFont,
   revealFirstDiffHunk,
   useMonacoHostSize,
 } from "@/components/git/monacoPreviewShared";
@@ -39,7 +45,14 @@ import {
   forceMonacoThemeRepaint,
   getJlGitMonacoThemeName,
 } from "@/design/monaco.theme";
-import type { GitDiffResult } from "@/types/git";
+import { gitService } from "@/services/git";
+import { toUserMessage } from "@/types/error";
+import type { GitBlameLine, GitDiffResult } from "@/types/git";
+import {
+  patchDiffViewPrefs,
+  readDiffViewPrefs,
+  type DiffViewPrefs,
+} from "@/utils/diffViewPrefs";
 
 export interface TextDiffPreviewProps {
   path: string;
@@ -50,7 +63,7 @@ export interface TextDiffPreviewProps {
   onEncodingChange: (encoding: string) => void;
   oldLabel: ReactNode;
   newLabel: ReactNode;
-  /** 二进制时编码下拉展示文案（默认 "—"） */
+  /** 二进制十六进制视图使用固定展示标签，不支持文本编码切换 */
   binaryEncodingLabel?: string;
   /**
    * 为 true 时二进制也走 DiffEditor（如分支比较 HEX）。
@@ -65,6 +78,15 @@ export interface TextDiffPreviewProps {
   /** 受控：折叠未变更区域 */
   foldUnchanged?: boolean;
   onFoldUnchangedChange?: (fold: boolean) => void;
+  /** 打开文件历史子窗 */
+  onOpenHistory?: () => void;
+  /** 行追溯所需：仓库路径；缺省则禁用行追溯 */
+  repoPath?: string | null;
+  /** 行追溯 revision；省略则对工作区文件 blame */
+  blameRev?: string | null;
+  /** 受控「更多」偏好（外层自管工具栏时传入） */
+  viewPrefs?: DiffViewPrefs;
+  onViewPrefsChange?: (patch: Partial<DiffViewPrefs>) => void;
   className?: string;
 }
 
@@ -96,6 +118,11 @@ function TextDiffPreview(
   onDiffLayoutChange,
   foldUnchanged: controlledFoldUnchanged,
   onFoldUnchangedChange,
+  onOpenHistory,
+  repoPath = null,
+  blameRev = null,
+  viewPrefs: controlledViewPrefs,
+  onViewPrefsChange,
   className,
 }: TextDiffPreviewProps,
   ref,
@@ -105,8 +132,10 @@ function TextDiffPreview(
   const [innerDiffLayout, setInnerDiffLayout] =
     useState<DiffPreviewLayout>("sideBySide");
   const [innerFoldUnchanged, setInnerFoldUnchanged] = useState(false);
+  const [innerViewPrefs, setInnerViewPrefs] = useState<DiffViewPrefs>(readDiffViewPrefs);
   const diffLayout = controlledDiffLayout ?? innerDiffLayout;
   const foldUnchanged = controlledFoldUnchanged ?? innerFoldUnchanged;
+  const viewPrefs = controlledViewPrefs ?? innerViewPrefs;
 
   function setDiffLayout(layout: DiffPreviewLayout): void {
     if (onDiffLayoutChange) {
@@ -123,12 +152,22 @@ function TextDiffPreview(
     }
     setInnerFoldUnchanged(fold);
   }
+
+  function handleViewPrefsChange(patch: Partial<DiffViewPrefs>): void {
+    if (onViewPrefsChange) {
+      onViewPrefsChange(patch);
+      return;
+    }
+    setInnerViewPrefs((prev) => patchDiffViewPrefs(prev, patch));
+  }
+
   const [dark, setDark] = useState(isDocumentDark);
   const monacoRef = useRef<Monaco | null>(null);
   const diffEditorRef = useRef<Parameters<DiffOnMount>[0] | null>(null);
   const fileEditorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const scrollSyncDisposeRef = useRef<(() => void) | null>(null);
   const previewDisposeRef = useRef<(() => void) | null>(null);
+  const blameDecorationsRef = useRef<string[]>([]);
   const revealedSelectionRef = useRef<string | null>(null);
   const { setHost, size } = useMonacoHostSize(`${mode}:${diffLayout}`);
   const [previewChanges, setPreviewChanges] = useState<DiffPreviewChange[]>([]);
@@ -137,17 +176,19 @@ function TextDiffPreview(
     scrollHeight: number;
     clientHeight: number;
   } | null>(null);
+  const [blameLines, setBlameLines] = useState<GitBlameLine[]>([]);
 
   const showEditor = !diff.binary || allowBinaryEditor;
   const sideBySide = diffLayout === "sideBySide";
   const language = diff.binary ? "plaintext" : languageFromPath(path);
-  const fontFamily = readMonoFont();
+  const fontFamily = viewPrefs.monospace ? readMonoFont() : readSansFont();
   const monacoTheme = getJlGitMonacoThemeName(dark);
   const editorKey = `${selectionKey}:${mode}:${diffLayout}:${foldUnchanged ? "fold" : "full"}`;
   const ready = size.width > 0 && size.height > 0;
   const baseEol = diff.binary ? "HEX" : detectLineEnding(diff.oldText);
   const localEol = diff.binary ? "HEX" : detectLineEnding(diff.newText);
   const canNavigateHunk = mode === "diff" && showEditor && !diff.binary;
+  const lineBlameDisabled = !repoPath || diff.binary;
 
   useEffect(() => {
     return () => {
@@ -339,6 +380,91 @@ function TextDiffPreview(
     modified.focus();
   }
 
+  // 同步「更多」偏好到已挂载的 Monaco 实例
+  useEffect(() => {
+    const wrap = viewPrefs.wordWrap ? "on" : "off";
+    const font = viewPrefs.monospace ? readMonoFont() : readSansFont();
+    const diffEditor = diffEditorRef.current;
+    if (diffEditor) {
+      diffEditor.updateOptions({
+        ignoreTrimWhitespace: viewPrefs.ignoreWhitespace,
+        renderSideBySide: sideBySide,
+        diffWordWrap: wrap,
+      } as Parameters<typeof diffEditor.updateOptions>[0]);
+      diffEditor.getOriginalEditor().updateOptions({ wordWrap: wrap, fontFamily: font });
+      diffEditor.getModifiedEditor().updateOptions({ wordWrap: wrap, fontFamily: font });
+    }
+    fileEditorRef.current?.updateOptions({ wordWrap: wrap, fontFamily: font });
+  }, [
+    sideBySide,
+    viewPrefs.ignoreWhitespace,
+    viewPrefs.monospace,
+    viewPrefs.wordWrap,
+  ]);
+
+  // 行追溯：按需拉取 blame 并装饰「新侧 / 文件视图」
+  useEffect(() => {
+    if (!viewPrefs.lineBlame || !repoPath || diff.binary) {
+      setBlameLines([]);
+      return;
+    }
+    let cancelled = false;
+    void gitService
+      .getBlame(repoPath, path, blameRev ?? undefined)
+      .then((result) => {
+        if (!cancelled) setBlameLines(result.lines);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setBlameLines([]);
+        toast.error(toUserMessage(error) || t("repo.diffLineBlameFailed"));
+        handleViewPrefsChange({ lineBlame: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // handleViewPrefsChange 稳定度不足，仅依赖关键输入
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 故意不跟 patch 函数
+  }, [blameRev, diff.binary, path, repoPath, t, viewPrefs.lineBlame]);
+
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    const target: MonacoCodeEditor | null =
+      mode === "diff"
+        ? (diffEditorRef.current?.getModifiedEditor() ?? null)
+        : fileEditorRef.current;
+    if (!monaco || !target) {
+      return;
+    }
+    if (!viewPrefs.lineBlame || blameLines.length === 0) {
+      blameDecorationsRef.current = target.deltaDecorations(
+        blameDecorationsRef.current,
+        [],
+      );
+      return;
+    }
+    const decorations: MonacoDecoration[] = blameLines.map((line) => ({
+      range: new monaco.Range(line.line, 1, line.line, 1),
+      options: {
+        isWholeLine: true,
+        linesDecorationsClassName: "jlgit-blame-gutter",
+        hoverMessage: {
+          value: t("repo.diffBlameHover", {
+            author: line.authorName,
+            hash: line.shortId,
+            time: line.authoredAt
+              ? dayjs(line.authoredAt).format("YYYY-MM-DD HH:mm")
+              : "—",
+          }),
+        },
+      },
+    }));
+    blameDecorationsRef.current = target.deltaDecorations(
+      blameDecorationsRef.current,
+      decorations,
+    );
+  }, [blameLines, mode, ready, t, viewPrefs.lineBlame, editorKey]);
+
   return (
     <div className={className ?? "flex h-full min-h-0 min-w-0 flex-col overflow-hidden"}>
       {showToolbar ? (
@@ -357,6 +483,10 @@ function TextDiffPreview(
           foldUnchanged={foldUnchanged}
           onFoldUnchangedChange={setFoldUnchanged}
           diffToolsDisabled={mode !== "diff" || (diff.binary && !allowBinaryEditor)}
+          onOpenHistory={onOpenHistory}
+          viewPrefs={viewPrefs}
+          onViewPrefsChange={handleViewPrefsChange}
+          lineBlameDisabled={lineBlameDisabled}
         />
       ) : null}
 
@@ -421,12 +551,15 @@ function TextDiffPreview(
                         beforeMount={handleBeforeMount}
                         onMount={(editor, monaco) => {
                           handleDiffMount(editor, monaco);
+                          const wrap = viewPrefs.wordWrap ? "on" : "off";
                           editor.updateOptions({
                             renderSideBySide: sideBySide,
                             renderSideBySideInlineBreakpoint: sideBySide
                               ? 0
                               : 10_000,
                             useInlineViewWhenSpaceIsLimited: !sideBySide,
+                            ignoreTrimWhitespace: viewPrefs.ignoreWhitespace,
+                            diffWordWrap: wrap,
                             hideUnchangedRegions: {
                               enabled: foldUnchanged,
                               revealLineCount: 1,
@@ -434,6 +567,14 @@ function TextDiffPreview(
                               contextLineCount: 3,
                             },
                           } as Parameters<typeof editor.updateOptions>[0]);
+                          editor.getOriginalEditor().updateOptions({
+                            wordWrap: wrap,
+                            fontFamily,
+                          });
+                          editor.getModifiedEditor().updateOptions({
+                            wordWrap: wrap,
+                            fontFamily,
+                          });
                         }}
                         options={
                           {
@@ -441,6 +582,9 @@ function TextDiffPreview(
                             minimap: { enabled: false },
                             renderOverviewRuler: false,
                             fontFamily,
+                            wordWrap: viewPrefs.wordWrap ? "on" : "off",
+                            ignoreTrimWhitespace: viewPrefs.ignoreWhitespace,
+                            diffWordWrap: viewPrefs.wordWrap ? "on" : "off",
                             renderSideBySide: sideBySide,
                             originalEditable: false,
                             renderIndicators: true,
@@ -486,6 +630,7 @@ function TextDiffPreview(
                     options={{
                       ...monacoCommonOptions,
                       fontFamily,
+                      wordWrap: viewPrefs.wordWrap ? "on" : "off",
                       minimap: monacoFileMinimapOptions,
                     }}
                     loading={

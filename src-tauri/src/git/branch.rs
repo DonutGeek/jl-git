@@ -14,6 +14,12 @@ pub struct GitBranch {
     pub is_remote: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub upstream: Option<String>,
+    /// tip 提交短 hash；无则空串
+    pub tip_short_id: String,
+    /// tip 提交作者时间（ISO-8601）；无则空串
+    pub tip_authored_at: String,
+    /// tip 提交作者名；无则空串
+    pub tip_author_name: String,
 }
 
 pub fn list_branches(repo_path: &Path, include_remote: bool) -> Result<Vec<GitBranch>, AppError> {
@@ -21,7 +27,7 @@ pub fn list_branches(repo_path: &Path, include_remote: bool) -> Result<Vec<GitBr
         repo_path,
         &[
             "for-each-ref",
-            "--format=%(refname:short)%00%(HEAD)%00%(upstream:short)",
+            "--format=%(refname:short)%00%(HEAD)%00%(upstream:short)%00%(objectname:short)%00%(authordate:iso-strict)%00%(authorname)",
             "refs/heads",
         ],
     )?;
@@ -32,7 +38,7 @@ pub fn list_branches(repo_path: &Path, include_remote: bool) -> Result<Vec<GitBr
             repo_path,
             &[
                 "for-each-ref",
-                "--format=%(refname:short)%00%(HEAD)%00%(upstream:short)",
+                "--format=%(refname:short)%00%(HEAD)%00%(upstream:short)%00%(objectname:short)%00%(authordate:iso-strict)%00%(authorname)",
                 "refs/remotes",
             ],
         )?;
@@ -130,6 +136,18 @@ fn parse_branch_rows(stdout: &str, is_remote: bool) -> Vec<GitBranch> {
                 is_default: false,
                 is_remote,
                 upstream,
+                tip_short_id: fields
+                    .get(3)
+                    .map(|value| value.trim().to_string())
+                    .unwrap_or_default(),
+                tip_authored_at: fields
+                    .get(4)
+                    .map(|value| value.trim().to_string())
+                    .unwrap_or_default(),
+                tip_author_name: fields
+                    .get(5)
+                    .map(|value| value.trim().to_string())
+                    .unwrap_or_default(),
             })
         })
         .collect()
@@ -249,7 +267,7 @@ mod tests {
 
     #[test]
     fn parses_null_separated_branch_rows() {
-        let stdout = "main\0*\0origin/main\nfeature/task\0 \0\n";
+        let stdout = "main\0*\0origin/main\0a1b2c3d\02026-01-15T10:00:00+08:00\0Alice\nfeature/task\0 \0\0d4e5f6a\02025-12-01T08:30:00+08:00\0Bob\n";
 
         let branches = parse_branches(stdout);
 
@@ -262,6 +280,9 @@ mod tests {
                     is_default: false,
                     is_remote: false,
                     upstream: Some("origin/main".into()),
+                    tip_short_id: "a1b2c3d".into(),
+                    tip_authored_at: "2026-01-15T10:00:00+08:00".into(),
+                    tip_author_name: "Alice".into(),
                 },
                 GitBranch {
                     name: "feature/task".into(),
@@ -269,6 +290,9 @@ mod tests {
                     is_default: false,
                     is_remote: false,
                     upstream: None,
+                    tip_short_id: "d4e5f6a".into(),
+                    tip_authored_at: "2025-12-01T08:30:00+08:00".into(),
+                    tip_author_name: "Bob".into(),
                 },
             ]
         );
@@ -278,7 +302,7 @@ mod tests {
     fn parses_remote_branch_rows_and_skips_symbolic_head() {
         // 含 origin/HEAD 与短名收成 origin 两种形式
         let stdout =
-            "origin\0 \0origin/main\norigin/HEAD\0 \0origin/main\norigin/main\0 \0\norigin/feature/task\0 \0\n";
+            "origin\0 \0origin/main\0a1b2c3d\02026-01-15T10:00:00+08:00\0Alice\norigin/HEAD\0 \0origin/main\0a1b2c3d\02026-01-15T10:00:00+08:00\0Alice\norigin/main\0 \0\0a1b2c3d\02026-01-15T10:00:00+08:00\0Alice\norigin/feature/task\0 \0\0d4e5f6a\02025-12-01T08:30:00+08:00\0Bob\n";
 
         let branches = parse_branch_rows(stdout, true);
 
@@ -291,6 +315,9 @@ mod tests {
                     is_default: false,
                     is_remote: true,
                     upstream: None,
+                    tip_short_id: "a1b2c3d".into(),
+                    tip_authored_at: "2026-01-15T10:00:00+08:00".into(),
+                    tip_author_name: "Alice".into(),
                 },
                 GitBranch {
                     name: "origin/feature/task".into(),
@@ -298,6 +325,9 @@ mod tests {
                     is_default: false,
                     is_remote: true,
                     upstream: None,
+                    tip_short_id: "d4e5f6a".into(),
+                    tip_authored_at: "2025-12-01T08:30:00+08:00".into(),
+                    tip_author_name: "Bob".into(),
                 },
             ]
         );
@@ -317,6 +347,9 @@ mod tests {
                 is_default: false,
                 is_remote: false,
                 upstream: None,
+                tip_short_id: String::new(),
+                tip_authored_at: String::new(),
+                tip_author_name: String::new(),
             },
             GitBranch {
                 name: "jingyue/test1".into(),
@@ -324,6 +357,9 @@ mod tests {
                 is_default: false,
                 is_remote: false,
                 upstream: None,
+                tip_short_id: String::new(),
+                tip_authored_at: String::new(),
+                tip_author_name: String::new(),
             },
             GitBranch {
                 name: "origin/main".into(),
@@ -331,6 +367,9 @@ mod tests {
                 is_default: false,
                 is_remote: true,
                 upstream: None,
+                tip_short_id: String::new(),
+                tip_authored_at: String::new(),
+                tip_author_name: String::new(),
             },
         ];
         mark_default_branches(&mut branches, Some("main"));

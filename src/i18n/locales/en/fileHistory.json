@@ -1,0 +1,13 @@
+{
+  "windowTitle": "View in History - {{path}}",
+  "loading": "Loading file history…",
+  "projectNotFound": "Project not found",
+  "loadFailed": "Failed to open file history",
+  "loadCommitsFailed": "Failed to load file commits",
+  "loadDiffFailed": "Failed to load file diff",
+  "empty": "No history for this file",
+  "emptyDescription": "No commits in the current range touch this file.",
+  "selectCommit": "Select a commit to view the diff",
+  "selectCommitDescription": "Choose a commit on the left to see this file’s changes against its parent.",
+  "noDiff": "No text diff for this file in the selected commit"
+}

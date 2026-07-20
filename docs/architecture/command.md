@@ -215,6 +215,12 @@ interface GitBranch {
   isDefault: boolean;
   isRemote: boolean;
   upstream?: string;
+  /** tip 提交短 hash；无则空串 */
+  tipShortId: string;
+  /** tip 提交作者时间（ISO-8601）；无则空串 */
+  tipAuthoredAt: string;
+  /** tip 提交作者名；无则空串 */
+  tipAuthorName: string;
   ahead?: number;
   behind?: number;
 }
@@ -225,11 +231,22 @@ interface GitBranch {
 | | |
 |--|--|
 | **目的** | 提交历史（分页） |
-| **输入** | `{ path: string; skip?: number; limit?: number; ref?: string; all?: boolean; order?: "default" \| "topo" \| "date" }` |
+| **输入** | `{ path: string; skip?: number; limit?: number; ref?: string; all?: boolean; order?: "default" \| "topo" \| "date"; filePath?: string }` |
 | **输出** | `{ commits: GitCommitSummary[]; hasMore: boolean }`（`GitCommitSummary` 含 `id/shortId/authorName/authorEmail/authoredAt/subject/parentIds/refs/coAuthors`） |
 | **错误** | 同 status 类；`VALIDATION`（limit 过大 / `all` 与 `ref` 同时指定 / 非法 order） |
 
 默认 `limit=50`，硬上限建议 200。`all=true` 时等价 `git log --all`（所有引用可达历史，与 UI「所有分支」对齐）；`ref` 指定单分支/标签；二者互斥。未传 `all` 且无 `ref` 时仍为当前 HEAD。`order`：`topo` → `--topo-order`，`date` → `--date-order`，省略/`default` 为 git 默认序。`parentIds` 来自 `%P`，用于历史图谱的分叉与合并连线。`refs` 来自 `git log --decorate` 的 `%D`（远端分支展示为 `origin&name`）。`coAuthors` 来自 `Co-authored-by` trailer（`%(trailers:key=Co-authored-by)`）。
+
+### `git_blame`
+
+| | |
+|--|--|
+| **目的** | 文件行追溯（`git blame --line-porcelain`），供差异预览「行追溯」装饰 |
+| **输入** | `{ path: string; filePath: string; rev?: string }` |
+| **输出** | `{ lines: GitBlameLine[] }`（`line` 为 1-based；含 `commitId/shortId/authorName/authoredAt`） |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `GIT_FAILED` |
+
+`rev` 省略时对工作区文件追溯；传入时对指定 revision 的文件版本追溯。`filePath` 须为仓库相对路径。
 
 ### `git_show`
 

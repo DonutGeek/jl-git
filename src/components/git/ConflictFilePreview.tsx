@@ -7,8 +7,13 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import dayjs from "dayjs";
 import { Editor, type Monaco, type OnMount } from "@monaco-editor/react";
 import { toast } from "sonner";
+
+type MonacoDecoration = Parameters<
+  Parameters<OnMount>[0]["deltaDecorations"]
+>[1][number];
 
 import {
   buildConflictDecorations,
@@ -28,6 +33,7 @@ import {
   monacoCommonOptions,
   monacoFileMinimapOptions,
   readMonoFont,
+  readSansFont,
   useMonacoHostSize,
 } from "@/components/git/monacoPreviewShared";
 import {
@@ -42,7 +48,12 @@ import {
 import { gitService } from "@/services/git";
 import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
-import type { GitDiffResult } from "@/types/git";
+import type { GitBlameLine, GitDiffResult } from "@/types/git";
+import {
+  patchDiffViewPrefs,
+  readDiffViewPrefs,
+  type DiffViewPrefs,
+} from "@/utils/diffViewPrefs";
 import {
   applyConflictHunkAction,
   hasConflictMarkers,
@@ -93,6 +104,8 @@ export const ConflictFilePreview = forwardRef<
   const [mode, setMode] = useState<DiffPreviewMode>("file");
   const [diffLayout, setDiffLayout] = useState<DiffPreviewLayout>("sideBySide");
   const [foldUnchanged, setFoldUnchanged] = useState(false);
+  const [viewPrefs, setViewPrefs] = useState<DiffViewPrefs>(readDiffViewPrefs);
+  const [blameLines, setBlameLines] = useState<GitBlameLine[]>([]);
   const [diff, setDiff] = useState<GitDiffResult | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
@@ -102,6 +115,7 @@ export const ConflictFilePreview = forwardRef<
   const textDiffRef = useRef<TextDiffPreviewHandle | null>(null);
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const blameDecorationsRef = useRef<string[]>([]);
   const decoRef = useRef<string[]>([]);
   const zoneIdsRef = useRef<string[]>([]);
   const overlaysRef = useRef<ConflictActionsOverlay[]>([]);
@@ -545,6 +559,81 @@ export const ConflictFilePreview = forwardRef<
     onEncodingChange?.(next);
   }
 
+  function handleViewPrefsChange(patch: Partial<DiffViewPrefs>): void {
+    setViewPrefs((prev) => patchDiffViewPrefs(prev, patch));
+  }
+
+  const fontFamily = viewPrefs.monospace ? readMonoFont() : readSansFont();
+  const lineBlameDisabled = !repoPath;
+
+  // 文件视图：同步换行 / 字体
+  useEffect(() => {
+    if (mode !== "file") return;
+    editorRef.current?.updateOptions({
+      wordWrap: viewPrefs.wordWrap ? "on" : "off",
+      fontFamily,
+    });
+  }, [fontFamily, mode, viewPrefs.wordWrap]);
+
+  // 文件视图行追溯
+  useEffect(() => {
+    if (mode !== "file" || !viewPrefs.lineBlame || !repoPath) {
+      setBlameLines([]);
+      return;
+    }
+    let cancelled = false;
+    void gitService
+      .getBlame(repoPath, filePath)
+      .then((result) => {
+        if (!cancelled) setBlameLines(result.lines);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setBlameLines([]);
+        toast.error(toUserMessage(error) || t("repo.diffLineBlameFailed"));
+        handleViewPrefsChange({ lineBlame: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 故意不跟 patch 函数
+  }, [filePath, mode, repoPath, t, viewPrefs.lineBlame]);
+
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    const editor = editorRef.current;
+    if (mode !== "file" || !monaco || !editor) {
+      return;
+    }
+    if (!viewPrefs.lineBlame || blameLines.length === 0) {
+      blameDecorationsRef.current = editor.deltaDecorations(
+        blameDecorationsRef.current,
+        [],
+      );
+      return;
+    }
+    const decorations: MonacoDecoration[] = blameLines.map((line) => ({
+      range: new monaco.Range(line.line, 1, line.line, 1),
+      options: {
+        isWholeLine: true,
+        linesDecorationsClassName: "jlgit-blame-gutter",
+        hoverMessage: {
+          value: t("repo.diffBlameHover", {
+            author: line.authorName,
+            hash: line.shortId,
+            time: line.authoredAt
+              ? dayjs(line.authoredAt).format("YYYY-MM-DD HH:mm")
+              : "—",
+          }),
+        },
+      },
+    }));
+    blameDecorationsRef.current = editor.deltaDecorations(
+      blameDecorationsRef.current,
+      decorations,
+    );
+  }, [blameLines, editorEpoch, mode, t, viewPrefs.lineBlame]);
+
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       <DiffPreviewToolbar
@@ -580,6 +669,9 @@ export const ConflictFilePreview = forwardRef<
           mode !== "diff" || diffLoading || Boolean(diff?.binary) || !diff
         }
         hideDiffLayoutTools={mode === "file"}
+        viewPrefs={viewPrefs}
+        onViewPrefsChange={handleViewPrefsChange}
+        lineBlameDisabled={lineBlameDisabled}
       />
 
       {mode === "diff" ? (
@@ -604,6 +696,9 @@ export const ConflictFilePreview = forwardRef<
             onDiffLayoutChange={setDiffLayout}
             foldUnchanged={foldUnchanged}
             onFoldUnchangedChange={setFoldUnchanged}
+            repoPath={repoPath}
+            viewPrefs={viewPrefs}
+            onViewPrefsChange={handleViewPrefsChange}
             oldLabel={<span className="truncate">{t("repo.diffBaseUnstaged")}</span>}
             newLabel={<span className="truncate">{t("repo.diffLocalUnstaged")}</span>}
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -645,7 +740,8 @@ export const ConflictFilePreview = forwardRef<
                 options={{
                   ...monacoCommonOptions,
                   readOnly: true,
-                  fontFamily: readMonoFont(),
+                  fontFamily,
+                  wordWrap: viewPrefs.wordWrap ? "on" : "off",
                   minimap: monacoFileMinimapOptions,
                 }}
               />

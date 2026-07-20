@@ -4,7 +4,6 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Trans, useTranslation } from "react-i18next";
 import {
   Cloud,
-  ListFilter,
   Monitor,
   Plus,
   RefreshCw,
@@ -21,6 +20,7 @@ import {
   type BranchContextActions,
   type BranchVisibleRow,
 } from "@/components/git/BranchTree";
+import { BranchListFilterMenu } from "@/components/git/BranchListFilterMenu";
 import { CreateBranchDialog } from "@/components/git/CreateBranchDialog";
 import { MergeBranchDialog } from "@/components/git/MergeBranchDialog";
 import { Button } from "@/components/ui/button";
@@ -45,9 +45,16 @@ import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/store/useRepoStore";
 import { useProjectStore } from "@/store/useProjectStore";
 import { openBranchCompareWindow } from "@/services/window/branchCompareWindow";
+import { openBranchManageWindow } from "@/services/window/branchManageWindow";
 
 import { toUserMessage } from "@/types/error";
 import { GitBranch, GitMergeOptions } from "@/types/git";
+import {
+  filterAndSortBranches,
+  patchBranchListPrefs,
+  readBranchListPrefs,
+  type BranchListPrefs,
+} from "@/utils/branchListPrefs";
 import { copyToClipboard } from "@/utils/clipboard";
 import { buildBranchTree } from "@/utils/branchTree";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
@@ -80,6 +87,7 @@ export function BranchList() {
   const [localOpen, setLocalOpen] = useState(true);
   const [remoteOpen, setRemoteOpen] = useState(true);
   const [filter, setFilter] = useState("");
+  const [listPrefs, setListPrefs] = useState<BranchListPrefs>(readBranchListPrefs);
   const [refreshing, setRefreshing] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -96,14 +104,14 @@ export function BranchList() {
   const { guard: guardWriteOp, dialog: conflictGuardDialog } =
     useConflictOperationGuard();
 
-  const filterLower = filter.trim().toLowerCase();
+  const filteredBranches = useMemo(
+    () => filterAndSortBranches(branches, listPrefs, filter),
+    [branches, filter, listPrefs],
+  );
 
-  const filteredBranches = useMemo(() => {
-    if (filterLower.length === 0) {
-      return branches;
-    }
-    return branches.filter((branch) => branch.name.toLowerCase().includes(filterLower));
-  }, [branches, filterLower]);
+  function handleListPrefsChange(patch: Partial<BranchListPrefs>): void {
+    setListPrefs((prev) => patchBranchListPrefs(prev, patch));
+  }
 
   const localBranches = useMemo(
     () => filteredBranches.filter((branch) => !branch.isRemote),
@@ -369,8 +377,14 @@ export function BranchList() {
     }
   }
 
-  function handleSoon(action: string): void {
-    toast.message(t("repo.syncComingSoon", { action }));
+  function handleOpenBranchManage(): void {
+    if (!projectId) {
+      toast.error(t("branchManage.projectNotFound"));
+      return;
+    }
+    void openBranchManageWindow({ projectId }).catch((error: unknown) => {
+      toast.error(toUserMessage(error) || t("branchManage.loadFailed"));
+    });
   }
 
   function handleCompareWithCurrent(branch: GitBranch): void {
@@ -532,21 +546,10 @@ export function BranchList() {
               <TooltipContent>{t("repo.refresh")}</TooltipContent>
             </Tooltip>
 
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground size-7 [&_svg]:size-3.5"
-                  aria-label={t("repo.branchFilterActions")}
-                  onClick={() => handleSoon(t("repo.branchFilterActions"))}
-                >
-                  <ListFilter aria-hidden="true" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t("repo.branchFilterActions")}</TooltipContent>
-            </Tooltip>
+            <BranchListFilterMenu
+              prefs={listPrefs}
+              onChange={handleListPrefsChange}
+            />
 
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
@@ -556,7 +559,7 @@ export function BranchList() {
                   size="icon"
                   className="text-muted-foreground size-7 [&_svg]:size-3.5"
                   aria-label={t("repo.branchSettings")}
-                  onClick={() => handleSoon(t("repo.branchSettings"))}
+                  onClick={handleOpenBranchManage}
                 >
                   <Settings aria-hidden="true" />
                 </Button>
@@ -570,9 +573,9 @@ export function BranchList() {
           <Input
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
-            placeholder={t("repo.filter")}
+            placeholder={t("repo.branchFilterKeyword")}
             className="h-8 text-xs shadow-none"
-            aria-label={t("repo.filter")}
+            aria-label={t("repo.branchFilterKeyword")}
           />
         </div>
       </div>

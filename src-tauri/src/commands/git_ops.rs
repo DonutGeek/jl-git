@@ -4,6 +4,7 @@ use tauri::AppHandle;
 
 use crate::error::AppError;
 use crate::git::{
+    blame::{self, GitBlameResult},
     branch::{self, GitBranch},
     branch_compare::{self, GitBranchCompareResult},
     conflict::{self, ConflictSide, GitWorktreeFileResult},
@@ -235,6 +236,8 @@ pub fn git_log(
     all: Option<bool>,
     // default | topo | date；缺省为 git 默认序
     order: Option<String>,
+    // 可选：仅跟踪该相对路径的提交
+    file_path: Option<String>,
 ) -> Result<GitLogResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
     let skip = skip.unwrap_or(0);
@@ -247,7 +250,18 @@ pub fn git_log(
         r#ref.as_deref(),
         all.unwrap_or(false),
         order.as_deref(),
+        file_path.as_deref(),
     )
+}
+
+#[tauri::command]
+pub fn git_blame(
+    path: String,
+    file_path: String,
+    rev: Option<String>,
+) -> Result<GitBlameResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    blame::get_blame(&repo_path, &file_path, rev.as_deref())
 }
 
 #[tauri::command]

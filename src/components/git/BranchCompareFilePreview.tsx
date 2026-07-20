@@ -2,6 +2,7 @@ import { TextDiffPreview } from "@/components/git/TextDiffPreview";
 import type { GitDiffResult } from "@/types/git";
 
 interface BranchCompareFilePreviewProps {
+  repoPath: string;
   base: string;
   target: string;
   path: string;
@@ -12,6 +13,7 @@ interface BranchCompareFilePreviewProps {
 
 /** 分支比较文件预览：复用 TextDiffPreview（工具栏 / Monaco / 右侧预览条）。 */
 export function BranchCompareFilePreview({
+  repoPath,
   base,
   target,
   path,
@@ -26,6 +28,8 @@ export function BranchCompareFilePreview({
       selectionKey={`${base}\0${target}\0${path}`}
       encoding={encoding}
       onEncodingChange={onEncodingChange}
+      repoPath={repoPath}
+      blameRev={target}
       oldLabel={<span className="truncate">{base}</span>}
       newLabel={<span className="truncate">{target}</span>}
       binaryEncodingLabel="HEX"

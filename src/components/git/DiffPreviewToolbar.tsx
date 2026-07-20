@@ -7,13 +7,24 @@ import {
   List,
   Menu,
 } from "lucide-react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { SelectMenu } from "@/components/common/SelectMenu";
 import { ToolIconButton } from "@/components/git/monacoPreviewShared";
 import { cn } from "@/lib/utils";
 
+import type { DiffViewPrefs } from "@/utils/diffViewPrefs";
 import { TEXT_ENCODING_OPTIONS } from "@/utils/textEncodings";
 
 export type DiffPreviewMode = "diff" | "file";
@@ -43,11 +54,18 @@ interface DiffPreviewToolbarProps {
   diffToolsDisabled: boolean;
   /** 冲突文件视图：隐藏单栏/多栏/折叠（文件视图下无意义） */
   hideDiffLayoutTools?: boolean;
+  /** 打开文件历史子窗；未提供时不展示「历史」 */
+  onOpenHistory?: () => void;
+  /** 「更多」菜单偏好 */
+  viewPrefs: DiffViewPrefs;
+  onViewPrefsChange: (patch: Partial<DiffViewPrefs>) => void;
+  /** 无仓库路径 / 二进制等场景禁用行追溯 */
+  lineBlameDisabled?: boolean;
 }
 
 /**
  * 文件 / 差异预览共用工具行：
- * 编码 · 文件/差异切换 · 上下差异 · 单栏/多栏/折叠 · 追溯/历史/更多
+ * 编码 · 文件/差异切换 · 上下差异 · 单栏/多栏/折叠 · 历史/更多
  */
 export function DiffPreviewToolbar({
   encoding,
@@ -66,13 +84,13 @@ export function DiffPreviewToolbar({
   onFoldUnchangedChange,
   diffToolsDisabled,
   hideDiffLayoutTools = false,
+  onOpenHistory,
+  viewPrefs,
+  onViewPrefsChange,
+  lineBlameDisabled = false,
 }: DiffPreviewToolbarProps) {
   const { t } = useTranslation();
   const sideBySide = diffLayout === "sideBySide";
-
-  function handleComingSoon(): void {
-    toast.message(t("repo.diffComingSoon"));
-  }
 
   return (
     <div className="border-border relative flex h-8 shrink-0 items-center border-b px-1.5">
@@ -182,42 +200,76 @@ export function DiffPreviewToolbar({
           <div className="bg-border mx-0.5 h-4 w-px shrink-0" aria-hidden="true" />
         )}
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground h-6 px-2 text-[11px]"
-          disabled
-          title={t("repo.diffComingSoon")}
-          onClick={handleComingSoon}
-        >
-          {t("repo.diffBlame")}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground h-6 px-2 text-[11px]"
-          disabled
-          title={t("repo.diffComingSoon")}
-          onClick={handleComingSoon}
-        >
-          {t("repo.diffHistory")}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground h-6 px-2 text-[11px]"
-          disabled
-          title={t("repo.diffComingSoon")}
-          onClick={handleComingSoon}
-        >
-          {t("repo.diffHistoryCompare")}
-        </Button>
-        <ToolIconButton label={t("repo.diffMore")} onClick={handleComingSoon}>
-          <Menu aria-hidden="true" />
-        </ToolIconButton>
+        {onOpenHistory ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground h-6 px-2 text-[11px]"
+            title={t("repo.diffHistory")}
+            onClick={onOpenHistory}
+          >
+            {t("repo.diffHistory")}
+          </Button>
+        ) : null}
+
+        <DropdownMenu>
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground size-6 shrink-0 [&_svg]:size-3.5"
+                  aria-label={t("repo.diffMore")}
+                >
+                  <Menu aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>{t("repo.diffMore")}</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent align="end" className="min-w-40">
+            <DropdownMenuCheckboxItem
+              checked={viewPrefs.ignoreWhitespace}
+              onCheckedChange={(checked) =>
+                onViewPrefsChange({ ignoreWhitespace: Boolean(checked) })
+              }
+              onSelect={(event) => event.preventDefault()}
+            >
+              {t("repo.diffIgnoreWhitespace")}
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={viewPrefs.lineBlame}
+              disabled={lineBlameDisabled}
+              onCheckedChange={(checked) =>
+                onViewPrefsChange({ lineBlame: Boolean(checked) })
+              }
+              onSelect={(event) => event.preventDefault()}
+            >
+              {t("repo.diffLineBlame")}
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={viewPrefs.wordWrap}
+              onCheckedChange={(checked) =>
+                onViewPrefsChange({ wordWrap: Boolean(checked) })
+              }
+              onSelect={(event) => event.preventDefault()}
+            >
+              {t("repo.diffWordWrap")}
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={viewPrefs.monospace}
+              onCheckedChange={(checked) =>
+                onViewPrefsChange({ monospace: Boolean(checked) })
+              }
+              onSelect={(event) => event.preventDefault()}
+            >
+              {t("repo.diffMonospace")}
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

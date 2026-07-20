@@ -35,6 +35,12 @@ export interface GitBranch {
   isDefault: boolean;
   isRemote: boolean;
   upstream?: string;
+  /** tip 提交短 hash；无则空串 */
+  tipShortId: string;
+  /** tip 提交作者时间（ISO-8601）；无则空串 */
+  tipAuthoredAt: string;
+  /** tip 提交作者名；无则空串 */
+  tipAuthorName: string;
 }
 
 export interface GitCommitAuthor {
@@ -308,6 +314,19 @@ export interface GitCommitFileDiffOptions {
   encoding?: string;
 }
 
+/** 单行 blame（与 git blame --line-porcelain 对齐） */
+export interface GitBlameLine {
+  line: number;
+  commitId: string;
+  shortId: string;
+  authorName: string;
+  authoredAt: string;
+}
+
+export interface GitBlameResult {
+  lines: GitBlameLine[];
+}
+
 /** 历史 log 排序：对应 git log 默认 / --topo-order / --date-order */
 export type GitLogOrder = "default" | "topo" | "date";
 
@@ -320,6 +339,8 @@ export interface GitLogOptions {
   all?: boolean;
   /** 排序策略；省略或 default 为 git 默认序 */
   order?: GitLogOrder;
+  /** 仅该仓库相对路径的历史（`git log -- <path>`） */
+  path?: string;
 }
 
 export interface GitCommitOptions {

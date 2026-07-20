@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "file-history",
+  "description": "Capability for read-only file history windows",
+  "windows": ["file-history-*"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "clipboard-manager:default",
+    "clipboard-manager:allow-write-text"
+  ]
+}

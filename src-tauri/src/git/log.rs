@@ -44,6 +44,8 @@ pub fn get_log(
     all: bool,
     // None / "default"：git 默认序；"topo" → --topo-order；"date" → --date-order
     order: Option<&str>,
+    // 可选：仅该仓库相对路径的历史（`git log -- <path>`）
+    path: Option<&str>,
 ) -> Result<GitLogResult, AppError> {
     if limit == 0 {
         return Err(AppError::new("VALIDATION", "提交数量必须大于 0"));
@@ -59,6 +61,10 @@ pub fn get_log(
 
     if let Some(ref_name) = ref_name {
         validate_git_ref(ref_name)?;
+    }
+
+    if let Some(path) = path {
+        crate::git::path::validate_repo_relative_paths(&[path.to_string()])?;
     }
 
     let order_flag = match order.map(str::trim).filter(|value| !value.is_empty()) {
@@ -91,6 +97,11 @@ pub fn get_log(
         args.push("--all".to_string());
     } else if let Some(ref_name) = ref_name {
         args.push(ref_name.to_string());
+    }
+
+    if let Some(path) = path {
+        args.push("--".to_string());
+        args.push(path.to_string());
     }
 
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -318,14 +329,15 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07
     #[test]
     fn rejects_zero_limit_before_running_git() {
         let error =
-            get_log(Path::new("."), 0, 0, None, false, None).expect_err("zero limit should fail");
+            get_log(Path::new("."), 0, 0, None, false, None, None)
+                .expect_err("zero limit should fail");
 
         assert_eq!(error.code, "VALIDATION");
     }
 
     #[test]
     fn rejects_option_like_ref_before_running_git() {
-        let error = get_log(Path::new("."), 0, 50, Some("-main"), false, None)
+        let error = get_log(Path::new("."), 0, 50, Some("-main"), false, None, None)
             .expect_err("invalid ref should fail");
 
         assert_eq!(error.code, "VALIDATION");
@@ -333,7 +345,7 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07
 
     #[test]
     fn rejects_all_together_with_ref() {
-        let error = get_log(Path::new("."), 0, 50, Some("main"), true, None)
+        let error = get_log(Path::new("."), 0, 50, Some("main"), true, None, None)
             .expect_err("all+ref should fail");
 
         assert_eq!(error.code, "VALIDATION");
@@ -341,7 +353,7 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07
 
     #[test]
     fn rejects_unknown_order() {
-        let error = get_log(Path::new("."), 0, 50, None, false, Some("author"))
+        let error = get_log(Path::new("."), 0, 50, None, false, Some("author"), None)
             .expect_err("unknown order should fail");
 
         assert_eq!(error.code, "VALIDATION");

@@ -172,3 +172,10 @@
   user-select: none;
   pointer-events: none;
 }
+
+/* 行追溯：行首细条，悬停看作者/提交 */
+.jlgit-monaco-host .jlgit-blame-gutter {
+  background: color-mix(in oklab, var(--primary) 45%, transparent);
+  width: 3px !important;
+  margin-left: 3px;
+}

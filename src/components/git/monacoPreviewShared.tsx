@@ -80,6 +80,14 @@ export function readMonoFont(): string {
   return value || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 }
 
+/** 非等宽：走界面 sans token */
+export function readSansFont(): string {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue("--font-sans")
+    .trim();
+  return value || "ui-sans-serif, system-ui, sans-serif";
+}
+
 export function isDocumentDark(): boolean {
   return document.documentElement.classList.contains("dark");
 }

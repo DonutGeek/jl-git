@@ -33,6 +33,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -46,9 +47,13 @@ import { CommitAuthorAvatars } from "@/components/git/CommitAuthorAvatars";
 import { TRUNCATE_BUDGET_ATTR } from "@/components/common/TruncateStartPath";
 import { GitRefTag } from "@/components/git/GitRefTag";
 import { HistoryGraph } from "@/components/git/HistoryGraph";
+import { useHistoryWorkspace } from "@/components/git/HistoryWorkspaceContext";
 import { cn } from "@/lib/utils";
 
+import { useProjectStore } from "@/store/useProjectStore";
 import { useRepoStore } from "@/store/useRepoStore";
+
+import { openBranchHistoryWindow } from "@/services/window/historyWindows";
 
 import { toUserMessage } from "@/types/error";
 import { GitCommitSummary, GitLogOrder } from "@/types/git";
@@ -419,6 +424,7 @@ export function HistoryList() {
   const logOrder = useRepoStore((state) => state.logOrder);
   const selectLogRef = useRepoStore((state) => state.selectLogRef);
   const setLogOrder = useRepoStore((state) => state.setLogOrder);
+  const { allowOpenInNewWindow } = useHistoryWorkspace();
 
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreFailed, setLoadMoreFailed] = useState(false);
@@ -426,6 +432,8 @@ export function HistoryList() {
   const [query, setQuery] = useState("");
   /** 分支范围下拉内筛选 */
   const [branchMenuFilter, setBranchMenuFilter] = useState("");
+  /** 用户下拉内筛选 */
+  const [authorMenuFilter, setAuthorMenuFilter] = useState("");
   const [author, setAuthor] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [graphWidth, setGraphWidth] = useState(readHistoryGraphWidth);
@@ -540,6 +548,18 @@ export function HistoryList() {
     }
     return [...names].sort((a, b) => a.localeCompare(b, "zh-CN"));
   }, [commits]);
+
+  const authorMenuFilterNormalized = authorMenuFilter.trim().toLowerCase();
+  const filteredAuthors = useMemo(() => {
+    if (!authorMenuFilterNormalized) {
+      return authors;
+    }
+    return authors.filter((name) => name.toLowerCase().includes(authorMenuFilterNormalized));
+  }, [authors, authorMenuFilterNormalized]);
+
+  const showAllAuthorsItem =
+    !authorMenuFilterNormalized ||
+    t("repo.historyAuthorAll").toLowerCase().includes(authorMenuFilterNormalized);
 
   const filteredCommits = useMemo(() => {
     return commits.filter((commit) => {
@@ -967,7 +987,13 @@ export function HistoryList() {
           </Tooltip>
         </div>
 
-        <DropdownMenu>
+        <DropdownMenu
+          onOpenChange={(open) => {
+            if (!open) {
+              setAuthorMenuFilter("");
+            }
+          }}
+        >
           <DropdownMenuTrigger asChild>
             <Button
               type="button"
@@ -983,18 +1009,43 @@ export function HistoryList() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48 p-0">
+            <div className="border-border border-b p-1.5">
+              <div className="relative">
+                <Search
+                  className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
+                  aria-hidden="true"
+                />
+                <Input
+                  value={authorMenuFilter}
+                  onChange={(event) => setAuthorMenuFilter(event.target.value)}
+                  placeholder={t("repo.historyAuthorFilterPlaceholder")}
+                  className="h-7 pl-7 text-xs shadow-none"
+                  aria-label={t("repo.historyAuthorFilterPlaceholder")}
+                  // 避免输入时触发菜单 item 焦点/关闭
+                  onKeyDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                />
+              </div>
+            </div>
             <ScrollArea className="max-h-72">
               <div className="p-1">
-                <DropdownMenuItem onSelect={() => setAuthor(null)}>
-                  <span className="min-w-0 flex-1 truncate">{t("repo.historyAuthorAll")}</span>
-                  {author == null ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
-                </DropdownMenuItem>
-                {authors.map((name) => (
+                {showAllAuthorsItem ? (
+                  <DropdownMenuItem onSelect={() => setAuthor(null)}>
+                    <span className="min-w-0 flex-1 truncate">{t("repo.historyAuthorAll")}</span>
+                    {author == null ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                  </DropdownMenuItem>
+                ) : null}
+                {filteredAuthors.map((name) => (
                   <DropdownMenuItem key={name} onSelect={() => setAuthor(name)}>
                     <span className="min-w-0 flex-1 truncate">{name}</span>
                     {author === name ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
                   </DropdownMenuItem>
                 ))}
+                {!showAllAuthorsItem && filteredAuthors.length === 0 ? (
+                  <p className="text-muted-foreground px-2 py-3 text-center text-xs">
+                    {t("repo.historyAuthorFilterEmpty")}
+                  </p>
+                ) : null}
               </div>
             </ScrollArea>
           </DropdownMenuContent>
@@ -1155,6 +1206,33 @@ export function HistoryList() {
                   ) : null}
                 </DropdownMenuItem>
               ))}
+              {allowOpenInNewWindow ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      const repoPath = useRepoStore.getState().repoPath;
+                      const project = useProjectStore
+                        .getState()
+                        .projects.find((item) => item.path === repoPath);
+                      if (!project) {
+                        toast.error(t("repo.historyOpenInNewWindowFailed"));
+                        return;
+                      }
+                      void openBranchHistoryWindow({
+                        projectId: project.id,
+                        ref: logRef,
+                      }).catch((error: unknown) => {
+                        toast.error(
+                          toUserMessage(error) || t("repo.historyOpenInNewWindowFailed"),
+                        );
+                      });
+                    }}
+                  >
+                    {t("repo.historyOpenInNewWindow")}
+                  </DropdownMenuItem>
+                </>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

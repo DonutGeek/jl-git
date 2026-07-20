@@ -163,7 +163,7 @@ export function BranchCompareWorkspace({ project, branches, initialMode, initial
           <section className="min-w-0 h-full">
             {diffError ? <p className="text-destructive p-4 text-sm">{diffError}</p> : !selectedPath ? (
               <EmptyState className="h-full" icon={<FileSearch />} title={t("branchCompare.selectFile")} description={t("branchCompare.selectFileDescription")} />
-            ) : !diff ? <p className="text-muted-foreground p-4 text-sm">{t("branchCompare.loading")}</p> : <BranchCompareFilePreview base={base} target={effectiveTarget} path={selectedPath} diff={diff} encoding={encoding} onEncodingChange={setEncoding} />}
+            ) : !diff ? <p className="text-muted-foreground p-4 text-sm">{t("branchCompare.loading")}</p> : <BranchCompareFilePreview repoPath={project.path} base={base} target={effectiveTarget} path={selectedPath} diff={diff} encoding={encoding} onEncodingChange={setEncoding} />}
           </section>
         )}
       />

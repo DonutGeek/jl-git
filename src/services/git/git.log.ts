@@ -30,5 +30,6 @@ export async function getLog(
     ref: options?.ref,
     all: options?.all,
     order: options?.order,
+    filePath: options?.path,
   });
 }

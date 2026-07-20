@@ -1,3 +1,4 @@
+pub mod blame;
 pub mod branch;
 pub mod branch_compare;
 pub mod commit;
