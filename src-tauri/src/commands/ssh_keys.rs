@@ -24,6 +24,24 @@ pub struct SshKeyReadPublicInput {
     pub path: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshKeyChangePassphraseInput {
+    /// 私钥绝对路径（须位于 `~/.ssh`）
+    pub path: String,
+    /// 当前口令；无口令时传空字符串
+    pub old_passphrase: String,
+    /// 新口令；空字符串表示移除口令
+    pub new_passphrase: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshKeyDeleteInput {
+    /// 私钥绝对路径（须位于 `~/.ssh`）
+    pub path: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SshKeyMaterial {
@@ -31,6 +49,18 @@ pub struct SshKeyMaterial {
     pub public_key: String,
     pub private_key_path: String,
     pub has_passphrase: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshKeyChangePassphraseResult {
+    pub has_passphrase: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshKeyDeleteResult {
+    pub ok: bool,
 }
 
 /// 生成 ed25519 密钥对到 `~/.ssh`，仅返回公钥与私钥路径（口令不回传、不落盘）。
@@ -97,6 +127,74 @@ pub fn ssh_key_generate(
     })
 }
 
+/// 修改私钥口令（`ssh-keygen -p`）；口令不回传、不落盘、不写日志。
+#[tauri::command]
+pub fn ssh_key_change_passphrase(
+    app: AppHandle,
+    input: SshKeyChangePassphraseInput,
+) -> Result<SshKeyChangePassphraseResult, AppError> {
+    let private_path = ensure_private_key_in_ssh_dir(&app, &input.path)?;
+    let path_str = private_path.to_str().ok_or_else(|| {
+        AppError::new("VALIDATION", "密钥路径无效")
+    })?;
+
+    // 参数数组调用，禁止 shell；口令仅作 -P/-N 入参
+    let output = Command::new("ssh-keygen")
+        .args([
+            "-p",
+            "-f",
+            path_str,
+            "-P",
+            &input.old_passphrase,
+            "-N",
+            &input.new_passphrase,
+            "-q",
+        ])
+        .output()
+        .map_err(|error| {
+            AppError::new("INTERNAL", "无法执行 ssh-keygen，请确认本机已安装 OpenSSH")
+                .with_details(error.to_string())
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_lowercase();
+        if stderr.contains("incorrect")
+            || stderr.contains("bad passphrase")
+            || stderr.contains("wrong passphrase")
+            || stderr.contains("load failed")
+        {
+            return Err(AppError::new("VALIDATION", "当前密码不正确"));
+        }
+        return Err(AppError::new("INTERNAL", "修改密钥密码失败"));
+    }
+
+    Ok(SshKeyChangePassphraseResult {
+        has_passphrase: !input.new_passphrase.is_empty(),
+    })
+}
+
+/// 删除 `~/.ssh` 下的私钥及其旁路 `.pub`（文件已不存在则跳过）。
+#[tauri::command]
+pub fn ssh_key_delete(
+    app: AppHandle,
+    input: SshKeyDeleteInput,
+) -> Result<SshKeyDeleteResult, AppError> {
+    let private_path = resolve_key_path_in_ssh_dir(&app, &input.path, false)?;
+    let public_path = PathBuf::from(format!("{}.pub", private_path.display()));
+    // 公钥路径同样限制在 ~/.ssh 内
+    if public_path.exists() {
+        let _ = resolve_key_path_in_ssh_dir(
+            &app,
+            public_path.to_str().unwrap_or_default(),
+            true,
+        )?;
+    }
+
+    remove_file_if_exists(&private_path)?;
+    remove_file_if_exists(&public_path)?;
+    Ok(SshKeyDeleteResult { ok: true })
+}
+
 /// 读取公钥：支持 `.pub` 或对应私钥旁的 `.pub`。
 #[tauri::command]
 pub fn ssh_key_read_public(input: SshKeyReadPublicInput) -> Result<SshKeyMaterial, AppError> {
@@ -137,6 +235,80 @@ fn resolve_ssh_dir(app: &AppHandle) -> Result<PathBuf, AppError> {
     Err(AppError::new("INTERNAL", "无法解析用户主目录"))
 }
 
+/// 校验私钥存在且落在 `~/.ssh` 下，防止改写任意路径文件。
+fn ensure_private_key_in_ssh_dir(app: &AppHandle, raw: &str) -> Result<PathBuf, AppError> {
+    resolve_key_path_in_ssh_dir(app, raw, false)
+}
+
+/// 解析并校验路径位于 `~/.ssh`；`allow_pub` 为 false 时拒绝 `.pub`。
+/// 文件可不存在（删除场景），但仍禁止 `..` 与目录外路径。
+fn resolve_key_path_in_ssh_dir(
+    app: &AppHandle,
+    raw: &str,
+    allow_pub: bool,
+) -> Result<PathBuf, AppError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::new("VALIDATION", "路径不能为空"));
+    }
+    if trimmed.contains("..") {
+        return Err(AppError::new("VALIDATION", "路径非法"));
+    }
+
+    let path = PathBuf::from(trimmed);
+    let is_pub = path.extension().and_then(|ext| ext.to_str()) == Some("pub");
+    if is_pub && !allow_pub {
+        return Err(AppError::new("VALIDATION", "请指定私钥文件，而非 .pub"));
+    }
+
+    let ssh_dir = resolve_ssh_dir(app)?;
+    let ssh_canon = ssh_dir.canonicalize().map_err(|error| {
+        AppError::new("INVALID_PATH", "无法解析 .ssh 目录").with_details(error.to_string())
+    })?;
+
+    if path.exists() {
+        if !path.is_file() {
+            return Err(AppError::new("INVALID_PATH", "路径不是文件"));
+        }
+        let path_canon = path.canonicalize().map_err(|error| {
+            AppError::new("INVALID_PATH", "无法规范化密钥路径").with_details(error.to_string())
+        })?;
+        if !path_canon.starts_with(&ssh_canon) {
+            return Err(AppError::new(
+                "VALIDATION",
+                "仅允许操作 ~/.ssh 目录下的密钥",
+            ));
+        }
+        return Ok(path_canon);
+    }
+
+    // 文件已缺失：用绝对路径做前缀校验
+    let absolute = if path.is_absolute() {
+        path
+    } else {
+        ssh_dir.join(path)
+    };
+    if !absolute.starts_with(&ssh_dir) && !absolute.starts_with(&ssh_canon) {
+        return Err(AppError::new(
+            "VALIDATION",
+            "仅允许操作 ~/.ssh 目录下的密钥",
+        ));
+    }
+    Ok(absolute)
+}
+
+fn remove_file_if_exists(path: &Path) -> Result<(), AppError> {
+    if !path.exists() {
+        return Ok(());
+    }
+    if !path.is_file() {
+        return Err(AppError::new("VALIDATION", "拒绝删除非普通文件"));
+    }
+    fs::remove_file(path).map_err(|error| {
+        AppError::new("IO", "删除密钥文件失败").with_details(error.to_string())
+    })
+}
+
 fn sanitize_key_stem(name: &str) -> String {
     let mut stem: String = name
         .chars()
@@ -148,10 +320,11 @@ fn sanitize_key_stem(name: &str) -> String {
             }
         })
         .collect();
+    // 与常见 OpenSSH 命名一致，例如 id_ed25519 → ~/.ssh/id_ed25519
     if stem.is_empty() {
-        stem = "jlgit".to_string();
+        stem = "id_ed25519".to_string();
     }
-    format!("jlgit_{stem}")
+    stem
 }
 
 fn unique_private_path(ssh_dir: &Path, stem: &str) -> Result<PathBuf, AppError> {

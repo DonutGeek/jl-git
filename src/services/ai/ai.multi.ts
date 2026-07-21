@@ -174,8 +174,12 @@ function formatProfileBlock(
   profile: AgentProjectProfile,
   mode: "full" | "compact",
 ): string | null {
+  const title = profile.jlgitMeta.alias || profile.projectName;
+  const jlgitMetaBlock = formatJlgitMetaBlock(profile);
+  const folderName = repoFolderNameFromPath(profile.jlgitMeta.path);
+
   if (profile.error) {
-    return `### ${profile.projectName}\nERROR: ${profile.error}`;
+    return `### ${title}\n${jlgitMetaBlock}\nERROR: ${profile.error}`;
   }
   if (profile.recentCommits.length === 0) {
     const readmeRaw = profile.readmeExcerpt?.trim() ?? "";
@@ -185,8 +189,9 @@ function formatProfileBlock(
         ? `${readmeRaw.slice(0, readmeLimit)}\n…[truncated]`
         : readmeRaw;
     return [
-      `### ${profile.projectName}`,
-      `repoFolderName: ${profile.projectName}`,
+      `### ${title}`,
+      jlgitMetaBlock,
+      `repoFolderName: ${folderName}`,
       `projectId: ${profile.projectId}`,
       "matchedCommits=0",
       "authorInvolvementRange: —",
@@ -240,8 +245,9 @@ function formatProfileBlock(
       : "—";
 
   return [
-    `### ${profile.projectName}`,
-    `repoFolderName: ${profile.projectName}`,
+    `### ${title}`,
+    jlgitMetaBlock,
+    `repoFolderName: ${folderName}`,
     // 作者参与周期（接手首提交 → 末次提交）；成稿必须写入 **项目周期**
     `authorInvolvementRange: ${involvementRange}`,
     `authorFirstCommitAt: ${profile.firstCommitAt ?? "—"}`,
@@ -260,6 +266,24 @@ function formatProfileBlock(
   ]
     .filter((line): line is string => line !== null)
     .join("\n");
+}
+
+/** 鲸灵Git 登记信息块；后续字段非空时在此追加即可 */
+function formatJlgitMetaBlock(profile: AgentProjectProfile): string {
+  const meta = profile.jlgitMeta;
+  const lines = [
+    "jlgitMeta (JLGit registration; prefer for project name/description over README):",
+    `  path: ${meta.path}`,
+    `  alias: ${meta.alias}`,
+    `  group: ${meta.groupName?.trim() || "(ungrouped)"}`,
+  ];
+  return lines.join("\n");
+}
+
+function repoFolderNameFromPath(path: string): string {
+  const normalized = path.replace(/[\\/]+$/u, "");
+  const parts = normalized.split(/[\\/]/u);
+  return parts[parts.length - 1] || path;
 }
 
 /** 超预算时按仓库轮转截取，避免只保留前几个仓 */

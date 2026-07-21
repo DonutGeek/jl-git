@@ -86,6 +86,7 @@ import {
   type GitIdentityAccount,
 } from "@/services/git/git.accounts";
 import { listSystemFonts } from "@/services/system/system.info";
+import { setLaunchAtLoginEnabled } from "@/services/system/system.autostart";
 import type { ThemeMode } from "@/services/theme/theme.service";
 import {
   CLIENT_FONT_SYSTEM,
@@ -521,17 +522,22 @@ export function SettingsDrawer() {
     }
   }
 
-  function handleLaunchToggle(next: boolean): void {
-    setLaunchAtLogin(next);
-    toast.message(
-      next ? t("settings.launchAtLoginOnHint") : t("settings.launchAtLoginOffHint"),
-    );
+  async function handleLaunchToggle(next: boolean): Promise<void> {
+    try {
+      await setLaunchAtLoginEnabled(next);
+      setLaunchAtLogin(next);
+      toast.success(
+        next ? t("settings.launchAtLoginOnHint") : t("settings.launchAtLoginOffHint"),
+      );
+    } catch (error) {
+      toast.error(toUserMessage(error) || t("settings.launchAtLoginFailed"));
+    }
   }
 
   const themeOptions: { value: ThemeMode; label: string }[] = [
+    { value: "system", label: t("settings.themeSystem") },
     { value: "light", label: t("settings.themeLight") },
     { value: "dark", label: t("settings.themeDark") },
-    { value: "system", label: t("settings.themeSystem") },
   ];
 
   const localeOptions: { value: AppLocale; label: string }[] = [
@@ -676,8 +682,8 @@ export function SettingsDrawer() {
                 })}
               </nav>
             </aside>
-            <ScrollArea className="h-full min-w-0 flex-1 px-6 py-5">
-              <div className="w-full max-w-3xl space-y-8">
+            <ScrollArea className="h-full min-w-0 flex-1 px-6 py-5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+              <div className="w-full max-w-3xl min-w-0 space-y-8">
           {/* 1. 外观 */}
           {activeCategory === "appearance" ? <SettingsSection
             icon={<Palette />}
@@ -1562,7 +1568,9 @@ export function SettingsDrawer() {
                     <Switch
                       size="sm"
                       checked={launchAtLogin}
-                      onCheckedChange={handleLaunchToggle}
+                      onCheckedChange={(next) => {
+                        void handleLaunchToggle(next);
+                      }}
                       aria-label={t("settings.launchAtLogin")}
                     />
                   </ItemActions>

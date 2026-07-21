@@ -26,6 +26,15 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_log::Builder::new().build())
         .setup(|app| {
+            #[cfg(desktop)]
+            {
+                // 开机自启：macOS 使用 LaunchAgent
+                app.handle().plugin(tauri_plugin_autostart::init(
+                    tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+                    None,
+                ))?;
+            }
+
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
             // 导入备份后的待替换库：须在建立连接前应用
@@ -118,6 +127,8 @@ pub fn run() {
             commands::system::system_reveal_in_file_manager,
             commands::system::system_open_in_editor,
             commands::ssh_keys::ssh_key_generate,
+            commands::ssh_keys::ssh_key_change_passphrase,
+            commands::ssh_keys::ssh_key_delete,
             commands::ssh_keys::ssh_key_read_public
         ])
         .run(tauri::generate_context!())

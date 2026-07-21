@@ -10,10 +10,11 @@ import {
   filterTechByAuthorUsage,
   mergePackageTech,
 } from "@/services/agent/agent.techStack";
-import type { Project } from "@/types/project";
+import type { Project, Workspace } from "@/types/project";
 import type {
   ResumeCommitChangedFile,
   ResumeCommitSample,
+  AgentJlgitMeta,
   AgentProjectProfile,
 } from "@/types/agent";
 
@@ -79,8 +80,12 @@ export interface AgentAuthorFilter {
 export async function buildAgentProfiles(
   projects: readonly Project[],
   authors: readonly AgentAuthorFilter[] = [],
+  workspaces: readonly Workspace[] = [],
 ): Promise<AgentProjectProfile[]> {
   const authorPatterns = toGitAuthorPatterns(authors);
+  const groupNameById = new Map(
+    workspaces.map((workspace) => [workspace.id, workspace.name] as const),
+  );
   const results: AgentProjectProfile[] = new Array(projects.length);
   let cursor = 0;
 
@@ -90,7 +95,7 @@ export async function buildAgentProfiles(
       cursor += 1;
       const project = projects[index];
       if (!project) continue;
-      results[index] = await buildOneProfile(project, authorPatterns);
+      results[index] = await buildOneProfile(project, authorPatterns, groupNameById);
     }
   }
 
@@ -100,6 +105,22 @@ export async function buildAgentProfiles(
   );
   await Promise.all(workers);
   return results;
+}
+
+/** 从 Project + 分组表组装鲸灵Git 登记信息 */
+export function buildJlgitMeta(
+  project: Project,
+  groupNameById: ReadonlyMap<string, string> = new Map(),
+): AgentJlgitMeta {
+  const groupName =
+    project.workspaceId != null
+      ? (groupNameById.get(project.workspaceId)?.trim() || null)
+      : null;
+  return {
+    path: project.path,
+    alias: project.name,
+    groupName,
+  };
 }
 
 function normalizeAuthorFilters(
@@ -388,7 +409,9 @@ export function commitMatchesAuthor(
 async function buildOneProfile(
   project: Project,
   authorPatterns: readonly string[],
+  groupNameById: ReadonlyMap<string, string>,
 ): Promise<AgentProjectProfile> {
+  const jlgitMeta = buildJlgitMeta(project, groupNameById);
   try {
     const [logCommits, treeResult] = await Promise.all([
       loadSampledLogCommits(project.path, authorPatterns),
@@ -431,6 +454,7 @@ async function buildOneProfile(
       projectId: project.id,
       projectName: project.name,
       projectPath: project.path,
+      jlgitMeta,
       firstCommitAt: range.firstCommitAt,
       lastCommitAt: range.lastCommitAt,
       sampledCommitCount: recentCommits.length,
@@ -445,6 +469,7 @@ async function buildOneProfile(
       projectId: project.id,
       projectName: project.name,
       projectPath: project.path,
+      jlgitMeta,
       error: error instanceof Error ? error.message : String(error),
       firstCommitAt: null,
       lastCommitAt: null,

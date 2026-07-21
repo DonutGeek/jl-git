@@ -35,7 +35,7 @@ export interface AgentChatMessage {
   reasoningContent?: string;
   /** 深度思考用时（毫秒），思考结束后写入 */
   reasoningDurationMs?: number;
-  /** 候选菜单选中的提及（分支 / 插件 / 项目），供上下文解析使用 */
+  /** 候选菜单选中的提及（分支 / 插件 / 技能 / 项目），供上下文解析与历史标签展示 */
   mentions?: readonly AgentMention[];
 }
 

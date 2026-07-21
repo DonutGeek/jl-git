@@ -1,14 +1,11 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
 
 import i18n from "@/i18n";
-import { getGlobalIdentity, setGlobalIdentity } from "@/services/git/git.identity";
+import { setGlobalIdentity } from "@/services/git/git.identity";
 import { isRecord } from "@/types/error";
 
 const STORE_FILE = "git-accounts.json";
 const ACCOUNTS_KEY = "accounts";
-/** 简历插件联系信息 Store（含旧文件名），仅用于播种初始 Git 账号 */
-const AGENT_IDENTITY_STORE_FILES = ["agent-identity.json", "jinglv.json", "resume-helper.json"];
-const AGENT_IDENTITY_KEY = "identity";
 
 /** 应用内登记的 Git 提交身份（启用项会同步到 git config --global） */
 export interface GitIdentityAccount {
@@ -28,20 +25,11 @@ function getStore(): Promise<LazyStore> {
   return storePromise;
 }
 
-/** 列出 Git 账号；空列表时从全局身份 / 简历插件旧配置播种。 */
+/** 列出 Git 账号；未配置时为空列表（不从全局 git / 旧插件自动播种）。 */
 export async function listGitIdentityAccounts(): Promise<GitIdentityAccount[]> {
   const store = await getStore();
   const saved = await store.get<unknown>(ACCOUNTS_KEY);
-  const accounts = parseAccounts(saved);
-  if (accounts.length > 0 || Array.isArray(saved)) {
-    return ensureSingleEnabled(accounts);
-  }
-
-  const seeded = await seedInitialAccounts();
-  if (seeded.length > 0) {
-    await saveAccounts(seeded);
-  }
-  return seeded;
+  return ensureSingleEnabled(parseAccounts(saved));
 }
 
 /** 创建并启用账号；同时写入 git config --global。 */
@@ -182,61 +170,6 @@ export async function listAllGitAuthorsForMatching(): Promise<
   return accounts.map((item) => ({ name: item.name, email: item.email }));
 }
 
-async function seedInitialAccounts(): Promise<GitIdentityAccount[]> {
-  const byKey = new Map<string, GitIdentityAccount>();
-
-  try {
-    const identity = await getGlobalIdentity();
-    const name = identity.name?.trim() ?? "";
-    const email = identity.email?.trim() ?? "";
-    if (name && email) {
-      byKey.set(accountKey(name, email), {
-        id: crypto.randomUUID(),
-        name,
-        email,
-        enabled: true,
-        createdAt: new Date().toISOString(),
-      });
-    }
-  } catch {
-    // 忽略全局身份读取失败
-  }
-
-  for (const storeFile of AGENT_IDENTITY_STORE_FILES) {
-    try {
-      const identityStore = new LazyStore(storeFile);
-      const saved = await identityStore.get<unknown>(AGENT_IDENTITY_KEY);
-      if (!isRecord(saved) || !Array.isArray(saved.gitAuthors)) {
-        continue;
-      }
-      for (const item of saved.gitAuthors) {
-        if (!isRecord(item)) continue;
-        const name = typeof item.name === "string" ? item.name.trim() : "";
-        const email = typeof item.email === "string" ? item.email.trim() : "";
-        if (!name && !email) continue;
-        const key = accountKey(name || email, email || name);
-        if (byKey.has(key)) continue;
-        byKey.set(key, {
-          id: crypto.randomUUID(),
-          name: name || email,
-          email: email || `${name}@localhost`,
-          enabled: byKey.size === 0,
-          createdAt: new Date().toISOString(),
-        });
-      }
-    } catch {
-      // 忽略旧版简历插件配置迁移失败
-    }
-  }
-
-  const accounts = [...byKey.values()];
-  if (accounts.length > 0 && !accounts.some((item) => item.enabled)) {
-    const first = accounts[0];
-    if (first) first.enabled = true;
-  }
-  return accounts;
-}
-
 function hasDuplicate(
   accounts: readonly GitIdentityAccount[],
   name: string,
@@ -251,10 +184,6 @@ function hasDuplicate(
       item.name.toLowerCase() === nameLower &&
       item.email.toLowerCase() === emailLower,
   );
-}
-
-function accountKey(name: string, email: string): string {
-  return `${name.toLowerCase()}\0${email.toLowerCase()}`;
 }
 
 function ensureSingleEnabled(accounts: GitIdentityAccount[]): GitIdentityAccount[] {

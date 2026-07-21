@@ -146,7 +146,8 @@ function SortableConversationRow({
         <div
           ref={setNodeRef}
           className={cn(
-            "group/row mx-1.5 flex items-center gap-0.5 rounded-md pr-0.5 transition-colors",
+            // min-w-0：否则 flex 子项按内容撑开，标题 truncate 不生效
+            "group/row mx-1.5 flex min-w-0 items-center gap-0.5 rounded-md pr-0.5 transition-colors",
             isActive
               ? "bg-muted text-foreground"
               : "hover:bg-accent hover:text-foreground",
@@ -383,13 +384,13 @@ export function MultiAgentSidebar({
             }}
             onDragCancel={() => setDraggingId(null)}
           >
-            <ScrollArea className="min-h-0 flex-1">
+            <ScrollArea className="min-h-0 min-w-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:!block">
               <SortableContext
                 items={conversations.map((item) => item.id)}
                 strategy={verticalListSortingStrategy}
               >
                 <div
-                  className="flex flex-col gap-0.5 pb-1.5"
+                  className="flex min-w-0 flex-col gap-0.5 pb-1.5"
                   aria-label={t("multiAgent.conversationsAria")}
                 >
                   {conversations.map((conversation) => (

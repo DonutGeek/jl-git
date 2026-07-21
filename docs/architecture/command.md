@@ -601,6 +601,26 @@ interface GitBranch {
 | **输出** | `{ name; publicKey; privateKeyPath; hasPassphrase }` |
 | **错误** | `VALIDATION` `INVALID_PATH` `NOT_FOUND` `IO` |
 
+### `ssh_key_change_passphrase`
+
+| | |
+|--|--|
+| **目的** | 本机 `ssh-keygen -p` 修改私钥口令 |
+| **输入** | `{ input: { path: string; oldPassphrase: string; newPassphrase: string } }` |
+| **输出** | `{ hasPassphrase }` |
+| **错误** | `VALIDATION` `INVALID_PATH` `INTERNAL` |
+| **约束** | 仅允许 `~/.ssh` 下私钥；口令仅作 `-P`/`-N` 入参，不写日志、不落盘 |
+
+### `ssh_key_delete`
+
+| | |
+|--|--|
+| **目的** | 删除 `~/.ssh` 下私钥及其旁路 `.pub` |
+| **输入** | `{ input: { path: string } }` |
+| **输出** | `{ ok: true }` |
+| **错误** | `VALIDATION` `INVALID_PATH` `IO` |
+| **约束** | 仅允许 `~/.ssh` 内普通文件；文件已不存在则跳过；前端仅对 `origin=generated`（JLGit 新增）调用，导入项只取消登记 |
+
 ---
 
 ## 应用数据

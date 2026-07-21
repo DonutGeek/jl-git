@@ -143,7 +143,6 @@ export const useAppPrefsStore = create<AppPrefsState>()(
         notifyGlobalPreferenceChange("app-prefs");
       },
       setLaunchAtLogin(value) {
-        // 真正注册开机自启需 Tauri autostart 插件；此处先持久化偏好
         set({ launchAtLogin: value });
         notifyGlobalPreferenceChange("app-prefs");
       },
@@ -158,7 +157,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
     }),
     {
       name: APP_PREFS_STORAGE_KEY,
-      version: 2,
+      version: 3,
       migrate: (persisted, version) => {
         const state = persisted as Partial<AppPrefsState> | undefined;
         if (!state) {
@@ -184,6 +183,10 @@ export const useAppPrefsStore = create<AppPrefsState>()(
         // v1 → v2：启动标签策略
         if (version < 2) {
           state.startupTabsMode = normalizeStartupTabsMode(state.startupTabsMode);
+        }
+        // v2 → v3：开机自启默认关闭，需用户手动开启
+        if (version < 3) {
+          state.launchAtLogin = false;
         }
         return state as AppPrefsState;
       },
@@ -211,6 +214,24 @@ export const useAppPrefsStore = create<AppPrefsState>()(
 export function initAppPrefs(): void {
   const state = useAppPrefsStore.getState();
   applyAppFonts(state.clientFont, state.editorFont);
+
+  // 水合后把开机自启偏好同步到系统启动项
+  const syncAutostart = (): void => {
+    const preferred = useAppPrefsStore.getState().launchAtLogin;
+    void import("@/services/system/system.autostart")
+      .then(({ syncLaunchAtLogin }) => syncLaunchAtLogin(preferred))
+      .catch((error: unknown) => {
+        console.warn("同步开机自启失败", error);
+      });
+  };
+  if (useAppPrefsStore.persist.hasHydrated()) {
+    syncAutostart();
+  } else {
+    const unsub = useAppPrefsStore.persist.onFinishHydration(() => {
+      unsub();
+      syncAutostart();
+    });
+  }
 
   // 保证设置页修改字体后，已打开的子窗口也使用相同字体栈。
   window.addEventListener("storage", (event) => {

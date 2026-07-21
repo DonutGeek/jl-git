@@ -53,6 +53,11 @@ describe("prepareProfilesForAgentContext", () => {
       projectId: "p1",
       projectName: "JLGit",
       projectPath: "/tmp/JLGit",
+      jlgitMeta: {
+        path: "/tmp/JLGit",
+        alias: "JLGit",
+        groupName: null,
+      },
       firstCommitAt: "2026-01-01T00:00:00+00:00",
       lastCommitAt: "2026-07-01T00:00:00+00:00",
       sampledCommitCount: 1,

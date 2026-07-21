@@ -39,3 +39,6 @@ encoding_rs = "0.8"
 base64 = "0.22"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-autostart = "2.5.1"
+

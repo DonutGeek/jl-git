@@ -1,4 +1,11 @@
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Database,
   FolderOpen,
@@ -12,7 +19,6 @@ import {
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import { SettingsFieldHeading } from "@/components/settings/SettingsFieldHeading";
 import { SettingsTip } from "@/components/settings/SettingsTip";
 import { Button } from "@/components/ui/button";
@@ -223,8 +229,8 @@ export function SettingsDataPanel() {
   }
 
   return (
-    <div className="space-y-8">
-      <section className="space-y-3">
+    <div className="min-w-0 space-y-8">
+      <section className="min-w-0 space-y-3">
         <div className="flex items-start gap-2.5">
           <div className="text-muted-foreground mt-0.5 [&_svg]:size-4" aria-hidden>
             <Database />
@@ -236,7 +242,7 @@ export function SettingsDataPanel() {
             </SettingsTip>
           </div>
         </div>
-        <div className="space-y-4 pl-6">
+        <div className="min-w-0 space-y-6 pl-6">
           {pathsError ? (
             <p className="text-destructive text-xs">{pathsError}</p>
           ) : null}
@@ -496,8 +502,111 @@ interface PathRowProps {
   revealLabel: string;
 }
 
+/**
+ * 路径前省略：按容器 clientWidth 二分截断，左侧 …、右侧保留尾部。
+ */
+function useStartEllipsisPath(path: string | undefined): {
+  display: string;
+  bindRef: (node: HTMLElement | null) => void;
+} {
+  const [display, setDisplay] = useState(path ?? "");
+  const pathRef = useRef(path ?? "");
+  const nodeRef = useRef<HTMLElement | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
+
+  pathRef.current = path ?? "";
+
+  const recompute = useCallback(() => {
+    const node = nodeRef.current;
+    const full = pathRef.current;
+    if (!node || !full) {
+      setDisplay(full);
+      return;
+    }
+
+    const available = Math.floor(node.clientWidth);
+    if (available < 8) {
+      setDisplay(full);
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setDisplay(full);
+      return;
+    }
+    const style = getComputedStyle(node);
+    context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+
+    if (context.measureText(full).width <= available) {
+      setDisplay(full);
+      return;
+    }
+
+    const ellipsis = "…";
+    let low = 0;
+    let high = full.length;
+    while (low < high) {
+      const mid = low + Math.ceil((high - low) / 2);
+      const candidate = `${ellipsis}${full.slice(full.length - mid)}`;
+      if (context.measureText(candidate).width <= available) {
+        low = mid;
+      } else {
+        high = mid - 1;
+      }
+    }
+    setDisplay(low > 0 ? `${ellipsis}${full.slice(full.length - low)}` : ellipsis);
+  }, []);
+
+  const bindRef = useCallback(
+    (node: HTMLElement | null) => {
+      observerRef.current?.disconnect();
+      observerRef.current = null;
+      nodeRef.current = node;
+      if (!node) {
+        return;
+      }
+      // 等一帧再量，避免抽屉刚打开时 clientWidth 仍为 0
+      window.requestAnimationFrame(() => {
+        recompute();
+      });
+      const observer = new ResizeObserver(() => {
+        recompute();
+      });
+      observer.observe(node);
+      observerRef.current = observer;
+    },
+    [recompute],
+  );
+
+  useEffect(() => {
+    recompute();
+  }, [path, recompute]);
+
+  useEffect(() => {
+    return () => {
+      observerRef.current?.disconnect();
+      observerRef.current = null;
+    };
+  }, []);
+
+  return { display, bindRef };
+}
+
 function PathRow({ icon, label, value, onReveal, revealLabel }: PathRowProps) {
   const { t } = useTranslation();
+  const { display, bindRef } = useStartEllipsisPath(value);
+  const [copied, setCopied] = useState(false);
+  const copiedTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current !== null) {
+        window.clearTimeout(copiedTimerRef.current);
+      }
+    };
+  }, []);
 
   async function handleCopyPath(): Promise<void> {
     if (!value) {
@@ -505,6 +614,13 @@ function PathRow({ icon, label, value, onReveal, revealLabel }: PathRowProps) {
     }
     try {
       await copyToClipboard(value);
+      setCopied(true);
+      if (copiedTimerRef.current !== null) {
+        window.clearTimeout(copiedTimerRef.current);
+      }
+      copiedTimerRef.current = window.setTimeout(() => {
+        setCopied(false);
+      }, 1500);
       toast.success(t("settings.dataPathCopied"));
     } catch (error) {
       toast.error(toUserMessage(error) || t("settings.dataCopyFailed"));
@@ -512,29 +628,42 @@ function PathRow({ icon, label, value, onReveal, revealLabel }: PathRowProps) {
   }
 
   return (
-    <div className="space-y-2">
-      <SettingsFieldHeading icon={icon}>{label}</SettingsFieldHeading>
-      <div className="flex items-center gap-1.5">
-        <div className="bg-muted/50 border-border flex h-8 min-w-0 flex-1 items-center overflow-hidden rounded-md border px-2">
-          {value ? (
-            <button
-              type="button"
-              aria-label={t("settings.dataCopyPath")}
-              title={value}
-              className={cn(
-                "text-foreground flex min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-left",
-                "underline-offset-2 hover:underline",
-              )}
-              onClick={() => {
-                void handleCopyPath();
-              }}
-            >
-              <TruncateStartPath path={value} className="font-mono text-[11px]" />
-            </button>
-          ) : (
-            <span className="text-muted-foreground font-mono text-[11px]">…</span>
-          )}
-        </div>
+    <div className="min-w-0">
+      <SettingsFieldHeading icon={icon}>
+        {label}
+      </SettingsFieldHeading>
+      <div className="flex min-w-0 items-center gap-1.5">
+        {value ? (
+          <Tooltip open={copied ? true : undefined} delayDuration={300}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("settings.dataCopyPath")}
+                className={cn(
+                  "group/path bg-muted/50 border-border text-foreground flex h-8 min-w-0 flex-1 cursor-pointer items-center overflow-hidden rounded-md border px-2",
+                )}
+                onClick={() => {
+                  void handleCopyPath();
+                }}
+              >
+                <span
+                  ref={bindRef}
+                  className="block w-full min-w-0 overflow-hidden text-left font-mono text-[11px] leading-5 whitespace-nowrap underline-offset-2 group-hover/path:underline"
+                >
+                  {display}
+                </span>
+              </button>
+            </TooltipTrigger>
+            {/* 宽触发器勿 align=start，否则箭头可能被隐藏 */}
+            <TooltipContent side="top" className="max-w-sm break-all font-mono">
+              {copied ? t("settings.dataPathCopied") : value}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <div className="bg-muted/50 border-border text-muted-foreground flex h-8 min-w-0 flex-1 items-center rounded-md border px-2 font-mono text-[11px]">
+            …
+          </div>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

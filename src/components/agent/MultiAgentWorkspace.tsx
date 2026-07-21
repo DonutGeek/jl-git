@@ -41,7 +41,7 @@ import {
   filterProfilesByAuthor,
   prepareProfilesForAgentContext,
 } from "@/services/agent/agent.profile";
-import { projectService } from "@/services/project";
+import { projectService, workspaceService } from "@/services/project";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { scheduleFocusInputCaretAtEnd } from "@/utils/focusInputCaretAtEnd";
 import {
@@ -251,10 +251,13 @@ export function MultiAgentWorkspace() {
     }
     let active = true;
     setProfilesLoading(true);
-    void projectService
-      .list()
-      .then((projects) =>
-        buildAgentProfiles(projects, useMultiAgentStore.getState().gitAuthors),
+    void Promise.all([projectService.list(), workspaceService.list()])
+      .then(([projects, workspaces]) =>
+        buildAgentProfiles(
+          projects,
+          useMultiAgentStore.getState().gitAuthors,
+          workspaces,
+        ),
       )
       .then((next) => {
         if (active) setProfiles(next);

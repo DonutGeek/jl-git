@@ -70,7 +70,10 @@ export function AgentMessageList({
     if (!viewport || !stickToBottomRef.current) {
       return;
     }
-    viewport.scrollTop = viewport.scrollHeight;
+    const maxTop = viewport.scrollHeight - viewport.clientHeight;
+    if (maxTop > 0) {
+      viewport.scrollTop = maxTop;
+    }
   }, []);
 
   /** ScrollArea Root 挂载后再取 Radix viewport，供虚拟列表滚动 */
@@ -121,8 +124,10 @@ export function AgentMessageList({
         }
       });
       if (shouldCatchUp) {
-        scrollToBottomIfSticky();
-        window.requestAnimationFrame(scrollToBottomIfSticky);
+        // resizeItem 会触发重渲染后 totalSize 才进 DOM；延后到提交后再贴底
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(scrollToBottomIfSticky);
+        });
       }
     });
     messageRowResizeObserver.current = observer;
@@ -176,22 +181,24 @@ export function AgentMessageList({
     if (!messageViewport) {
       return;
     }
+    // 仅在用户滚动时更新 stick；挂载时勿按「未贴底」误关，否则 layout 贴底会被跳过
     const updateStickiness = (): void => {
       const remaining =
         messageViewport.scrollHeight - messageViewport.scrollTop - messageViewport.clientHeight;
-      stickToBottomRef.current = remaining < 32;
+      stickToBottomRef.current = remaining < 48;
     };
-    updateStickiness();
     messageViewport.addEventListener("scroll", updateStickiness, { passive: true });
     return () => messageViewport.removeEventListener("scroll", updateStickiness);
   }, [messageViewport]);
 
   const lastMessage = messages[messages.length - 1];
+  const totalSize = virtualizer.getTotalSize();
+
   useEffect(() => {
     stickToBottomRef.current = true;
   }, [conversationId]);
 
-  // 同步贴底 + 下一帧补滚；避免仅依赖双 rAF（流式过快时 cleanup 会取消未执行的滚动）
+  // 同步贴底 + 下一帧补滚；totalSize / composerPad 变化也必须跟上（测量晚于文案）
   useLayoutEffect(() => {
     if (!messageViewport || messages.length === 0 || !stickToBottomRef.current) {
       return;
@@ -201,13 +208,15 @@ export function AgentMessageList({
     return () => window.cancelAnimationFrame(frameId);
   }, [
     conversationId,
+    composerPadPx,
     lastMessage?.content,
+    lastMessage?.reasoningContent,
     lastMessage?.id,
     lastMessage?.isStreaming,
     messageViewport,
     messages.length,
     scrollToBottomIfSticky,
-    virtualizer,
+    totalSize,
   ]);
 
   // 流式输出期间每帧贴底，跟上行高测量；用户上滑后 stick 为 false 则跳过
@@ -231,19 +240,26 @@ export function AgentMessageList({
     };
   }, [lastMessage?.id, lastMessage?.isStreaming, messageViewport, scrollToBottomIfSticky]);
 
-  // 流式结束后再补几次，消化最后一轮 resizeItem
+  // 流式结束后再补几次，消化最后一轮 resizeItem / 思考区收起
   useEffect(() => {
     if (lastMessage?.isStreaming !== false || !messageViewport) {
       return;
     }
     scrollToBottomIfSticky();
-    const timers = [0, 32, 80].map((delay) =>
+    const timers = [0, 32, 80, 160, 320].map((delay) =>
       window.setTimeout(scrollToBottomIfSticky, delay),
     );
     return () => {
       timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [lastMessage?.id, lastMessage?.isStreaming, messageViewport, scrollToBottomIfSticky]);
+  }, [
+    lastMessage?.id,
+    lastMessage?.isStreaming,
+    lastMessage?.reasoningContent,
+    messageViewport,
+    scrollToBottomIfSticky,
+    totalSize,
+  ]);
 
   return (
     <div className="relative h-full w-full">

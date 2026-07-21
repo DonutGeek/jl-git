@@ -43,14 +43,14 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: THEME_STORAGE_KEY,
-      version: 2,
+      version: 3,
       migrate: (persisted, version) => {
         const state = persisted as Partial<ThemeState> | undefined;
         if (!state) {
           return { mode: "system" } as ThemeState;
         }
-        // v0/v1 → v2：产品默认改为跟随系统（覆盖旧默认浅色）
-        if (version < 2) {
+        // v0/v1 → 跟随系统；v2 → v3：再次对齐产品默认（旧安装可能仍停在浅色）
+        if (version < 3) {
           state.mode = "system";
         }
         if (state.mode !== "light" && state.mode !== "dark" && state.mode !== "system") {

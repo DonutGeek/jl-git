@@ -7,12 +7,27 @@ export interface AgentIdentity {
   email: string;
 }
 
+/**
+ * 鲸灵Git 登记信息（打开/管理仓库时用户填写）。
+ * 注入模型上下文；后续可扩展 description 等字段，序列化层按非空输出即可。
+ */
+export interface AgentJlgitMeta {
+  /** 仓库绝对路径 */
+  path: string;
+  /** 仓库别名（应用内展示名） */
+  alias: string;
+  /** 仓库分组名；未分组为 null */
+  groupName: string | null;
+}
+
 /** 单仓画像（只读汇总，注入多仓鲸灵 Agent 上下文） */
 export interface AgentProjectProfile {
   projectId: string;
   projectName: string;
-  /** 仓库绝对路径仅前端拉取证据用，不注入模型 */
+  /** 仓库绝对路径：前端拉证据用；模型侧请读 jlgitMeta.path */
   projectPath?: string;
+  /** 鲸灵Git 登记信息（路径 / 别名 / 分组；可扩展） */
+  jlgitMeta: AgentJlgitMeta;
   /** 是否汇总失败 */
   error?: string;
   /** 作者参与：最早提交（接手）ISO 时间 */
