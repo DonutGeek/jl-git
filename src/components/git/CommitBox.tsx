@@ -126,14 +126,25 @@ export function CommitBox() {
   const working = loading || busy;
   const canGenerateCommitMessage = hasApiKey && stagedCount > 0 && !working;
   const hasIdentity = hasConfiguredGitIdentity(identity);
+  const isDetached = Boolean(status?.detached);
   // 待提交为空不可提交；合并进行中且冲突已清时可提交以结束合并；无 Git 身份不可提交
+  // 分离 HEAD（如检出标签）禁止普通提交，避免提交悬空难找回
   const canCommit =
     !working &&
     hasIdentity &&
+    !isDetached &&
     conflictCount === 0 &&
     commitMessage.trim().length > 0 &&
     (stagedCount > 0 || sequencerInProgress);
-  const branchLabel = status?.branch ?? (status?.detached ? t("repo.detached") : "");
+  const branchLabel = status?.branch ?? "";
+  const commitButtonLabel = isDetached
+    ? t("repo.commitDetachedDisabled")
+    : t("repo.commitTo", { branch: branchLabel || "—" });
+  const commitDisabledReason = !hasIdentity
+    ? t("repo.errors.noGitIdentity")
+    : isDetached
+      ? t("repo.commitDetachedHint")
+      : null;
   const ahead = status?.ahead ?? 0;
   const hasUnpushed = ahead > 0;
   const tipCommit = hasUnpushed ? (commits[0] ?? null) : null;
@@ -253,6 +264,11 @@ export function CommitBox() {
           onClick: () => openSettingsDrawer("git"),
         },
       });
+      return;
+    }
+
+    if (status?.detached) {
+      toast.error(t("repo.commitDetachedHint"));
       return;
     }
 
@@ -532,12 +548,12 @@ export function CommitBox() {
                   onClick={() => void handleCommit()}
                   disabled={!canCommit}
                 >
-                  {t("repo.commitTo", { branch: branchLabel })}
+                  {commitButtonLabel}
                 </Button>
               </span>
             </TooltipTrigger>
-            {!hasIdentity ? (
-              <TooltipContent>{t("repo.errors.noGitIdentity")}</TooltipContent>
+            {commitDisabledReason ? (
+              <TooltipContent>{commitDisabledReason}</TooltipContent>
             ) : null}
           </Tooltip>
         </div>

@@ -305,6 +305,8 @@
   "treeComingSoon": "树形视图即将支持",
   "commit": "提交",
   "commitTo": "提交到 {{branch}}",
+  "commitDetachedDisabled": "分离 HEAD 不可提交",
+  "commitDetachedHint": "当前为分离头指针（例如已检出标签）。请先基于该标签创建分支，再提交。",
   "commitMessage": "提交信息",
   "commitMessageRequired": "提交信息（必填）",
   "commitMessagePlaceholder": "请输入提交信息",

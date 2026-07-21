@@ -305,6 +305,8 @@
   "treeComingSoon": "Tree view coming soon",
   "commit": "Commit",
   "commitTo": "Commit to {{branch}}",
+  "commitDetachedDisabled": "Can't commit (detached HEAD)",
+  "commitDetachedHint": "You're on a detached HEAD (e.g. after checking out a tag). Create a branch from it before committing.",
   "commitMessage": "Commit message",
   "commitMessageRequired": "Commit message (required)",
   "commitMessagePlaceholder": "Enter a commit message",

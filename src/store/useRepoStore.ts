@@ -1121,10 +1121,15 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         throwValidationError(i18n.t("repo.errors.noGitIdentity"));
       }
 
+      const sequencerInProgress = Boolean(get().repoState?.merging);
+      if (get().status?.detached && !sequencerInProgress) {
+        // 检出标签等会进入分离 HEAD；禁止普通提交以免提交悬空
+        throwValidationError(i18n.t("repo.commitDetachedHint"));
+      }
+
       const stagedEntries = (get().status?.entries ?? []).filter(
         (entry) => entry.indexStatus !== "." && entry.indexStatus !== "?",
       );
-      const sequencerInProgress = Boolean(get().repoState?.merging);
       // 合并/变基进行中：即使 UI 暂存列表为空也允许提交以结束操作
       if (stagedEntries.length === 0 && !sequencerInProgress) {
         throwValidationError(i18n.t("repo.errors.nothingToCommit"));
