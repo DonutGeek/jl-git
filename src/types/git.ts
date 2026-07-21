@@ -214,6 +214,8 @@ export interface GitBranchesResult {
 export interface GitTag {
   name: string;
   target: string;
+  /** 注解标签为 tagger 时间；轻量标签为指向提交时间；无则空串 */
+  authoredAt: string;
   message?: string;
 }
 

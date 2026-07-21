@@ -1,12 +1,29 @@
 import { useMemo, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
-import { Plus, RefreshCw, Tag, Trash2 } from "lucide-react";
+import {
+  Copy,
+  GitBranch as GitBranchIcon,
+  History,
+  Plus,
+  RefreshCw,
+  Tag,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
+import { CreateBranchDialog } from "@/components/git/CreateBranchDialog";
 import { CreateTagDialog } from "@/components/git/CreateTagDialog";
+import { TagListFilterMenu } from "@/components/git/TagListFilterMenu";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -16,6 +33,14 @@ import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
+import type { GitTag } from "@/types/git";
+import { copyToClipboard } from "@/utils/clipboard";
+import {
+  filterAndSortTags,
+  patchTagListPrefs,
+  readTagListPrefs,
+  type TagListPrefs,
+} from "@/utils/tagListPrefs";
 
 /** 与过滤框 h-8 对齐，略高于分支树行，避免标签名显得挤 */
 const TAG_ROW_HEIGHT_PX = 32;
@@ -33,17 +58,18 @@ export function TagList({ onSelectTag }: TagListProps) {
   const refreshTags = useRepoStore((state) => state.refreshTags);
   const selectLogRef = useRepoStore((state) => state.selectLogRef);
   const deleteTag = useRepoStore((state) => state.deleteTag);
+  const checkout = useRepoStore((state) => state.checkout);
 
   const [filter, setFilter] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [listPrefs, setListPrefs] = useState<TagListPrefs>(readTagListPrefs);
+  const [creatingTag, setCreatingTag] = useState(false);
+  const [createTagFrom, setCreateTagFrom] = useState<string | null>(null);
+  const [createBranchFrom, setCreateBranchFrom] = useState<string | null>(null);
   const [busyName, setBusyName] = useState<string | null>(null);
 
   const filtered = useMemo(
-    () =>
-      tags.filter((tag) =>
-        tag.name.toLowerCase().includes(filter.trim().toLowerCase()),
-      ),
-    [filter, tags],
+    () => filterAndSortTags(tags, listPrefs, filter),
+    [filter, listPrefs, tags],
   );
 
   const isEmpty = tags.length === 0;
@@ -57,6 +83,10 @@ export function TagList({ onSelectTag }: TagListProps) {
     overscan: TAG_VIRTUAL_OVERSCAN,
     getItemKey: (index) => filtered[index]?.name ?? index,
   });
+
+  function handleListPrefsChange(patch: Partial<TagListPrefs>): void {
+    setListPrefs((prev) => patchTagListPrefs(prev, patch));
+  }
 
   async function select(name: string): Promise<void> {
     try {
@@ -92,6 +122,28 @@ export function TagList({ onSelectTag }: TagListProps) {
     }
   }
 
+  async function copyName(name: string): Promise<void> {
+    try {
+      await copyToClipboard(name);
+      toast.success(t("repo.copyTagNameSuccess"));
+    } catch {
+      toast.error(t("repo.copyTagNameFailed"));
+    }
+  }
+
+  async function checkoutTag(name: string): Promise<void> {
+    setBusyName(name);
+    const toastId = toast.loading(t("repo.checkoutTagStart", { name }));
+    try {
+      await checkout(`tags/${name}`);
+      toast.success(t("repo.checkoutTagSuccess", { name }), { id: toastId });
+    } catch (error) {
+      toast.error(toUserMessage(error), { id: toastId });
+    } finally {
+      setBusyName(null);
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0">
@@ -99,6 +151,7 @@ export function TagList({ onSelectTag }: TagListProps) {
           <h2 className="text-muted-foreground min-w-0 flex-1 text-xs font-semibold">
             {t("repo.tags")}
           </h2>
+          <TagListFilterMenu prefs={listPrefs} onChange={handleListPrefsChange} />
           <Tooltip delayDuration={300}>
             <TooltipTrigger asChild>
               <Button
@@ -107,7 +160,10 @@ export function TagList({ onSelectTag }: TagListProps) {
                 size="icon"
                 className="text-muted-foreground size-7 [&_svg]:size-3.5"
                 aria-label={t("repo.newTag")}
-                onClick={() => setCreating(true)}
+                onClick={() => {
+                  setCreateTagFrom(null);
+                  setCreatingTag(true);
+                }}
               >
                 <Plus aria-hidden="true" />
               </Button>
@@ -181,37 +237,20 @@ export function TagList({ onSelectTag }: TagListProps) {
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  <div
-                    className={cn(
-                      "group flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-2",
-                      logRef === tag.name
-                        ? "bg-primary/15"
-                        : "hover:bg-accent/60",
-                    )}
-                  >
-                    <button
-                      type="button"
-                      className="flex h-8 min-w-0 flex-1 items-center gap-1.5 text-left text-sm"
-                      onClick={() => void select(tag.name)}
-                    >
-                      <Tag
-                        className="text-muted-foreground size-3.5 shrink-0"
-                        aria-hidden="true"
-                      />
-                      <span className="min-w-0 truncate">{tag.name}</span>
-                    </button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-7 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [&_svg]:size-3.5"
-                      aria-label={t("repo.deleteTag")}
-                      disabled={busyName === tag.name}
-                      onClick={() => void remove(tag.name)}
-                    >
-                      <Trash2 aria-hidden="true" />
-                    </Button>
-                  </div>
+                  <TagRow
+                    tag={tag}
+                    selected={logRef === tag.name}
+                    busy={busyName === tag.name}
+                    onSelect={() => void select(tag.name)}
+                    onCheckout={() => void checkoutTag(tag.name)}
+                    onCreateBranch={() => setCreateBranchFrom(tag.name)}
+                    onCreateTag={() => {
+                      setCreateTagFrom(tag.name);
+                      setCreatingTag(true);
+                    }}
+                    onCopyName={() => void copyName(tag.name)}
+                    onDelete={() => void remove(tag.name)}
+                  />
                 </div>
               );
             })}
@@ -219,7 +258,109 @@ export function TagList({ onSelectTag }: TagListProps) {
         )}
       </ScrollArea>
 
-      <CreateTagDialog open={creating} onOpenChange={setCreating} />
+      <CreateTagDialog
+        open={creatingTag}
+        onOpenChange={(open) => {
+          setCreatingTag(open);
+          if (!open) {
+            setCreateTagFrom(null);
+          }
+        }}
+        fixedRef={createTagFrom}
+        fixedRefIsTag={Boolean(createTagFrom)}
+      />
+      <CreateBranchDialog
+        open={createBranchFrom !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreateBranchFrom(null);
+          }
+        }}
+        fixedStartPoint={createBranchFrom}
+        fixedStartIsTag
+      />
     </div>
+  );
+}
+
+interface TagRowProps {
+  tag: GitTag;
+  selected: boolean;
+  busy: boolean;
+  onSelect: () => void;
+  onCheckout: () => void;
+  onCreateBranch: () => void;
+  onCreateTag: () => void;
+  onCopyName: () => void;
+  onDelete: () => void;
+}
+
+function TagRow({
+  tag,
+  selected,
+  busy,
+  onSelect,
+  onCheckout,
+  onCreateBranch,
+  onCreateTag,
+  onCopyName,
+  onDelete,
+}: TagRowProps) {
+  const { t } = useTranslation();
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-left text-sm",
+            selected ? "bg-primary/15" : "hover:bg-accent/60",
+            busy && "cursor-wait opacity-70",
+          )}
+          disabled={busy}
+          onClick={onSelect}
+        >
+          <Tag
+            className="text-muted-foreground size-3.5 shrink-0"
+            aria-hidden="true"
+          />
+          <span className="min-w-0 truncate">{tag.name}</span>
+        </button>
+      </ContextMenuTrigger>
+
+      <ContextMenuContent className="min-w-44">
+        <ContextMenuItem disabled={busy} onSelect={onCheckout}>
+          <GitBranchIcon className="size-3.5" aria-hidden="true" />
+          {t("repo.checkoutTag", { name: tag.name })}
+        </ContextMenuItem>
+        <ContextMenuItem disabled={busy} onSelect={onCreateBranch}>
+          <GitBranchIcon className="size-3.5" aria-hidden="true" />
+          {t("repo.createBranchFromTag")}
+        </ContextMenuItem>
+        <ContextMenuItem disabled={busy} onSelect={onCreateTag}>
+          <Tag className="size-3.5" aria-hidden="true" />
+          {t("repo.createTagFromTag")}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem disabled={busy} onSelect={onSelect}>
+          <History className="size-3.5" aria-hidden="true" />
+          {t("repo.viewTagHistory")}
+        </ContextMenuItem>
+        <ContextMenuItem disabled={busy} onSelect={onCopyName}>
+          <Copy className="size-3.5" aria-hidden="true" />
+          {t("repo.copyTagName")}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          disabled={busy}
+          className="text-destructive focus:text-destructive"
+          onSelect={onDelete}
+        >
+          <Trash2 className="size-3.5" aria-hidden="true" />
+          {t("repo.deleteTag")}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

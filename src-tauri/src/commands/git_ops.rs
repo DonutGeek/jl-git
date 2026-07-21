@@ -857,6 +857,23 @@ fn checkout_ref(repo_path: &std::path::Path, target: &str) -> Result<(), AppErro
         return Ok(());
     }
 
+    // 标签优先于「remote/name」解析，避免 `tags/v1.0.0` 被当成远端跟踪分支
+    let tag_name = target.strip_prefix("tags/").unwrap_or(target);
+    if tag::tag_exists(repo_path, tag_name)? {
+        let tag_ref = format!("tags/{tag_name}");
+        runner::run_git(
+            repo_path,
+            &[
+                "checkout",
+                "--progress",
+                "--recurse-submodules",
+                &tag_ref,
+                "--",
+            ],
+        )?;
+        return Ok(());
+    }
+
     if let Some((remote_name, local_name)) = remote_tracking_parts(target) {
         let is_remote_tracking_ref = branch::remote_branch_exists(repo_path, target)?
             || branch::remote_exists(repo_path, remote_name)?;

@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Check, GitBranch as GitBranchIcon, Search } from "lucide-react";
+import { Check, GitBranch as GitBranchIcon, Search, Tag } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -24,10 +24,19 @@ import { GitBranch } from "@/types/git";
 interface CreateBranchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** 固定起点（如标签名）；有值时不展示分支选择列表 */
+  fixedStartPoint?: string | null;
+  /** 固定起点展示为标签 */
+  fixedStartIsTag?: boolean;
 }
 
 /** 创建分支弹窗：名称 + 选择基线分支（不含关联需求 / 新工作区） */
-export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogProps) {
+export function CreateBranchDialog({
+  open,
+  onOpenChange,
+  fixedStartPoint = null,
+  fixedStartIsTag = false,
+}: CreateBranchDialogProps) {
   const { t } = useTranslation();
   const branches = useRepoStore((state) => state.branches);
   const createBranch = useRepoStore((state) => state.createBranch);
@@ -36,7 +45,9 @@ export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogPro
   const [name, setName] = useState("");
   const [filter, setFilter] = useState("");
   const [startPoint, setStartPoint] = useState<string>("");
+  const [checkoutAfterCreate, setCheckoutAfterCreate] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const lockedStart = Boolean(fixedStartPoint?.trim());
 
   const allLocalBranches = useMemo(
     () => branches.filter((branch) => !branch.isRemote),
@@ -80,8 +91,16 @@ export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogPro
     setName("");
     setFilter("");
     setSubmitting(false);
-    setStartPoint(current ?? locals[0]?.name ?? remotes[0]?.name ?? "");
-  }, [open]);
+    const locked = fixedStartPoint?.trim() ?? "";
+    if (locked) {
+      setStartPoint(locked);
+      // 从标签创建时默认不自动检出，与常见客户端一致
+      setCheckoutAfterCreate(false);
+    } else {
+      setStartPoint(current ?? locals[0]?.name ?? remotes[0]?.name ?? "");
+      setCheckoutAfterCreate(true);
+    }
+  }, [open, fixedStartPoint]);
 
   const filterLower = filter.trim().toLowerCase();
 
@@ -127,9 +146,13 @@ export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogPro
     try {
       await createBranch(branchName, {
         startPoint: start,
-        checkout: true,
+        checkout: checkoutAfterCreate,
       });
-      toast.success(t("repo.createBranchSuccess", { name: branchName }));
+      toast.success(
+        checkoutAfterCreate
+          ? t("repo.createBranchSuccess", { name: branchName })
+          : t("repo.createBranchSuccessNoCheckout", { name: branchName }),
+      );
     } catch (submitError) {
       toast.error(toUserMessage(submitError));
     } finally {
@@ -139,12 +162,36 @@ export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogPro
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="flex max-h-[min(640px,85vh)] max-w-xl flex-col gap-4 overflow-hidden p-5 sm:rounded-lg">
+      <DialogContent
+        className={cn(
+          "flex flex-col gap-4 overflow-hidden p-5 sm:rounded-lg",
+          lockedStart ? "max-w-md" : "max-h-[min(640px,85vh)] max-w-xl",
+        )}
+      >
         <DialogHeader>
           <DialogTitle>{t("repo.createBranchTitle")}</DialogTitle>
         </DialogHeader>
 
         <form className="flex min-h-0 flex-1 flex-col gap-4" onSubmit={(event) => void handleSubmit(event)}>
+          {lockedStart ? (
+            <div className="space-y-1.5">
+              <p className="text-muted-foreground text-sm">
+                {t("repo.createBranchBasedOn")}
+              </p>
+              <div className="border-border bg-muted/30 flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                {fixedStartIsTag ? (
+                  <Tag className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+                ) : (
+                  <GitBranchIcon
+                    className="text-muted-foreground size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                )}
+                <span className="min-w-0 truncate font-mono">{startPoint}</span>
+              </div>
+            </div>
+          ) : null}
+
           <div className="space-y-1.5">
             <label htmlFor="branch-name" className="text-sm font-medium">
               {t("repo.branchName")}
@@ -159,83 +206,97 @@ export function CreateBranchDialog({ open, onOpenChange }: CreateBranchDialogPro
             />
           </div>
 
-          <div className="border-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border">
-            <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
-              <p className="min-w-0 flex-1 truncate text-xs">
-                <span className="text-muted-foreground">{t("repo.createBranchBasedOn")}</span>{" "}
-                <span className="text-foreground font-medium font-mono">
-                  {startPoint || "—"}
-                </span>
-              </p>
-              <div className="relative w-36 shrink-0">
-                <Search
-                  className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
-                  aria-hidden="true"
-                />
-                <Input
-                  value={filter}
-                  onChange={(event) => setFilter(event.target.value)}
-                  placeholder={t("repo.filter")}
-                  className="h-7 pl-7 text-xs"
-                  aria-label={t("repo.filter")}
-                  disabled={submitting}
-                />
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1">
-              <ScrollArea className="h-full py-1">
-              {defaultBranch &&
-              (!filterLower || defaultBranch.name.toLowerCase().includes(filterLower)) ? (
-                <BranchPickSection title={t("repo.defaultBranch")}>
-                  <BranchPickRow
-                    branch={defaultBranch}
-                    selected={startPoint === defaultBranch.name}
-                    onSelect={setStartPoint}
+          {lockedStart ? (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={checkoutAfterCreate}
+                onChange={(event) => setCheckoutAfterCreate(event.target.checked)}
+                disabled={submitting}
+              />
+              <span>{t("repo.createBranchCheckoutAfter")}</span>
+            </label>
+          ) : (
+            <div className="border-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border">
+              <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
+                <p className="min-w-0 flex-1 truncate text-xs">
+                  <span className="text-muted-foreground">{t("repo.createBranchBasedOn")}</span>{" "}
+                  <span className="text-foreground font-medium font-mono">
+                    {startPoint || "—"}
+                  </span>
+                </p>
+                <div className="relative w-36 shrink-0">
+                  <Search
+                    className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
+                    aria-hidden="true"
+                  />
+                  <Input
+                    value={filter}
+                    onChange={(event) => setFilter(event.target.value)}
+                    placeholder={t("repo.filter")}
+                    className="h-7 pl-7 text-xs"
+                    aria-label={t("repo.filter")}
                     disabled={submitting}
                   />
-                </BranchPickSection>
-              ) : null}
+                </div>
+              </div>
 
-              {filteredLocal.length > 0 ? (
-                <BranchPickSection title={t("repo.localBranches")}>
-                  {filteredLocal.map((branch) => (
-                    <BranchPickRow
-                      key={`local:${branch.name}`}
-                      branch={branch}
-                      selected={startPoint === branch.name}
-                      onSelect={setStartPoint}
-                      disabled={submitting}
-                    />
-                  ))}
-                </BranchPickSection>
-              ) : null}
+              <div className="min-h-0 flex-1">
+                <ScrollArea className="h-full py-1">
+                  {defaultBranch &&
+                  (!filterLower || defaultBranch.name.toLowerCase().includes(filterLower)) ? (
+                    <BranchPickSection title={t("repo.defaultBranch")}>
+                      <BranchPickRow
+                        branch={defaultBranch}
+                        selected={startPoint === defaultBranch.name}
+                        onSelect={setStartPoint}
+                        disabled={submitting}
+                      />
+                    </BranchPickSection>
+                  ) : null}
 
-              {filteredRemote.length > 0 ? (
-                <BranchPickSection title={t("repo.remoteBranches")}>
-                  {filteredRemote.map((branch) => (
-                    <BranchPickRow
-                      key={`remote:${branch.name}`}
-                      branch={branch}
-                      selected={startPoint === branch.name}
-                      onSelect={setStartPoint}
-                      disabled={submitting}
-                    />
-                  ))}
-                </BranchPickSection>
-              ) : null}
+                  {filteredLocal.length > 0 ? (
+                    <BranchPickSection title={t("repo.localBranches")}>
+                      {filteredLocal.map((branch) => (
+                        <BranchPickRow
+                          key={`local:${branch.name}`}
+                          branch={branch}
+                          selected={startPoint === branch.name}
+                          onSelect={setStartPoint}
+                          disabled={submitting}
+                        />
+                      ))}
+                    </BranchPickSection>
+                  ) : null}
 
-              {filteredLocal.length === 0 &&
-              filteredRemote.length === 0 &&
-              !(
-                defaultBranch &&
-                (!filterLower || defaultBranch.name.toLowerCase().includes(filterLower))
-              ) ? (
-                <p className="text-muted-foreground px-3 py-4 text-xs">{t("repo.branchesNoMatch")}</p>
-              ) : null}
-              </ScrollArea>
+                  {filteredRemote.length > 0 ? (
+                    <BranchPickSection title={t("repo.remoteBranches")}>
+                      {filteredRemote.map((branch) => (
+                        <BranchPickRow
+                          key={`remote:${branch.name}`}
+                          branch={branch}
+                          selected={startPoint === branch.name}
+                          onSelect={setStartPoint}
+                          disabled={submitting}
+                        />
+                      ))}
+                    </BranchPickSection>
+                  ) : null}
+
+                  {filteredLocal.length === 0 &&
+                  filteredRemote.length === 0 &&
+                  !(
+                    defaultBranch &&
+                    (!filterLower || defaultBranch.name.toLowerCase().includes(filterLower))
+                  ) ? (
+                    <p className="text-muted-foreground px-3 py-4 text-xs">
+                      {t("repo.branchesNoMatch")}
+                    </p>
+                  ) : null}
+                </ScrollArea>
+              </div>
             </div>
-          </div>
+          )}
 
           <DialogFooter>
             <Button

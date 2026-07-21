@@ -12,6 +12,8 @@ const PUSH_TIMEOUT: Duration = Duration::from_secs(180);
 pub struct GitTag {
     pub name: String,
     pub target: String,
+    /// 注解标签为 tagger 时间；轻量标签为指向提交时间；无则空串
+    pub authored_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
@@ -21,7 +23,7 @@ pub fn list_tags(repo_path: &Path) -> Result<Vec<GitTag>, AppError> {
         repo_path,
         &[
             "for-each-ref",
-            "--format=%(refname:short)%00%(objectname)%00%(contents:subject)",
+            "--format=%(refname:short)%00%(objectname)%00%(creatordate:iso-strict)%00%(contents:subject)",
             "refs/tags",
         ],
     )?;
@@ -57,6 +59,22 @@ pub fn delete_tag(repo_path: &Path, name: &str) -> Result<(), AppError> {
     validate_tag_name(repo_path, name)?;
     runner::run_git(repo_path, &["tag", "-d", "--", name])?;
     Ok(())
+}
+
+/** 是否存在本地标签 `refs/tags/<name>` */
+pub fn tag_exists(repo_path: &Path, name: &str) -> Result<bool, AppError> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Ok(false);
+    }
+    let full_ref = format!("refs/tags/{trimmed}");
+    let output =
+        runner::run_git_allow_nonzero(repo_path, &["show-ref", "--verify", "--quiet", &full_ref])?;
+    match output.code {
+        0 => Ok(true),
+        1 => Ok(false),
+        _ => Err(AppError::new("GIT", "检查标签失败").with_details(output.stderr)),
+    }
 }
 
 pub fn push_tag(repo_path: &Path, remote: &str, name: &str) -> Result<(), AppError> {
@@ -103,6 +121,7 @@ fn parse_tags(stdout: &str) -> Vec<GitTag> {
             if name.is_empty() || target.is_empty() {
                 return None;
             }
+            let authored_at = fields.next().map(str::trim).unwrap_or("").to_string();
             let message = fields
                 .next()
                 .map(str::trim)
@@ -112,6 +131,7 @@ fn parse_tags(stdout: &str) -> Vec<GitTag> {
             Some(GitTag {
                 name: name.to_string(),
                 target: target.to_string(),
+                authored_at,
                 message,
             })
         })
@@ -124,11 +144,15 @@ mod tests {
 
     #[test]
     fn parses_annotated_and_lightweight_tags() {
-        let tags = parse_tags("v1.0.0\0abc123\0Release one\nv1.1.0\0def456\0\n");
+        let tags = parse_tags(
+            "v1.0.0\0abc123\02026-07-01T10:00:00+08:00\0Release one\nv1.1.0\0def456\0\0\n",
+        );
 
         assert_eq!(tags.len(), 2);
         assert_eq!(tags[0].name, "v1.0.0");
+        assert_eq!(tags[0].authored_at, "2026-07-01T10:00:00+08:00");
         assert_eq!(tags[0].message.as_deref(), Some("Release one"));
+        assert_eq!(tags[1].authored_at, "");
         assert_eq!(tags[1].message, None);
     }
 }
