@@ -334,6 +334,8 @@ interface ParentDiffSectionProps {
   showAllFiles: boolean;
   allFiles: GitChangedFile[] | null;
   allFilesLoading: boolean;
+  /** ls-tree 是否因硬顶截断 */
+  allFilesTruncated: boolean;
   showLineStats: boolean;
   treeExpandSignal: TreeExpandSignal | null;
   /** 向父级汇报本区树是否仍有可展开目录 */
@@ -350,6 +352,7 @@ function ParentDiffSection({
   showAllFiles,
   allFiles,
   allFilesLoading,
+  allFilesTruncated,
   showLineStats,
   treeExpandSignal,
   onTreeExpandabilityChange,
@@ -533,6 +536,16 @@ function ParentDiffSection({
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
         <ScrollArea className="h-full w-full min-w-0 px-2 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
           <div className="min-w-0 pb-1">
+            {!showAllFiles && diff.truncated ? (
+              <p className="text-muted-foreground px-0.5 py-1 text-[11px]">
+                {t("repo.commitChangedFilesTruncated", { count: diff.files.length })}
+              </p>
+            ) : null}
+            {showAllFiles && allFilesTruncated ? (
+              <p className="text-muted-foreground px-0.5 py-1 text-[11px]">
+                {t("repo.commitTreeTruncated", { count: allFiles?.length ?? 0 })}
+              </p>
+            ) : null}
             {allFilesLoading ? (
               <div className="text-muted-foreground flex items-center gap-2 px-0.5 py-3 text-xs">
                 <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
@@ -629,6 +642,7 @@ export function HistoryDetailPane() {
   const [filesView, setFilesView] = useState<CommitFilesView>("list");
   const [showAllFiles, setShowAllFiles] = useState(false);
   const [allFiles, setAllFiles] = useState<GitChangedFile[] | null>(null);
+  const [allFilesTruncated, setAllFilesTruncated] = useState(false);
   const [allFilesLoading, setAllFilesLoading] = useState(false);
   const [showLineStats, setShowLineStats] = useState(false);
   const [treeExpandSignal, setTreeExpandSignal] = useState<TreeExpandSignal | null>(null);
@@ -657,6 +671,7 @@ export function HistoryDetailPane() {
     setFilesView("list");
     setShowAllFiles(false);
     setAllFiles(null);
+    setAllFilesTruncated(false);
     setAllFilesLoading(false);
     setShowLineStats(false);
     setTreeExpandSignal(null);
@@ -693,8 +708,10 @@ export function HistoryDetailPane() {
     try {
       const result = await gitService.listTree(repoPath, selectedCommitId);
       setAllFiles(result.paths.map((path) => ({ path, status: "" })));
+      setAllFilesTruncated(result.truncated);
     } catch (error) {
       setShowAllFiles(false);
+      setAllFilesTruncated(false);
       toast.error(toUserMessage(error));
     } finally {
       setAllFilesLoading(false);
@@ -1000,7 +1017,7 @@ export function HistoryDetailPane() {
         />
         {changedDiffs.length === 0 ? (
           <ParentDiffSection
-            diff={{ parentId: "", parentShortId: "", files: [] }}
+            diff={{ parentId: "", parentShortId: "", files: [], truncated: false }}
             index={0}
             parentCount={detail.diffs.length || 1}
             rootName={rootName}
@@ -1009,6 +1026,7 @@ export function HistoryDetailPane() {
             showAllFiles={showAllFiles}
             allFiles={allFiles}
             allFilesLoading={allFilesLoading}
+            allFilesTruncated={allFilesTruncated}
             showLineStats={showLineStats}
             treeExpandSignal={treeExpandSignal}
             onTreeExpandabilityChange={handleTreeExpandabilityChange}
@@ -1026,6 +1044,7 @@ export function HistoryDetailPane() {
               showAllFiles={showAllFiles}
               allFiles={allFiles}
               allFilesLoading={allFilesLoading}
+              allFilesTruncated={allFilesTruncated}
               showLineStats={showLineStats}
               treeExpandSignal={treeExpandSignal}
               onTreeExpandabilityChange={handleTreeExpandabilityChange}

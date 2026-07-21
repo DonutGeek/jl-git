@@ -16,10 +16,10 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  Blocks,
-  MessageSquarePlus,
   MoreHorizontal,
   Pin,
+  Puzzle,
+  SquarePen,
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -35,6 +35,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -251,6 +252,7 @@ export function MultiAgentSidebar({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -279,6 +281,11 @@ export function MultiAgentSidebar({
     [conversations, renameTargetId],
   );
 
+  const pendingDeleteTarget = useMemo(
+    () => conversations.find((item) => item.id === pendingDeleteId) ?? null,
+    [conversations, pendingDeleteId],
+  );
+
   function openRename(conversationId: string): void {
     const target = conversations.find((item) => item.id === conversationId);
     if (!target) {
@@ -301,6 +308,18 @@ export function MultiAgentSidebar({
     setRenameTargetId(null);
   }
 
+  function requestDelete(conversationId: string): void {
+    setPendingDeleteId(conversationId);
+  }
+
+  function confirmDelete(): void {
+    if (!pendingDeleteId) {
+      return;
+    }
+    onDelete(pendingDeleteId);
+    setPendingDeleteId(null);
+  }
+
   const canDelete = conversations.length > 1;
 
   return (
@@ -321,7 +340,7 @@ export function MultiAgentSidebar({
                   aria-label={t("multiAgent.createConversation")}
                   onClick={onCreate}
                 >
-                  <MessageSquarePlus className="size-3.5" aria-hidden="true" />
+                  <SquarePen className="size-3.5" aria-hidden="true" />
                   {t("multiAgent.createConversation")}
                 </Button>
               </TooltipTrigger>
@@ -340,7 +359,7 @@ export function MultiAgentSidebar({
                   aria-pressed={pluginsActive}
                   onClick={onOpenPlugins}
                 >
-                  <Blocks className="size-3.5" aria-hidden="true" />
+                  <Puzzle className="size-3.5" aria-hidden="true" />
                   {t("multiAgent.openPlugins")}
                 </Button>
               </TooltipTrigger>
@@ -384,7 +403,7 @@ export function MultiAgentSidebar({
                       }
                       canDelete={canDelete}
                       onSelect={onSelect}
-                      onDelete={onDelete}
+                      onDelete={requestDelete}
                       onRename={openRename}
                       onPin={onPin}
                       labels={labels}
@@ -450,6 +469,40 @@ export function MultiAgentSidebar({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={pendingDeleteId != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteId(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("multiAgent.deleteConversationTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("multiAgent.deleteConversationConfirm", {
+                name: pendingDeleteTarget
+                  ? conversationLabel(pendingDeleteTarget)
+                  : t("multiAgent.newConversation"),
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingDeleteId(null)}
+            >
+              {t("agent.editCancel")}
+            </Button>
+            <Button type="button" variant="destructive" onClick={confirmDelete}>
+              {t("multiAgent.deleteConversation")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

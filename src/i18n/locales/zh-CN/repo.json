@@ -205,6 +205,8 @@
   "commitContainingBranchesEmpty": "未包含于任何分支",
   "commitChangeSize": "文件: {{count}} 大小: {{size}}",
   "commitShowAllFiles": "显示所有文件",
+  "commitTreeTruncated": "文件树过大，仅显示前 {{count}} 条路径",
+  "commitChangedFilesTruncated": "改动文件过多，仅显示前 {{count}} 个",
   "commitShowChangedFiles": "显示改动文件",
   "commitShowLineStats": "显示增加/减少行数",
   "commitAllFilesFilter": "所有文件",

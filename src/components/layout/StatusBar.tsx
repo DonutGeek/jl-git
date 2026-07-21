@@ -108,7 +108,7 @@ export function StatusBar() {
       })
       .catch(() => {
         if (!cancelled) {
-          setAppInfo({ name: "鲸灵Git", version: "0.1.0", arch: "" });
+          setAppInfo({ name: "鲸灵Git", version: "0.1.0", arch: "", os: "" });
         }
       });
 
@@ -230,7 +230,7 @@ export function StatusBar() {
         </span>
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div className="flex shrink-0 items-center gap-1.5">
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <Button
@@ -359,7 +359,7 @@ export function StatusBar() {
 
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
-            <div className="flex items-center px-0.5">
+            <div className="flex items-center">
               <GitIdentityAvatar
                 name={identity?.name ?? null}
                 email={identity?.email ?? null}

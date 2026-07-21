@@ -1,27 +1,49 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  CircleHelp,
+  AppWindow,
+  Code2,
   Database,
+  FolderOpen,
   GitBranch,
   GitCommitHorizontal,
   GitPullRequest,
+  Info,
   KeyRound,
+  Languages,
+  LayoutPanelTop,
   Palette,
   Pencil,
   Plus,
   Power,
   PowerOff,
+  Settings2,
   Sparkles,
+  SunMoon,
   Terminal,
   Trash2,
+  Type,
+  Upload,
+  UserRound,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { SettingsAboutPanel } from "@/components/settings/SettingsAboutPanel";
 import { SettingsAiBalance } from "@/components/settings/SettingsAiBalance";
 import { SettingsDataPanel } from "@/components/settings/SettingsDataPanel";
+import { SettingsFieldHeading } from "@/components/settings/SettingsFieldHeading";
+import { SettingsSshPanel } from "@/components/settings/SettingsSshPanel";
+import { SettingsTip } from "@/components/settings/SettingsTip";
 import { Button } from "@/components/ui/button";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemGroup,
+  ItemTitle,
+} from "@/components/ui/item";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -69,6 +91,7 @@ import {
   CLIENT_FONT_SYSTEM,
   EDITOR_FONT_SYSTEM,
   useAppPrefsStore,
+  type StartupTabsMode,
 } from "@/store/useAppPrefsStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
@@ -79,7 +102,9 @@ import type { AppLocale } from "@/i18n/locale";
 interface SettingsSectionProps {
   icon: ReactNode;
   title: string;
-  description?: string;
+  /** 标题旁问号说明 */
+  tip?: string;
+  tipAria?: string;
   /** 标题行右侧操作（如「新增」），与标题垂直对齐 */
   action?: ReactNode;
   children: ReactNode;
@@ -88,7 +113,8 @@ interface SettingsSectionProps {
 function SettingsSection({
   icon,
   title,
-  description,
+  tip,
+  tipAria,
   action,
   children,
 }: SettingsSectionProps) {
@@ -100,12 +126,10 @@ function SettingsSection({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
               <h3 className="text-sm font-medium">{title}</h3>
-              {description ? (
-                <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">
-                  {description}
-                </p>
+              {tip ? (
+                <SettingsTip ariaLabel={tipAria ?? title}>{tip}</SettingsTip>
               ) : null}
             </div>
             {action ? <div className="shrink-0 self-start">{action}</div> : null}
@@ -117,32 +141,9 @@ function SettingsSection({
   );
 }
 
+/** 对话框表单小标签（非分区内容级） */
 function FieldLabel({ children }: { children: ReactNode }) {
   return <label className="text-muted-foreground mb-1 block text-[11px]">{children}</label>;
-}
-
-/** 与账户余额同级的小节标题旁说明（问号 Tooltip） */
-function SettingsTip({ ariaLabel, children }: { ariaLabel: string; children: ReactNode }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground inline-flex size-4 items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={ariaLabel}
-        >
-          <CircleHelp className="size-3.5" aria-hidden="true" />
-        </button>
-      </TooltipTrigger>
-      {/* 覆盖 ui/tooltip 默认 text-balance，避免长说明右侧大块留白 */}
-      <TooltipContent
-        side="top"
-        className="max-w-xs text-left leading-relaxed text-pretty text-wrap"
-      >
-        {children}
-      </TooltipContent>
-    </Tooltip>
-  );
 }
 
 /** 设置表单控件：与顶栏分支选择器同系（轻边框、无阴影） */
@@ -161,6 +162,7 @@ type SettingsCategory =
   | "ai"
   | "tools"
   | "data"
+  | "about"
   | "general";
 
 function maskApiKey(key: string): string {
@@ -241,6 +243,7 @@ export function SettingsDrawer() {
   const shell = useAppPrefsStore((state) => state.shell);
   const shellPath = useAppPrefsStore((state) => state.shellPath);
   const launchAtLogin = useAppPrefsStore((state) => state.launchAtLogin);
+  const startupTabsMode = useAppPrefsStore((state) => state.startupTabsMode);
   const pushAfterCommit = useAppPrefsStore((state) => state.pushAfterCommit);
   const setClientFont = useAppPrefsStore((state) => state.setClientFont);
   const setEditorFont = useAppPrefsStore((state) => state.setEditorFont);
@@ -249,6 +252,7 @@ export function SettingsDrawer() {
   const setShell = useAppPrefsStore((state) => state.setShell);
   const setShellPath = useAppPrefsStore((state) => state.setShellPath);
   const setLaunchAtLogin = useAppPrefsStore((state) => state.setLaunchAtLogin);
+  const setStartupTabsMode = useAppPrefsStore((state) => state.setStartupTabsMode);
   const setPushAfterCommit = useAppPrefsStore((state) => state.setPushAfterCommit);
 
   const [gitAccounts, setGitAccounts] = useState<GitIdentityAccount[]>([]);
@@ -517,10 +521,6 @@ export function SettingsDrawer() {
     }
   }
 
-  function handleSshSoon(action: string): void {
-    toast.message(t("settings.sshComingSoon", { action }));
-  }
-
   function handleLaunchToggle(next: boolean): void {
     setLaunchAtLogin(next);
     toast.message(
@@ -550,7 +550,8 @@ export function SettingsDrawer() {
     { id: "ai", label: t("settings.sectionAi"), icon: <Sparkles /> },
     { id: "tools", label: t("settings.sectionTools"), icon: <Terminal /> },
     { id: "data", label: t("settings.sectionData"), icon: <Database /> },
-    { id: "general", label: t("settings.sectionGeneral"), icon: <Power /> },
+    { id: "general", label: t("settings.sectionGeneral"), icon: <Settings2 /> },
+    { id: "about", label: t("settings.sectionAbout"), icon: <Info /> },
   ];
 
   async function handleCreateGitAccount(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -634,7 +635,8 @@ export function SettingsDrawer() {
       >
         <SheetHeader className="border-border space-y-0 border-b px-4 py-3 pr-10 text-left">
           <SheetTitle className="text-sm font-semibold">{t("settings.title")}</SheetTitle>
-          <SheetDescription className="text-muted-foreground text-xs">
+          {/* 仅供读屏：副标题不必占视觉空间 */}
+          <SheetDescription className="sr-only">
             {t("settings.subtitle")}
           </SheetDescription>
           <SheetClose className="ring-offset-background focus:ring-ring absolute top-3 right-3 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:pointer-events-none">
@@ -680,10 +682,13 @@ export function SettingsDrawer() {
           {activeCategory === "appearance" ? <SettingsSection
             icon={<Palette />}
             title={t("settings.sectionAppearance")}
-            description={t("settings.sectionAppearanceHint")}
+            tip={t("settings.sectionAppearanceHint")}
+            tipAria={t("settings.sectionAppearanceTipAria")}
           >
-            <div>
-              <FieldLabel>{t("settings.theme")}</FieldLabel>
+            <div className="space-y-2">
+              <SettingsFieldHeading icon={<SunMoon />}>
+                {t("settings.theme")}
+              </SettingsFieldHeading>
               <SegmentedControl
                 value={mode}
                 options={themeOptions}
@@ -691,8 +696,10 @@ export function SettingsDrawer() {
                 onChange={setMode}
               />
             </div>
-            <div>
-              <FieldLabel>{t("settings.language")}</FieldLabel>
+            <div className="space-y-2">
+              <SettingsFieldHeading icon={<Languages />}>
+                {t("settings.language")}
+              </SettingsFieldHeading>
               <SegmentedControl
                 value={locale}
                 options={localeOptions}
@@ -700,8 +707,10 @@ export function SettingsDrawer() {
                 onChange={setLocale}
               />
             </div>
-            <div>
-              <FieldLabel>{t("settings.clientFont")}</FieldLabel>
+            <div className="space-y-2">
+              <SettingsFieldHeading icon={<Type />}>
+                {t("settings.clientFont")}
+              </SettingsFieldHeading>
               <SelectMenu
                 value={clientFont}
                 disabled={fontsLoading}
@@ -731,13 +740,15 @@ export function SettingsDrawer() {
                 ]}
               />
               {fontsLoading ? (
-                <p className="text-muted-foreground mt-1 text-[11px]">
+                <p className="text-muted-foreground text-[11px]">
                   {t("settings.fontsLoading")}
                 </p>
               ) : null}
             </div>
-            <div>
-              <FieldLabel>{t("settings.editorFont")}</FieldLabel>
+            <div className="space-y-2">
+              <SettingsFieldHeading icon={<Code2 />}>
+                {t("settings.editorFont")}
+              </SettingsFieldHeading>
               <SelectMenu
                 value={editorFont}
                 disabled={fontsLoading}
@@ -776,19 +787,27 @@ export function SettingsDrawer() {
           {activeCategory === "git" ? <SettingsSection
             icon={<GitBranch />}
             title={t("settings.sectionGit")}
-            description={t("settings.sectionGitHint")}
-            action={
-              <Button
-                type="button"
-                size="sm"
-                className="h-8 shrink-0"
-                onClick={() => setGitAccountDialogOpen(true)}
-              >
-                <Plus aria-hidden="true" />
-                {t("settings.createGitAccount")}
-              </Button>
-            }
           >
+            <div className="w-full space-y-2">
+              <div className="flex w-full items-center justify-between gap-3">
+                <SettingsFieldHeading
+                  className="mb-0"
+                  icon={<UserRound />}
+                  tip={t("settings.sectionGitHint")}
+                  tipAria={t("settings.sectionGitTipAria")}
+                >
+                  {t("settings.gitAccountsTitle")}
+                </SettingsFieldHeading>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 shrink-0"
+                  onClick={() => setGitAccountDialogOpen(true)}
+                >
+                  <Plus aria-hidden="true" />
+                  {t("settings.createGitAccount")}
+                </Button>
+              </div>
             <div className="border-border overflow-hidden rounded-md border">
               <div className="bg-muted/40 text-muted-foreground grid grid-cols-[minmax(80px,0.9fr)_minmax(120px,1.35fr)_52px_100px] gap-3 border-b px-3 py-2 text-[11px] font-medium">
                 <span>{t("settings.gitUserName")}</span>
@@ -919,6 +938,34 @@ export function SettingsDrawer() {
                   })}
                 </ul>
               )}
+            </div>
+            </div>
+
+            <div className="space-y-2">
+              <SettingsFieldHeading
+                icon={<Upload />}
+                tip={t("settings.pushAfterCommitHint")}
+                tipAria={t("settings.pushAfterCommitTipAria")}
+              >
+                {t("settings.gitWorkflowTitle")}
+              </SettingsFieldHeading>
+              <ItemGroup className="border-border overflow-hidden rounded-md border">
+                <Item size="sm" className="rounded-none">
+                  <ItemContent>
+                    <ItemTitle className="text-foreground text-xs font-normal">
+                      {t("settings.pushAfterCommit")}
+                    </ItemTitle>
+                  </ItemContent>
+                  <ItemActions>
+                    <Switch
+                      size="sm"
+                      checked={pushAfterCommit}
+                      onCheckedChange={setPushAfterCommit}
+                      aria-label={t("settings.pushAfterCommit")}
+                    />
+                  </ItemActions>
+                </Item>
+              </ItemGroup>
             </div>
           </SettingsSection> : null}
 
@@ -1075,37 +1122,8 @@ export function SettingsDrawer() {
           {activeCategory === "ssh" ? <SettingsSection
             icon={<KeyRound />}
             title={t("settings.sectionSsh")}
-            description={t("settings.sshHint")}
           >
-            <div className="border-border overflow-hidden rounded-md border">
-              <div className="bg-muted/40 text-muted-foreground grid grid-cols-[minmax(100px,0.8fr)_minmax(160px,1.7fr)_72px] gap-3 border-b px-3 py-2 text-[11px] font-medium">
-                <span>{t("settings.sshKeyName")}</span>
-                <span>{t("settings.sshPublicKey")}</span>
-                <span>{t("settings.apiKeyActions")}</span>
-              </div>
-              <p className="text-muted-foreground px-3 py-6 text-center text-xs">
-                {t("settings.sshEmpty")}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                className="h-8"
-                onClick={() => handleSshSoon(t("settings.sshAdd"))}
-              >
-                {t("settings.sshAdd")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="border-border h-8 shadow-none"
-                onClick={() => handleSshSoon(t("settings.sshPick"))}
-              >
-                {t("settings.sshPick")}
-              </Button>
-            </div>
+            <SettingsSshPanel />
           </SettingsSection> : null}
 
           {/* 4. AI / Agent */}
@@ -1115,15 +1133,14 @@ export function SettingsDrawer() {
           >
             <div className="w-full space-y-2">
               <div className="flex w-full items-center justify-between gap-3">
-                <div className="flex items-center gap-1.5">
-                  <KeyRound className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
-                  <p className="text-foreground text-xs font-medium">
-                    {t("settings.apiKeyTitle")}
-                  </p>
-                  <SettingsTip ariaLabel={t("settings.apiKeyTipAria")}>
-                    {t("settings.apiKeyListHint")}
-                  </SettingsTip>
-                </div>
+                <SettingsFieldHeading
+                  className="mb-0"
+                  icon={<KeyRound />}
+                  tip={t("settings.apiKeyListHint")}
+                  tipAria={t("settings.apiKeyTipAria")}
+                >
+                  {t("settings.apiKeyTitle")}
+                </SettingsFieldHeading>
                 <Button
                   type="button"
                   size="sm"
@@ -1273,18 +1290,13 @@ export function SettingsDrawer() {
                 .join(",")}|${activeCategory}`}
             />
             <div className="space-y-2">
-              <div className="flex items-center gap-1.5">
-                <GitCommitHorizontal
-                  className="text-muted-foreground size-4 shrink-0"
-                  aria-hidden="true"
-                />
-                <p className="text-foreground text-xs font-medium">
-                  {t("settings.commitInstructions")}
-                </p>
-                <SettingsTip ariaLabel={t("settings.commitInstructionsTipAria")}>
-                  {t("settings.commitInstructionsHint")}
-                </SettingsTip>
-              </div>
+              <SettingsFieldHeading
+                icon={<GitCommitHorizontal />}
+                tip={t("settings.commitInstructionsHint")}
+                tipAria={t("settings.commitInstructionsTipAria")}
+              >
+                {t("settings.commitInstructions")}
+              </SettingsFieldHeading>
               <Textarea
                 className={settingsTextareaClassName}
                 value={commitInstructions}
@@ -1294,18 +1306,13 @@ export function SettingsDrawer() {
               />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center gap-1.5">
-                <GitPullRequest
-                  className="text-muted-foreground size-4 shrink-0"
-                  aria-hidden="true"
-                />
-                <p className="text-foreground text-xs font-medium">
-                  {t("settings.pullRequestInstructions")}
-                </p>
-                <SettingsTip ariaLabel={t("settings.pullRequestInstructionsTipAria")}>
-                  {t("settings.pullRequestInstructionsHint")}
-                </SettingsTip>
-              </div>
+              <SettingsFieldHeading
+                icon={<GitPullRequest />}
+                tip={t("settings.pullRequestInstructionsHint")}
+                tipAria={t("settings.pullRequestInstructionsTipAria")}
+              >
+                {t("settings.pullRequestInstructions")}
+              </SettingsFieldHeading>
               <Textarea
                 className={settingsTextareaClassName}
                 value={pullRequestInstructions}
@@ -1466,10 +1473,13 @@ export function SettingsDrawer() {
           {activeCategory === "tools" ? <SettingsSection
             icon={<Terminal />}
             title={t("settings.sectionTools")}
-            description={t("settings.sectionToolsHint")}
+            tip={t("settings.sectionToolsHint")}
+            tipAria={t("settings.sectionToolsTipAria")}
           >
-            <div>
-              <FieldLabel>{t("settings.externalEditor")}</FieldLabel>
+            <div className="space-y-2">
+              <SettingsFieldHeading icon={<AppWindow />}>
+                {t("settings.externalEditor")}
+              </SettingsFieldHeading>
               <SelectMenu
                 value={externalEditor}
                 ariaLabel={t("settings.externalEditor")}
@@ -1482,8 +1492,10 @@ export function SettingsDrawer() {
                 ]}
               />
             </div>
-            <div>
-              <FieldLabel>{t("settings.externalEditorPath")}</FieldLabel>
+            <div className="space-y-2">
+              <SettingsFieldHeading icon={<FolderOpen />}>
+                {t("settings.externalEditorPath")}
+              </SettingsFieldHeading>
               <Input
                 className={settingsFieldClassName}
                 value={externalEditorPath}
@@ -1492,8 +1504,10 @@ export function SettingsDrawer() {
                 disabled={externalEditor !== "custom"}
               />
             </div>
-            <div>
-              <FieldLabel>{t("settings.shell")}</FieldLabel>
+            <div className="space-y-2">
+              <SettingsFieldHeading icon={<Terminal />}>
+                {t("settings.shell")}
+              </SettingsFieldHeading>
               <SelectMenu
                 value={shell}
                 ariaLabel={t("settings.shell")}
@@ -1506,8 +1520,10 @@ export function SettingsDrawer() {
                 ]}
               />
             </div>
-            <div>
-              <FieldLabel>{t("settings.shellPath")}</FieldLabel>
+            <div className="space-y-2">
+              <SettingsFieldHeading icon={<FolderOpen />}>
+                {t("settings.shellPath")}
+              </SettingsFieldHeading>
               <Input
                 className={settingsFieldClassName}
                 value={shellPath}
@@ -1520,42 +1536,65 @@ export function SettingsDrawer() {
 
           {activeCategory === "data" ? <SettingsDataPanel /> : null}
 
-          {/* 通用 */}
+          {activeCategory === "about" ? <SettingsAboutPanel /> : null}
+
+          {/* 通用：仅应用级偏好（Git 相关开关在 Git 分区） */}
           {activeCategory === "general" ? <SettingsSection
-            icon={<Power />}
+            icon={<Settings2 />}
             title={t("settings.sectionGeneral")}
-            description={t("settings.sectionGeneralHint")}
           >
-            <label className="hover:bg-muted/40 flex cursor-pointer items-center justify-between gap-3 rounded-md border border-transparent px-1 py-1.5">
-              <div className="min-w-0">
-                <p className="text-sm">{t("settings.launchAtLogin")}</p>
-                <p className="text-muted-foreground text-[11px]">
-                  {t("settings.launchAtLoginHint")}
-                </p>
+            <div className="space-y-2">
+              <SettingsFieldHeading
+                icon={<Power />}
+                tip={t("settings.launchAtLoginHint")}
+                tipAria={t("settings.launchAtLoginTipAria")}
+              >
+                {t("settings.launchTitle")}
+              </SettingsFieldHeading>
+              <ItemGroup className="border-border overflow-hidden rounded-md border">
+                <Item size="sm" className="rounded-none">
+                  <ItemContent>
+                    <ItemTitle className="text-foreground text-xs font-normal">
+                      {t("settings.launchAtLogin")}
+                    </ItemTitle>
+                  </ItemContent>
+                  <ItemActions>
+                    <Switch
+                      size="sm"
+                      checked={launchAtLogin}
+                      onCheckedChange={handleLaunchToggle}
+                      aria-label={t("settings.launchAtLogin")}
+                    />
+                  </ItemActions>
+                </Item>
+              </ItemGroup>
+              <div className="space-y-2 pt-2">
+                <SettingsFieldHeading
+                  icon={<LayoutPanelTop />}
+                  tip={t("settings.startupTabsHint")}
+                  tipAria={t("settings.startupTabsTipAria")}
+                >
+                  {t("settings.startupTabs")}
+                </SettingsFieldHeading>
+                <SelectMenu
+                  value={startupTabsMode}
+                  ariaLabel={t("settings.startupTabs")}
+                  onChange={(value) => {
+                    setStartupTabsMode(value as StartupTabsMode);
+                  }}
+                  options={[
+                    {
+                      value: "restore",
+                      label: t("settings.startupTabsRestore"),
+                    },
+                    {
+                      value: "fresh",
+                      label: t("settings.startupTabsFresh"),
+                    },
+                  ]}
+                />
               </div>
-              <input
-                type="checkbox"
-                className="border-input text-primary size-4 shrink-0 rounded-sm accent-primary"
-                checked={launchAtLogin}
-                onChange={(event) => handleLaunchToggle(event.target.checked)}
-                aria-label={t("settings.launchAtLogin")}
-              />
-            </label>
-            <label className="hover:bg-muted/40 flex cursor-pointer items-center justify-between gap-3 rounded-md border border-transparent px-1 py-1.5">
-              <div className="min-w-0">
-                <p className="text-sm">{t("settings.pushAfterCommit")}</p>
-                <p className="text-muted-foreground text-[11px]">
-                  {t("settings.pushAfterCommitHint")}
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                className="border-input text-primary size-4 shrink-0 rounded-sm accent-primary"
-                checked={pushAfterCommit}
-                onChange={(event) => setPushAfterCommit(event.target.checked)}
-                aria-label={t("settings.pushAfterCommit")}
-              />
-            </label>
+            </div>
           </SettingsSection> : null}
             </div>
             </ScrollArea>

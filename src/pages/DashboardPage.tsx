@@ -5,6 +5,10 @@ import { ProjectManager } from "@/components/project/ProjectManager";
 
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { useProjectStore } from "@/store/useProjectStore";
+import {
+  isStartupTabsApplied,
+  onStartupTabsApplied,
+} from "@/utils/startupTabsBootstrap";
 
 import { toUserMessage } from "@/types/error";
 
@@ -23,8 +27,11 @@ export function DashboardPage({ active = true }: DashboardPageProps) {
   const tabs = useOpenTabsStore((state) => state.tabs);
   const openNewTab = useOpenTabsStore((state) => state.openNewTab);
   const openRepositoryTab = useOpenTabsStore((state) => state.openRepositoryTab);
+  const [startupReady, setStartupReady] = useState(() => isStartupTabsApplied());
 
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => onStartupTabsApplied(() => setStartupReady(true)), []);
 
   useEffect(() => {
     if (!active) {
@@ -61,17 +68,21 @@ export function DashboardPage({ active = true }: DashboardPageProps) {
   );
 
   useEffect(() => {
-    if (!active) {
+    if (!active || !startupReady) {
       return;
     }
     if (isCurrentNewTab) {
       return;
     }
 
-    // 显示了新标签页内容时，路由必须落到对应「新标签页」上，标签栏才能高亮
+    // 冷启动引导已导航到仓库标签后不应再强开新标签；仅在无标签时兜底
+    if (tabs.length > 0) {
+      return;
+    }
+
     const nextTabId = openNewTab();
     navigate(`/tab/${nextTabId}`, { replace: true });
-  }, [active, isCurrentNewTab, navigate, openNewTab]);
+  }, [active, isCurrentNewTab, navigate, openNewTab, startupReady, tabs.length]);
 
   /** 先登记标签再跳路由；勿 flushSync，避免同步重渲卡住点击 */
   function handleOpenProject(projectId: string): void {

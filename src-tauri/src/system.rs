@@ -2,6 +2,8 @@ use font_kit::source::SystemSource;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
+use std::time::Instant;
 
 use crate::error::AppError;
 use crate::git::path::normalize_existing_dir;
@@ -12,6 +14,23 @@ pub struct SystemAppInfo {
     pub name: String,
     pub version: String,
     pub arch: String,
+    /// 操作系统标识（如 macos / windows / linux）
+    pub os: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemRuntimeStats {
+    pub pid: u32,
+    pub rss_bytes: u64,
+    /// 本进程 CPU 占用百分比；不可用时为 0
+    pub cpu_percent: f32,
+    pub uptime_ms: u64,
+}
+
+fn process_start() -> &'static Instant {
+    static START: OnceLock<Instant> = OnceLock::new();
+    START.get_or_init(Instant::now)
 }
 
 #[derive(Serialize)]
@@ -28,13 +47,99 @@ pub struct OkResult {
     pub ok: bool,
 }
 
-/// 应用版本与架构（供状态栏展示）
+/// 应用版本与架构（供状态栏 / 关于页展示）
 pub fn app_info() -> SystemAppInfo {
     SystemAppInfo {
         name: "鲸灵Git".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         arch: normalize_arch(std::env::consts::ARCH),
+        os: std::env::consts::OS.to_string(),
     }
+}
+
+/// 本进程轻量运行时指标（供设置「关于」约 1s 轮询）
+pub fn runtime_stats() -> Result<SystemRuntimeStats, AppError> {
+    let pid = std::process::id();
+    let uptime_ms = process_start().elapsed().as_millis() as u64;
+    let (rss_bytes, cpu_percent) = read_process_metrics(pid)?;
+    Ok(SystemRuntimeStats {
+        pid,
+        rss_bytes,
+        cpu_percent,
+        uptime_ms,
+    })
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn read_process_metrics(pid: u32) -> Result<(u64, f32), AppError> {
+    let output = Command::new("ps")
+        .args(["-o", "rss=,pcpu=", "-p", &pid.to_string()])
+        .output()
+        .map_err(|error| {
+            AppError::new("INTERNAL", "无法读取进程状态").with_details(error.to_string())
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::new("INTERNAL", "读取进程状态失败").with_details(stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    parse_ps_rss_pcpu(&stdout)
+}
+
+/// 解析 `ps -o rss=,pcpu=`：RSS 为 KB，pcpu 为百分比
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn parse_ps_rss_pcpu(stdout: &str) -> Result<(u64, f32), AppError> {
+    let line = stdout
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .ok_or_else(|| AppError::new("INTERNAL", "进程状态输出为空"))?;
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    if parts.len() < 2 {
+        return Err(AppError::new("INTERNAL", "无法解析进程状态"));
+    }
+    let rss_kb: u64 = parts[0]
+        .parse()
+        .map_err(|_| AppError::new("INTERNAL", "无法解析进程内存"))?;
+    let cpu_percent: f32 = parts[1]
+        .parse()
+        .map_err(|_| AppError::new("INTERNAL", "无法解析进程 CPU"))?;
+    Ok((rss_kb.saturating_mul(1024), cpu_percent))
+}
+
+#[cfg(target_os = "windows")]
+fn read_process_metrics(pid: u32) -> Result<(u64, f32), AppError> {
+    // WorkingSetSize 单位字节；CPU 百分比 Windows 侧不易瞬时取得，返回 0 由 UI 显示「—」
+    let output = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-Command",
+            &format!(
+                "(Get-Process -Id {pid} -ErrorAction Stop).WorkingSet64"
+            ),
+        ])
+        .output()
+        .map_err(|error| {
+            AppError::new("INTERNAL", "无法读取进程状态").with_details(error.to_string())
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::new("INTERNAL", "读取进程状态失败").with_details(stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let rss_bytes: u64 = stdout
+        .trim()
+        .parse()
+        .map_err(|_| AppError::new("INTERNAL", "无法解析进程内存"))?;
+    Ok((rss_bytes, 0.0))
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+fn read_process_metrics(_pid: u32) -> Result<(u64, f32), AppError> {
+    Err(AppError::new("INTERNAL", "当前平台不支持进程采样"))
 }
 
 /// 枚举本机已安装字体族（去重、排序）
@@ -144,6 +249,14 @@ mod tests {
     fn normalizes_arch() {
         assert_eq!(normalize_arch("aarch64"), "ARM64");
         assert_eq!(normalize_arch("x86_64"), "x64");
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[test]
+    fn parses_ps_rss_pcpu() {
+        let (rss, cpu) = parse_ps_rss_pcpu("  12345  3.5\n").expect("parse");
+        assert_eq!(rss, 12345 * 1024);
+        assert!((cpu - 3.5).abs() < f32::EPSILON);
     }
 }
 

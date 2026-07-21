@@ -15,7 +15,6 @@ import { Mention, MentionsInput } from "react-mentions-ts";
 
 import { MentionSuggestionVirtualList } from "@/components/ai/MentionSuggestionVirtualList";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
@@ -23,6 +22,11 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { AgentMention, AgentMentionKind } from "@/types/ai";
+
+/** 输入区最小高度（约 3 行） */
+const COMPOSER_INPUT_MIN_CLASS = "min-h-[4.5rem]";
+/** 输入区最大高度，超出后仅文本区滚动，底部控件不跟着滚 */
+const COMPOSER_INPUT_MAX_CLASS = "max-h-[10.5rem]";
 
 export interface AgentMentionOption extends Record<string, unknown> {
   id: string;
@@ -42,10 +46,13 @@ function mentionGroupOrder(option: AgentMentionOption): number {
   if (option.kind === "plugin") {
     return 0;
   }
-  if (option.kind === "project") {
+  if (option.kind === "skill") {
     return 1;
   }
-  return option.isRemote ? 3 : 2;
+  if (option.kind === "project") {
+    return 2;
+  }
+  return option.isRemote ? 4 : 3;
 }
 
 function mentionGroupLabelKey(option: {
@@ -55,13 +62,16 @@ function mentionGroupLabelKey(option: {
   if (option.kind === "plugin") {
     return "agent.mentionGroupPlugins";
   }
+  if (option.kind === "skill") {
+    return "agent.mentionGroupSkills";
+  }
   if (option.kind === "project") {
     return "multiAgent.mentionGroupProjects";
   }
   return option.isRemote ? "repo.remote" : "repo.local";
 }
 
-/** 插件 → 项目 → 本地分支 → 远端分支；组内按名称；各组首条带分组标题 */
+/** 插件 → 技能 → 项目 → 本地分支 → 远端分支；组内按名称；各组首条带分组标题 */
 function buildMentionSuggestions(
   options: readonly AgentMentionOption[],
   query: string,
@@ -94,23 +104,37 @@ function buildMentionSuggestions(
   });
 }
 
+/** 两侧各两个 NBSP ≈ 加大左右间隙（与 highlighter 同步，避免 padding 错位） */
+const MENTION_DISPLAY_PAD = "\u00A0\u00A0";
+
+function padMentionDisplay(_id: string | number, display?: string | null): string {
+  return `${MENTION_DISPLAY_PAD}${display ?? ""}${MENTION_DISPLAY_PAD}`;
+}
+
+/** 去掉 displayTransform 注入的 NBSP，避免写入会话 mention.name */
+function stripMentionDisplayPadding(display: string): string {
+  return display.replace(/^\u00A0+|\u00A0+$/g, "");
+}
+
 function toAgentMention(
   mentionId: string,
   display: string,
   option: AgentMentionOption | undefined,
 ): AgentMention {
   const kind = option?.kind ?? "branch";
-  if (kind === "plugin") {
+  const name = stripMentionDisplayPadding(display);
+  // 技能与插件共用持久化 shape（type=plugin），便于历史会话兼容
+  if (kind === "plugin" || kind === "skill") {
     const id = mentionId.startsWith("plugin:")
       ? mentionId.slice("plugin:".length)
       : mentionId;
-    return { type: "plugin", id, name: display };
+    return { type: "plugin", id, name };
   }
   if (kind === "project") {
     const id = mentionId.startsWith("project:")
       ? mentionId.slice("project:".length)
       : mentionId;
-    return { type: "project", id, name: display };
+    return { type: "project", id, name };
   }
   return { type: "branch", name: mentionId };
 }
@@ -118,11 +142,11 @@ function toAgentMention(
 interface AgentComposerProps {
   draftMarkup: string;
   draftPlainText: string;
-  /** @ 候选（插件/项目等）；单仓鲸灵传空且 enableMentions=false */
+  /** @ 候选：单仓为插件/技能/分支；多仓为插件/技能/项目等 */
   branchOptions: readonly AgentMentionOption[];
   /**
    * 是否启用 @ 提及。
-   * 单仓鲸灵为 false（纯文本）；多仓鲸灵为 true（插件/项目）。
+   * 单仓 / 多仓鲸灵均为 true；纯文本场景传 false。
    */
   enableMentions?: boolean;
   isReplying: boolean;
@@ -146,10 +170,12 @@ interface AgentComposerProps {
   onThinkingEnabledChange?: (enabled: boolean) => void;
 }
 
-const COMPOSER_INPUT_CLASS =
-  "placeholder:text-muted-foreground relative z-[1] block min-h-full w-full min-w-0 resize-none overflow-hidden rounded-none border-0 bg-transparent px-3 pt-2 pb-10 text-xs leading-5 break-words whitespace-pre-wrap shadow-none outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50";
+const COMPOSER_INPUT_CLASS = cn(
+  "placeholder:text-muted-foreground relative z-[1] block w-full min-w-0 resize-none overflow-hidden rounded-none border-0 bg-transparent px-3 py-2 text-xs leading-5 break-words whitespace-pre-wrap shadow-none outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
+  COMPOSER_INPUT_MIN_CLASS,
+);
 
-/** Agent 输入区：Mentions + shadcn ScrollArea + 发送 / 停止 */
+/** Agent 输入区：随内容增高至上限后仅文本区滚动；底部控件固定 */
 export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
   function AgentComposer(
     {
@@ -173,8 +199,8 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
   ) {
     const { t } = useTranslation();
     const inputPlaceholder = placeholder ?? t("agent.inputPlaceholder");
-    const scrollAreaRef = useRef<HTMLDivElement>(null);
-    // 单仓：仅插件；多仓：插件+项目。enableMentions=false 时走纯文本（无分支 @）
+    const inputScrollRef = useRef<HTMLDivElement>(null);
+    // enableMentions=false 时走纯文本（关闭 @）
     const mentionsOn = enableMentions;
     // 中文等 IME：选词回车时部分环境 isComposing 已是 false，需组合态标记 + keyCode 229
     const isComposingRef = useRef(false);
@@ -192,7 +218,10 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
       return map;
     }, [branchOptions]);
     const hasPluginOrProject = branchOptions.some(
-      (option) => option.kind === "plugin" || option.kind === "project",
+      (option) =>
+        option.kind === "plugin" ||
+        option.kind === "skill" ||
+        option.kind === "project",
     );
     const emptyMentionsKey = hasPluginOrProject
       ? "agent.noMentions"
@@ -234,14 +263,12 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
       event.currentTarget.form?.requestSubmit();
     }
 
-    /** textarea 自身不滚动时，把滚轮交给外层 shadcn ScrollArea */
+    /** textarea 自身 overflow:hidden（配合 autoResize），滚轮交给文本滚动容器 */
     function handleInputWheel(
       event: WheelEvent<HTMLInputElement | HTMLTextAreaElement>,
     ): void {
-      const viewport = scrollAreaRef.current?.querySelector(
-        '[data-slot="scroll-area-viewport"]',
-      );
-      if (!(viewport instanceof HTMLElement)) {
+      const viewport = inputScrollRef.current;
+      if (!viewport) {
         return;
       }
       const { scrollTop, scrollHeight, clientHeight } = viewport;
@@ -257,6 +284,11 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
       event.preventDefault();
     }
 
+    function syncPlainTextareaHeight(element: HTMLTextAreaElement): void {
+      element.style.height = "auto";
+      element.style.height = `${element.scrollHeight}px`;
+    }
+
     return (
       <form
         ref={ref}
@@ -268,24 +300,22 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
             {topAccessory}
           </div>
         ) : null}
-        <div className="relative">
-          {/* 边框在外层，避免 h-28+border 把内部 min-h-28 挤出视口从而空态也出滚动条 */}
+        {/* 文本区可增高滚动；底部工具栏固定，互不遮挡 */}
+        <div
+          className={cn(
+            "border-input dark:bg-input/30 flex w-full flex-col overflow-hidden rounded-md border bg-transparent shadow-none",
+            "focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]",
+          )}
+        >
           <div
+            ref={inputScrollRef}
             className={cn(
-              "border-input dark:bg-input/30 h-28 w-full overflow-hidden rounded-md border bg-transparent shadow-none",
-              "focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]",
+              "w-full min-w-0 overflow-x-hidden overflow-y-auto",
+              COMPOSER_INPUT_MIN_CLASS,
+              COMPOSER_INPUT_MAX_CLASS,
             )}
           >
-            <ScrollArea
-              ref={scrollAreaRef}
-              className={cn(
-                "h-full w-full",
-                // 无可滚内容时隐藏轨道（Radix 用 data-state=hidden）
-                "[&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden",
-                "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
-              )}
-            >
-              {mentionsOn ? (
+            {mentionsOn ? (
               <MentionsInput<AgentMentionOption>
                 inputRef={(element) => {
                   if (typeof inputRef === "function") {
@@ -320,20 +350,20 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                 className="block w-full min-w-0"
                 style={{ width: "100%" }}
                 classNames={{
-                  control:
-                    "relative block min-h-full w-full min-w-0 rounded-md border-0 bg-transparent p-0 shadow-none",
-                  // 空态贴满视口；内容变高后由外层 ScrollArea 滚动
+                  control: cn(
+                    "relative block w-full min-w-0 rounded-md border-0 bg-transparent p-0 shadow-none",
+                    COMPOSER_INPUT_MIN_CLASS,
+                  ),
                   input: COMPOSER_INPUT_CLASS,
-                  // 必须 absolute，否则与 textarea 叠高，空态也会溢出
-                  highlighter:
-                    "pointer-events-none absolute inset-0 box-border min-h-full w-full min-w-0 overflow-hidden px-3 pt-2 pb-10 text-xs leading-5 break-words whitespace-pre-wrap",
+                  // 必须 absolute，与 textarea 叠字对齐
+                  highlighter: cn(
+                    "pointer-events-none absolute inset-0 box-border w-full min-w-0 overflow-hidden px-3 py-2 text-xs leading-5 break-words whitespace-pre-wrap",
+                    COMPOSER_INPUT_MIN_CLASS,
+                  ),
                   suggestions:
                     "bg-popover text-popover-foreground z-[100] mb-1 min-w-0 overflow-hidden rounded-md border p-0 shadow-md",
-                  // 滚动交给 MentionSuggestionVirtualList（ScrollArea + 虚拟列表）
                   suggestionsList:
                     "m-0 max-h-none list-none overflow-visible p-0 !divide-y-0 divide-transparent",
-                  // 库默认给 li 加了 hover:bg-muted / data-[focused]:bg-primary/10；
-                  // 分组标题与候选项同在一个 li 内，必须清掉外层背景，只高亮内层分支行
                   suggestionItem:
                     "relative block cursor-default border-0 bg-transparent p-0 text-xs text-foreground outline-hidden select-none hover:!bg-transparent data-[focused=true]:!bg-transparent data-[focused=true]:!text-foreground",
                   suggestionItemFocused:
@@ -349,9 +379,10 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                   data={mentionData}
                   appendSpaceOnAdd
                   maxSuggestions={Math.max(branchOptions.length, 1)}
-                  // highlighter 与 textarea 叠字对齐：禁止 padding/inline-flex（会撑宽导致错位）
-                  // 用同色 box-shadow 模拟 Badge 胶囊边距，不改文字度量
-                  className="rounded-sm bg-secondary text-secondary-foreground shadow-[0_0_0_2px_var(--secondary)] box-decoration-clone"
+                  // 左右间隙：displayTransform NBSP；单层 2px shadow 补上下缝，勿多层（会重影）
+                  displayTransform={padMentionDisplay}
+                  // 强制方圆角（覆盖库 rounded-md）：徽章 --radius-sm
+                  className="box-decoration-clone !rounded-sm bg-primary/12 font-medium text-primary shadow-[0_0_0_2px_color-mix(in_oklab,var(--primary)_12%,transparent)]"
                   renderSuggestion={(option, _query, _highlighted, _index, focused) => {
                     const display = String(option.display ?? option.id);
                     const kind =
@@ -386,94 +417,102 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                   )}
                 />
               </MentionsInput>
-              ) : (
-                <textarea
-                  ref={(element) => {
-                    if (typeof inputRef === "function") {
-                      inputRef(element);
-                    } else if (inputRef) {
-                      inputRef.current = element;
-                    }
-                  }}
-                  value={draftPlainText}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    onDraftChange({
-                      markup: value,
-                      plainText: value,
-                      mentions: [],
-                    });
-                  }}
-                  onKeyDown={handleInputKeyDown}
-                  onCompositionStart={handleCompositionStart}
-                  onCompositionEnd={handleCompositionEnd}
-                  onWheel={handleInputWheel}
-                  aria-label={inputPlaceholder}
-                  placeholder={inputPlaceholder}
-                  disabled={isReplying}
-                  className={COMPOSER_INPUT_CLASS}
-                />
-              )}
-            </ScrollArea>
+            ) : (
+              <textarea
+                ref={(element) => {
+                  if (typeof inputRef === "function") {
+                    inputRef(element);
+                  } else if (inputRef) {
+                    inputRef.current = element;
+                  }
+                  if (element) {
+                    syncPlainTextareaHeight(element);
+                  }
+                }}
+                value={draftPlainText}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  syncPlainTextareaHeight(event.currentTarget);
+                  onDraftChange({
+                    markup: value,
+                    plainText: value,
+                    mentions: [],
+                  });
+                }}
+                onKeyDown={handleInputKeyDown}
+                onCompositionStart={handleCompositionStart}
+                onCompositionEnd={handleCompositionEnd}
+                onWheel={handleInputWheel}
+                rows={1}
+                aria-label={inputPlaceholder}
+                placeholder={inputPlaceholder}
+                disabled={isReplying}
+                className={COMPOSER_INPUT_CLASS}
+              />
+            )}
           </div>
-          {showThinkingToggle ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "border-border absolute bottom-2 left-2 z-10 h-7 gap-1 px-2 text-[11px] shadow-none",
-                thinkingEnabled
-                  ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                  : "text-muted-foreground",
-              )}
-              aria-pressed={thinkingEnabled}
-              aria-label={t("agent.deepThinkingToggle")}
-              onClick={() => {
-                onThinkingEnabledChange?.(!thinkingEnabled);
-              }}
-            >
-              <Atom className="size-3.5" aria-hidden="true" />
-              {t("agent.deepThinkingToggle")}
-            </Button>
-          ) : null}
-          {isReplying ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
+
+          <div className="flex shrink-0 items-center justify-between gap-2 px-2 pt-1 pb-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              {showThinkingToggle ? (
                 <Button
                   type="button"
-                  size="icon-sm"
-                  className="absolute right-2 bottom-2 z-10 rounded-full"
-                  aria-label={t("agent.stopReply")}
+                  variant="ghost"
+                  size="xs"
+                  className={cn(
+                    // 与 ChangesPanel 等 h-6 工具按钮一致：走 Button 的 rounded-md
+                    "border px-2 shadow-none transition-colors",
+                    thinkingEnabled
+                      ? "border-transparent bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                      : "border-border bg-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                  )}
+                  aria-pressed={thinkingEnabled}
+                  aria-label={t("agent.deepThinkingToggle")}
                   onClick={() => {
-                    onStop?.();
+                    onThinkingEnabledChange?.(!thinkingEnabled);
                   }}
                 >
-                  {/* 实心方块：对齐常见「停止生成」视觉，不用描边图标 */}
-                  <span
-                    className="bg-primary-foreground block size-2.5 shrink-0"
-                    aria-hidden="true"
-                  />
+                  <Atom className="size-3.5" aria-hidden="true" />
+                  {t("agent.deepThinkingToggle")}
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t("agent.stopReply")}</TooltipContent>
-            </Tooltip>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="submit"
-                  size="icon-sm"
-                  className="absolute right-2 bottom-2 z-10"
-                  aria-label={t("agent.sendMessage")}
-                  disabled={!canSubmit || draftPlainText.trim().length === 0}
-                >
-                  <ArrowUp aria-hidden="true" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t("agent.sendMessage")}</TooltipContent>
-            </Tooltip>
-          )}
+              ) : null}
+            </div>
+            {isReplying ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    className="rounded-full"
+                    aria-label={t("agent.stopReply")}
+                    onClick={() => {
+                      onStop?.();
+                    }}
+                  >
+                    <span
+                      className="bg-primary-foreground block size-2.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("agent.stopReply")}</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="submit"
+                    size="icon-sm"
+                    aria-label={t("agent.sendMessage")}
+                    disabled={!canSubmit || draftPlainText.trim().length === 0}
+                  >
+                    <ArrowUp aria-hidden="true" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("agent.sendMessage")}</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </div>
       </form>
     );

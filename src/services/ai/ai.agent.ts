@@ -144,7 +144,7 @@ async function buildRepositoryContext(
     getLog(repoPath, { limit: AGENT_LOG_LIMIT }),
     needFileTree
       ? listTree(repoPath, "HEAD")
-      : Promise.resolve({ paths: [] as string[] }),
+      : Promise.resolve({ paths: [] as string[], truncated: false }),
   ]);
 
   const sections = [

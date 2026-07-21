@@ -61,6 +61,7 @@ flowchart TB
 - 变更 / 待提交（列表 + 树形，`ChangesPanel`）
 - 分支树（`BranchList`，展平可见行）
 - 标签列表（`TagList`）
+- 提交历史（`HistoryList`；常驻提交硬顶约 1500）
 
 约定（硬性，见 [AGENTS.md §15](../../AGENTS.md) / [ui-guidelines](ui-guidelines.md)）：面板主滚动用 shadcn `ScrollArea`，禁止裸 `overflow-*-auto` 交付；`ScrollArea` + Radix viewport 作为 `getScrollElement`（见 `useScrollAreaViewport`）；树结构先按展开状态展平再虚拟化。
 

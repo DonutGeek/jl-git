@@ -36,6 +36,7 @@ import {
 import {
   disableAgentPlugin,
   filterEnabledAgentPlugins,
+  filterEnabledAgentSkills,
   getDisabledAgentPluginIds,
 } from "@/services/agent/agent.plugins";
 import { openBranchCompareWindow } from "@/services/window/branchCompareWindow";
@@ -81,16 +82,34 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     () => filterEnabledAgentPlugins(disabledPluginIds),
     [disabledPluginIds],
   );
+  const enabledSkills = useMemo(
+    () => filterEnabledAgentSkills(disabledPluginIds),
+    [disabledPluginIds],
+  );
 
-  const pluginMentionOptions = useMemo((): AgentMentionOption[] => {
-    return enabledPlugins.map((plugin) => ({
+  const locale = useLocaleStore((state) => state.locale);
+  const branches = useRepoStore((state) => state.branches);
+
+  /** 单仓 @：插件 / 技能 / 本地与远端分支 */
+  const mentionOptions = useMemo((): AgentMentionOption[] => {
+    const plugins = enabledPlugins.map((plugin) => ({
       id: plugin.mentionId,
       display: t(plugin.mentionDisplayKey),
       kind: "plugin" as const,
     }));
-  }, [enabledPlugins, t]);
-  const locale = useLocaleStore((state) => state.locale);
-  const branches = useRepoStore((state) => state.branches);
+    const skills = enabledSkills.map((skill) => ({
+      id: skill.mentionId,
+      display: t(skill.mentionDisplayKey),
+      kind: "skill" as const,
+    }));
+    const branchOptions = branches.map((branch) => ({
+      id: branch.name,
+      display: branch.name,
+      kind: "branch" as const,
+      isRemote: branch.isRemote,
+    }));
+    return [...plugins, ...skills, ...branchOptions];
+  }, [branches, enabledPlugins, enabledSkills, t]);
   const conversations = useAgentChatStore(
     (state) => state.conversationsByProjectId[projectId] ?? EMPTY_CONVERSATIONS,
   );
@@ -639,7 +658,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           inputRef={inputRef}
           draftMarkup={draftMarkup}
           draftPlainText={draftPlainText}
-          branchOptions={pluginMentionOptions}
+          branchOptions={mentionOptions}
           enableMentions
           isReplying={isReplying}
           canSubmit={Boolean(activeConversation)}
@@ -661,7 +680,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
       </div>
 
       <Dialog open={pluginsOpen} onOpenChange={setPluginsOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="flex max-h-[min(80vh,36rem)] flex-col sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="sr-only">
               {t("agent.catalogSwitchAria")}
@@ -670,7 +689,9 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           <AgentCatalogPanel
             variant="compact"
             showHint
+            className="min-h-0 flex-1"
             plugins={enabledPlugins}
+            skills={enabledSkills}
             onSelectPlugin={handleInsertPlugin}
             onTryPlugin={handleTryPlugin}
             onUninstallPlugin={handleUninstallPlugin}

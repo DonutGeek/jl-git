@@ -109,12 +109,16 @@ pub fn run() {
             commands::git_ops::git_branch_create,
             commands::git_ops::git_branch_delete,
             commands::git_ops::git_branch_rename,
+            commands::git_ops::git_version,
             commands::system::system_app_info,
+            commands::system::system_runtime_stats,
             commands::system::system_list_fonts,
             commands::system::system_disk_space,
             commands::system::system_open_terminal,
             commands::system::system_reveal_in_file_manager,
-            commands::system::system_open_in_editor
+            commands::system::system_open_in_editor,
+            commands::ssh_keys::ssh_key_generate,
+            commands::ssh_keys::ssh_key_read_public
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

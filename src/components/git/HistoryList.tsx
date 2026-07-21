@@ -6,12 +6,14 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type SyntheticEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import dayjs from "dayjs";
 import {
   ArrowDownWideNarrow,
@@ -48,6 +50,7 @@ import { TRUNCATE_BUDGET_ATTR } from "@/components/common/TruncateStartPath";
 import { GitRefTag } from "@/components/git/GitRefTag";
 import { HistoryGraph } from "@/components/git/HistoryGraph";
 import { useHistoryWorkspace } from "@/components/git/HistoryWorkspaceContext";
+import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { cn } from "@/lib/utils";
 
 import { useProjectStore } from "@/store/useProjectStore";
@@ -77,6 +80,9 @@ const HISTORY_GRAPH_MAX_WIDTH = 320;
 const HISTORY_EDGE_GAP_PX = 8;
 /** 与 HistoryGraph commit.spacing 对齐 */
 const HISTORY_ROW_HEIGHT_PX = 32;
+/** 列表上下内边距（与 py-1.5 一致，供虚拟列表 padding） */
+const HISTORY_LIST_PAD_Y_PX = 6;
+const HISTORY_VIRTUAL_OVERSCAN = 12;
 /** 列表短 hash 展示 7 位（Git 常用 abbrev） */
 const HISTORY_HASH_DISPLAY_LEN = 7;
 
@@ -222,6 +228,9 @@ interface HistoryCommitRowProps {
   expandBranchNames: boolean;
   branchOnLeft: boolean;
   onSelect: (commitId: string) => void;
+  /** 虚拟列表绝对定位样式 */
+  className?: string;
+  style?: CSSProperties;
 }
 
 interface HistoryBranchLabelProps {
@@ -275,6 +284,8 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
   expandBranchNames,
   branchOnLeft,
   onSelect,
+  className,
+  style,
 }: HistoryCommitRowProps) {
   const authoredLabel = useMemo(
     () => dayjs(commit.authoredAt).format("YYYY-MM-DD HH:mm:ss"),
@@ -327,7 +338,10 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
   ) : null;
 
   return (
-    <li className="border-0" style={{ height: HISTORY_ROW_HEIGHT_PX }}>
+    <li
+      className={cn("border-0", className)}
+      style={{ height: HISTORY_ROW_HEIGHT_PX, ...style }}
+    >
       <button
         type="button"
         role="option"
@@ -445,7 +459,7 @@ export function HistoryList() {
   const [graphContentWidth, setGraphContentWidth] = useState(0);
   /** 图谱圆点悬停 → 同步高亮对应历史行 */
   const [hoveredCommitId, setHoveredCommitId] = useState<string | null>(null);
-  const historyScrollRef = useRef<HTMLDivElement>(null);
+  const { viewport: historyViewport, bindScrollArea } = useScrollAreaViewport();
   /** 历史列视口：用于拖拽宽度计算；分隔线挂在此层以保证视口等高 */
   const historyPaneRef = useRef<HTMLDivElement>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
@@ -610,6 +624,16 @@ export function HistoryList() {
   const shouldAutoLoadMore =
     hasMore && !dateFilterExhausted && !filterLoadExhausted && !loadMoreFailed;
 
+  const commitVirtualizer = useVirtualizer({
+    count: filteredCommits.length,
+    getScrollElement: () => historyViewport,
+    estimateSize: () => HISTORY_ROW_HEIGHT_PX,
+    overscan: HISTORY_VIRTUAL_OVERSCAN,
+    paddingStart: HISTORY_LIST_PAD_Y_PX,
+    paddingEnd: HISTORY_LIST_PAD_Y_PX,
+    getItemKey: (index) => filteredCommits[index]?.id ?? index,
+  });
+
   useEffect(() => {
     try {
       localStorage.setItem(HISTORY_GRAPH_WIDTH_STORAGE_KEY, String(graphWidth));
@@ -640,15 +664,12 @@ export function HistoryList() {
    * 若不立刻同步，translateY 会把图谱整体错位到列表上方。
    */
   useEffect(() => {
-    const viewport = historyScrollRef.current?.querySelector(
-      "[data-radix-scroll-area-viewport]",
-    );
-    if (viewport instanceof HTMLElement) {
-      setGraphScrollTop(viewport.scrollTop);
+    if (historyViewport) {
+      setGraphScrollTop(historyViewport.scrollTop);
       return;
     }
     setGraphScrollTop(0);
-  }, [commits.length, filteredCommits]);
+  }, [commits.length, filteredCommits, historyViewport]);
 
   const handleLoadMore = useCallback(async (): Promise<void> => {
     if (!hasMore || loading || loadingMoreRef.current || dateFilterExhausted || filterLoadExhausted) {
@@ -715,16 +736,9 @@ export function HistoryList() {
       !shouldAutoLoadMore ||
       loading ||
       loadingMore ||
-      !historyScrollRef.current ||
+      !historyViewport ||
       !loadMoreSentinelRef.current
     ) {
-      return;
-    }
-
-    const viewport = historyScrollRef.current.querySelector(
-      "[data-radix-scroll-area-viewport]",
-    );
-    if (!(viewport instanceof HTMLElement)) {
       return;
     }
 
@@ -735,7 +749,7 @@ export function HistoryList() {
         }
       },
       {
-        root: viewport,
+        root: historyViewport,
         rootMargin: "0px 0px 240px",
       },
     );
@@ -745,19 +759,17 @@ export function HistoryList() {
   }, [
     filteredCommits.length,
     handleLoadMore,
+    historyViewport,
     loading,
     loadingMore,
     shouldAutoLoadMore,
   ]);
 
   useEffect(() => {
-    const viewport = historyScrollRef.current?.querySelector(
-      "[data-radix-scroll-area-viewport]",
-    );
-    if (!(viewport instanceof HTMLElement)) {
+    if (!historyViewport) {
       return;
     }
-    const scrollViewport = viewport;
+    const scrollViewport = historyViewport;
 
     function onHistoryScroll(): void {
       setGraphScrollTop(scrollViewport.scrollTop);
@@ -768,29 +780,21 @@ export function HistoryList() {
     onHistoryScroll();
     scrollViewport.addEventListener("scroll", onHistoryScroll, { passive: true });
     return () => scrollViewport.removeEventListener("scroll", onHistoryScroll);
-  }, [commits.length, filteredCommits.length]);
+  }, [commits.length, filteredCommits.length, historyViewport]);
 
   /** 图谱列上纵向滚轮转发给列表，避免悬停图谱时只能横滑 */
   function handleGraphColumnWheel(event: ReactWheelEvent<HTMLDivElement>): void {
     if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
       return;
     }
-    const viewport = historyScrollRef.current?.querySelector(
-      "[data-radix-scroll-area-viewport]",
-    );
-    if (!(viewport instanceof HTMLElement)) {
+    if (!historyViewport) {
       return;
     }
-    viewport.scrollTop += event.deltaY;
+    historyViewport.scrollTop += event.deltaY;
   }
 
   function scrollHistoryToTop(): void {
-    const viewport = historyScrollRef.current?.querySelector(
-      "[data-radix-scroll-area-viewport]",
-    );
-    if (viewport instanceof HTMLElement) {
-      viewport.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    historyViewport?.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function clampGraphWidth(nextWidth: number): number {
@@ -1257,7 +1261,7 @@ export function HistoryList() {
         className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
       >
         <ScrollArea
-          ref={historyScrollRef}
+          ref={bindScrollArea}
           // Radix viewport 内层 display:table 会撑开宽度导致 truncate 失效；在用法处覆盖，不改 ui/scroll-area
           // 禁止横向滚动：宽图谱 SVG 只在左侧列内裁切，不拖出整表底栏滚动条
           className="h-full w-full [&_[data-slot=scroll-area-viewport]]:overflow-x-hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
@@ -1289,44 +1293,52 @@ export function HistoryList() {
             </div>
           </div>
         ) : (
-          <div className="relative min-w-0">
-            <ul
-              className="relative w-full min-w-0 py-1.5"
-              style={{
-                // 左边距 + 图谱列 + 间隙 | 行 | 右侧留白（对齐参考图 hash 列）
-                paddingLeft: HISTORY_EDGE_GAP_PX + graphWidth + HISTORY_EDGE_GAP_PX,
-                // 右侧略留，保证 7 位 hash 与悬停下划线不被视口裁切
-                paddingRight: HISTORY_EDGE_GAP_PX + 4,
-              }}
-              role="listbox"
-              aria-label={t("repo.history")}
-            >
-              {filteredCommits.map((commit) => {
-                const refs = commit.refs ?? [];
-                const visibleRefs = filterVisibleHistoryRefs(
-                  refs,
-                  viewPrefs.showRemoteBranches,
-                );
-                const isTip =
-                  currentBranch != null &&
-                  refs.some((ref) => ref === currentBranch || ref.endsWith(`&${currentBranch}`));
+          <ul
+            className="relative w-full min-w-0"
+            style={{
+              height: `${commitVirtualizer.getTotalSize()}px`,
+              // 左边距 + 图谱列 + 间隙 | 行 | 右侧留白（对齐参考图 hash 列）
+              paddingLeft: HISTORY_EDGE_GAP_PX + graphWidth + HISTORY_EDGE_GAP_PX,
+              // 右侧略留，保证 7 位 hash 与悬停下划线不被视口裁切
+              paddingRight: HISTORY_EDGE_GAP_PX + 4,
+            }}
+            role="listbox"
+            aria-label={t("repo.history")}
+          >
+            {commitVirtualizer.getVirtualItems().map((virtualItem) => {
+              const commit = filteredCommits[virtualItem.index];
+              if (!commit) {
+                return null;
+              }
+              const refs = commit.refs ?? [];
+              const visibleRefs = filterVisibleHistoryRefs(
+                refs,
+                viewPrefs.showRemoteBranches,
+              );
+              const isTip =
+                currentBranch != null &&
+                refs.some((ref) => ref === currentBranch || ref.endsWith(`&${currentBranch}`));
 
-                return (
-                  <HistoryCommitRow
-                    key={commit.id}
-                    commit={commit}
-                    isSelected={selectedCommitId === commit.id}
-                    isHovered={hoveredCommitId === commit.id}
-                    isTip={isTip}
-                    visibleRefs={visibleRefs}
-                    expandBranchNames={viewPrefs.expandBranchNames}
-                    branchOnLeft={viewPrefs.branchOnLeft}
-                    onSelect={handleSelectCommit}
-                  />
-                );
-              })}
-            </ul>
-          </div>
+              return (
+                <HistoryCommitRow
+                  key={virtualItem.key}
+                  commit={commit}
+                  isSelected={selectedCommitId === commit.id}
+                  isHovered={hoveredCommitId === commit.id}
+                  isTip={isTip}
+                  visibleRefs={visibleRefs}
+                  expandBranchNames={viewPrefs.expandBranchNames}
+                  branchOnLeft={viewPrefs.branchOnLeft}
+                  onSelect={handleSelectCommit}
+                  className="absolute top-0 left-0 w-full min-w-0"
+                  style={{
+                    height: `${virtualItem.size}px`,
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                />
+              );
+            })}
+          </ul>
         )}
 
         {shouldAutoLoadMore || loadMoreFailed ? (

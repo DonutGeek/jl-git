@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Puzzle, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AgentPluginList } from "@/components/ai/AgentPluginList";
@@ -11,6 +11,7 @@ export type AgentCatalogTab = "plugins" | "skills";
 
 interface AgentCatalogPanelProps {
   plugins: readonly AgentPluginDefinition[];
+  skills: readonly AgentPluginDefinition[];
   onSelectPlugin: (plugin: AgentPluginDefinition) => void;
   onTryPlugin?: (plugin: AgentPluginDefinition) => void;
   onUninstallPlugin?: (plugin: AgentPluginDefinition) => void;
@@ -24,6 +25,7 @@ interface AgentCatalogPanelProps {
 /** 鲸灵扩展目录：插件 / 技能分段切换（单仓 Dialog、多仓主区共用） */
 export function AgentCatalogPanel({
   plugins,
+  skills,
   onSelectPlugin,
   onTryPlugin,
   onUninstallPlugin,
@@ -32,12 +34,19 @@ export function AgentCatalogPanel({
   showHint = true,
 }: AgentCatalogPanelProps) {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<AgentCatalogTab>("plugins");
+  // 首期技能有内容、插件为空：默认落在技能
+  const [tab, setTab] = useState<AgentCatalogTab>(
+    skills.length > 0 && plugins.length === 0 ? "skills" : "plugins",
+  );
 
   const hint =
     tab === "plugins"
       ? t("agent.catalogPluginsHint")
       : t("agent.catalogSkillsHint");
+
+  const pluginsEmpty = tab === "plugins" && plugins.length === 0;
+  const skillsEmpty = tab === "skills" && skills.length === 0;
+  const showCenteredEmpty = pluginsEmpty || skillsEmpty;
 
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}>
@@ -88,22 +97,48 @@ export function AgentCatalogPanel({
         ) : null}
       </div>
 
-      <div className={cn("min-h-0 flex-1", variant === "gallery" ? "mt-3" : "mt-2")}>
+      <div
+        className={cn(
+          "min-h-0 flex-1",
+          variant === "gallery" ? "mt-3" : "mt-2",
+          showCenteredEmpty
+            ? "flex min-h-56 items-center justify-center"
+            : "overflow-y-auto",
+        )}
+      >
         {tab === "plugins" ? (
-          <AgentPluginList
-            variant={variant}
-            plugins={plugins}
-            onSelect={onSelectPlugin}
-            onTry={onTryPlugin}
-            onUninstall={onUninstallPlugin}
-          />
-        ) : (
+          pluginsEmpty ? (
+            <EmptyState
+              compact
+              className="h-full py-0"
+              icon={<Puzzle />}
+              title={t("agent.catalogPluginsEmptyTitle")}
+              description={t("agent.catalogPluginsEmptyDescription")}
+            />
+          ) : (
+            <AgentPluginList
+              variant={variant}
+              plugins={plugins}
+              onSelect={onSelectPlugin}
+              onTry={onTryPlugin}
+              onUninstall={onUninstallPlugin}
+            />
+          )
+        ) : skillsEmpty ? (
           <EmptyState
             compact
-            className={variant === "gallery" ? "min-h-44 py-10" : "py-6"}
+            className="h-full py-0"
             icon={<Sparkles />}
             title={t("agent.catalogSkillsEmptyTitle")}
             description={t("agent.catalogSkillsEmptyDescription")}
+          />
+        ) : (
+          <AgentPluginList
+            variant={variant}
+            plugins={skills}
+            onSelect={onSelectPlugin}
+            onTry={onTryPlugin}
+            onUninstall={onUninstallPlugin}
           />
         )}
       </div>

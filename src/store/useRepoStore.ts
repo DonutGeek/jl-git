@@ -43,9 +43,27 @@ async function revealOpLogBeforeInvoke(): Promise<void> {
 }
 
 const LOG_PAGE_SIZE = 50;
+/** 历史列表常驻提交硬顶：超出后停止加载更多，避免无限追加占内存 */
+const LOG_COMMITS_HARD_CAP = 1500;
 const COMMIT_DETAIL_CACHE_MAX = 24;
 /** 多标签会话缓存上限（按最近使用） */
 const REPO_SESSION_CACHE_MAX = 8;
+
+/** 合并 / 重置历史提交，并在硬顶处截断 */
+function applyLogCommits(
+  current: readonly GitCommitSummary[],
+  incoming: readonly GitCommitSummary[],
+  reset: boolean,
+): { commits: GitCommitSummary[]; capped: boolean } {
+  const merged = reset ? [...incoming] : [...current, ...incoming];
+  if (merged.length <= LOG_COMMITS_HARD_CAP) {
+    return { commits: merged, capped: false };
+  }
+  return {
+    commits: merged.slice(0, LOG_COMMITS_HARD_CAP),
+    capped: true,
+  };
+}
 
 /** 历史默认范围：当前检出分支；游离 HEAD 用 HEAD */
 function historyLogRefFromStatus(status: GitStatusResult | null): string {
@@ -151,10 +169,11 @@ function saveRepoSession(repoPath: string, state: RepoStoreState): void {
       : existing.branches;
   const tags =
     state.tags.length > 0 || !existing?.tags.length ? state.tags : existing.tags;
-  const commits =
+  const rawCommits =
     state.commits.length > 0 || !existing?.commits.length
       ? state.commits
       : existing.commits;
+  const { commits, capped } = applyLogCommits([], rawCommits, true);
 
   if (repoSessionCache.has(repoPath)) {
     repoSessionCache.delete(repoPath);
@@ -165,7 +184,7 @@ function saveRepoSession(repoPath: string, state: RepoStoreState): void {
     branches,
     tags,
     commits,
-    hasMore: state.hasMore,
+    hasMore: capped ? false : state.hasMore,
     logRef: state.logRef,
     logOrder: state.logOrder,
     commitMessage: state.commitMessage,
@@ -198,14 +217,15 @@ export function restoreRepoSession(repoPath: string): boolean {
     : null;
   const needsDetail = Boolean(cached.selectedCommitId && !detail);
 
+  const { commits, capped } = applyLogCommits([], cached.commits, true);
   useRepoStore.setState({
     repoPath,
     status: cached.status,
     identity: cached.identity,
     branches: cached.branches,
     tags: cached.tags,
-    commits: cached.commits,
-    hasMore: cached.hasMore,
+    commits,
+    hasMore: capped ? false : cached.hasMore,
     logRef: cached.logRef,
     logOrder: cached.logOrder ?? "default",
     commitMessage: cached.commitMessage,
@@ -792,9 +812,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         }),
       );
 
+      const { commits, capped } = applyLogCommits(
+        currentCommits,
+        log.commits,
+        reset,
+      );
       set({
-        commits: reset ? log.commits : [...currentCommits, ...log.commits],
-        hasMore: log.hasMore,
+        commits,
+        hasMore: capped ? false : log.hasMore,
         loading: false,
       });
     } catch (error) {
@@ -880,9 +905,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         return;
       }
 
+      const { commits, capped } = applyLogCommits(
+        get().commits,
+        log.commits,
+        false,
+      );
       set({
-        commits: [...get().commits, ...log.commits],
-        hasMore: log.hasMore,
+        commits,
+        hasMore: capped ? false : log.hasMore,
       });
       saveRepoSession(repoPath, get());
     } catch (error) {

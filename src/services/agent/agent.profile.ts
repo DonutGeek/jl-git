@@ -73,8 +73,8 @@ export interface AgentAuthorFilter {
 
 /**
  * 并行汇总全部已登记仓库画像（限并发）。
- * 已配置作者时：`git log --author` 尽量全量拉取；发送前再时间分桶。
- * 未配置时：近期窗口抽样（兼容旧行为）。
+ * 已配置作者时：`git log --author` 拉取后立刻时间分桶入库（≤ AUTHOR_COMMIT_LIMIT）。
+ * 未配置时：近期窗口抽样后再分桶（兼容旧行为）。
  */
 export async function buildAgentProfiles(
   projects: readonly Project[],
@@ -196,7 +196,8 @@ export function prepareProfilesForAgentContext(
 }
 
 /**
- * 将 `--author` 用的正则特殊字符转义；优先邮箱，否则姓名。
+ * 将 `--author` 用的正则特殊字符转义。
+ * 姓名与邮箱都写入（多条 OR）：避免只按邮箱拉日志时漏掉「同名不同邮」的提交。
  */
 export function toGitAuthorPatterns(
   authors: readonly AgentAuthorFilter[],
@@ -207,7 +208,8 @@ export function toGitAuthorPatterns(
     const name = author.name.trim();
     if (email) {
       patterns.push(escapeGitAuthorRegex(email));
-    } else if (name) {
+    }
+    if (name) {
       patterns.push(escapeGitAuthorRegex(name));
     }
   }
@@ -359,19 +361,28 @@ export async function enrichProfilesWithCodeEvidence(
   return results;
 }
 
-function commitMatchesAuthor(
+/**
+ * 同一账号：姓名或邮箱命中其一即可。
+ * Git 常见「设置里写真实名/花名，提交用另一显示名，邮箱不变」；若要求 name∧email 会误杀全部提交。
+ */
+export function commitMatchesAuthor(
   commit: { authorName: string; authorEmail: string },
   filter: { name: string; email: string },
 ): boolean {
   const commitName = commit.authorName.toLowerCase();
   const commitEmail = commit.authorEmail.toLowerCase();
+  const nameConfigured = Boolean(filter.name);
+  const emailConfigured = Boolean(filter.email);
+  if (!nameConfigured && !emailConfigured) {
+    return true;
+  }
   const nameOk =
-    !filter.name || commitName.includes(filter.name) || filter.name.includes(commitName);
+    nameConfigured &&
+    (commitName.includes(filter.name) || filter.name.includes(commitName));
   const emailOk =
-    !filter.email ||
-    commitEmail === filter.email ||
-    commitEmail.includes(filter.email);
-  return (filter.name ? nameOk : true) && (filter.email ? emailOk : true);
+    emailConfigured &&
+    (commitEmail === filter.email || commitEmail.includes(filter.email));
+  return nameOk || emailOk;
 }
 
 async function buildOneProfile(
@@ -381,10 +392,13 @@ async function buildOneProfile(
   try {
     const [logCommits, treeResult] = await Promise.all([
       loadSampledLogCommits(project.path, authorPatterns),
-      listTree(project.path, "HEAD").catch(() => ({ paths: [] as string[] })),
+      listTree(project.path, "HEAD").catch(() => ({
+        paths: [] as string[],
+        truncated: false,
+      })),
     ]);
 
-    // 构建阶段先保留作者侧全量（或近期窗口），发送前再分桶/二次过滤
+    // 拉取窗口可较大；入画像前先分桶，避免 Zustand 常驻数百条摘要
     const commits: ResumeCommitSample[] = logCommits.map((commit) => ({
       id: commit.id,
       shortId: commit.shortId,
@@ -398,6 +412,10 @@ async function buildOneProfile(
       project.path,
       authorPatterns,
       commits,
+    );
+    const recentCommits = selectTimeBucketedCommits(
+      commits,
+      AUTHOR_COMMIT_LIMIT,
     );
 
     const [packageTechStack, readme] = await Promise.all([
@@ -415,12 +433,12 @@ async function buildOneProfile(
       projectPath: project.path,
       firstCommitAt: range.firstCommitAt,
       lastCommitAt: range.lastCommitAt,
-      sampledCommitCount: commits.length,
+      sampledCommitCount: recentCommits.length,
       packageTechStack,
       techStackHints,
       readmePath: readme?.path,
       readmeExcerpt: readme?.excerpt,
-      recentCommits: commits,
+      recentCommits,
     };
   } catch (error) {
     return {

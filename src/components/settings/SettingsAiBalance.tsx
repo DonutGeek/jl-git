@@ -1,14 +1,10 @@
 import { useEffect, useState } from "react";
-import { CircleHelp, ExternalLink, Wallet } from "lucide-react";
+import { ExternalLink, Wallet } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import { SettingsFieldHeading } from "@/components/settings/SettingsFieldHeading";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   fetchDeepSeekBalance,
   getDeepSeekBalanceDocsUrl,
@@ -87,39 +83,26 @@ export function SettingsAiBalance({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-1.5">
-        <Wallet className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
-        <p className="text-foreground text-xs font-medium">{t("settings.balanceTitle")}</p>
-        <Tooltip>
-          <TooltipTrigger asChild>
+      <SettingsFieldHeading
+        icon={<Wallet />}
+        tipAria={t("settings.balanceTipAria")}
+        tip={
+          <span>
+            {t("settings.balanceTip")}
             <button
               type="button"
-              className="text-muted-foreground hover:text-foreground inline-flex size-4 items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={t("settings.balanceTipAria")}
+              className="ml-0.5 underline-offset-2 hover:underline"
+              onClick={() => {
+                void handleOpenDocs();
+              }}
             >
-              <CircleHelp className="size-3.5" aria-hidden="true" />
+              {t("settings.balanceViewDocs")}
             </button>
-          </TooltipTrigger>
-          {/* 覆盖默认 text-balance，与设置内其他问号提示一致 */}
-          <TooltipContent
-            side="top"
-            className="max-w-xs text-left leading-relaxed text-pretty text-wrap"
-          >
-            <span>
-              {t("settings.balanceTip")}
-              <button
-                type="button"
-                className="ml-0.5 underline-offset-2 hover:underline"
-                onClick={() => {
-                  void handleOpenDocs();
-                }}
-              >
-                {t("settings.balanceViewDocs")}
-              </button>
-            </span>
-          </TooltipContent>
-        </Tooltip>
-      </div>
+          </span>
+        }
+      >
+        {t("settings.balanceTitle")}
+      </SettingsFieldHeading>
 
       <div className="border-border bg-muted/30 flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-3">
         <div className="min-w-0">

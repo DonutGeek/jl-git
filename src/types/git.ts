@@ -76,6 +76,8 @@ export interface GitCommitParentDiff {
   parentId: string;
   parentShortId: string;
   files: GitChangedFile[];
+  /** 是否因硬顶截断改动文件列表 */
+  truncated?: boolean;
 }
 
 export interface GitCommitDetail {
@@ -102,6 +104,8 @@ export interface GitCommitMessageResult {
 /** `git ls-tree -r --name-only`：某提交树下全部文件路径 */
 export interface GitLsTreeResult {
   paths: string[];
+  /** 是否因路径硬顶截断 */
+  truncated: boolean;
 }
 
 /** 包含该提交的分支名（可含 HEAD） */

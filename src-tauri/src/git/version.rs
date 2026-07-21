@@ -1,0 +1,73 @@
+use serde::Serialize;
+use std::path::PathBuf;
+use std::process::Command;
+
+use crate::error::AppError;
+
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitVersionResult {
+    pub version: String,
+    pub path: String,
+}
+
+/// 探测本机 Git 是否可用及版本（`git --version`，参数数组调用）
+pub fn probe(executable: Option<&str>) -> Result<GitVersionResult, AppError> {
+    let exe = match executable {
+        Some(raw) if !raw.trim().is_empty() => raw.trim(),
+        _ => "git",
+    };
+
+    let output = Command::new(exe)
+        .arg("--version")
+        .output()
+        .map_err(|error| {
+            AppError::new("GIT_NOT_FOUND", "未找到 Git").with_details(error.to_string())
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::new("GIT_NOT_FOUND", "无法执行 Git").with_details(stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let version = stdout
+        .lines()
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if version.is_empty() {
+        return Err(AppError::new("GIT_NOT_FOUND", "Git 版本输出为空"));
+    }
+
+    let path = resolve_git_path(exe).unwrap_or_else(|| exe.to_string());
+
+    Ok(GitVersionResult { version, path })
+}
+
+fn resolve_git_path(exe: &str) -> Option<String> {
+    if PathBuf::from(exe).is_absolute() {
+        return Some(exe.to_string());
+    }
+
+    #[cfg(windows)]
+    let which = "where";
+    #[cfg(not(windows))]
+    let which = "which";
+
+    let output = Command::new(which).arg(exe).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let path = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .next()?
+        .trim()
+        .to_string();
+    if path.is_empty() {
+        None
+    } else {
+        Some(path)
+    }
+}

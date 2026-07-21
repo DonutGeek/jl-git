@@ -205,6 +205,8 @@
   "commitContainingBranchesEmpty": "Not contained in any branch",
   "commitChangeSize": "Files: {{count}} Size: {{size}}",
   "commitShowAllFiles": "Show all files",
+  "commitTreeTruncated": "Tree is large; showing the first {{count}} paths",
+  "commitChangedFilesTruncated": "Too many changed files; showing the first {{count}}",
   "commitShowChangedFiles": "Show changed files",
   "commitShowLineStats": "Show added/removed lines",
   "commitAllFilesFilter": "All files",

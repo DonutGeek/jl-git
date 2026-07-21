@@ -24,6 +24,8 @@ pub struct GitCommitParentDiff {
     pub parent_id: String,
     pub parent_short_id: String,
     pub files: Vec<GitChangedFile>,
+    /// 是否因硬顶截断改动文件列表
+    pub truncated: bool,
 }
 
 #[derive(Debug, PartialEq, Serialize, Clone)]
@@ -52,10 +54,17 @@ pub struct GitCommitMessageResult {
     pub message: String,
 }
 
+/// `git ls-tree -r` 路径硬顶，避免超大仓库一次灌入前端内存
+const MAX_LS_TREE_PATHS: usize = 20_000;
+/// 单 parent 改动文件列表硬顶
+const MAX_COMMIT_CHANGED_FILES: usize = 5_000;
+
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitLsTreeResult {
     pub paths: Vec<String>,
+    /// 是否因硬顶截断
+    pub truncated: bool,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -101,15 +110,16 @@ pub fn get_commit(repo_path: &Path, rev: &str) -> Result<GitShowResult, AppError
 
     if commit.parents.is_empty() {
         // 根提交：相对空树
-        let files = list_root_files(repo_path, &commit.id)?;
+        let (files, truncated) = list_root_files(repo_path, &commit.id)?;
         diffs.push(GitCommitParentDiff {
             parent_id: String::new(),
             parent_short_id: String::new(),
             files,
+            truncated,
         });
     } else {
         for (index, parent_id) in commit.parents.iter().enumerate() {
-            let files = list_diff_files(repo_path, parent_id, &commit.id)?;
+            let (files, truncated) = list_diff_files(repo_path, parent_id, &commit.id)?;
             diffs.push(GitCommitParentDiff {
                 parent_id: parent_id.clone(),
                 parent_short_id: commit
@@ -118,6 +128,7 @@ pub fn get_commit(repo_path: &Path, rev: &str) -> Result<GitShowResult, AppError
                     .cloned()
                     .unwrap_or_else(|| abbreviate_id(parent_id)),
                 files,
+                truncated,
             });
         }
     }
@@ -160,14 +171,19 @@ pub fn list_tree_paths(repo_path: &Path, rev: &str) -> Result<GitLsTreeResult, A
         return Err(AppError::new("GIT_FAILED", message).with_details(output.stderr));
     }
 
-    let paths: Vec<String> = output
+    let mut paths: Vec<String> = output
         .stdout
         .split('\0')
         .filter(|path| !path.is_empty())
         .map(str::to_string)
         .collect();
 
-    Ok(GitLsTreeResult { paths })
+    let truncated = paths.len() > MAX_LS_TREE_PATHS;
+    if truncated {
+        paths.truncate(MAX_LS_TREE_PATHS);
+    }
+
+    Ok(GitLsTreeResult { paths, truncated })
 }
 
 /// 包含该提交的本地 / 远端分支名；若 HEAD 指向该提交则前置 `HEAD`
@@ -349,7 +365,7 @@ fn list_diff_files(
     repo_path: &Path,
     parent: &str,
     commit: &str,
-) -> Result<Vec<GitChangedFile>, AppError> {
+) -> Result<(Vec<GitChangedFile>, bool), AppError> {
     let status_out = runner::run_git_allow_nonzero(
         repo_path,
         &[
@@ -380,10 +396,13 @@ fn list_diff_files(
         &["diff-tree", "--no-commit-id", "--numstat", "-r", "-z", parent, commit],
     )?;
     sort_changed_files(&mut files);
-    Ok(files)
+    Ok(truncate_changed_files(files))
 }
 
-fn list_root_files(repo_path: &Path, commit: &str) -> Result<Vec<GitChangedFile>, AppError> {
+fn list_root_files(
+    repo_path: &Path,
+    commit: &str,
+) -> Result<(Vec<GitChangedFile>, bool), AppError> {
     let status_out = runner::run_git_allow_nonzero(
         repo_path,
         &[
@@ -422,7 +441,15 @@ fn list_root_files(repo_path: &Path, commit: &str) -> Result<Vec<GitChangedFile>
         ],
     )?;
     sort_changed_files(&mut files);
-    Ok(files)
+    Ok(truncate_changed_files(files))
+}
+
+fn truncate_changed_files(mut files: Vec<GitChangedFile>) -> (Vec<GitChangedFile>, bool) {
+    let truncated = files.len() > MAX_COMMIT_CHANGED_FILES;
+    if truncated {
+        files.truncate(MAX_COMMIT_CHANGED_FILES);
+    }
+    (files, truncated)
 }
 
 /// A → M/T → D → R/C → 其余，同状态按路径；对齐常见 Git GUI 列表顺序

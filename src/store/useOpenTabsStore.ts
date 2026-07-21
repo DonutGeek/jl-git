@@ -8,9 +8,12 @@ export type OpenTab =
 interface OpenTabsState {
   /** 当前会话打开的标签（按打开顺序） */
   tabs: OpenTab[];
+  /** 上次激活的标签 id（跨启动恢复用） */
+  lastActiveTabId: string | null;
   /** 点击后立刻高亮的标签，路由落地后清除 */
   pendingActiveId: string | null;
   setPendingActiveId: (id: string | null) => void;
+  setLastActiveTabId: (id: string | null) => void;
   /** 新建仓库选择标签并返回其唯一标识 */
   openNewTab: () => string;
   /** 打开仓库标签；同一仓库只保留一个标签 */
@@ -29,11 +32,14 @@ interface OpenTabsState {
   reorderTabs: (activeId: string, overId: string) => void;
   /** 去掉已不存在的仓库标签（例如项目被删除后） */
   pruneTabs: (validProjectIds: Set<string>) => void;
+  /** 冷启动「每次新标签」：清空为单个新标签页并返回其 id */
+  resetToFreshStartup: () => string;
 }
 
 interface PersistedTabsState {
   tabs?: unknown;
   tabIds?: unknown;
+  lastActiveTabId?: unknown;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -82,14 +88,39 @@ function readPersistedTabs(value: unknown, version: number): OpenTab[] {
   }, []);
 }
 
+function readLastActiveTabId(value: unknown, tabs: readonly OpenTab[]): string | null {
+  if (!isRecord(value) || typeof value.lastActiveTabId !== "string") {
+    return null;
+  }
+  return tabs.some((tab) => tab.id === value.lastActiveTabId)
+    ? value.lastActiveTabId
+    : null;
+}
+
+/** 标签对应主窗路由 */
+export function pathForOpenTab(tab: OpenTab): string {
+  if (tab.type === "new-tab") {
+    return `/tab/${tab.id}`;
+  }
+  return `/repo/${tab.projectId}`;
+}
+
 export const useOpenTabsStore = create<OpenTabsState>()(
   persist(
     (set, get) => ({
       tabs: [],
+      lastActiveTabId: null,
       pendingActiveId: null,
 
       setPendingActiveId(id) {
         set({ pendingActiveId: id });
+      },
+
+      setLastActiveTabId(id) {
+        if (get().lastActiveTabId === id) {
+          return;
+        }
+        set({ lastActiveTabId: id });
       },
 
       openNewTab() {
@@ -138,9 +169,17 @@ export const useOpenTabsStore = create<OpenTabsState>()(
         }
 
         const nextTabs = tabs.filter((tab) => tab.id !== tabId);
-        set({ tabs: nextTabs });
+        const nextActive =
+          nextTabs[Math.min(index, nextTabs.length - 1)]?.id ?? null;
+        set({
+          tabs: nextTabs,
+          lastActiveTabId:
+            get().lastActiveTabId === tabId
+              ? nextActive
+              : get().lastActiveTabId,
+        });
 
-        return nextTabs[Math.min(index, nextTabs.length - 1)]?.id ?? null;
+        return nextActive;
       },
 
       closeOtherTabs(keepId) {
@@ -148,7 +187,7 @@ export const useOpenTabsStore = create<OpenTabsState>()(
         if (!tabs.some((tab) => tab.id === keepId) || (tabs.length === 1 && tabs[0]?.id === keepId)) {
           return;
         }
-        set({ tabs: tabs.filter((tab) => tab.id === keepId) });
+        set({ tabs: tabs.filter((tab) => tab.id === keepId), lastActiveTabId: keepId });
       },
 
       closeTabsToLeft(anchorId) {
@@ -157,7 +196,13 @@ export const useOpenTabsStore = create<OpenTabsState>()(
         if (index <= 0) {
           return;
         }
-        set({ tabs: tabs.slice(index) });
+        const nextTabs = tabs.slice(index);
+        set({
+          tabs: nextTabs,
+          lastActiveTabId: nextTabs.some((tab) => tab.id === get().lastActiveTabId)
+            ? get().lastActiveTabId
+            : anchorId,
+        });
       },
 
       closeTabsToRight(anchorId) {
@@ -166,7 +211,13 @@ export const useOpenTabsStore = create<OpenTabsState>()(
         if (index < 0 || index >= tabs.length - 1) {
           return;
         }
-        set({ tabs: tabs.slice(0, index + 1) });
+        const nextTabs = tabs.slice(0, index + 1);
+        set({
+          tabs: nextTabs,
+          lastActiveTabId: nextTabs.some((tab) => tab.id === get().lastActiveTabId)
+            ? get().lastActiveTabId
+            : anchorId,
+        });
       },
 
       reorderTabs(activeId, overId) {
@@ -199,17 +250,33 @@ export const useOpenTabsStore = create<OpenTabsState>()(
           if (next.length === state.tabs.length) {
             return state;
           }
-          return { tabs: next };
+          const lastActiveTabId = next.some((tab) => tab.id === state.lastActiveTabId)
+            ? state.lastActiveTabId
+            : (next[next.length - 1]?.id ?? null);
+          return { tabs: next, lastActiveTabId };
         });
+      },
+
+      resetToFreshStartup() {
+        const tab = createNewTab();
+        set({ tabs: [tab], lastActiveTabId: tab.id, pendingActiveId: null });
+        return tab.id;
       },
     }),
     {
       name: "jlgit-open-tabs",
-      version: 1,
-      migrate: (persistedState, version) => ({
-        tabs: readPersistedTabs(persistedState, version),
+      version: 2,
+      migrate: (persistedState, version) => {
+        const tabs = readPersistedTabs(persistedState, version);
+        return {
+          tabs,
+          lastActiveTabId: readLastActiveTabId(persistedState, tabs),
+        };
+      },
+      partialize: (state) => ({
+        tabs: state.tabs,
+        lastActiveTabId: state.lastActiveTabId,
       }),
-      partialize: (state) => ({ tabs: state.tabs }),
     },
   ),
 );

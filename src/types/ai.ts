@@ -1,6 +1,6 @@
 export type AgentChatMessageRole = "assistant" | "user";
 
-export type AgentMentionKind = "branch" | "plugin" | "project";
+export type AgentMentionKind = "branch" | "plugin" | "skill" | "project";
 
 export interface AgentBranchMention {
   type: "branch";

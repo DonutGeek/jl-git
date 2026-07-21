@@ -237,7 +237,7 @@ interface GitBranch {
 
 默认 `limit=50`，硬上限建议 200。`all=true` 时等价 `git log --all`（所有引用可达历史，与 UI「所有分支」对齐）；`ref` 指定单分支/标签；二者互斥。未传 `all` 且无 `ref` 时仍为当前 HEAD。`order`：`topo` → `--topo-order`，`date` → `--date-order`，省略/`default` 为 git 默认序。`authors` 为可选作者匹配模式（多条对应多个 `--author`，OR；最多 16 条；调用方转义正则特殊字符）。`reverse=true` 时加 `--reverse`（从旧到新）。`parentIds` 来自 `%P`，用于历史图谱的分叉与合并连线。`refs` 来自 `git log --decorate` 的 `%D`（远端分支展示为 `origin&name`）。`coAuthors` 来自 `Co-authored-by` trailer（`%(trailers:key=Co-authored-by)`）。
 
-**消费方补充：**「简历插件」（多仓鲸灵）通过前端循环调用只读 Command 汇总画像：`git_log`（有 Git 账号时带 `authors` 分页，单次 ≤200、累计约 500，再时间分桶；并用 `reverse+limit=1` 取作者最早接手时间；无账号时近期窗口约 400）+ `git_ls_tree`（定位 `package.json` / README）+ `git_read_worktree_file`（解析依赖主技术栈与 README 摘录）+ `git_show` / `git_commit_file_diff`（**按用户点选的单仓**拉取 diff 摘录，避免全量并发）。成稿须含 **项目周期**（作者首提交→末次提交）。项目名/简介由模型判断 README 是否可用后再写入。**禁止**对简历插件路径开放任何写操作；**不新增**专用 `git_resume_*` Command。
+**消费方补充：**「简历插件」（多仓鲸灵）通过前端循环调用只读 Command 汇总画像：`git_log`（有 Git 账号时带 `authors` 分页，单次 ≤200、累计约 500，**入库前**时间分桶至约 48；并用 `reverse+limit=1` 取作者最早接手时间；无账号时近期窗口约 400 后同样分桶）+ `git_ls_tree`（定位 `package.json` / README；路径硬顶）+ `git_read_worktree_file`（解析依赖主技术栈与 README 摘录）+ `git_show` / `git_commit_file_diff`（**按用户点选的单仓**拉取 diff 摘录，避免全量并发）。成稿须含 **项目周期**（作者首提交→末次提交）。项目名/简介由模型判断 README 是否可用后再写入。**禁止**对简历插件路径开放任何写操作；**不新增**专用 `git_resume_*` Command。
 
 ### `git_blame`
 
@@ -256,8 +256,9 @@ interface GitBranch {
 |--|--|
 | **目的** | 单提交元数据 + 相对各 parent 的改动文件（name-status） |
 | **输入** | `{ path: string; rev: string }` |
-| **输出** | `{ commit: GitCommitDetail }`（含 `parents` / `parentShortIds` / `diffs[]`） |
+| **输出** | `{ commit: GitCommitDetail }`（含 `parents` / `parentShortIds` / `diffs[]`；每个 diff 含 `truncated`） |
 | **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `GIT_FAILED` |
+| **说明** | 单 parent 改动文件硬顶约 5000，超出则该 diff `truncated: true` |
 
 ### `git_commit_message`
 
@@ -276,9 +277,9 @@ interface GitBranch {
 |--|--|
 | **目的** | 列出某提交树下全部文件路径（历史详情「显示所有文件」） |
 | **输入** | `{ path: string; rev: string }` |
-| **输出** | `{ paths: string[] }` |
+| **输出** | `{ paths: string[]; truncated: boolean }` |
 | **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `GIT_FAILED` |
-| **说明** | `git ls-tree -r --name-only -z <rev>` |
+| **说明** | `git ls-tree -r --name-only -z <rev>`；路径硬顶约 20000，超出则 `truncated: true` |
 
 ### `git_commit_containing_branches`
 
@@ -471,18 +472,20 @@ interface GitBranch {
 
 `git_push` 对齐 ugit：`push --progress` + `protocol.version=2`；有分支时使用 `origin main:main` 式 refspec；**不**清空 credential.helper。成功后前端刷新 status / branches / log。
 
-### `system_app_info` / `system_disk_space` / `system_list_fonts`
+### `system_app_info` / `system_runtime_stats` / `system_disk_space` / `system_list_fonts`
 
 | 命令 | 输入 | 输出 |
 |------|------|------|
-| `system_app_info` | — | `{ name; version; arch }` |
+| `system_app_info` | — | `{ name; version; arch; os }` |
+| `system_runtime_stats` | — | `{ pid; rssBytes; cpuPercent; uptimeMs }` |
 | `system_list_fonts` | — | `string[]`（本机字体族，已排序去重） |
 | `system_disk_space` | `{ path?: string }` | `{ path; totalBytes; availableBytes }` |
 | `system_open_terminal` | `{ path }` | `{ ok: true }` |
 | `system_reveal_in_file_manager` | `{ path }` | `{ ok: true }` |
 | `system_open_in_editor` | `{ path }` | `{ ok: true }` |
 
-`system_list_fonts` 经 `font-kit` 枚举系统字体族，供设置中客户端 / 编辑器字体下拉使用。
+`system_list_fonts` 经 `font-kit` 枚举系统字体族，供设置中客户端 / 编辑器字体下拉使用。  
+`system_runtime_stats` 供设置「关于」挂载期间约 1s 轮询；`cpuPercent` 在 Windows 上可能为 `0`（UI 显示为不可用）。
 
 `path` 须为已存在目录。终端 / 访达 / 编辑器均用参数数组调用系统命令，不拼 shell。
 
@@ -575,6 +578,31 @@ interface GitBranch {
 
 ---
 
+## SSH 密钥
+
+前端经 `src/services/ssh/ssh.keys.ts`；登记元数据进 Tauri Store（`ssh-keys.json`），**不**存私钥内容与口令。
+
+### `ssh_key_generate`
+
+| | |
+|--|--|
+| **目的** | 本机 `ssh-keygen` 生成 ed25519 到 `~/.ssh` |
+| **输入** | `{ input: { name: string; passphrase: string } }` |
+| **输出** | `{ name; publicKey; privateKeyPath; hasPassphrase }` |
+| **错误** | `VALIDATION` `IO` `INTERNAL` |
+| **约束** | 参数数组调用；口令仅作 `-N` 入参，不写日志 |
+
+### `ssh_key_read_public`
+
+| | |
+|--|--|
+| **目的** | 读取 `.pub` 或私钥旁同名 `.pub` |
+| **输入** | `{ input: { path: string } }` |
+| **输出** | `{ name; publicKey; privateKeyPath; hasPassphrase }` |
+| **错误** | `VALIDATION` `INVALID_PATH` `NOT_FOUND` `IO` |
+
+---
+
 ## 应用数据
 
 ### `app_data_paths` / `app_data_reveal` / `app_data_clear` / `app_data_export` / `app_data_import`
@@ -589,7 +617,7 @@ interface GitBranch {
 | `app_data_export` | `{ input: { destPath, localStorage } }` | `{ ok: true }` |
 | `app_data_import` | `{ input: { sourcePath } }` | `{ ok, localStorage, requiresRestart }` |
 
-`module`：`agent_chats` · `multi_agent_chats` · `ai_secrets` · `git_accounts` · `multi_agent_identity` · `ui_prefs` · `open_tabs` · `all_app_data`（不含 projects/workspaces）。导入 DB 写入 `jlgit.db.pending`，下次启动替换。
+`module`：`agent_chats` · `multi_agent_chats` · `ai_secrets` · `git_accounts` · `multi_agent_identity` · `ui_prefs` · `open_tabs` · `all_app_data`（不含 projects/workspaces）· `factory_reset`（出厂重置：含清空已登记仓库/工作区；不含磁盘仓库与 `~/.ssh`）。导入 DB 写入 `jlgit.db.pending`，下次启动替换。
 
 ## AI
 

@@ -21,7 +21,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Blocks, Pin, Plus, X } from "lucide-react";
+import { Pin, Puzzle, SquarePen, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -227,6 +228,7 @@ export function AgentConversationTabs({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -254,6 +256,11 @@ export function AgentConversationTabs({
     [conversations, renameTargetId],
   );
 
+  const pendingDeleteTarget = useMemo(
+    () => conversations.find((conversation) => conversation.id === pendingDeleteId) ?? null,
+    [conversations, pendingDeleteId],
+  );
+
   function openRename(conversationId: string): void {
     const target = conversations.find((conversation) => conversation.id === conversationId);
     if (!target) {
@@ -274,6 +281,18 @@ export function AgentConversationTabs({
     }
     onRename(renameTargetId, next);
     setRenameTargetId(null);
+  }
+
+  function requestDelete(conversationId: string): void {
+    setPendingDeleteId(conversationId);
+  }
+
+  function confirmDelete(): void {
+    if (!pendingDeleteId) {
+      return;
+    }
+    onDelete(pendingDeleteId);
+    setPendingDeleteId(null);
   }
 
   const canDelete = conversations.length > 1;
@@ -309,7 +328,7 @@ export function AgentConversationTabs({
                     isActive={conversation.id === activeConversationId}
                     canDelete={canDelete}
                     onSelect={onSelect}
-                    onDelete={onDelete}
+                    onDelete={requestDelete}
                     onRename={openRename}
                     onPin={onPin}
                     labels={labels}
@@ -344,7 +363,7 @@ export function AgentConversationTabs({
               aria-label={t("agent.createConversation")}
               onClick={onCreate}
             >
-              <Plus aria-hidden="true" />
+              <SquarePen aria-hidden="true" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>{t("agent.createConversation")}</TooltipContent>
@@ -360,7 +379,7 @@ export function AgentConversationTabs({
                 aria-label={t("agent.openPlugins")}
                 onClick={onOpenPlugins}
               >
-                <Blocks aria-hidden="true" />
+                <Puzzle aria-hidden="true" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t("agent.openPluginsHint")}</TooltipContent>
@@ -406,6 +425,40 @@ export function AgentConversationTabs({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={pendingDeleteId != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteId(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("agent.deleteConversationTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("agent.deleteConversationConfirm", {
+                name: pendingDeleteTarget
+                  ? conversationLabel(pendingDeleteTarget)
+                  : t("agent.newConversation"),
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingDeleteId(null)}
+            >
+              {t("agent.editCancel")}
+            </Button>
+            <Button type="button" variant="destructive" onClick={confirmDelete}>
+              {t("agent.deleteConversation")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

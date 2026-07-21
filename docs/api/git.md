@@ -60,7 +60,7 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 ### `listTree(repoPath, rev: string): Promise<GitLsTreeResult>`
 
 - **Command：** `git_ls_tree`
-- **说明：** 返回该提交树下全部文件路径（`paths: string[]`），供历史详情「显示所有文件」树形浏览
+- **说明：** 返回该提交树下文件路径（`paths`）与是否截断（`truncated`）；路径硬顶约 20000，供历史详情「显示所有文件」树形浏览
 
 ### `getContainingBranches(repoPath, rev: string): Promise<GitContainingBranchesResult>`
 

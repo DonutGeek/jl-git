@@ -181,22 +181,54 @@ pub async fn clear_module(
             Ok(())
         }
         "ui_prefs" | "open_tabs" => Ok(()),
-        "all_app_data" => {
-            clear_chats(pool, CHAT_SCOPE_AGENT).await?;
-            clear_chats(pool, CHAT_SCOPE_AGENT_GLOBAL).await?;
-            // 兼容：旧 scope 一并清掉（迁移前残留）
-            let _ = clear_chats(pool, "jinglv").await;
-            let _ = clear_chats(pool, "resume_helper").await;
-            reset_store_file(app_data_dir, STORE_AI)?;
-            reset_store_file(app_data_dir, STORE_GIT)?;
-            reset_store_file(app_data_dir, STORE_AGENT_IDENTITY)?;
-            for legacy in STORE_AGENT_IDENTITY_LEGACY {
-                let _ = fs::remove_file(app_data_dir.join(legacy));
-            }
+        "all_app_data" => reset_app_stores_and_chats(pool, app_data_dir).await,
+        // 出厂重置：会话/密钥/账号/偏好对应 Store + 已登记仓库与工作区（不含 ~/.ssh 系统密钥）
+        "factory_reset" => {
+            reset_app_stores_and_chats(pool, app_data_dir).await?;
+            clear_project_catalog(pool).await?;
             Ok(())
         }
         _ => Err(AppError::new("VALIDATION", "未知的清理模块")),
     }
+}
+
+async fn reset_app_stores_and_chats(
+    pool: &SqlitePool,
+    app_data_dir: &Path,
+) -> Result<(), AppError> {
+    clear_chats(pool, CHAT_SCOPE_AGENT).await?;
+    clear_chats(pool, CHAT_SCOPE_AGENT_GLOBAL).await?;
+    // 兼容：旧 scope 一并清掉（迁移前残留）
+    let _ = clear_chats(pool, "jinglv").await;
+    let _ = clear_chats(pool, "resume_helper").await;
+    // 兜底：清空全部会话（含未知 scope）
+    sqlx::query("DELETE FROM chat_conversations")
+        .execute(pool)
+        .await
+        .map_err(to_db_error)?;
+    reset_store_file(app_data_dir, STORE_AI)?;
+    reset_store_file(app_data_dir, STORE_GIT)?;
+    reset_store_file(app_data_dir, STORE_AGENT_IDENTITY)?;
+    for legacy in STORE_AGENT_IDENTITY_LEGACY {
+        let _ = fs::remove_file(app_data_dir.join(legacy));
+    }
+    Ok(())
+}
+
+async fn clear_project_catalog(pool: &SqlitePool) -> Result<(), AppError> {
+    sqlx::query("DELETE FROM recent_projects")
+        .execute(pool)
+        .await
+        .map_err(to_db_error)?;
+    sqlx::query("DELETE FROM projects")
+        .execute(pool)
+        .await
+        .map_err(to_db_error)?;
+    sqlx::query("DELETE FROM workspaces")
+        .execute(pool)
+        .await
+        .map_err(to_db_error)?;
+    Ok(())
 }
 
 async fn clear_chats(pool: &SqlitePool, scope: &str) -> Result<(), AppError> {

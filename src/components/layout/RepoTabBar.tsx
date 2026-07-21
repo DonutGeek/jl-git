@@ -164,6 +164,7 @@ export function RepoTabBar() {
   const closeTabsToRight = useOpenTabsStore((state) => state.closeTabsToRight);
   const reorderTabs = useOpenTabsStore((state) => state.reorderTabs);
   const pruneTabs = useOpenTabsStore((state) => state.pruneTabs);
+  const setLastActiveTabId = useOpenTabsStore((state) => state.setLastActiveTabId);
   const projects = useProjectStore((state) => state.projects);
   const loadProjects = useProjectStore((state) => state.loadProjects);
   const removeProject = useProjectStore((state) => state.removeProject);
@@ -215,6 +216,14 @@ export function RepoTabBar() {
       openRepositoryTab(activeId);
     }
   }, [activeId, location.pathname, openRepositoryTab, tabEntries]);
+
+  // 同步上次激活标签，供冷启动「恢复上次」使用
+  useEffect(() => {
+    if (!activeId || !tabEntries.some((tab) => tab.id === activeId)) {
+      return;
+    }
+    setLastActiveTabId(activeId);
+  }, [activeId, setLastActiveTabId, tabEntries]);
 
   const tabs = useMemo(() => {
     const byId = new Map(projects.map((project) => [project.id, project]));

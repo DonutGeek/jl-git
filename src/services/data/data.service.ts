@@ -10,7 +10,9 @@ export type AppDataClearModule =
   | "multi_agent_identity"
   | "ui_prefs"
   | "open_tabs"
-  | "all_app_data";
+  | "all_app_data"
+  /** 出厂重置：含已登记仓库/工作区与全部偏好、密钥等 */
+  | "factory_reset";
 
 export interface AppDataPaths {
   appDataDir: string;
@@ -102,14 +104,19 @@ export async function reveal(target: "dir" | "database"): Promise<void> {
 }
 
 export async function clearModule(module: AppDataClearModule): Promise<void> {
-  if (module === "ui_prefs" || module === "all_app_data") {
+  const clearsUiPrefs =
+    module === "ui_prefs" ||
+    module === "all_app_data" ||
+    module === "factory_reset";
+  const clearsOpenTabs =
+    module === "open_tabs" ||
+    module === "all_app_data" ||
+    module === "factory_reset";
+  if (clearsUiPrefs) {
     clearUiPrefsLocalStorage();
   }
-  if (module === "open_tabs" || module === "all_app_data") {
+  if (clearsOpenTabs) {
     clearOpenTabsLocalStorage();
-  }
-  if (module === "ui_prefs" || module === "open_tabs") {
-    // 纯前端键，仍通知 Rust（no-op）以统一入口
   }
   await invokeCommand<{ ok: boolean }>("app_data_clear", {
     input: { module },

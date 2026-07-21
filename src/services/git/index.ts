@@ -13,6 +13,7 @@ export * from "./git.remote";
 export * from "./git.show";
 export * from "./git.status";
 export * from "./git.tag";
+export * from "./git.version";
 
 import { getBlame } from "./git.blame";
 import { checkout, createBranch, deleteBranch, listBranches, renameBranch } from "./git.branch";

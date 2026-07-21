@@ -15,7 +15,6 @@ import { AgentComposer, type AgentMentionOption } from "@/components/ai/AgentCom
 import { AgentMessageList } from "@/components/ai/AgentMessageList";
 import { AgentCatalogPanel } from "@/components/ai/AgentCatalogPanel";
 import { MultiAgentSidebar } from "@/components/agent/MultiAgentSidebar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   appendAgentMentionMarkup,
   agentProjectMentionId,
@@ -33,6 +32,7 @@ import { listAllGitAuthorsForMatching } from "@/services/git/git.accounts";
 import {
   disableAgentPlugin,
   filterEnabledAgentPlugins,
+  filterEnabledAgentSkills,
   getDisabledAgentPluginIds,
 } from "@/services/agent/agent.plugins";
 import {
@@ -328,6 +328,10 @@ export function MultiAgentWorkspace() {
     () => filterEnabledAgentPlugins(disabledPluginIds),
     [disabledPluginIds],
   );
+  const enabledSkills = useMemo(
+    () => filterEnabledAgentSkills(disabledPluginIds),
+    [disabledPluginIds],
+  );
 
   const mentionOptions = useMemo((): AgentMentionOption[] => {
     const plugins: AgentMentionOption[] = enabledPlugins.map((plugin) => ({
@@ -335,14 +339,19 @@ export function MultiAgentWorkspace() {
       display: t(plugin.mentionDisplayKey),
       kind: "plugin",
     }));
+    const skills: AgentMentionOption[] = enabledSkills.map((skill) => ({
+      id: skill.mentionId,
+      display: t(skill.mentionDisplayKey),
+      kind: "skill",
+    }));
     // @项目列出全部已登记仓库，不做作者匹配 / 可写过滤
     const projects: AgentMentionOption[] = profiles.map((profile) => ({
       id: agentProjectMentionId(profile.projectId),
       display: profile.projectName,
       kind: "project",
     }));
-    return [...plugins, ...projects];
-  }, [enabledPlugins, profiles, t]);
+    return [...plugins, ...skills, ...projects];
+  }, [enabledPlugins, enabledSkills, profiles, t]);
 
   useEffect(() => {
     let active = true;
@@ -1059,18 +1068,15 @@ export function MultiAgentWorkspace() {
         />
 
         {mainView === "plugins" ? (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="px-6 pb-6 pt-5">
-                <AgentCatalogPanel
-                  variant="gallery"
-                  plugins={enabledPlugins}
-                  onSelectPlugin={handleInsertPlugin}
-                  onTryPlugin={handleTryPlugin}
-                  onUninstallPlugin={handleUninstallPlugin}
-                />
-              </div>
-            </ScrollArea>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col px-6 pb-6 pt-5">
+            <AgentCatalogPanel
+              variant="gallery"
+              plugins={enabledPlugins}
+              skills={enabledSkills}
+              onSelectPlugin={handleInsertPlugin}
+              onTryPlugin={handleTryPlugin}
+              onUninstallPlugin={handleUninstallPlugin}
+            />
           </div>
         ) : (
           <div className="relative min-h-0 min-w-0 flex-1">

@@ -29,6 +29,7 @@ use crate::git::{
     },
     status::{self, GitStatusResult},
     tag::{self, GitTag},
+    version::{self, GitVersionResult},
 };
 
 #[derive(Serialize)]
@@ -68,6 +69,11 @@ pub struct GitCommitResult {
 #[serde(rename_all = "camelCase")]
 pub struct GitRemotesResult {
     remotes: Vec<GitRemote>,
+}
+
+#[tauri::command]
+pub fn git_version(executable: Option<String>) -> Result<GitVersionResult, AppError> {
+    version::probe(executable.as_deref())
 }
 
 #[tauri::command]

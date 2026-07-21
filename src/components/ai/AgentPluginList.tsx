@@ -23,7 +23,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  AGENT_PLUGINS,
+  AGENT_SKILLS,
   type AgentPluginDefinition,
 } from "@/plugins/agent/registry";
 import { cn } from "@/lib/utils";
@@ -139,7 +139,7 @@ export function AgentPluginList({
   onSelect,
   onTry,
   onUninstall,
-  plugins = AGENT_PLUGINS,
+  plugins = AGENT_SKILLS,
   className,
   variant = "compact",
 }: AgentPluginListProps) {

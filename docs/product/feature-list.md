@@ -133,7 +133,7 @@
 | 数据（路径/清理/备份） | Done | 显示路径与访达打开；按模块清理；完整 zip 备份导入导出 |
 | 语言 | Done | 设置抽屉 + 状态栏中英文切换 |
 | Git 全局身份 | Done | 设置内读写 user.name / user.email |
-| SSH 密钥管理 | Planned | 设置内 UI 占位（新增 / 选择本地） |
+| SSH 密钥管理 | Done | 设置内生成（可选口令）/ 选择本地；列表展示公钥、一键复制；口令与私钥内容不进 Store |
 | 客户端/编辑器字体 | Done | 设置内选择，CSS 变量应用 |
 | 外部编辑器 / Shell | In Progress | 偏好已持久化；打开逻辑后续接路径 |
 | 开机自启 | In Progress | 偏好已持久化；待接 autostart 插件 |

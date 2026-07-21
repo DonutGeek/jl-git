@@ -1,9 +1,15 @@
 use crate::error::AppError;
-use crate::system::{self, OkResult, SystemAppInfo, SystemDiskSpace};
+use crate::system::{self, OkResult, SystemAppInfo, SystemDiskSpace, SystemRuntimeStats};
 
 #[tauri::command]
 pub fn system_app_info() -> SystemAppInfo {
     system::app_info()
+}
+
+/// 本进程内存 / CPU / 运行时长（设置「关于」实时区）
+#[tauri::command]
+pub fn system_runtime_stats() -> Result<SystemRuntimeStats, AppError> {
+    system::runtime_stats()
 }
 
 /// 列出本机字体族，供设置里客户端 / 编辑器字体下拉使用

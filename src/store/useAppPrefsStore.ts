@@ -34,6 +34,9 @@ const LEGACY_EDITOR_FONT: Record<string, string> = {
   cascadia: "Cascadia Code",
 };
 
+/** 冷启动标签策略：恢复上次 / 仅新标签页 */
+export type StartupTabsMode = "restore" | "fresh";
+
 interface AppPrefsState {
   clientFont: string;
   editorFont: string;
@@ -42,6 +45,8 @@ interface AppPrefsState {
   shell: string;
   shellPath: string;
   launchAtLogin: boolean;
+  /** 冷启动时是否恢复上次打开的标签 */
+  startupTabsMode: StartupTabsMode;
   pushAfterCommit: boolean;
   setClientFont: (font: string) => void;
   setEditorFont: (font: string) => void;
@@ -50,7 +55,12 @@ interface AppPrefsState {
   setShell: (value: string) => void;
   setShellPath: (value: string) => void;
   setLaunchAtLogin: (value: boolean) => void;
+  setStartupTabsMode: (mode: StartupTabsMode) => void;
   setPushAfterCommit: (value: boolean) => void;
+}
+
+function normalizeStartupTabsMode(value: unknown): StartupTabsMode {
+  return value === "fresh" ? "fresh" : "restore";
 }
 
 /** CSS font-family 中安全引用字体族名 */
@@ -103,6 +113,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
       shell: "auto",
       shellPath: "",
       launchAtLogin: false,
+      startupTabsMode: "restore",
       pushAfterCommit: false,
 
       setClientFont(font) {
@@ -136,6 +147,10 @@ export const useAppPrefsStore = create<AppPrefsState>()(
         set({ launchAtLogin: value });
         notifyGlobalPreferenceChange("app-prefs");
       },
+      setStartupTabsMode(mode) {
+        set({ startupTabsMode: normalizeStartupTabsMode(mode) });
+        notifyGlobalPreferenceChange("app-prefs");
+      },
       setPushAfterCommit(value) {
         set({ pushAfterCommit: value });
         notifyGlobalPreferenceChange("app-prefs");
@@ -143,7 +158,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
     }),
     {
       name: APP_PREFS_STORAGE_KEY,
-      version: 1,
+      version: 2,
       migrate: (persisted, version) => {
         const state = persisted as Partial<AppPrefsState> | undefined;
         if (!state) {
@@ -166,6 +181,10 @@ export const useAppPrefsStore = create<AppPrefsState>()(
             state.editorFont = DEFAULT_APP_FONT;
           }
         }
+        // v1 → v2：启动标签策略
+        if (version < 2) {
+          state.startupTabsMode = normalizeStartupTabsMode(state.startupTabsMode);
+        }
         return state as AppPrefsState;
       },
       onRehydrateStorage: () => (state) => {
@@ -182,6 +201,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
           LEGACY_EDITOR_FONT,
           DEFAULT_APP_FONT,
         );
+        state.startupTabsMode = normalizeStartupTabsMode(state.startupTabsMode);
         applyAppFonts(state.clientFont, state.editorFont);
       },
     },
