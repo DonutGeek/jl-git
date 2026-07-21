@@ -1,4 +1,4 @@
-# 简历帮（Resume Helper）— 设计文档（MVP）
+# 简历帮（Jinglü）— 设计文档（MVP）
 
 ## 背景
 
@@ -29,22 +29,22 @@
 
 ### 设置
 
-- `SettingsCategory` 增加 `resumeHelper`
+- `SettingsCategory` 增加 `jinglv`
 - 导航项放在「通用」附近（建议「通用」之上或之下），图标 lucide（如 `FileUser`）
-- **点击导航即** `openResumeHelperWindow()`；已存在则 show + focus
+- **点击导航即** `openJinglvWindow()`；已存在则 show + focus
 - 右侧区块：一行说明 + 「打开简历帮」按钮（与点击 nav 同效）
 
 ### 子窗
 
 | 项 | 值 |
 |----|-----|
-| Service | `src/services/window/resumeHelperWindow.ts` |
-| Label | 单例 `resume-helper` |
-| URL | `/resume-helper`（无需 projectId） |
+| Service | `src/services/window/jinglvWindow.ts` |
+| Label | 单例 `jinglv` |
+| URL | `/jinglv`（无需 projectId） |
 | 尺寸 | 约 880×640，min 720×480 |
 | 壳 | `titleBarStyle: overlay`，与分支管理一致 |
-| Page | `ResumeHelperPage` → `ResumeHelperWorkspace` |
-| Capability | `resume-helper.json`，`windows: ["resume-helper"]`，最小只读 + 必要插件 |
+| Page | `JinglvPage` → `JinglvWorkspace` |
+| Capability | `jinglv.json`，`windows: ["jinglv"]`，最小只读 + 必要插件 |
 
 ### 窗内布局
 
@@ -101,9 +101,9 @@
 
 | 复用 | 隔离（新建） |
 |------|----------------|
-| 消息列表 / 气泡 / 复制按钮 / Composer 交互形态 | `streamResumeHelperReply` |
-| `getAgentKey` / DeepSeek 流式传输模式 | `src/prompts/resumeHelper/`（与 `git/`、`agent/` 分域） |
-| Markdown 渲染（`AgentRichMessage` 或等价） | `useResumeHelperStore`（不按 projectId，单会话即可） |
+| 消息列表 / 气泡 / 复制按钮 / Composer 交互形态 | `streamJinglvReply` |
+| `getAgentKey` / DeepSeek 流式传输模式 | `src/prompts/jinglv/`（与 `git/`、`agent/` 分域） |
+| Markdown 渲染（`AgentRichMessage` 或等价） | `useJinglvStore`（不按 projectId，单会话即可） |
 
 **禁止**：复用 `buildAgentSystemPrompt`、commit message prompt、仓库 Agent 的 compareBranches action 逻辑。
 

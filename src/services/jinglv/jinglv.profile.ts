@@ -9,13 +9,13 @@ import {
   extractTechFromPackageJson,
   filterTechByAuthorUsage,
   mergePackageTech,
-} from "@/services/resume/resume.techStack";
+} from "@/services/jinglv/jinglv.techStack";
 import type { Project } from "@/types/project";
 import type {
   ResumeCommitChangedFile,
   ResumeCommitSample,
-  ResumeProjectProfile,
-} from "@/types/resumeHelper";
+  JinglvProjectProfile,
+} from "@/types/jinglv";
 
 /** git_log 单次硬上限 200 */
 const LOG_PAGE_SIZE = 200;
@@ -66,7 +66,7 @@ const FALLBACK_TECH_FILES: ReadonlyArray<{ file: string; hint: string }> = [
   { file: "tauri.conf.json", hint: "Tauri" },
 ];
 
-export interface ResumeAuthorFilter {
+export interface JinglvAuthorFilter {
   name: string;
   email: string;
 }
@@ -76,12 +76,12 @@ export interface ResumeAuthorFilter {
  * 已配置作者时：`git log --author` 尽量全量拉取；发送前再时间分桶。
  * 未配置时：近期窗口抽样（兼容旧行为）。
  */
-export async function buildResumeProfiles(
+export async function buildJinglvProfiles(
   projects: readonly Project[],
-  authors: readonly ResumeAuthorFilter[] = [],
-): Promise<ResumeProjectProfile[]> {
+  authors: readonly JinglvAuthorFilter[] = [],
+): Promise<JinglvProjectProfile[]> {
   const authorPatterns = toGitAuthorPatterns(authors);
-  const results: ResumeProjectProfile[] = new Array(projects.length);
+  const results: JinglvProjectProfile[] = new Array(projects.length);
   let cursor = 0;
 
   async function worker(): Promise<void> {
@@ -107,9 +107,9 @@ export async function buildResumeProfiles(
  * 已配置作者时：无匹配提交的仓库直接丢弃，不进入简历上下文。
  */
 export function filterProfilesByAuthor(
-  profiles: readonly ResumeProjectProfile[],
-  authors: readonly ResumeAuthorFilter[],
-): ResumeProjectProfile[] {
+  profiles: readonly JinglvProjectProfile[],
+  authors: readonly JinglvAuthorFilter[],
+): JinglvProjectProfile[] {
   const filters = authors
     .map((author) => ({
       name: author.name.trim().toLowerCase(),
@@ -137,7 +137,7 @@ export function filterProfilesByAuthor(
       });
   }
 
-  const next: ResumeProjectProfile[] = [];
+  const next: JinglvProjectProfile[] = [];
   for (const profile of profiles) {
     if (profile.error) {
       continue;
@@ -171,7 +171,7 @@ export function filterProfilesByAuthor(
  * 将 `--author` 用的正则特殊字符转义；优先邮箱，否则姓名。
  */
 export function toGitAuthorPatterns(
-  authors: readonly ResumeAuthorFilter[],
+  authors: readonly JinglvAuthorFilter[],
 ): string[] {
   const patterns: string[] = [];
   for (const author of authors) {
@@ -306,9 +306,9 @@ function maxIsoDate(a: string | null, b: string | null): string | null {
  * 仅调用查询类 Git Command，不执行任何写操作。
  */
 export async function enrichProfilesWithCodeEvidence(
-  profiles: readonly ResumeProjectProfile[],
-): Promise<ResumeProjectProfile[]> {
-  const results: ResumeProjectProfile[] = new Array(profiles.length);
+  profiles: readonly JinglvProjectProfile[],
+): Promise<JinglvProjectProfile[]> {
+  const results: JinglvProjectProfile[] = new Array(profiles.length);
   let cursor = 0;
 
   async function worker(): Promise<void> {
@@ -349,7 +349,7 @@ function commitMatchesAuthor(
 async function buildOneProfile(
   project: Project,
   authorPatterns: readonly string[],
-): Promise<ResumeProjectProfile> {
+): Promise<JinglvProjectProfile> {
   try {
     const [logCommits, treeResult] = await Promise.all([
       loadSampledLogCommits(project.path, authorPatterns),
@@ -491,8 +491,8 @@ async function resolveAuthorInvolvementRange(
 }
 
 async function enrichOneProfile(
-  profile: ResumeProjectProfile,
-): Promise<ResumeProjectProfile> {
+  profile: JinglvProjectProfile,
+): Promise<JinglvProjectProfile> {
   if (profile.error || !profile.projectPath || profile.recentCommits.length === 0) {
     return profile;
   }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  Database,
   FileUser,
   GitBranch,
   KeyRound,
@@ -16,6 +17,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { SettingsAiBalance } from "@/components/settings/SettingsAiBalance";
+import { SettingsDataPanel } from "@/components/settings/SettingsDataPanel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -61,12 +64,12 @@ import {
 import { listSystemFonts } from "@/services/system/system.info";
 import type { ThemeMode } from "@/services/theme/theme.service";
 import {
-  emptyResumeHelperIdentity,
-  getResumeHelperIdentity,
-  setResumeHelperIdentity,
-} from "@/services/resume/resume.identity";
-import { openResumeHelperWindow } from "@/services/window/resumeHelperWindow";
-import type { ResumeHelperIdentity } from "@/types/resumeHelper";
+  emptyJinglvIdentity,
+  getJinglvIdentity,
+  setJinglvIdentity,
+} from "@/services/jinglv/jinglv.identity";
+import { openJinglvWindow } from "@/services/window/jinglvWindow";
+import type { JinglvIdentity } from "@/types/jinglv";
 import {
   CLIENT_FONT_SYSTEM,
   EDITOR_FONT_SYSTEM,
@@ -135,7 +138,8 @@ type SettingsCategory =
   | "ssh"
   | "ai"
   | "tools"
-  | "resumeHelper"
+  | "jinglv"
+  | "data"
   | "general";
 
 function maskApiKey(key: string): string {
@@ -253,11 +257,11 @@ export function SettingsDrawer() {
   const [apiKeyCreating, setApiKeyCreating] = useState(false);
   const [commitInstructions, setCommitInstructions] = useState("");
   const [pullRequestInstructions, setPullRequestInstructions] = useState("");
-  const [resumeHelperInstructions, setResumeHelperInstructions] = useState("");
+  const [jinglvInstructions, setJinglvInstructions] = useState("");
   const [instructionsLoading, setInstructionsLoading] = useState(false);
   const [instructionsReady, setInstructionsReady] = useState(false);
-  const [resumeIdentity, setResumeIdentity] = useState<ResumeHelperIdentity>(
-    emptyResumeHelperIdentity(),
+  const [resumeIdentity, setResumeIdentity] = useState<JinglvIdentity>(
+    emptyJinglvIdentity(),
   );
   const [resumeIdentityLoading, setResumeIdentityLoading] = useState(false);
   const [resumeIdentityReady, setResumeIdentityReady] = useState(false);
@@ -266,12 +270,12 @@ export function SettingsDrawer() {
   const [systemFonts, setSystemFonts] = useState<string[]>([]);
   const [fontsLoading, setFontsLoading] = useState(false);
 
-  const savedResumeIdentityRef = useRef<ResumeHelperIdentity>(emptyResumeHelperIdentity());
+  const savedResumeIdentityRef = useRef<JinglvIdentity>(emptyJinglvIdentity());
   const resumeIdentityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedInstructionsRef = useRef({
     commit: "",
     pullRequest: "",
-    resumeHelper: "",
+    jinglv: "",
   });
   const instructionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -328,7 +332,7 @@ export function SettingsDrawer() {
         if (!cancelled) {
           setCommitInstructions(instructions.commit);
           setPullRequestInstructions(instructions.pullRequest);
-          setResumeHelperInstructions(instructions.resumeHelper);
+          setJinglvInstructions(instructions.jinglv);
           savedInstructionsRef.current = instructions;
           setInstructionsReady(true);
         }
@@ -344,7 +348,7 @@ export function SettingsDrawer() {
         }
       });
 
-    void getResumeHelperIdentity()
+    void getJinglvIdentity()
       .then((identity) => {
         if (!cancelled) {
           setResumeIdentity(identity);
@@ -393,7 +397,7 @@ export function SettingsDrawer() {
   async function persistInstructions(instructions: {
     commit: string;
     pullRequest: string;
-    resumeHelper: string;
+    jinglv: string;
   }): Promise<void> {
     try {
       await setAiInstructions(instructions);
@@ -402,7 +406,7 @@ export function SettingsDrawer() {
       savedInstructionsRef.current = effective;
       setCommitInstructions(effective.commit);
       setPullRequestInstructions(effective.pullRequest);
-      setResumeHelperInstructions(effective.resumeHelper);
+      setJinglvInstructions(effective.jinglv);
       toast.success(t("settings.aiInstructionsSaved"));
     } catch (error) {
       toast.error(toUserMessage(error));
@@ -412,7 +416,7 @@ export function SettingsDrawer() {
   const persistInstructionsRef = useRef(persistInstructions);
   persistInstructionsRef.current = persistInstructions;
 
-  /** 输入停顿后自动保存 AI 指令（Git / 简历帮），首次加载不回写。 */
+  /** 输入停顿后自动保存 AI 指令（Git / 鲸履），首次加载不回写。 */
   useEffect(() => {
     if (!open || instructionsLoading || !instructionsReady) {
       return;
@@ -421,12 +425,12 @@ export function SettingsDrawer() {
     const next = {
       commit: commitInstructions,
       pullRequest: pullRequestInstructions,
-      resumeHelper: resumeHelperInstructions,
+      jinglv: jinglvInstructions,
     };
     if (
       next.commit === savedInstructionsRef.current.commit &&
       next.pullRequest === savedInstructionsRef.current.pullRequest &&
-      next.resumeHelper === savedInstructionsRef.current.resumeHelper
+      next.jinglv === savedInstructionsRef.current.jinglv
     ) {
       return;
     }
@@ -450,7 +454,7 @@ export function SettingsDrawer() {
     instructionsReady,
     open,
     pullRequestInstructions,
-    resumeHelperInstructions,
+    jinglvInstructions,
   ]);
 
   async function handleCreateApiKey(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -558,27 +562,28 @@ export function SettingsDrawer() {
     { id: "ai", label: t("settings.sectionAi"), icon: <Sparkles /> },
     { id: "tools", label: t("settings.sectionTools"), icon: <Terminal /> },
     {
-      id: "resumeHelper",
-      label: t("resumeHelper.sectionTitle"),
+      id: "jinglv",
+      label: t("jinglv.sectionTitle"),
       icon: <FileUser />,
     },
+    { id: "data", label: t("settings.sectionData"), icon: <Database /> },
     { id: "general", label: t("settings.sectionGeneral"), icon: <Power /> },
   ];
 
-  async function handleOpenResumeHelper(): Promise<void> {
+  async function handleOpenJinglv(): Promise<void> {
     try {
-      await openResumeHelperWindow();
+      await openJinglvWindow();
     } catch (error) {
-      toast.error(toUserMessage(error) || t("resumeHelper.openFailed"));
+      toast.error(toUserMessage(error) || t("jinglv.openFailed"));
     }
   }
 
-  async function persistResumeIdentity(identity: ResumeHelperIdentity): Promise<void> {
+  async function persistResumeIdentity(identity: JinglvIdentity): Promise<void> {
     try {
-      const saved = await setResumeHelperIdentity(identity);
+      const saved = await setJinglvIdentity(identity);
       savedResumeIdentityRef.current = saved;
       setResumeIdentity(saved);
-      toast.success(t("resumeHelper.identitySaved"));
+      toast.success(t("jinglv.identitySaved"));
     } catch (error) {
       toast.error(toUserMessage(error));
     }
@@ -587,7 +592,7 @@ export function SettingsDrawer() {
   const persistResumeIdentityRef = useRef(persistResumeIdentity);
   persistResumeIdentityRef.current = persistResumeIdentity;
 
-  /** 输入停顿后自动保存简历帮身份 */
+  /** 输入停顿后自动保存鲸履身份 */
   useEffect(() => {
     if (!open || resumeIdentityLoading || !resumeIdentityReady) {
       return;
@@ -722,7 +727,7 @@ export function SettingsDrawer() {
                           : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                       )}
                       onClick={() => {
-                        // 仅切换右侧分区；简历帮窗口由分区内按钮手动打开
+                        // 仅切换右侧分区；鲸履窗口由分区内按钮手动打开
                         setActiveCategory(category.id);
                       }}
                     >
@@ -1307,6 +1312,13 @@ export function SettingsDrawer() {
                 </ul>
               )}
             </div>
+            <SettingsAiBalance
+              hasEnabledKey={apiKeys.some((key) => key.enabled)}
+              refreshToken={`${apiKeys
+                .filter((key) => key.enabled)
+                .map((key) => key.id)
+                .join(",")}|${activeCategory}`}
+            />
             <div className="space-y-3">
               <div>
                 <p className="text-foreground text-xs font-medium">
@@ -1346,22 +1358,22 @@ export function SettingsDrawer() {
             <div className="space-y-3">
               <div>
                 <p className="text-foreground text-xs font-medium">
-                  {t("settings.aiInstructionsResumeLabel")}
+                  {t("settings.aiInstructionsJinglvLabel")}
                 </p>
                 <p className="text-muted-foreground mt-0.5 text-[11px] leading-relaxed">
-                  {t("settings.aiInstructionsResumeHint")}
+                  {t("settings.aiInstructionsJinglvHint")}
                 </p>
               </div>
               <div>
-                <FieldLabel>{t("settings.resumeHelperInstructions")}</FieldLabel>
+                <FieldLabel>{t("settings.jinglvInstructions")}</FieldLabel>
                 <p className="text-muted-foreground mb-1 text-[11px] leading-relaxed">
-                  {t("settings.resumeHelperInstructionsHint")}
+                  {t("settings.jinglvInstructionsHint")}
                 </p>
                 <Textarea
                   className={settingsTextareaClassName}
-                  value={resumeHelperInstructions}
-                  onChange={(event) => setResumeHelperInstructions(event.target.value)}
-                  placeholder={t("settings.resumeHelperInstructionsPlaceholder")}
+                  value={jinglvInstructions}
+                  onChange={(event) => setJinglvInstructions(event.target.value)}
+                  placeholder={t("settings.jinglvInstructionsPlaceholder")}
                   disabled={instructionsLoading}
                 />
               </div>
@@ -1570,34 +1582,34 @@ export function SettingsDrawer() {
             </div>
           </SettingsSection> : null}
 
-          {/* 6. 简历帮 */}
-          {activeCategory === "resumeHelper" ? (
+          {/* 6. 鲸履 */}
+          {activeCategory === "jinglv" ? (
             <SettingsSection
               icon={<FileUser />}
-              title={t("resumeHelper.sectionTitle")}
-              description={t("resumeHelper.sectionHint")}
+              title={t("jinglv.sectionTitle")}
+              description={t("jinglv.sectionHint")}
             >
               <Button
                 type="button"
                 size="sm"
                 className="h-8"
                 onClick={() => {
-                  void handleOpenResumeHelper();
+                  void handleOpenJinglv();
                 }}
               >
-                {t("resumeHelper.openButton")}
+                {t("jinglv.openButton")}
               </Button>
               <div className="space-y-3">
                 <div>
                   <p className="text-foreground text-xs font-medium">
-                    {t("resumeHelper.identityTitle")}
+                    {t("jinglv.identityTitle")}
                   </p>
                   <p className="text-muted-foreground mt-0.5 text-[11px] leading-relaxed">
-                    {t("resumeHelper.identityHint")}
+                    {t("jinglv.identityHint")}
                   </p>
                 </div>
                 <div>
-                  <FieldLabel>{t("resumeHelper.displayName")}</FieldLabel>
+                  <FieldLabel>{t("jinglv.displayName")}</FieldLabel>
                   <Input
                     className={settingsFieldClassName}
                     value={resumeIdentity.displayName}
@@ -1607,12 +1619,12 @@ export function SettingsDrawer() {
                         displayName: event.target.value,
                       }))
                     }
-                    placeholder={t("resumeHelper.displayNamePlaceholder")}
+                    placeholder={t("jinglv.displayNamePlaceholder")}
                     disabled={resumeIdentityLoading}
                   />
                 </div>
                 <div>
-                  <FieldLabel>{t("resumeHelper.phone")}</FieldLabel>
+                  <FieldLabel>{t("jinglv.phone")}</FieldLabel>
                   <Input
                     className={settingsFieldClassName}
                     value={resumeIdentity.phone}
@@ -1622,12 +1634,12 @@ export function SettingsDrawer() {
                         phone: event.target.value,
                       }))
                     }
-                    placeholder={t("resumeHelper.phonePlaceholder")}
+                    placeholder={t("jinglv.phonePlaceholder")}
                     disabled={resumeIdentityLoading}
                   />
                 </div>
                 <div>
-                  <FieldLabel>{t("resumeHelper.contactEmail")}</FieldLabel>
+                  <FieldLabel>{t("jinglv.contactEmail")}</FieldLabel>
                   <Input
                     className={settingsFieldClassName}
                     value={resumeIdentity.email}
@@ -1637,18 +1649,20 @@ export function SettingsDrawer() {
                         email: event.target.value,
                       }))
                     }
-                    placeholder={t("resumeHelper.contactEmailPlaceholder")}
+                    placeholder={t("jinglv.contactEmailPlaceholder")}
                     disabled={resumeIdentityLoading}
                   />
                 </div>
                 <p className="text-muted-foreground text-[11px] leading-relaxed">
-                  {t("resumeHelper.gitAccountsSharedHint")}
+                  {t("jinglv.gitAccountsSharedHint")}
                 </p>
               </div>
             </SettingsSection>
           ) : null}
 
-          {/* 7. 通用 */}
+          {activeCategory === "data" ? <SettingsDataPanel /> : null}
+
+          {/* 通用 */}
           {activeCategory === "general" ? <SettingsSection
             icon={<Power />}
             title={t("settings.sectionGeneral")}

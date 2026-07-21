@@ -14,6 +14,9 @@ interface AgentMessageListProps {
   conversationId: string | undefined;
   composerPadPx: number;
   onCompareBranches: (action: CompareBranchesAction) => void;
+  actionsDisabled?: boolean;
+  onRegenerateLast?: () => void;
+  onEditUserMessage?: (messageId: string, content: string) => void;
 }
 
 /** 消息列表：虚拟滚动 + 粘底跟随流式输出 */
@@ -22,6 +25,9 @@ export function AgentMessageList({
   conversationId,
   composerPadPx,
   onCompareBranches,
+  actionsDisabled = false,
+  onRegenerateLast,
+  onEditUserMessage,
 }: AgentMessageListProps) {
   const { t } = useTranslation();
   const stickToBottomRef = useRef(true);
@@ -234,6 +240,17 @@ export function AgentMessageList({
         <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
           {virtualizer.getVirtualItems().map((virtualItem) => {
             const message = messages[virtualItem.index];
+            const isLast = virtualItem.index === messages.length - 1;
+            const canRegenerate =
+              Boolean(onRegenerateLast) &&
+              isLast &&
+              message.role === "assistant" &&
+              !message.isStreaming &&
+              Boolean(message.content.trim());
+            const canEdit =
+              Boolean(onEditUserMessage) &&
+              message.role === "user" &&
+              !message.isStreaming;
             return (
               <div
                 key={message.id}
@@ -242,7 +259,19 @@ export function AgentMessageList({
                 className="absolute top-0 left-0 w-full pb-3"
                 style={{ transform: `translateY(${virtualItem.start}px)` }}
               >
-                <AgentMessageItem message={message} onCompareBranches={onCompareBranches} />
+                <AgentMessageItem
+                  message={message}
+                  onCompareBranches={onCompareBranches}
+                  canRegenerate={canRegenerate}
+                  canEdit={canEdit}
+                  actionsDisabled={actionsDisabled}
+                  onRegenerate={onRegenerateLast}
+                  onEditSubmit={
+                    onEditUserMessage
+                      ? (content) => onEditUserMessage(message.id, content)
+                      : undefined
+                  }
+                />
               </div>
             );
           })}

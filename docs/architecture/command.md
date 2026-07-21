@@ -237,7 +237,7 @@ interface GitBranch {
 
 默认 `limit=50`，硬上限建议 200。`all=true` 时等价 `git log --all`（所有引用可达历史，与 UI「所有分支」对齐）；`ref` 指定单分支/标签；二者互斥。未传 `all` 且无 `ref` 时仍为当前 HEAD。`order`：`topo` → `--topo-order`，`date` → `--date-order`，省略/`default` 为 git 默认序。`authors` 为可选作者匹配模式（多条对应多个 `--author`，OR；最多 16 条；调用方转义正则特殊字符）。`reverse=true` 时加 `--reverse`（从旧到新）。`parentIds` 来自 `%P`，用于历史图谱的分叉与合并连线。`refs` 来自 `git log --decorate` 的 `%D`（远端分支展示为 `origin&name`）。`coAuthors` 来自 `Co-authored-by` trailer（`%(trailers:key=Co-authored-by)`）。
 
-**消费方补充：**「简历帮」通过前端循环调用只读 Command 汇总画像：`git_log`（有 Git 账号时带 `authors` 分页，单次 ≤200、累计约 500，再时间分桶；并用 `reverse+limit=1` 取作者最早接手时间；无账号时近期窗口约 400）+ `git_ls_tree`（定位 `package.json` / README）+ `git_read_worktree_file`（解析依赖主技术栈与 README 摘录）+ `git_show` / `git_commit_file_diff`（**按用户点选的单仓**拉取 diff 摘录，避免全量并发）。成稿须含 **项目周期**（作者首提交→末次提交）。项目名/简介由模型判断 README 是否可用后再写入。**禁止**对简历帮路径开放任何写操作；**不新增**专用 `git_resume_*` Command。
+**消费方补充：**「鲸履」通过前端循环调用只读 Command 汇总画像：`git_log`（有 Git 账号时带 `authors` 分页，单次 ≤200、累计约 500，再时间分桶；并用 `reverse+limit=1` 取作者最早接手时间；无账号时近期窗口约 400）+ `git_ls_tree`（定位 `package.json` / README）+ `git_read_worktree_file`（解析依赖主技术栈与 README 摘录）+ `git_show` / `git_commit_file_diff`（**按用户点选的单仓**拉取 diff 摘录，避免全量并发）。成稿须含 **项目周期**（作者首提交→末次提交）。项目名/简介由模型判断 README 是否可用后再写入。**禁止**对鲸履路径开放任何写操作；**不新增**专用 `git_resume_*` Command。
 
 ### `git_blame`
 
@@ -575,9 +575,38 @@ interface GitBranch {
 
 ---
 
-## AI（预留）
+## 应用数据
 
-### `ai_history_list` / `ai_history_add` / `ai_history_clear`
+### `app_data_paths` / `app_data_reveal` / `app_data_clear` / `app_data_export` / `app_data_import`
+
+设置「数据」分类：路径、清理、完整备份。前端经 `src/services/data/data.service.ts`。
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `app_data_paths` | `{}` | `{ appDataDir, databasePath }` |
+| `app_data_reveal` | `{ input: { target: "dir" \| "database" } }` | `{ ok: true }` |
+| `app_data_clear` | `{ input: { module } }` | `{ ok: true }` |
+| `app_data_export` | `{ input: { destPath, localStorage } }` | `{ ok: true }` |
+| `app_data_import` | `{ input: { sourcePath } }` | `{ ok, localStorage, requiresRestart }` |
+
+`module`：`agent_chats` · `jinglv_chats` · `ai_secrets` · `git_accounts` · `jinglv_identity` · `ui_prefs` · `open_tabs` · `all_app_data`（不含 projects/workspaces）。导入 DB 写入 `jlgit.db.pending`，下次启动替换。
+
+## AI
+
+### `chat_list_conversations` / `chat_upsert_conversation` / `chat_delete_conversation` / `chat_reorder_conversations`
+
+多轮对话（鲸灵 / 鲸履）持久化。前端经 `src/services/ai/ai.chatPersist.ts` 调用。
+
+| 命令 | 输入 | 输出 |
+|------|------|------|
+| `chat_list_conversations` | `{ scope; projectId? }` | `{ conversations: ChatConversationRow[] }`（含 messages） |
+| `chat_upsert_conversation` | `{ input: { scope; projectId?; conversation } }` | `{ conversation }` |
+| `chat_delete_conversation` | `{ id }` | `{ ok: true }` |
+| `chat_reorder_conversations` | `{ input: { scope; projectId?; orderedIds } }` | `{ ok: true }` |
+
+约束：`scope=agent` 时 `projectId` 必填；`scope=jinglv` 时 `projectId` 必须为空。删除 Git 项目时由 FK CASCADE 清理鲸灵会话。
+
+### `ai_history_list` / `ai_history_add` / `ai_history_clear`（预留）
 
 | 命令 | 输入 | 输出 |
 |------|------|------|
@@ -604,5 +633,5 @@ interface GitBranch {
 ## 命名规则
 
 - `snake_case`
-- 域前缀：`project_` `git_` `settings_` `workspace_` `favorite_` `recent_` `ai_` `notification_`
+- 域前缀：`project_` `git_` `settings_` `workspace_` `favorite_` `recent_` `ai_` `chat_` `app_data_` `notification_`
 - 动词在后：`git_branch_create` 而非 `create_git_branch`（与现有表风格一致，便于按前缀搜索）

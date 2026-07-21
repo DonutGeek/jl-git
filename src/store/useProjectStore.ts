@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 import { projectService, workspaceService } from "@/services/project";
-
+import { useAgentChatStore } from "@/store/useAgentChatStore";
 import { toUserMessage } from "@/types/error";
 import { AddProjectInput, Project, ProjectOrderItem, RecentItem, Workspace, WorkspaceColor, WorkspaceIcon, WorkspaceOrderItem } from "@/types/project";
 
@@ -178,6 +178,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
     try {
       await projectService.remove(id);
+      // SQLite 侧 chat_conversations ON DELETE CASCADE；同步清鲸灵内存
+      useAgentChatStore.getState().clearProject(id);
       const recent = await projectService.listRecent();
 
       set((state) => ({

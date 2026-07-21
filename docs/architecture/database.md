@@ -113,7 +113,29 @@ erDiagram
 | `model` | TEXT NULL | |
 | `created_at` | TEXT NOT NULL | |
 
+面向提交建议等短历史（预留）。**鲸灵 / 鲸履多轮对话**不走本表，见下方 `chat_*`。
+
 不存 API Key；密钥走系统安全存储或环境变量（见 security / ai 文档）。
+
+### `chat_conversations` / `chat_messages`（schema v4）
+
+多轮对话持久化：鲸灵按项目归属，鲸履全局、仅手动删除。设置「数据」可按 scope 清理或完整备份（见 `app_data_*`）。
+
+| 表 | 列 | 说明 |
+|----|----|------|
+| `chat_conversations` | `id` TEXT PK | 会话 ID |
+| | `scope` TEXT | `agent` \| `jinglv`（鲸履；旧 `resume_helper` 在 schema v5 迁移） |
+| | `project_id` TEXT NULL | 鲸灵必填，FK → `projects(id)` **ON DELETE CASCADE**；鲸履必须为 NULL |
+| | `title` / `pinned` / `sort_order` | 展示与排序 |
+| | `created_at` / `updated_at` | ISO 时间 |
+| `chat_messages` | `id` TEXT PK | 消息 ID |
+| | `conversation_id` TEXT | FK → `chat_conversations(id)` ON DELETE CASCADE |
+| | `role` / `content` | `user` \| `assistant` 与正文 |
+| | `reasoning_content` / `reasoning_duration_ms` | 深度思考全文与耗时（可空） |
+| | `mentions_json` | 分支 mention 等（可空 JSON） |
+| | `created_at` / `sort_order` | 时间与会话内顺序 |
+
+写入时机：消息完成 / 停止并保留片段 / 编辑截断 / 重命名 / 置顶 / 重排 / 删除；不写流式中间帧。
 
 ---
 

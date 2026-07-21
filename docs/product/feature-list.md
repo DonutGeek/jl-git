@@ -129,7 +129,8 @@
 | 功能 | 状态 | 说明 |
 |------|------|------|
 | 主题 Light/Dark/System | Done | 设置抽屉 + 状态栏昼夜切换 |
-| 设置抽屉 | Done | 分组：外观 / Git / SSH / 鲸灵 / 外部工具 / 简历帮 / 通用 |
+| 设置抽屉 | Done | 分组：外观 / Git / SSH / 鲸灵 / 外部工具 / 鲸履 / 数据 / 通用 |
+| 数据（路径/清理/备份） | Done | 显示路径与访达打开；按模块清理；完整 zip 备份导入导出 |
 | 语言 | Done | 设置抽屉 + 状态栏中英文切换 |
 | Git 全局身份 | Done | 设置内读写 user.name / user.email |
 | SSH 密钥管理 | Planned | 设置内 UI 占位（新增 / 选择本地） |
@@ -143,10 +144,11 @@
 | 功能 | 状态 | 说明 |
 |------|------|------|
 | DeepSeek API Key | Done | 设置抽屉可创建、启用/禁用、编辑名称、删除；仅允许一个启用、删除二次确认，列表仅显示脱敏 Key，Tauri Store，不进 SQLite |
+| DeepSeek 余额 | Done | 设置 → 鲸灵：`GET /user/balance`；刷新 + 浏览器打开充值页 |
 | AI Git 指令 | Done | 可配置提交指令与拉取请求指令；提交指令已接入提交文案生成 |
 | AI Commit Message | Done | 根据限长、脱敏后的暂存区 Diff 生成 Conventional Commit 文案，用户确认后提交 |
-| 鲸灵对话入口 | In Progress | 左侧面板、虚拟消息列表、多对话标签和 DeepSeek 流式回复已就绪；会话按项目 ID 隔离并仅在当前应用会话中保留，仓库上下文后续接入 |
-| 简历帮 | Done | 设置入口打开单例子窗；按 Git 账号匹配后时间分桶；支持「全部项目简历」串行成稿（一次一仓）或点选单仓；独立 prompt + 复用鲸灵 Key；会话不持久化 |
+| 鲸灵对话入口 | Done | 左侧面板、虚拟消息列表、多对话标签、DeepSeek 流式回复；会话按项目隔离并写入 SQLite（含 reasoning）；删项目 CASCADE |
+| 鲸履 | Done | 原「简历帮」；设置入口打开单例子窗；按 Git 账号匹配后时间分桶；支持「全部项目简历」串行成稿（一次一仓）或点选单仓；独立 prompt + 复用鲸灵 Key；多会话侧栏 + SQLite 持久化（仅手动删） |
 | AI Diff Explain | Planned | |
 | AI Review | Planned | |
 | AI Branch Naming | Planned | |

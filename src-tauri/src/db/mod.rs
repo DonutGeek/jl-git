@@ -9,6 +9,11 @@ use std::path::{Path, PathBuf};
 use crate::error::AppError;
 use crate::git::path::{normalize_existing_dir, require_git_toplevel};
 
+mod app_data;
+mod chat;
+pub use app_data::*;
+pub use chat::*;
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectRow {
@@ -177,6 +182,8 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
     .execute(pool)
     .await
     .map_err(to_db_error)?;
+
+    migrate_chat_tables(pool).await?;
 
     Ok(())
 }
@@ -694,11 +701,11 @@ fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
-fn now() -> String {
+pub(crate) fn now() -> String {
     Utc::now().to_rfc3339()
 }
 
-fn to_db_error(error: sqlx::Error) -> AppError {
+pub(crate) fn to_db_error(error: sqlx::Error) -> AppError {
     AppError::new("DB_ERROR", "数据库操作失败").with_details(error.to_string())
 }
 

@@ -6,8 +6,9 @@ import { isRecord } from "@/types/error";
 
 const STORE_FILE = "git-accounts.json";
 const ACCOUNTS_KEY = "accounts";
-const RESUME_HELPER_STORE_FILE = "resume-helper.json";
-const RESUME_HELPER_IDENTITY_KEY = "identity";
+const JINGLV_STORE_FILE = "jinglv.json";
+const LEGACY_JINGLV_STORE_FILE = "resume-helper.json";
+const JINGLV_IDENTITY_KEY = "identity";
 
 /** 应用内登记的 Git 提交身份（启用项会同步到 git config --global） */
 export interface GitIdentityAccount {
@@ -27,7 +28,7 @@ function getStore(): Promise<LazyStore> {
   return storePromise;
 }
 
-/** 列出 Git 账号；空列表时从全局身份 / 旧简历帮配置播种。 */
+/** 列出 Git 账号；空列表时从全局身份 / 旧鲸履配置播种。 */
 export async function listGitIdentityAccounts(): Promise<GitIdentityAccount[]> {
   const store = await getStore();
   const saved = await store.get<unknown>(ACCOUNTS_KEY);
@@ -171,7 +172,7 @@ export async function deleteGitIdentityAccount(
 }
 
 /**
- * 供简历帮等只读消费：返回设置中配置的全部 Git 账号。
+ * 供鲸履等只读消费：返回设置中配置的全部 Git 账号。
  * 故意忽略 enabled——启用/停用只同步 git config --global，不限制简历匹配。
  */
 export async function listAllGitAuthorsForMatching(): Promise<
@@ -201,10 +202,13 @@ async function seedInitialAccounts(): Promise<GitIdentityAccount[]> {
     // 忽略全局身份读取失败
   }
 
-  try {
-    const resumeStore = new LazyStore(RESUME_HELPER_STORE_FILE);
-    const saved = await resumeStore.get<unknown>(RESUME_HELPER_IDENTITY_KEY);
-    if (isRecord(saved) && Array.isArray(saved.gitAuthors)) {
+  for (const storeFile of [JINGLV_STORE_FILE, LEGACY_JINGLV_STORE_FILE]) {
+    try {
+      const jinglvStore = new LazyStore(storeFile);
+      const saved = await jinglvStore.get<unknown>(JINGLV_IDENTITY_KEY);
+      if (!isRecord(saved) || !Array.isArray(saved.gitAuthors)) {
+        continue;
+      }
       for (const item of saved.gitAuthors) {
         if (!isRecord(item)) continue;
         const name = typeof item.name === "string" ? item.name.trim() : "";
@@ -220,9 +224,9 @@ async function seedInitialAccounts(): Promise<GitIdentityAccount[]> {
           createdAt: new Date().toISOString(),
         });
       }
+    } catch {
+      // 忽略旧鲸履配置迁移失败
     }
-  } catch {
-    // 忽略旧简历帮配置迁移失败
   }
 
   const accounts = [...byKey.values()];

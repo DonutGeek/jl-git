@@ -22,7 +22,7 @@ import type {
 } from "@/types/git";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
-/** 与简历帮一致：V4 Pro + thinking，正文只消费 content */
+/** 与鲸履一致：V4 Pro + thinking，正文只消费 content */
 const DEEPSEEK_AGENT_MODEL = "deepseek-v4-pro";
 const AGENT_REQUEST_TIMEOUT_MS = 150_000;
 const AGENT_HISTORY_LIMIT = 20;
@@ -42,6 +42,8 @@ interface StreamAgentReplyOptions {
   repoPath: string;
   locale: string;
   signal?: AbortSignal;
+  /** 关闭时同模型禁用 thinking，无 reasoning 流 */
+  enableThinking?: boolean;
   onDelta: (content: string) => void;
   /** DeepSeek thinking 的 reasoning_content 增量 */
   onReasoningDelta?: (content: string) => void;
@@ -56,6 +58,7 @@ export async function streamAgentReply({
   repoPath,
   locale,
   signal,
+  enableThinking = true,
   onDelta,
   onReasoningDelta,
 }: StreamAgentReplyOptions): Promise<void> {
@@ -81,8 +84,14 @@ export async function streamAgentReply({
         model: DEEPSEEK_AGENT_MODEL,
         stream: true,
         temperature: 0.3,
-        thinking: { type: "enabled" },
-        reasoning_effort: "high",
+        ...(enableThinking
+          ? {
+              thinking: { type: "enabled" },
+              reasoning_effort: "high",
+            }
+          : {
+              thinking: { type: "disabled" },
+            }),
         messages: [
           {
             role: "system",

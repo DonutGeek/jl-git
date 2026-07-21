@@ -1,6 +1,6 @@
-/** 简历帮：成稿写法（证据只用于内部核实，不得写进正文） */
+/** 鲸履：成稿写法（证据只用于内部核实，不得写进正文） */
 
-export const RESUME_HELPER_WRITING_PROMPT: readonly string[] = [
+export const JINGLV_WRITING_PROMPT: readonly string[] = [
   "## 成稿写法（硬性）",
   "- 输出必须是可直接粘贴的「项目简历」正文，不是开发日志、不是 Code Review、不是证据清单。",
   "- 代码改动、diff、文件列表仅供你内部核实事实；成稿只写「代码思路 / 技术方案 / 技术栈」，绝不泄露项目业务逻辑代码。",

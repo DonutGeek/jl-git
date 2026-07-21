@@ -1,10 +1,4 @@
-import {
-  useMemo,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-  type MouseEvent,
-} from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import {
   closestCenter,
   DndContext,
@@ -16,12 +10,12 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import {
-  horizontalListSortingStrategy,
   SortableContext,
   useSortable,
+  verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Pin, Plus, X } from "lucide-react";
+import { MessageSquarePlus, MoreHorizontal, Pin, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -39,15 +33,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { AgentConversation } from "@/types/ai";
 
-interface AgentConversationTabsProps {
+interface JinglvConversationSidebarProps {
   conversations: readonly AgentConversation[];
-  activeConversationId: string | undefined;
+  activeConversationId: string | null;
   onSelect: (conversationId: string) => void;
   onCreate: () => void;
   onDelete: (conversationId: string) => void;
@@ -56,86 +57,52 @@ interface AgentConversationTabsProps {
   onReorder: (activeId: string, overId: string) => void;
 }
 
-interface ConversationTabChromeProps {
+interface ConversationMenuLabels {
+  rename: string;
+  pin: string;
+  unpin: string;
+  delete: string;
+  more: string;
+}
+
+interface ConversationRowChromeProps {
   conversation: AgentConversation;
   label: string;
   isActive: boolean;
   dragging?: boolean;
-  canDelete: boolean;
   onSelect: (conversationId: string) => void;
-  onDelete: (conversationId: string) => void;
-  deleteLabel: string;
 }
 
-function ConversationTabChrome({
+function ConversationRowChrome({
   conversation,
   label,
   isActive,
   dragging = false,
-  canDelete,
   onSelect,
-  onDelete,
-  deleteLabel,
-}: ConversationTabChromeProps) {
+}: ConversationRowChromeProps) {
   return (
-    <div
+    <button
+      type="button"
       className={cn(
-        "group relative flex h-7 min-w-14 max-w-32 items-center rounded-md text-xs leading-none transition-colors",
-        isActive
-          ? "bg-accent text-foreground"
-          : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground",
-        dragging && "bg-accent text-foreground",
+        "flex h-8 min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left text-xs transition-colors",
+        isActive ? "text-foreground" : "text-muted-foreground",
+        dragging && "cursor-grabbing",
+        !dragging && "cursor-grab",
       )}
+      onClick={() => onSelect(conversation.id)}
+      title={label}
+      aria-pressed={isActive}
+      tabIndex={dragging ? -1 : undefined}
     >
-      <button
-        type="button"
-        className={cn(
-          "flex h-full min-w-0 flex-1 items-center gap-1 truncate py-0 pr-0.5 pl-2 text-left leading-none",
-          dragging ? "cursor-grabbing" : "cursor-grab",
-        )}
-        onClick={() => onSelect(conversation.id)}
-        title={label}
-        aria-pressed={isActive}
-        tabIndex={dragging ? -1 : undefined}
-      >
-        {conversation.pinned ? (
-          <Pin className="size-3 shrink-0 fill-current opacity-70" aria-hidden="true" />
-        ) : null}
-        <span className="truncate">{label}</span>
-      </button>
-      <Tooltip delayDuration={400}>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className={cn(
-              "mr-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-sm",
-              canDelete
-                ? "hover:bg-muted-foreground/15 cursor-pointer"
-                : "cursor-not-allowed opacity-35",
-              isActive || dragging
-                ? "opacity-70"
-                : "opacity-0 group-hover:opacity-70 focus-visible:opacity-70",
-            )}
-            aria-label={deleteLabel}
-            disabled={!canDelete}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event: MouseEvent | KeyboardEvent) => {
-              event.stopPropagation();
-              if (canDelete) {
-                onDelete(conversation.id);
-              }
-            }}
-          >
-            <X className="size-3" aria-hidden="true" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent>{deleteLabel}</TooltipContent>
-      </Tooltip>
-    </div>
+      {conversation.pinned ? (
+        <Pin className="size-3 shrink-0 fill-current opacity-70" aria-hidden="true" />
+      ) : null}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+    </button>
   );
 }
 
-interface SortableConversationTabProps {
+interface SortableConversationRowProps {
   conversation: AgentConversation;
   label: string;
   isActive: boolean;
@@ -144,15 +111,10 @@ interface SortableConversationTabProps {
   onDelete: (conversationId: string) => void;
   onRename: (conversationId: string) => void;
   onPin: (conversationId: string, pinned: boolean) => void;
-  labels: {
-    rename: string;
-    pin: string;
-    unpin: string;
-    delete: string;
-  };
+  labels: ConversationMenuLabels;
 }
 
-function SortableConversationTab({
+function SortableConversationRow({
   conversation,
   label,
   isActive,
@@ -162,29 +124,81 @@ function SortableConversationTab({
   onRename,
   onPin,
   labels,
-}: SortableConversationTabProps) {
+}: SortableConversationRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: conversation.id });
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
           ref={setNodeRef}
-          className={cn("flex h-7 items-center", isDragging && "opacity-40")}
+          className={cn(
+            "group/row mx-1.5 flex items-center gap-0.5 rounded-md pr-0.5 transition-colors",
+            isActive
+              ? "bg-muted text-foreground"
+              : "hover:bg-accent hover:text-foreground",
+            isDragging && "opacity-40",
+          )}
           style={{ transform: CSS.Transform.toString(transform), transition }}
           {...attributes}
           {...listeners}
         >
-          <ConversationTabChrome
+          <ConversationRowChrome
             conversation={conversation}
             label={label}
             isActive={isActive}
-            canDelete={canDelete}
             onSelect={onSelect}
-            onDelete={onDelete}
-            deleteLabel={labels.delete}
           />
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={cn(
+                      "text-muted-foreground size-6 shrink-0 rounded-md hover:bg-transparent",
+                      "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
+                      menuOpen && "opacity-100",
+                    )}
+                    aria-label={labels.more}
+                    // 避免拖拽传感器抢走点击
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <MoreHorizontal className="size-3.5" aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="right">{labels.more}</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent
+              align="end"
+              className="min-w-36"
+              onCloseAutoFocus={(event) => event.preventDefault()}
+            >
+              <DropdownMenuItem onSelect={() => onRename(conversation.id)}>
+                {labels.rename}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => onPin(conversation.id, !conversation.pinned)}
+              >
+                {conversation.pinned ? labels.unpin : labels.pin}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={!canDelete}
+                variant="destructive"
+                onSelect={() => onDelete(conversation.id)}
+              >
+                <Trash2 className="size-3.5" aria-hidden="true" />
+                {labels.delete}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="min-w-36">
@@ -202,6 +216,7 @@ function SortableConversationTab({
           variant="destructive"
           onSelect={() => onDelete(conversation.id)}
         >
+          <Trash2 className="size-3.5" aria-hidden="true" />
           {labels.delete}
         </ContextMenuItem>
       </ContextMenuContent>
@@ -209,8 +224,8 @@ function SortableConversationTab({
   );
 }
 
-/** 会话 Tab 栏：拖拽排序 / 右键重命名·置顶·删除 / 新建 */
-export function AgentConversationTabs({
+/** 鲸履左侧会话栏：顶部新建，下方可拖拽 / 右键与「更多」菜单管理的会话列表 */
+export function JinglvConversationSidebar({
   conversations,
   activeConversationId,
   onSelect,
@@ -219,7 +234,7 @@ export function AgentConversationTabs({
   onRename,
   onPin,
   onReorder,
-}: AgentConversationTabsProps) {
+}: JinglvConversationSidebarProps) {
   const { t } = useTranslation();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
@@ -230,29 +245,30 @@ export function AgentConversationTabs({
 
   const labels = useMemo(
     () => ({
-      rename: t("agent.tabRename"),
-      pin: t("agent.tabPin"),
-      unpin: t("agent.tabUnpin"),
-      delete: t("agent.deleteConversation"),
+      rename: t("jinglv.tabRename"),
+      pin: t("jinglv.tabPin"),
+      unpin: t("jinglv.tabUnpin"),
+      delete: t("jinglv.deleteConversation"),
+      more: t("jinglv.tabMore"),
     }),
     [t],
   );
 
   const conversationLabel = (conversation: AgentConversation): string =>
-    conversation.title || t("agent.newConversation");
+    conversation.title || t("jinglv.newConversation");
 
   const draggingConversation = useMemo(
-    () => conversations.find((conversation) => conversation.id === draggingId) ?? null,
+    () => conversations.find((item) => item.id === draggingId) ?? null,
     [conversations, draggingId],
   );
 
   const renameTarget = useMemo(
-    () => conversations.find((conversation) => conversation.id === renameTargetId) ?? null,
+    () => conversations.find((item) => item.id === renameTargetId) ?? null,
     [conversations, renameTargetId],
   );
 
   function openRename(conversationId: string): void {
-    const target = conversations.find((conversation) => conversation.id === conversationId);
+    const target = conversations.find((item) => item.id === conversationId);
     if (!target) {
       return;
     }
@@ -277,7 +293,31 @@ export function AgentConversationTabs({
 
   return (
     <>
-      <header className="relative flex h-10 shrink-0 items-center gap-1 px-3">
+      <aside
+        className="border-border bg-muted/20 flex w-48 shrink-0 flex-col border-r"
+        aria-label={t("jinglv.conversationsAria")}
+      >
+        <div className="shrink-0 p-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-border h-8 w-full justify-start gap-1.5 px-2 text-xs shadow-none"
+                aria-label={t("jinglv.createConversation")}
+                onClick={onCreate}
+              >
+                <MessageSquarePlus className="size-3.5" aria-hidden="true" />
+                {t("jinglv.createConversation")}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              {t("jinglv.createConversation")}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -292,14 +332,14 @@ export function AgentConversationTabs({
           }}
           onDragCancel={() => setDraggingId(null)}
         >
-          <ScrollArea className="h-10 min-w-0 flex-1">
+          <ScrollArea className="min-h-0 flex-1">
             <SortableContext
-              items={conversations.map((conversation) => conversation.id)}
-              strategy={horizontalListSortingStrategy}
+              items={conversations.map((item) => item.id)}
+              strategy={verticalListSortingStrategy}
             >
-              <div className="flex h-10 w-max items-center gap-1 pr-1">
+              <div className="flex flex-col gap-0.5 pb-1.5">
                 {conversations.map((conversation) => (
-                  <SortableConversationTab
+                  <SortableConversationRow
                     key={conversation.id}
                     conversation={conversation}
                     label={conversationLabel(conversation)}
@@ -314,39 +354,22 @@ export function AgentConversationTabs({
                 ))}
               </div>
             </SortableContext>
-            <ScrollBar orientation="horizontal" />
           </ScrollArea>
           <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
             {draggingConversation ? (
-              <ConversationTabChrome
-                conversation={draggingConversation}
-                label={conversationLabel(draggingConversation)}
-                isActive={draggingConversation.id === activeConversationId}
-                dragging
-                canDelete={canDelete}
-                onSelect={() => undefined}
-                onDelete={() => undefined}
-                deleteLabel={labels.delete}
-              />
+              <div className="bg-muted ring-border flex w-44 items-center rounded-md ring-1">
+                <ConversationRowChrome
+                  conversation={draggingConversation}
+                  label={conversationLabel(draggingConversation)}
+                  isActive={draggingConversation.id === activeConversationId}
+                  dragging
+                  onSelect={() => undefined}
+                />
+              </div>
             ) : null}
           </DragOverlay>
         </DndContext>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground size-7 shrink-0"
-              aria-label={t("agent.createConversation")}
-              onClick={onCreate}
-            >
-              <Plus aria-hidden="true" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{t("agent.createConversation")}</TooltipContent>
-        </Tooltip>
-      </header>
+      </aside>
 
       <Dialog
         open={renameTargetId != null}
@@ -358,7 +381,7 @@ export function AgentConversationTabs({
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>{t("agent.tabRenameTitle")}</DialogTitle>
+            <DialogTitle>{t("jinglv.tabRenameTitle")}</DialogTitle>
           </DialogHeader>
           <form className="grid gap-3" onSubmit={submitRename}>
             <Input
@@ -367,11 +390,11 @@ export function AgentConversationTabs({
               placeholder={
                 renameTarget
                   ? conversationLabel(renameTarget)
-                  : t("agent.newConversation")
+                  : t("jinglv.newConversation")
               }
               maxLength={48}
               autoFocus
-              aria-label={t("agent.tabRename")}
+              aria-label={t("jinglv.tabRename")}
             />
             <DialogFooter>
               <Button
@@ -382,7 +405,7 @@ export function AgentConversationTabs({
                 {t("agent.editCancel")}
               </Button>
               <Button type="submit" disabled={renameValue.trim().length === 0}>
-                {t("agent.tabRenameConfirm")}
+                {t("jinglv.tabRenameConfirm")}
               </Button>
             </DialogFooter>
           </form>

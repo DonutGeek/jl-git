@@ -32,7 +32,7 @@ import {
   type SystemAppInfo,
   type SystemDiskSpace,
 } from "@/services/system/system.info";
-import { openResumeHelperWindow } from "@/services/window/resumeHelperWindow";
+import { openJinglvWindow } from "@/services/window/jinglvWindow";
 import {
   selectLatestEntry,
   selectRepoEntries,
@@ -56,7 +56,7 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(value >= 100 || exp === 0 ? 0 : 2)}${units[exp]}`;
 }
 
-/** 应用底部状态栏：版本 | 语言 / 主题 / 磁盘 / 操作日志 / Git 身份 / 简历帮 / 设置 */
+/** 应用底部状态栏：版本 | 语言 / 主题 / 磁盘 / 操作日志 / Git 身份 / 鲸履 / 设置 */
 export function StatusBar() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
@@ -68,11 +68,11 @@ export function StatusBar() {
   const openDrawer = useSettingsDrawerStore((state) => state.openDrawer);
   const settingsOpen = useSettingsDrawerStore((state) => state.open);
 
-  async function handleOpenResumeHelper(): Promise<void> {
+  async function handleOpenJinglv(): Promise<void> {
     try {
-      await openResumeHelperWindow();
+      await openJinglvWindow();
     } catch (error) {
-      toast.error(toUserMessage(error) || t("resumeHelper.openFailed"));
+      toast.error(toUserMessage(error) || t("jinglv.openFailed"));
     }
   }
 
@@ -378,15 +378,15 @@ export function StatusBar() {
               variant="ghost"
               size="icon"
               className="text-muted-foreground size-6 [&_svg]:size-3.5"
-              aria-label={t("statusBar.resumeHelper")}
+              aria-label={t("statusBar.jinglv")}
               onClick={() => {
-                void handleOpenResumeHelper();
+                void handleOpenJinglv();
               }}
             >
               <FileUser aria-hidden="true" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{t("statusBar.resumeHelper")}</TooltipContent>
+          <TooltipContent>{t("statusBar.jinglv")}</TooltipContent>
         </Tooltip>
 
         <Tooltip delayDuration={300}>

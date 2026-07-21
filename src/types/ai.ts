@@ -24,4 +24,6 @@ export interface AgentConversation {
   id: string;
   title: string;
   messages: readonly AgentChatMessage[];
+  /** 置顶会话（视觉标记；置顶操作会移到列表最前） */
+  pinned?: boolean;
 }

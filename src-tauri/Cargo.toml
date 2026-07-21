@@ -37,4 +37,5 @@ sqlx = { version = "0.8.6", features = ["sqlite", "runtime-tokio"] }
 font-kit = "0.14.3"
 encoding_rs = "0.8"
 base64 = "0.22"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 

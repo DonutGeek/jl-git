@@ -13,25 +13,36 @@ import { toast } from "sonner";
 
 import { AgentComposer } from "@/components/ai/AgentComposer";
 import { AgentMessageList } from "@/components/ai/AgentMessageList";
+import { JinglvConversationSidebar } from "@/components/jinglv/JinglvConversationSidebar";
 import { Button } from "@/components/ui/button";
-import { streamResumeHelperReply } from "@/services/ai/ai.resume";
+import {
+  deleteChatConversation,
+  listChatConversations,
+  reorderChatConversations,
+  upsertChatConversation,
+} from "@/services/ai/ai.chatPersist";
+import { streamJinglvReply } from "@/services/ai/ai.jinglv";
 import { listAllGitAuthorsForMatching } from "@/services/git/git.accounts";
 import {
-  emptyResumeHelperIdentity,
-  getResumeHelperIdentity,
-  setResumeHelperIdentity,
-} from "@/services/resume/resume.identity";
+  emptyJinglvIdentity,
+  getJinglvIdentity,
+  setJinglvIdentity,
+} from "@/services/jinglv/jinglv.identity";
 import {
-  buildResumeProfiles,
+  buildJinglvProfiles,
   enrichProfilesWithCodeEvidence,
   filterProfilesByAuthor,
-} from "@/services/resume/resume.profile";
+} from "@/services/jinglv/jinglv.profile";
 import { projectService } from "@/services/project";
 import { useLocaleStore } from "@/store/useLocaleStore";
-import { useResumeHelperStore } from "@/store/useResumeHelperStore";
+import {
+  getActiveJinglvConversation,
+  getActiveJinglvMessages,
+  useJinglvStore,
+} from "@/store/useJinglvStore";
 import { toUserMessage } from "@/types/error";
-import type { AgentChatMessage } from "@/types/ai";
-import type { ResumeProjectProfile } from "@/types/resumeHelper";
+import type { AgentChatMessage, AgentConversation } from "@/types/ai";
+import type { JinglvProjectProfile } from "@/types/jinglv";
 
 interface SendResumeOptions {
   /** 仅这些仓库进入上下文（逐个写简历） */
@@ -51,14 +62,15 @@ const COMPOSER_BOTTOM_OFFSET_PX = 12;
 const COMPOSER_PAD_FALLBACK_PX = 220;
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 
-/** 简历帮子窗主界面：画像加载 + 对话 */
-export function ResumeHelperWorkspace() {
+/** 鲸履子窗主界面：画像加载 + 对话 */
+export function JinglvWorkspace() {
   const { t } = useTranslation();
   const composerRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const replyAbortRef = useRef<AbortController | null>(null);
   const messageSeq = useRef(0);
-  const greetedRef = useRef(false);
+  /** 已写入问候语的会话，避免切换回来重复插入 */
+  const greetedConversationIdsRef = useRef(new Set<string>());
   /** 最近一次成稿目标仓，供「加强表述」复用 */
   const lastTargetProjectIdRef = useRef<string | null>(null);
 
@@ -69,30 +81,136 @@ export function ResumeHelperWorkspace() {
   const [gitAuthorsReady, setGitAuthorsReady] = useState(false);
 
   const locale = useLocaleStore((state) => state.locale);
-  const profiles = useResumeHelperStore((state) => state.profiles);
-  const profilesLoading = useResumeHelperStore((state) => state.profilesLoading);
-  const profilesError = useResumeHelperStore((state) => state.profilesError);
-  const messages = useResumeHelperStore((state) => state.messages);
-  const identity = useResumeHelperStore((state) => state.identity);
-  const identityReady = useResumeHelperStore((state) => state.identityReady);
-  const gitAuthors = useResumeHelperStore((state) => state.gitAuthors);
-  const setProfilesLoading = useResumeHelperStore((state) => state.setProfilesLoading);
-  const setProfiles = useResumeHelperStore((state) => state.setProfiles);
-  const setIdentity = useResumeHelperStore((state) => state.setIdentity);
-  const patchIdentity = useResumeHelperStore((state) => state.patchIdentity);
-  const setGitAuthors = useResumeHelperStore((state) => state.setGitAuthors);
-  const appendMessage = useResumeHelperStore((state) => state.appendMessage);
-  const updateMessage = useResumeHelperStore((state) => state.updateMessage);
-  const removeMessage = useResumeHelperStore((state) => state.removeMessage);
+  const profiles = useJinglvStore((state) => state.profiles);
+  const profilesLoading = useJinglvStore((state) => state.profilesLoading);
+  const profilesError = useJinglvStore((state) => state.profilesError);
+  const conversations = useJinglvStore((state) => state.conversations);
+  const activeConversationId = useJinglvStore(
+    (state) => state.activeConversationId,
+  );
+  const activeConversation =
+    conversations.find((item) => item.id === activeConversationId) ?? null;
+  const messages = activeConversation?.messages ?? [];
+  const identity = useJinglvStore((state) => state.identity);
+  const identityReady = useJinglvStore((state) => state.identityReady);
+  const gitAuthors = useJinglvStore((state) => state.gitAuthors);
+  const setProfilesLoading = useJinglvStore((state) => state.setProfilesLoading);
+  const setProfiles = useJinglvStore((state) => state.setProfiles);
+  const setIdentity = useJinglvStore((state) => state.setIdentity);
+  const patchIdentity = useJinglvStore((state) => state.patchIdentity);
+  const setGitAuthors = useJinglvStore((state) => state.setGitAuthors);
+  const hydrateConversations = useJinglvStore(
+    (state) => state.hydrateConversations,
+  );
+  const ensureDefaultConversation = useJinglvStore(
+    (state) => state.ensureDefaultConversation,
+  );
+  const createConversation = useJinglvStore((state) => state.createConversation);
+  const setActiveConversation = useJinglvStore(
+    (state) => state.setActiveConversation,
+  );
+  const deleteConversation = useJinglvStore((state) => state.deleteConversation);
+  const renameConversation = useJinglvStore((state) => state.renameConversation);
+  const setConversationPinned = useJinglvStore(
+    (state) => state.setConversationPinned,
+  );
+  const reorderConversations = useJinglvStore(
+    (state) => state.reorderConversations,
+  );
+  const appendMessage = useJinglvStore((state) => state.appendMessage);
+  const updateMessage = useJinglvStore((state) => state.updateMessage);
+  const removeMessage = useJinglvStore((state) => state.removeMessage);
+
+  async function persistConversation(
+    conversation: AgentConversation,
+  ): Promise<void> {
+    try {
+      await upsertChatConversation({
+        scope: "jinglv",
+        conversation,
+      });
+    } catch (error) {
+      console.error(error);
+      toast.error(toUserMessage(error) || t("jinglv.replyFailed"));
+    }
+  }
+
+  async function persistActiveConversation(): Promise<void> {
+    const conversation = getActiveJinglvConversation();
+    if (conversation) {
+      await persistConversation(conversation);
+    }
+  }
+
+  async function persistConversationById(conversationId: string): Promise<void> {
+    const conversation = useJinglvStore
+      .getState()
+      .conversations.find((item) => item.id === conversationId);
+    if (conversation) {
+      await persistConversation(conversation);
+    }
+  }
+
+  async function persistOrder(): Promise<void> {
+    const orderedIds = useJinglvStore
+      .getState()
+      .conversations.map((item) => item.id);
+    if (orderedIds.length === 0) {
+      return;
+    }
+    try {
+      await reorderChatConversations({
+        scope: "jinglv",
+        orderedIds,
+      });
+    } catch (error) {
+      console.error(error);
+      toast.error(toUserMessage(error) || t("jinglv.replyFailed"));
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrate(): Promise<void> {
+      try {
+        const list = await listChatConversations({ scope: "jinglv" });
+        if (cancelled) {
+          return;
+        }
+        if (list.length > 0) {
+          hydrateConversations(list);
+          return;
+        }
+        ensureDefaultConversation();
+        const created = getActiveJinglvConversation();
+        if (created) {
+          await persistConversation(created);
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        console.error(error);
+        ensureDefaultConversation();
+        toast.error(toUserMessage(error) || t("jinglv.replyFailed"));
+      }
+    }
+
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, [ensureDefaultConversation, hydrateConversations, t]);
 
   useEffect(() => {
     let active = true;
-    void getResumeHelperIdentity()
+    void getJinglvIdentity()
       .then((next) => {
         if (active) setIdentity(next);
       })
       .catch(() => {
-        if (active) setIdentity(emptyResumeHelperIdentity());
+        if (active) setIdentity(emptyJinglvIdentity());
       });
     return () => {
       active = false;
@@ -133,14 +251,14 @@ export function ResumeHelperWorkspace() {
     void projectService
       .list()
       .then((projects) =>
-        buildResumeProfiles(projects, useResumeHelperStore.getState().gitAuthors),
+        buildJinglvProfiles(projects, useJinglvStore.getState().gitAuthors),
       )
       .then((next) => {
         if (active) setProfiles(next);
       })
       .catch((error: unknown) => {
         if (active) {
-          setProfiles([], toUserMessage(error) || t("resumeHelper.profileFailed"));
+          setProfiles([], toUserMessage(error) || t("jinglv.profileFailed"));
         }
       });
     return () => {
@@ -150,24 +268,30 @@ export function ResumeHelperWorkspace() {
 
   useEffect(() => {
     if (
+      !activeConversationId ||
       profilesLoading ||
       !identityReady ||
       !gitAuthorsReady ||
-      greetedRef.current ||
-      messages.length > 0 ||
       profilesError
     ) {
       return;
     }
-    greetedRef.current = true;
+    if (greetedConversationIdsRef.current.has(activeConversationId)) {
+      return;
+    }
+    if (messages.length > 0) {
+      greetedConversationIdsRef.current.add(activeConversationId);
+      return;
+    }
+    greetedConversationIdsRef.current.add(activeConversationId);
     const okCount = profiles.filter((item) => !item.error).length;
     const failCount = profiles.length - okCount;
     const hasAuthors = gitAuthors.some(
       (author) => author.name.trim() || author.email.trim(),
     );
     const greetingKey = hasAuthors
-      ? "resumeHelper.greetingConfigured"
-      : "resumeHelper.greeting";
+      ? "jinglv.greetingConfigured"
+      : "jinglv.greeting";
     // 问候语只展示 Git 用户名（匹配仍用 name+email）
     const authorsLabel = gitAuthors
       .map((author) => author.name.trim())
@@ -175,13 +299,13 @@ export function ResumeHelperWorkspace() {
       .join("；");
     const missingIdentity: string[] = [];
     if (!identity.displayName.trim()) {
-      missingIdentity.push(t("resumeHelper.identityFieldName"));
+      missingIdentity.push(t("jinglv.identityFieldName"));
     }
     if (!identity.phone.trim()) {
-      missingIdentity.push(t("resumeHelper.identityFieldPhone"));
+      missingIdentity.push(t("jinglv.identityFieldPhone"));
     }
     if (!identity.email.trim()) {
-      missingIdentity.push(t("resumeHelper.identityFieldEmail"));
+      missingIdentity.push(t("jinglv.identityFieldEmail"));
     }
     const greetingBody = t(greetingKey, {
       total: profiles.length,
@@ -194,7 +318,7 @@ export function ResumeHelperWorkspace() {
     });
     const identityHint =
       missingIdentity.length > 0
-        ? `\n\n${t("resumeHelper.greetingIdentityMissing", {
+        ? `\n\n${t("jinglv.greetingIdentityMissing", {
             missing: missingIdentity.join("、"),
           })}`
         : "";
@@ -204,7 +328,9 @@ export function ResumeHelperWorkspace() {
       content: `${greetingBody}${identityHint}`,
       createdAt: new Date().toISOString(),
     });
+    void persistActiveConversation();
   }, [
+    activeConversationId,
     appendMessage,
     gitAuthors,
     gitAuthorsReady,
@@ -252,7 +378,7 @@ export function ResumeHelperWorkspace() {
     }
     const next = { ...identity, email: emailMatch };
     patchIdentity(next);
-    void setResumeHelperIdentity(next).catch(() => {
+    void setJinglvIdentity(next).catch(() => {
       // 对话补全失败不阻断回复
     });
   }
@@ -262,43 +388,50 @@ export function ResumeHelperWorkspace() {
     [profiles, gitAuthors],
   );
 
-  async function sendUserContent(
-    content: string,
+  /**
+   * 在已有 history（含最新用户消息、不含助手气泡）上继续流式回复。
+   * 供发送 / 重生成 / 编辑共用。
+   */
+  async function continueResumeFromHistory(
+    history: readonly AgentChatMessage[],
     options: SendResumeOptions = {},
   ): Promise<void> {
-    const trimmed = content.trim();
-    if (!trimmed || isReplying || profilesLoading) {
+    const lastUser = [...history].reverse().find((message) => message.role === "user");
+    if (!lastUser || isReplying || profilesLoading) {
+      return;
+    }
+    const trimmed = lastUser.content.trim();
+    if (!trimmed) {
       return;
     }
 
-    const currentAuthors = useResumeHelperStore.getState().gitAuthors;
-    const filtered = filterProfilesByAuthor(
-      useResumeHelperStore.getState().profiles,
-      currentAuthors,
+    const currentAuthors = useJinglvStore.getState().gitAuthors;
+    const allProfiles = useJinglvStore.getState().profiles;
+    const filtered = filterProfilesByAuthor(allProfiles, currentAuthors);
+    // 显式点名 / projectIds 才锁定成稿目标；否则仍发消息，用可写仓清单作轻量上下文
+    const explicitTargets = resolveTargetProfiles(
+      filtered,
+      trimmed,
+      options.projectIds,
     );
-    const targets = resolveTargetProfiles(filtered, trimmed, options.projectIds);
-    if (targets.length === 0) {
-      toast.message(t("resumeHelper.pickProjectHint"));
-      return;
-    }
-    if (targets.length === 1) {
-      lastTargetProjectIdRef.current = targets[0]!.projectId;
+    const targets =
+      explicitTargets.length > 0
+        ? explicitTargets
+        : filtered.length > 0
+          ? filtered
+          : allProfiles;
+    // 未锁定单仓时禁止 enrich，避免闲聊/未点名时全量拉 diff
+    const shouldEnrich =
+      options.enrich !== false && explicitTargets.length > 0;
+    if (explicitTargets.length === 1) {
+      lastTargetProjectIdRef.current = explicitTargets[0]!.projectId;
     }
 
     const askedAt = new Date().toISOString();
-    const userMessage: AgentChatMessage = {
-      id: nextMessageId(),
-      role: "user",
-      content: trimmed,
-      createdAt: askedAt,
-    };
     const assistantId = nextMessageId();
 
-    // 先同步上屏用户消息与「思考中」，避免 enrich/模型请求拖住点击反馈
     flushSync(() => {
       absorbContactFromText(trimmed);
-      clearDraft();
-      appendMessage(userMessage);
       appendMessage({
         id: assistantId,
         role: "assistant",
@@ -309,7 +442,6 @@ export function ResumeHelperWorkspace() {
       setIsReplying(true);
     });
 
-    // 等浏览器画出本帧后再拉代码证据 / 请求模型
     await new Promise<void>((resolve) => {
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => resolve());
@@ -318,11 +450,7 @@ export function ResumeHelperWorkspace() {
 
     const controller = new AbortController();
     replyAbortRef.current = controller;
-
-    const currentIdentity = useResumeHelperStore.getState().identity;
-    const history = [...useResumeHelperStore.getState().messages].filter(
-      (message) => message.id !== assistantId,
-    );
+    const currentIdentity = useJinglvStore.getState().identity;
 
     let reasoningStartedAt: number | null = null;
     let reasoningDurationSettled = false;
@@ -337,12 +465,13 @@ export function ResumeHelperWorkspace() {
     };
 
     try {
-      // 默认只 enrich 目标仓；列表类可跳过 diff，降低内存与 IO
-      const withCode =
-        options.enrich === false
-          ? targets
-          : await enrichProfilesWithCodeEvidence(targets);
-      await streamResumeHelperReply({
+      const withCode = shouldEnrich
+        ? await enrichProfilesWithCodeEvidence(explicitTargets)
+        : targets;
+      if (controller.signal.aborted) {
+        throw new DOMException("Aborted", "AbortError");
+      }
+      await streamJinglvReply({
         messages: history,
         profiles: withCode,
         identity: currentIdentity,
@@ -354,9 +483,9 @@ export function ResumeHelperWorkspace() {
             reasoningStartedAt = Date.now();
           }
           flushSync(() => {
-            const current = useResumeHelperStore
-              .getState()
-              .messages.find((message) => message.id === assistantId);
+            const current = getActiveJinglvMessages().find(
+              (message) => message.id === assistantId,
+            );
             updateMessage(assistantId, {
               reasoningContent: `${current?.reasoningContent ?? ""}${delta}`,
               isStreaming: true,
@@ -364,12 +493,11 @@ export function ResumeHelperWorkspace() {
           });
         },
         onDelta: (delta) => {
-          // 正文开始视为深度思考结束
           settleReasoningDuration();
           flushSync(() => {
-            const current = useResumeHelperStore
-              .getState()
-              .messages.find((message) => message.id === assistantId);
+            const current = getActiveJinglvMessages().find(
+              (message) => message.id === assistantId,
+            );
             updateMessage(assistantId, {
               content: `${current?.content ?? ""}${delta}`,
               isStreaming: true,
@@ -383,10 +511,9 @@ export function ResumeHelperWorkspace() {
         createdAt: new Date().toISOString(),
       });
 
-      // 仅全量/列出等显式开启时，再提示未生成的仓库；单项目成稿不追加
       if (options.notifySkipped === true) {
         const followUp = buildSkippedProjectsFollowUp(
-          useResumeHelperStore.getState().profiles,
+          useJinglvStore.getState().profiles,
           currentAuthors,
           t,
         );
@@ -400,15 +527,128 @@ export function ResumeHelperWorkspace() {
         }
       }
     } catch (error) {
-      removeMessage(assistantId);
-      toast.error(toUserMessage(error) || t("resumeHelper.replyFailed"));
+      const current = getActiveJinglvMessages().find(
+        (message) => message.id === assistantId,
+      );
+      const hasPartial = Boolean(
+        current?.content.trim() || current?.reasoningContent?.trim(),
+      );
+      if (controller.signal.aborted) {
+        if (hasPartial) {
+          settleReasoningDuration();
+          updateMessage(assistantId, {
+            isStreaming: false,
+            createdAt: new Date().toISOString(),
+          });
+        } else {
+          removeMessage(assistantId);
+        }
+      } else {
+        removeMessage(assistantId);
+        toast.error(toUserMessage(error) || t("jinglv.replyFailed"));
+      }
     } finally {
       if (replyAbortRef.current === controller) {
         replyAbortRef.current = null;
       }
       setIsReplying(false);
+      void persistActiveConversation();
       window.requestAnimationFrame(() => inputRef.current?.focus());
     }
+  }
+
+  async function sendUserContent(
+    content: string,
+    options: SendResumeOptions = {},
+  ): Promise<void> {
+    const trimmed = content.trim();
+    if (!trimmed || isReplying || profilesLoading) {
+      return;
+    }
+
+    const askedAt = new Date().toISOString();
+    const userMessage: AgentChatMessage = {
+      id: nextMessageId(),
+      role: "user",
+      content: trimmed,
+      createdAt: askedAt,
+    };
+    const history = [...getActiveJinglvMessages(), userMessage];
+
+    flushSync(() => {
+      clearDraft();
+      appendMessage(userMessage);
+    });
+    void persistActiveConversation();
+
+    await continueResumeFromHistory(history, options);
+  }
+
+  async function handleRegenerateLast(): Promise<void> {
+    if (isReplying || profilesLoading) {
+      return;
+    }
+    const current = getActiveJinglvMessages();
+    const last = current[current.length - 1];
+    if (!last || last.role !== "assistant" || last.isStreaming) {
+      return;
+    }
+    const history = current.slice(0, -1);
+    const lastUser = history[history.length - 1];
+    if (!lastUser || lastUser.role !== "user") {
+      return;
+    }
+
+    flushSync(() => {
+      removeMessage(last.id);
+    });
+    void persistActiveConversation();
+
+    replyAbortRef.current?.abort();
+    replyAbortRef.current = null;
+
+    await continueResumeFromHistory(history, {
+      projectIds:
+        lastTargetProjectIdRef.current != null
+          ? [lastTargetProjectIdRef.current]
+          : undefined,
+      enrich: true,
+      notifySkipped: false,
+    });
+  }
+
+  async function handleEditUserMessage(
+    messageId: string,
+    content: string,
+  ): Promise<void> {
+    if (isReplying || profilesLoading) {
+      return;
+    }
+    const trimmed = content.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const history = useJinglvStore
+      .getState()
+      .editUserMessageAndTruncate(messageId, trimmed);
+    if (!history) {
+      toast.error(t("jinglv.replyFailed"));
+      return;
+    }
+    void persistActiveConversation();
+
+    replyAbortRef.current?.abort();
+    replyAbortRef.current = null;
+
+    await continueResumeFromHistory(history, {
+      projectIds:
+        lastTargetProjectIdRef.current != null
+          ? [lastTargetProjectIdRef.current]
+          : undefined,
+      enrich: true,
+      notifySkipped: false,
+    });
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -425,13 +665,13 @@ export function ResumeHelperWorkspace() {
       return;
     }
 
-    const currentAuthors = useResumeHelperStore.getState().gitAuthors;
+    const currentAuthors = useJinglvStore.getState().gitAuthors;
     const targets = filterProfilesByAuthor(
-      useResumeHelperStore.getState().profiles,
+      useJinglvStore.getState().profiles,
       currentAuthors,
     );
     if (targets.length === 0) {
-      toast.message(t("resumeHelper.pickProjectHint"));
+      toast.message(t("jinglv.pickProjectHint"));
       return;
     }
 
@@ -439,7 +679,7 @@ export function ResumeHelperWorkspace() {
     const userMessage: AgentChatMessage = {
       id: nextMessageId(),
       role: "user",
-      content: t("resumeHelper.quickDraftAllPrompt"),
+      content: t("jinglv.quickDraftAllPrompt"),
       createdAt: askedAt,
     };
     const progressId = nextMessageId();
@@ -450,7 +690,7 @@ export function ResumeHelperWorkspace() {
       appendMessage({
         id: progressId,
         role: "assistant",
-        content: t("resumeHelper.sequentialProgress", {
+        content: t("jinglv.sequentialProgress", {
           current: 0,
           total: targets.length,
           name: "…",
@@ -469,7 +709,7 @@ export function ResumeHelperWorkspace() {
 
     const controller = new AbortController();
     replyAbortRef.current = controller;
-    const currentIdentity = useResumeHelperStore.getState().identity;
+    const currentIdentity = useJinglvStore.getState().identity;
     let completed = 0;
 
     try {
@@ -481,7 +721,7 @@ export function ResumeHelperWorkspace() {
         lastTargetProjectIdRef.current = profile.projectId;
 
         updateMessage(progressId, {
-          content: t("resumeHelper.sequentialProgress", {
+          content: t("jinglv.sequentialProgress", {
             current: index + 1,
             total: targets.length,
             name: profile.projectName,
@@ -511,7 +751,7 @@ export function ResumeHelperWorkspace() {
           {
             id: `resume-seq-user-${index}`,
             role: "user",
-            content: t("resumeHelper.quickDraftOnePrompt", {
+            content: t("jinglv.quickDraftOnePrompt", {
               name: profile.projectName,
             }),
             createdAt: draftAskedAt,
@@ -531,7 +771,7 @@ export function ResumeHelperWorkspace() {
         };
 
         try {
-          await streamResumeHelperReply({
+          await streamJinglvReply({
             messages: turnMessages,
             profiles: withCode,
             identity: currentIdentity,
@@ -543,9 +783,9 @@ export function ResumeHelperWorkspace() {
                 reasoningStartedAt = Date.now();
               }
               flushSync(() => {
-                const current = useResumeHelperStore
-                  .getState()
-                  .messages.find((message) => message.id === draftId);
+                const current = getActiveJinglvMessages().find(
+                  (message) => message.id === draftId,
+                );
                 updateMessage(draftId, {
                   reasoningContent: `${current?.reasoningContent ?? ""}${delta}`,
                   isStreaming: true,
@@ -555,9 +795,9 @@ export function ResumeHelperWorkspace() {
             onDelta: (delta) => {
               settleReasoningDuration();
               flushSync(() => {
-                const current = useResumeHelperStore
-                  .getState()
-                  .messages.find((message) => message.id === draftId);
+                const current = getActiveJinglvMessages().find(
+                  (message) => message.id === draftId,
+                );
                 updateMessage(draftId, {
                   content: `${current?.content ?? ""}${delta}`,
                   isStreaming: true,
@@ -571,18 +811,35 @@ export function ResumeHelperWorkspace() {
             createdAt: new Date().toISOString(),
           });
           completed += 1;
+          void persistActiveConversation();
         } catch (error) {
-          removeMessage(draftId);
           if (controller.signal.aborted) {
+            // 用户停止：保留已生成片段，不再继续后续仓库
+            const current = getActiveJinglvMessages().find(
+              (message) => message.id === draftId,
+            );
+            const hasPartial = Boolean(
+              current?.content.trim() || current?.reasoningContent?.trim(),
+            );
+            if (hasPartial) {
+              settleReasoningDuration();
+              updateMessage(draftId, {
+                isStreaming: false,
+                createdAt: new Date().toISOString(),
+              });
+            } else {
+              removeMessage(draftId);
+            }
             throw error;
           }
+          removeMessage(draftId);
           // 单仓失败不中断后续，提示后继续
           appendMessage({
             id: nextMessageId(),
             role: "assistant",
-            content: t("resumeHelper.sequentialItemFailed", {
+            content: t("jinglv.sequentialItemFailed", {
               name: profile.projectName,
-              reason: toUserMessage(error) || t("resumeHelper.replyFailed"),
+              reason: toUserMessage(error) || t("jinglv.replyFailed"),
             }),
             createdAt: new Date().toISOString(),
           });
@@ -594,38 +851,54 @@ export function ResumeHelperWorkspace() {
         });
       }
 
-      updateMessage(progressId, {
-        content: t("resumeHelper.sequentialDone", { count: completed }),
-        isStreaming: false,
-        createdAt: new Date().toISOString(),
-      });
-
-      const followUp = buildSkippedProjectsFollowUp(
-        useResumeHelperStore.getState().profiles,
-        currentAuthors,
-        t,
-      );
-      if (followUp) {
-        appendMessage({
-          id: nextMessageId(),
-          role: "assistant",
-          content: followUp,
+      if (controller.signal.aborted) {
+        updateMessage(progressId, {
+          content: t("jinglv.sequentialAborted", { count: completed }),
+          isStreaming: false,
           createdAt: new Date().toISOString(),
         });
+      } else {
+        updateMessage(progressId, {
+          content: t("jinglv.sequentialDone", { count: completed }),
+          isStreaming: false,
+          createdAt: new Date().toISOString(),
+        });
+
+        const followUp = buildSkippedProjectsFollowUp(
+          useJinglvStore.getState().profiles,
+          currentAuthors,
+          t,
+        );
+        if (followUp) {
+          appendMessage({
+            id: nextMessageId(),
+            role: "assistant",
+            content: followUp,
+            createdAt: new Date().toISOString(),
+          });
+        }
       }
     } catch (error) {
       updateMessage(progressId, {
-        content: t("resumeHelper.sequentialAborted", { count: completed }),
+        content: t("jinglv.sequentialAborted", { count: completed }),
         isStreaming: false,
+        createdAt: new Date().toISOString(),
       });
-      toast.error(toUserMessage(error) || t("resumeHelper.replyFailed"));
+      if (!controller.signal.aborted) {
+        toast.error(toUserMessage(error) || t("jinglv.replyFailed"));
+      }
     } finally {
       if (replyAbortRef.current === controller) {
         replyAbortRef.current = null;
       }
       setIsReplying(false);
+      void persistActiveConversation();
       window.requestAnimationFrame(() => inputRef.current?.focus());
     }
+  }
+
+  function handleStopReply(): void {
+    replyAbortRef.current?.abort();
   }
 
   const quickActionsDisabled = isReplying || profilesLoading;
@@ -637,16 +910,16 @@ export function ResumeHelperWorkspace() {
         className="border-border bg-muted/40 flex h-11 shrink-0 items-center gap-2 border-b px-4 pl-[88px]"
       >
         <FileUser className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
-        <span className="truncate text-sm font-semibold">{t("resumeHelper.windowTitle")}</span>
+        <span className="truncate text-sm font-semibold">{t("jinglv.windowTitle")}</span>
         {profilesLoading ? (
           <span className="text-muted-foreground ml-auto text-xs">
-            {t("resumeHelper.scanning")}
+            {t("jinglv.scanning")}
           </span>
         ) : (
           <span className="text-muted-foreground ml-auto text-xs">
-            {t("resumeHelper.projectCount", { count: profiles.length })}
+            {t("jinglv.projectCount", { count: profiles.length })}
             {matchedProfiles.length > 0
-              ? ` · ${t("resumeHelper.matchedProjectCount", {
+              ? ` · ${t("jinglv.matchedProjectCount", {
                   count: matchedProfiles.length,
                 })}`
               : ""}
@@ -658,12 +931,82 @@ export function ResumeHelperWorkspace() {
         <p className="text-destructive px-4 py-3 text-center text-sm">{profilesError}</p>
       ) : null}
 
-      <div className="relative min-h-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        <JinglvConversationSidebar
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onSelect={(conversationId) => {
+            if (conversationId === activeConversationId) {
+              return;
+            }
+            replyAbortRef.current?.abort();
+            replyAbortRef.current = null;
+            setIsReplying(false);
+            clearDraft();
+            setActiveConversation(conversationId);
+          }}
+          onCreate={() => {
+            replyAbortRef.current?.abort();
+            replyAbortRef.current = null;
+            setIsReplying(false);
+            clearDraft();
+            // 已有空会话时只切过去，避免叠多个空会话
+            const empty = conversations.find(
+              (conversation) => conversation.messages.length === 0,
+            );
+            if (empty) {
+              setActiveConversation(empty.id);
+              return;
+            }
+            const createdId = createConversation();
+            void persistConversationById(createdId);
+          }}
+          onDelete={(conversationId) => {
+            const before = useJinglvStore.getState().conversations;
+            if (before.length <= 1) {
+              return;
+            }
+            if (conversationId === activeConversationId) {
+              replyAbortRef.current?.abort();
+              replyAbortRef.current = null;
+              setIsReplying(false);
+            }
+            deleteConversation(conversationId);
+            void deleteChatConversation(conversationId).catch((error: unknown) => {
+              console.error(error);
+              toast.error(toUserMessage(error) || t("jinglv.replyFailed"));
+            });
+          }}
+          onRename={(conversationId, title) => {
+            renameConversation(conversationId, title);
+            void persistConversationById(conversationId);
+          }}
+          onPin={(conversationId, pinned) => {
+            setConversationPinned(conversationId, pinned);
+            void (async () => {
+              await persistConversationById(conversationId);
+              await persistOrder();
+            })();
+          }}
+          onReorder={(activeId, overId) => {
+            reorderConversations(activeId, overId);
+            void persistOrder();
+          }}
+        />
+
+        <div className="relative min-h-0 min-w-0 flex-1">
         <AgentMessageList
           messages={messages}
-          conversationId="resume-helper"
+          conversationId={activeConversationId ?? "jinglv"}
           composerPadPx={composerPadPx}
           onCompareBranches={() => undefined}
+          actionsDisabled={isReplying || profilesLoading}
+          onRegenerateLast={() => {
+            void handleRegenerateLast();
+          }}
+          onEditUserMessage={(messageId, content) => {
+            void handleEditUserMessage(messageId, content);
+          }}
         />
         {/* 挡住输入区后方透出的消息，高度与整块底栏（快捷操作+输入）一致 */}
         <div
@@ -679,13 +1022,13 @@ export function ResumeHelperWorkspace() {
           branchOptions={[]}
           isReplying={isReplying}
           canSubmit={!profilesLoading && draftPlainText.trim().length > 0}
-          placeholder={t("resumeHelper.inputPlaceholder")}
+          placeholder={t("jinglv.inputPlaceholder")}
           topAccessory={
             <div className="flex min-w-0 flex-col gap-1.5">
               <div
                 className="flex min-w-0 flex-wrap items-center gap-1.5"
                 role="group"
-                aria-label={t("resumeHelper.quickActionsAria")}
+                aria-label={t("jinglv.quickActionsAria")}
               >
                 <Button
                   type="button"
@@ -693,13 +1036,13 @@ export function ResumeHelperWorkspace() {
                   size="sm"
                   className="border-border h-7 shrink-0 gap-1 px-2 text-[11px] shadow-none"
                   disabled={quickActionsDisabled || matchedProfiles.length === 0}
-                  title={t("resumeHelper.quickDraftAllHint")}
+                  title={t("jinglv.quickDraftAllHint")}
                   onClick={() => {
                     void draftAllProjectsSequentially();
                   }}
                 >
                   <FileStack className="size-3.5" aria-hidden="true" />
-                  {t("resumeHelper.quickDraftAll")}
+                  {t("jinglv.quickDraftAll")}
                 </Button>
                 <Button
                   type="button"
@@ -707,9 +1050,9 @@ export function ResumeHelperWorkspace() {
                   size="sm"
                   className="border-border h-7 shrink-0 gap-1 px-2 text-[11px] shadow-none"
                   disabled={quickActionsDisabled}
-                  title={t("resumeHelper.quickListProjectsHint")}
+                  title={t("jinglv.quickListProjectsHint")}
                   onClick={() => {
-                    void sendUserContent(t("resumeHelper.quickListProjectsPrompt"), {
+                    void sendUserContent(t("jinglv.quickListProjectsPrompt"), {
                       enrich: false,
                       projectIds: matchedProfiles.map((item) => item.projectId),
                       notifySkipped: true,
@@ -717,7 +1060,7 @@ export function ResumeHelperWorkspace() {
                   }}
                 >
                   <ListTree className="size-3.5" aria-hidden="true" />
-                  {t("resumeHelper.quickListProjects")}
+                  {t("jinglv.quickListProjects")}
                 </Button>
                 <Button
                   type="button"
@@ -733,10 +1076,10 @@ export function ResumeHelperWorkspace() {
                         ? [matchedProfiles[0]!.projectId]
                         : undefined;
                     if (!projectIds) {
-                      toast.message(t("resumeHelper.pickProjectHint"));
+                      toast.message(t("jinglv.pickOneProjectHint"));
                       return;
                     }
-                    void sendUserContent(t("resumeHelper.quickRewriteEvidencePrompt"), {
+                    void sendUserContent(t("jinglv.quickRewriteEvidencePrompt"), {
                       enrich: false,
                       projectIds,
                       notifySkipped: false,
@@ -744,14 +1087,14 @@ export function ResumeHelperWorkspace() {
                   }}
                 >
                   <FileCode2 className="size-3.5" aria-hidden="true" />
-                  {t("resumeHelper.quickRewriteEvidence")}
+                  {t("jinglv.quickRewriteEvidence")}
                 </Button>
               </div>
               {matchedProfiles.length > 0 ? (
                 <div
                   className="flex max-h-16 min-w-0 flex-wrap gap-1 overflow-y-auto"
                   role="group"
-                  aria-label={t("resumeHelper.projectPickerAria")}
+                  aria-label={t("jinglv.projectPickerAria")}
                 >
                   {matchedProfiles.map((profile) => (
                     <Button
@@ -764,7 +1107,7 @@ export function ResumeHelperWorkspace() {
                       title={profile.projectName}
                       onClick={() => {
                         void sendUserContent(
-                          t("resumeHelper.quickDraftOnePrompt", {
+                          t("jinglv.quickDraftOnePrompt", {
                             name: profile.projectName,
                           }),
                           {
@@ -789,7 +1132,9 @@ export function ResumeHelperWorkspace() {
           onSubmit={(event) => {
             void handleSubmit(event);
           }}
+          onStop={handleStopReply}
         />
+        </div>
       </div>
     </main>
   );
@@ -800,10 +1145,10 @@ export function ResumeHelperWorkspace() {
  * 多仓且未点名时返回空，迫使逐个点选，避免全量 enrich 打满机器。
  */
 function resolveTargetProfiles(
-  filtered: readonly ResumeProjectProfile[],
+  filtered: readonly JinglvProjectProfile[],
   content: string,
   projectIds?: string[],
-): ResumeProjectProfile[] {
+): JinglvProjectProfile[] {
   if (projectIds && projectIds.length > 0) {
     const idSet = new Set(projectIds);
     return filtered.filter((profile) => idSet.has(profile.projectId));
@@ -830,7 +1175,7 @@ type ResumeTranslate = (
 
 /** 根据画像汇总「无更改记录 / 扫描失败」未生成清单，作为第二条助手消息 */
 function buildSkippedProjectsFollowUp(
-  profiles: readonly ResumeProjectProfile[],
+  profiles: readonly JinglvProjectProfile[],
   authors: ReadonlyArray<{ name: string; email: string }>,
   t: ResumeTranslate,
 ): string | null {
@@ -857,12 +1202,12 @@ function buildSkippedProjectsFollowUp(
   const parts: string[] = [];
   if (noCommits.length > 0) {
     parts.push(
-      t("resumeHelper.skippedNoCommits", { names: noCommits.join("、") }),
+      t("jinglv.skippedNoCommits", { names: noCommits.join("、") }),
     );
   }
   if (failed.length > 0) {
     parts.push(
-      t("resumeHelper.skippedScanFailed", { names: failed.join("、") }),
+      t("jinglv.skippedScanFailed", { names: failed.join("、") }),
     );
   }
   if (parts.length === 0) {

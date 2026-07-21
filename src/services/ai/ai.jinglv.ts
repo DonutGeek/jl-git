@@ -1,13 +1,13 @@
 import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
-import { buildResumeHelperSystemPrompt } from "@/prompts/resumeHelper";
+import { buildJinglvSystemPrompt } from "@/prompts/jinglv";
 import i18n from "@/i18n";
 import { isRecord, type AppError } from "@/types/error";
 import type { AgentChatMessage } from "@/types/ai";
-import type { ResumeHelperIdentity, ResumeProjectProfile } from "@/types/resumeHelper";
+import type { JinglvIdentity, JinglvProjectProfile } from "@/types/jinglv";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
-/** 简历帮使用 V4 Pro；thinking 提升成稿质量，正文只消费 content */
+/** 鲸履使用 V4 Pro；thinking 提升成稿质量，正文只消费 content */
 const DEEPSEEK_RESUME_MODEL = "deepseek-v4-pro";
 const REQUEST_TIMEOUT_MS = 150_000;
 const HISTORY_LIMIT = 24;
@@ -20,10 +20,10 @@ const CONTEXT_DETAIL_COMMITS_PER_PROJECT = 6;
 /** README 注入上限，避免挤掉提交主题 */
 const CONTEXT_README_CHARS = 1_800;
 
-interface StreamResumeHelperReplyOptions {
+interface StreamJinglvReplyOptions {
   messages: readonly AgentChatMessage[];
-  profiles: readonly ResumeProjectProfile[];
-  identity: ResumeHelperIdentity;
+  profiles: readonly JinglvProjectProfile[];
+  identity: JinglvIdentity;
   gitAuthors: ReadonlyArray<{ name: string; email: string }>;
   locale: string;
   signal?: AbortSignal;
@@ -32,8 +32,8 @@ interface StreamResumeHelperReplyOptions {
   onReasoningDelta?: (content: string) => void;
 }
 
-/** 简历帮专用流式对话（复用鲸灵 Key，独立 system prompt）。 */
-export async function streamResumeHelperReply({
+/** 鲸履专用流式对话（复用鲸灵 Key，独立 system prompt）。 */
+export async function streamJinglvReply({
   messages,
   profiles,
   identity,
@@ -42,13 +42,13 @@ export async function streamResumeHelperReply({
   signal,
   onDelta,
   onReasoningDelta,
-}: StreamResumeHelperReplyOptions): Promise<void> {
+}: StreamJinglvReplyOptions): Promise<void> {
   const apiKey = await getAgentKey();
   if (!apiKey) {
     throw appError("VALIDATION", i18n.t("ai.errors.missingApiKey"));
   }
 
-  const { resumeHelper: resumeInstructions } = await getAiInstructions();
+  const { jinglv: resumeInstructions } = await getAiInstructions();
   const projectContext = redactSecrets(
     formatProfilesContext(profiles, identity, gitAuthors),
   );
@@ -75,7 +75,7 @@ export async function streamResumeHelperReply({
         messages: [
           {
             role: "system",
-            content: buildResumeHelperSystemPrompt(
+            content: buildJinglvSystemPrompt(
               locale,
               projectContext,
               resumeInstructions,
@@ -94,17 +94,17 @@ export async function streamResumeHelperReply({
       const payload = await readResponseJson(response);
       throw appError(
         "INTERNAL",
-        readErrorMessage(payload) ?? i18n.t("resumeHelper.replyFailed"),
+        readErrorMessage(payload) ?? i18n.t("jinglv.replyFailed"),
       );
     }
     if (!response.body) {
-      throw appError("INTERNAL", i18n.t("resumeHelper.replyFailed"));
+      throw appError("INTERNAL", i18n.t("jinglv.replyFailed"));
     }
 
     await readSseStream(response.body, onDelta, onReasoningDelta);
   } catch (error) {
     if (controller.signal.aborted) {
-      throw appError("INTERNAL", i18n.t("resumeHelper.replyTimeout"));
+      throw appError("INTERNAL", i18n.t("jinglv.replyTimeout"));
     }
     throw error;
   } finally {
@@ -113,7 +113,7 @@ export async function streamResumeHelperReply({
   }
 }
 
-function identityContactComplete(identity: ResumeHelperIdentity): boolean {
+function identityContactComplete(identity: JinglvIdentity): boolean {
   return (
     identity.displayName.trim().length > 0 &&
     identity.phone.trim().length > 0 &&
@@ -122,8 +122,8 @@ function identityContactComplete(identity: ResumeHelperIdentity): boolean {
 }
 
 function formatProfilesContext(
-  profiles: readonly ResumeProjectProfile[],
-  identity: ResumeHelperIdentity,
+  profiles: readonly JinglvProjectProfile[],
+  identity: JinglvIdentity,
   gitAuthors: ReadonlyArray<{ name: string; email: string }>,
 ): string {
   const authors = gitAuthors.filter(
@@ -179,7 +179,7 @@ function formatProfilesContext(
 }
 
 function formatProfileBlock(
-  profile: ResumeProjectProfile,
+  profile: JinglvProjectProfile,
   mode: "full" | "compact",
 ): string | null {
   if (profile.error) {

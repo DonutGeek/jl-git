@@ -8,13 +8,18 @@ import {
   type Ref,
   type WheelEvent,
 } from "react";
-import { ArrowUp, LoaderCircle } from "lucide-react";
+import { ArrowUp, Atom } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Mention, MentionsInput } from "react-mentions-ts";
 
 import { MentionSuggestionVirtualList } from "@/components/ai/MentionSuggestionVirtualList";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { AgentBranchMention } from "@/types/ai";
 
@@ -82,9 +87,15 @@ interface AgentComposerProps {
     mentions: readonly AgentBranchMention[];
   }) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  /** 生成中点击停止（Abort 当前流式请求） */
+  onStop?: () => void;
+  /** 是否展示左下角「深度思考」开关（鲸灵） */
+  showThinkingToggle?: boolean;
+  thinkingEnabled?: boolean;
+  onThinkingEnabledChange?: (enabled: boolean) => void;
 }
 
-/** Agent 输入区：Mentions + shadcn ScrollArea + 发送 */
+/** Agent 输入区：Mentions + shadcn ScrollArea + 发送 / 停止 */
 export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
   function AgentComposer(
     {
@@ -98,6 +109,10 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
       inputRef,
       onDraftChange,
       onSubmit,
+      onStop,
+      showThinkingToggle = false,
+      thinkingEnabled = true,
+      onThinkingEnabledChange,
     },
     ref,
   ) {
@@ -294,19 +309,64 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
               </MentionsInput>
             </ScrollArea>
           </div>
-          <Button
-            type="submit"
-            size="icon-sm"
-            className="absolute right-2 bottom-2 z-10"
-            aria-label={t("agent.sendMessage")}
-            disabled={!canSubmit || draftPlainText.trim().length === 0 || isReplying}
-          >
-            {isReplying ? (
-              <LoaderCircle className="animate-spin" aria-hidden="true" />
-            ) : (
-              <ArrowUp aria-hidden="true" />
-            )}
-          </Button>
+          {showThinkingToggle ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "border-border absolute bottom-2 left-2 z-10 h-7 gap-1 px-2 text-[11px] shadow-none",
+                thinkingEnabled
+                  ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                  : "text-muted-foreground",
+              )}
+              aria-pressed={thinkingEnabled}
+              aria-label={t("agent.deepThinkingToggle")}
+              onClick={() => {
+                onThinkingEnabledChange?.(!thinkingEnabled);
+              }}
+            >
+              <Atom className="size-3.5" aria-hidden="true" />
+              {t("agent.deepThinkingToggle")}
+            </Button>
+          ) : null}
+          {isReplying ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  className="absolute right-2 bottom-2 z-10 rounded-full"
+                  aria-label={t("agent.stopReply")}
+                  onClick={() => {
+                    onStop?.();
+                  }}
+                >
+                  {/* 实心方块：对齐常见「停止生成」视觉，不用描边图标 */}
+                  <span
+                    className="bg-primary-foreground block size-2.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("agent.stopReply")}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="submit"
+                  size="icon-sm"
+                  className="absolute right-2 bottom-2 z-10"
+                  aria-label={t("agent.sendMessage")}
+                  disabled={!canSubmit || draftPlainText.trim().length === 0}
+                >
+                  <ArrowUp aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("agent.sendMessage")}</TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </form>
     );

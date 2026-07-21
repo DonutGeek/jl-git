@@ -1,8 +1,8 @@
 # 设置「数据」分类 + 鲸履更名 — 设计说明
 
 > 日期：2026-07-21  
-> 状态：待实现  
-> 相关：`docs/architecture/database.md` · `docs/architecture/command.md` · `docs/product/ai.md` · `docs/superpowers/specs/2026-07-20-resume-helper-design.md`
+> 状态：已实现（首期）  
+> 相关：`docs/architecture/database.md` · `docs/architecture/command.md` · `docs/product/ai.md` · `docs/superpowers/specs/2026-07-20-jinglv-design.md`
 
 ## 1. 背景与目标
 
@@ -23,7 +23,7 @@ JLGit 的应用数据分散在 SQLite（`jlgit.db`）、Tauri Store（若干 JSO
 | 清理粒度 | 按产品能力拆（见 §4） |
 | 「全部应用数据」 | 含对话 + Store + localStorage；**不含** `projects` / `workspaces` / `recent_projects` |
 | 备份 | 单包：DB + 全部 Store JSON + 约定 localStorage；带 `manifest.json` |
-| 产品名 | 用户可见「鲸履」；代码标识可保留 `resume_helper` / `resumeHelper` |
+| 产品名 | 用户可见「鲸履」；代码标识可保留 `jinglv` / `jinglv` |
 | 非目标 | 自定义 DB 路径、分项导出、真正清空项目列表 |
 
 ## 3. 设置 UI
@@ -64,10 +64,10 @@ JLGit 的应用数据分散在 SQLite（`jlgit.db`）、Tauri Store（若干 JSO
 | module id | 用户可见名 | 行为 |
 |-----------|------------|------|
 | `agent_chats` | 鲸灵对话 | 删除 `chat_conversations` 中 `scope=agent`（CASCADE 消息） |
-| `resume_chats` | 鲸履对话 | 删除 `scope=resume_helper` 会话 |
+| `jinglv_chats` | 鲸履对话 | 删除 `scope=jinglv` 会话 |
 | `ai_secrets` | AI 密钥与指令 | 清空/重置 `ai-secrets.json`（密钥 + 各类指令） |
 | `git_accounts` | Git 身份账号 | 清空/重置 `git-accounts.json` |
-| `resume_identity` | 鲸履联系信息 | 清空/重置 `resume-helper.json` |
+| `jinglv_identity` | 鲸履联系信息 | 清空/重置 `jinglv.json` |
 | `ui_prefs` | UI 偏好 | 清除约定 localStorage 键（主题、语言、字体、分栏、diff/分支/历史偏好等，见 §6） |
 | `open_tabs` | 打开标签 | 清除 `jlgit-open-tabs` 等标签会话键 |
 | `all_app_data` | 全部应用数据 | 执行以上全部；**不**删 projects/workspaces/recent |
@@ -102,7 +102,7 @@ jlgit.db
 stores/
   ai-secrets.json
   git-accounts.json
-  resume-helper.json
+  jinglv.json
 localStorage.json          # 仅约定键的键值对象
 ```
 
@@ -142,16 +142,16 @@ localStorage.json          # 仅约定键的键值对象
 
 ### 7.1 范围
 
-- 所有用户可见文案：`resumeHelper.*.json`、设置分类标题、窗口标题、按钮、清理模块名、文档中的产品称呼  
+- 所有用户可见文案：`jinglv.*.json`、设置分类标题、窗口标题、按钮、清理模块名、文档中的产品称呼  
 - 品牌对：Git Agent = **鲸灵**，简历助手 = **鲸履**
 
 ### 7.2 不改（YAGNI）
 
-- 代码路径 / 类型名：`resumeHelper`、`ResumeHelperWorkspace`、`resume_helper` scope、Store 文件名 `resume-helper.json`  
-- 窗口 label：`resume-helper`（Tauri window id）  
-- DB `scope` 值：`resume_helper`（避免迁移）
+- 代码路径 / 类型名：`jinglv`、`JinglvWorkspace`、`jinglv` scope、Store 文件名 `jinglv.json`  
+- 窗口 label：`jinglv`（Tauri window id）  
+- DB `scope` 值：`jinglv`（避免迁移）
 
-英文 UI：可用 “Jinglü” 或 “Resume (Jinglü)”——首期建议 **Jinglü** 作专有名，副文案保留 Resume Helper 语义一句（可选）。默认：**en 显示 “Jinglü”**，与 zh「鲸履」对应。
+英文 UI：可用 “Jinglü” 或 “Resume (Jinglü)”——首期建议 **Jinglü** 作专有名，副文案保留 Jinglü 语义一句（可选）。默认：**en 显示 “Jinglü”**，与 zh「鲸履」对应。
 
 ## 8. 架构数据流
 

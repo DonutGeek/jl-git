@@ -9,13 +9,15 @@ const API_KEYS = "apiKeys";
 const LEGACY_AGENT_KEY = "agentKey";
 const COMMIT_INSTRUCTIONS = "commitInstructions";
 const PULL_REQUEST_INSTRUCTIONS = "pullRequestInstructions";
-const RESUME_HELPER_INSTRUCTIONS = "resumeHelperInstructions";
+const JINGLV_INSTRUCTIONS = "jinglvInstructions";
+/** 旧键名，读取后迁移到 jinglvInstructions */
+const LEGACY_JINGLV_INSTRUCTIONS = "resumeHelperInstructions";
 
 export interface AiInstructions {
   commit: string;
   pullRequest: string;
-  /** 简历帮对话文案约束（与 Git 提交/PR 指令隔离） */
-  resumeHelper: string;
+  /** 鲸履对话文案约束（与 Git 提交/PR 指令隔离） */
+  jinglv: string;
 }
 
 export interface AiApiKey {
@@ -157,18 +159,26 @@ async function saveApiKeys(keys: AiApiKey[]): Promise<void> {
   await store.save();
 }
 
-/** 读取 AI 文案约束（Git / 简历帮）；未配置时回退 JLGit 默认规则。 */
+/** 读取 AI 文案约束（Git / 鲸履）；未配置时回退 JLGit 默认规则。 */
 export async function getAiInstructions(): Promise<AiInstructions> {
   const store = await getStore();
   const commit = await store.get<string>(COMMIT_INSTRUCTIONS);
   const pullRequest = await store.get<string>(PULL_REQUEST_INSTRUCTIONS);
-  const resumeHelper = await store.get<string>(RESUME_HELPER_INSTRUCTIONS);
+  let jinglv = await store.get<string>(JINGLV_INSTRUCTIONS);
+  if (typeof jinglv !== "string") {
+    const legacy = await store.get<string>(LEGACY_JINGLV_INSTRUCTIONS);
+    if (typeof legacy === "string" && legacy.trim()) {
+      jinglv = legacy;
+      await store.set(JINGLV_INSTRUCTIONS, legacy);
+      await store.delete(LEGACY_JINGLV_INSTRUCTIONS);
+      await store.save();
+    }
+  }
   const defaults = getDefaultAiInstructions(i18n.language ?? "zh-CN");
   return {
     commit: typeof commit === "string" ? commit : defaults.commit,
     pullRequest: typeof pullRequest === "string" ? pullRequest : defaults.pullRequest,
-    resumeHelper:
-      typeof resumeHelper === "string" ? resumeHelper : defaults.resumeHelper,
+    jinglv: typeof jinglv === "string" ? jinglv : defaults.jinglv,
   };
 }
 
@@ -180,7 +190,7 @@ export async function setAiInstructions(
   const entries: Array<[key: string, value: string | undefined]> = [
     [COMMIT_INSTRUCTIONS, instructions.commit],
     [PULL_REQUEST_INSTRUCTIONS, instructions.pullRequest],
-    [RESUME_HELPER_INSTRUCTIONS, instructions.resumeHelper],
+    [JINGLV_INSTRUCTIONS, instructions.jinglv],
   ];
 
   for (const [key, value] of entries) {

@@ -1,6 +1,6 @@
 /**
  * Git：提交信息生成的系统提示骨架。
- * 用户自定义「提交指令」追加在末尾，与简历帮 / 鲸灵 Agent 隔离。
+ * 用户自定义「提交指令」追加在末尾，与鲸履 / 鲸灵 Agent 隔离。
  */
 export function buildCommitMessageSystemPrompt(
   locale: string,

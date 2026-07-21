@@ -7,13 +7,19 @@ import { AgentComposer } from "@/components/ai/AgentComposer";
 import { AgentConversationTabs } from "@/components/ai/AgentConversationTabs";
 import { AgentMessageList } from "@/components/ai/AgentMessageList";
 import type { CompareBranchesAction } from "@/components/ai/AgentRichMessage";
-import { streamAgentReply } from "@/services/ai";
+import {
+  deleteChatConversation,
+  listChatConversations,
+  reorderChatConversations,
+  streamAgentReply,
+  upsertChatConversation,
+} from "@/services/ai";
 import { openBranchCompareWindow } from "@/services/window/branchCompareWindow";
 import { EMPTY_CONVERSATIONS, useAgentChatStore } from "@/store/useAgentChatStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
-import type { AgentBranchMention, AgentChatMessage } from "@/types/ai";
+import type { AgentBranchMention, AgentChatMessage, AgentConversation } from "@/types/ai";
 
 const EMPTY_MESSAGES: readonly AgentChatMessage[] = [];
 
@@ -39,6 +45,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   const [draftPlainText, setDraftPlainText] = useState("");
   const [branchMentions, setBranchMentions] = useState<readonly AgentBranchMention[]>([]);
   const [isReplying, setIsReplying] = useState(false);
+  const [thinkingEnabled, setThinkingEnabled] = useState(true);
   const [composerPadPx, setComposerPadPx] = useState(COMPOSER_PAD_FALLBACK_PX);
   const locale = useLocaleStore((state) => state.locale);
   const branches = useRepoStore((state) => state.branches);
@@ -48,12 +55,16 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   const activeConversationId = useAgentChatStore(
     (state) => state.activeConversationIdByProjectId[projectId],
   );
+  const hydrateProject = useAgentChatStore((state) => state.hydrateProject);
   const createConversation = useAgentChatStore((state) => state.createConversation);
   const ensureDefaultConversation = useAgentChatStore(
     (state) => state.ensureDefaultConversation,
   );
   const setActiveConversation = useAgentChatStore((state) => state.setActiveConversation);
   const deleteConversation = useAgentChatStore((state) => state.deleteConversation);
+  const renameConversation = useAgentChatStore((state) => state.renameConversation);
+  const setConversationPinned = useAgentChatStore((state) => state.setConversationPinned);
+  const reorderConversations = useAgentChatStore((state) => state.reorderConversations);
   const appendMessage = useAgentChatStore((state) => state.appendMessage);
   const updateMessage = useAgentChatStore((state) => state.updateMessage);
   const removeMessage = useAgentChatStore((state) => state.removeMessage);
@@ -89,14 +100,94 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   }
 
   useEffect(() => {
-    ensureDefaultConversation(projectId);
-  }, [ensureDefaultConversation, projectId]);
+    let cancelled = false;
+    replyAbortControllerRef.current?.abort();
+
+    async function hydrate(): Promise<void> {
+      try {
+        const list = await listChatConversations({
+          scope: "agent",
+          projectId,
+        });
+        if (cancelled) {
+          return;
+        }
+        if (list.length > 0) {
+          hydrateProject(projectId, list);
+          return;
+        }
+        ensureDefaultConversation(projectId);
+        const created =
+          useAgentChatStore.getState().conversationsByProjectId[projectId]?.[0];
+        if (created) {
+          await persistConversation(created);
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        console.error(error);
+        ensureDefaultConversation(projectId);
+        toast.error(toUserMessage(error) || t("agent.replyFailed"));
+      }
+    }
+
+    void hydrate();
+    return () => {
+      cancelled = true;
+    };
+  }, [ensureDefaultConversation, hydrateProject, projectId, t]);
 
   useEffect(() => {
     return () => {
       replyAbortControllerRef.current?.abort();
     };
   }, []);
+
+  async function persistConversation(
+    conversation: AgentConversation,
+  ): Promise<void> {
+    try {
+      await upsertChatConversation({
+        scope: "agent",
+        projectId,
+        conversation,
+      });
+    } catch (error) {
+      console.error(error);
+      toast.error(toUserMessage(error) || t("agent.replyFailed"));
+    }
+  }
+
+  async function persistActiveConversation(conversationId: string): Promise<void> {
+    const conversation = useAgentChatStore
+      .getState()
+      .conversationsByProjectId[projectId]
+      ?.find((item) => item.id === conversationId);
+    if (conversation) {
+      await persistConversation(conversation);
+    }
+  }
+
+  async function persistOrder(): Promise<void> {
+    const orderedIds =
+      useAgentChatStore.getState().conversationsByProjectId[projectId]?.map(
+        (item) => item.id,
+      ) ?? [];
+    if (orderedIds.length === 0) {
+      return;
+    }
+    try {
+      await reorderChatConversations({
+        scope: "agent",
+        projectId,
+        orderedIds,
+      });
+    } catch (error) {
+      console.error(error);
+      toast.error(toUserMessage(error) || t("agent.replyFailed"));
+    }
+  }
 
   /** 实测输入框高度，为消息列表预留底部空间，避免被浮层遮挡 */
   useLayoutEffect(() => {
@@ -118,6 +209,11 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     setBranchMentions([]);
   }
 
+  function nextMessageId(prefix: "user" | "assistant"): string {
+    messageSequence.current += 1;
+    return `${prefix}-${Date.now()}-${messageSequence.current}`;
+  }
+
   function handleCreateConversation(): void {
     // 已有「新对话」（尚无消息）时只切换过去，避免叠多个空会话
     const emptyConversation = conversations.find(
@@ -133,52 +229,40 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     }
 
     conversationSequence.current += 1;
-    createConversation(projectId, {
+    const created: AgentConversation = {
       id: `conversation-${Date.now()}-${conversationSequence.current}`,
       title: "",
       messages: [],
-    });
+    };
+    createConversation(projectId, created);
+    void persistConversation(created);
     clearDraft();
     window.requestAnimationFrame(() => inputRef.current?.focus());
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    const content = draftPlainText.trim();
-    if (!content || !activeConversation || isReplying) {
-      return;
-    }
+  /** 在已有 history（含最新用户消息、不含助手气泡）上追加流式回复 */
+  async function streamAssistantForHistory(
+    conversationId: string,
+    historyForRequest: readonly AgentChatMessage[],
+  ): Promise<void> {
+    // 编辑/重生成前先中断上一轮，避免旧流写回错误气泡
+    replyAbortControllerRef.current?.abort();
+    replyAbortControllerRef.current = null;
 
-    messageSequence.current += 1;
     const askedAt = new Date().toISOString();
-    const userMessage: AgentChatMessage = {
-      id: `user-${Date.now()}-${messageSequence.current}`,
-      role: "user",
-      content,
-      createdAt: askedAt,
-      mentions: branchMentions,
-    };
-    messageSequence.current += 1;
     const assistantMessage: AgentChatMessage = {
-      id: `assistant-${Date.now()}-${messageSequence.current}`,
+      id: nextMessageId("assistant"),
       role: "assistant",
       content: "",
-      // 流式结束时再写成完成时间
       createdAt: askedAt,
       isStreaming: true,
     };
-    const conversationId = activeConversation.id;
-    const historyForRequest = [...messages, userMessage];
 
-    // 先同步上屏用户消息并清空输入，避免等 Git/模型时感觉「回车卡住」
     flushSync(() => {
-      appendMessage(projectId, conversationId, userMessage);
       appendMessage(projectId, conversationId, assistantMessage);
-      clearDraft();
       setIsReplying(true);
     });
 
-    // 等浏览器画出本帧后再拉快照 / 请求模型
     await new Promise<void>((resolve) => {
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => resolve());
@@ -205,9 +289,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
       animationFrameId = null;
       updateMessage(projectId, conversationId, assistantMessage.id, {
         content: contentBuffer,
-        ...(reasoningBuffer
-          ? { reasoningContent: reasoningBuffer }
-          : {}),
+        ...(reasoningBuffer ? { reasoningContent: reasoningBuffer } : {}),
       });
     };
 
@@ -216,6 +298,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
         messages: historyForRequest,
         repoPath,
         locale,
+        enableThinking: thinkingEnabled,
         signal: controller.signal,
         onReasoningDelta: (delta) => {
           if (reasoningStartedAt == null) {
@@ -227,7 +310,6 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           }
         },
         onDelta: (delta) => {
-          // 正文开始视为深度思考结束
           settleReasoningDuration();
           contentBuffer += delta;
           if (animationFrameId == null) {
@@ -244,6 +326,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
         isStreaming: false,
         createdAt: new Date().toISOString(),
       });
+      await persistActiveConversation(conversationId);
     } catch (error) {
       if (animationFrameId != null) {
         window.cancelAnimationFrame(animationFrameId);
@@ -255,8 +338,11 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           isStreaming: false,
           createdAt: new Date().toISOString(),
         });
+        await persistActiveConversation(conversationId);
       } else {
         removeMessage(projectId, conversationId, assistantMessage.id);
+        // 保留已发送的用户消息
+        await persistActiveConversation(conversationId);
       }
       if (!controller.signal.aborted) {
         toast.error(toUserMessage(error) || t("agent.replyFailed"));
@@ -266,6 +352,107 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
         replyAbortControllerRef.current = null;
       }
       setIsReplying(false);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    const content = draftPlainText.trim();
+    if (!content || !activeConversation || isReplying) {
+      return;
+    }
+
+    const askedAt = new Date().toISOString();
+    const userMessage: AgentChatMessage = {
+      id: nextMessageId("user"),
+      role: "user",
+      content,
+      createdAt: askedAt,
+      mentions: branchMentions,
+    };
+    const conversationId = activeConversation.id;
+    const historyForRequest = [...messages, userMessage];
+
+    flushSync(() => {
+      appendMessage(projectId, conversationId, userMessage);
+      clearDraft();
+    });
+    void persistActiveConversation(conversationId);
+
+    await streamAssistantForHistory(conversationId, historyForRequest);
+  }
+
+  async function handleRegenerateLast(): Promise<void> {
+    if (!activeConversation || isReplying) {
+      return;
+    }
+    const conversationId = activeConversation.id;
+    const currentMessages =
+      useAgentChatStore
+        .getState()
+        .conversationsByProjectId[projectId]
+        ?.find((conversation) => conversation.id === conversationId)?.messages ?? [];
+    const last = currentMessages[currentMessages.length - 1];
+    if (!last || last.role !== "assistant" || last.isStreaming) {
+      return;
+    }
+    const historyForRequest = currentMessages.slice(0, -1);
+    const lastUser = historyForRequest[historyForRequest.length - 1];
+    if (!lastUser || lastUser.role !== "user") {
+      return;
+    }
+
+    flushSync(() => {
+      removeMessage(projectId, conversationId, last.id);
+    });
+    void persistActiveConversation(conversationId);
+
+    await streamAssistantForHistory(conversationId, historyForRequest);
+  }
+
+  async function handleEditUserMessage(
+    messageId: string,
+    content: string,
+  ): Promise<void> {
+    if (!activeConversation || isReplying) {
+      return;
+    }
+    const trimmed = content.trim();
+    if (!trimmed) {
+      return;
+    }
+    const conversationId = activeConversation.id;
+
+    // 经 getState 调用，避免闭包拿到旧 action；单次 set 保证截断与改文案同事务
+    const historyForRequest = useAgentChatStore
+      .getState()
+      .editUserMessageAndTruncate(
+        projectId,
+        conversationId,
+        messageId,
+        trimmed,
+      );
+    if (!historyForRequest) {
+      toast.error(t("agent.replyFailed"));
+      return;
+    }
+    void persistActiveConversation(conversationId);
+
+    await streamAssistantForHistory(conversationId, historyForRequest);
+  }
+
+  async function handleDeleteConversation(conversationId: string): Promise<void> {
+    const before =
+      useAgentChatStore.getState().conversationsByProjectId[projectId] ?? [];
+    if (before.length <= 1) {
+      return;
+    }
+    deleteConversation(projectId, conversationId);
+    try {
+      await deleteChatConversation(conversationId);
+    } catch (error) {
+      console.error(error);
+      toast.error(toUserMessage(error) || t("agent.replyFailed"));
     }
   }
 
@@ -279,7 +466,24 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
         activeConversationId={activeConversation?.id}
         onSelect={(conversationId) => setActiveConversation(projectId, conversationId)}
         onCreate={handleCreateConversation}
-        onDelete={(conversationId) => deleteConversation(projectId, conversationId)}
+        onDelete={(conversationId) => {
+          void handleDeleteConversation(conversationId);
+        }}
+        onRename={(conversationId, title) => {
+          renameConversation(projectId, conversationId, title);
+          void persistActiveConversation(conversationId);
+        }}
+        onPin={(conversationId, pinned) => {
+          setConversationPinned(projectId, conversationId, pinned);
+          void (async () => {
+            await persistActiveConversation(conversationId);
+            await persistOrder();
+          })();
+        }}
+        onReorder={(activeId, overId) => {
+          reorderConversations(projectId, activeId, overId);
+          void persistOrder();
+        }}
       />
 
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -288,6 +492,13 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           conversationId={activeConversation?.id}
           composerPadPx={composerPadPx}
           onCompareBranches={handleCompareBranches}
+          actionsDisabled={isReplying}
+          onRegenerateLast={() => {
+            void handleRegenerateLast();
+          }}
+          onEditUserMessage={(messageId, content) => {
+            void handleEditUserMessage(messageId, content);
+          }}
         />
 
         {/* 与输入框同宽；高度覆盖输入区+底边，挡住圆角后方透出的消息，不盖滚动条 */}
@@ -305,6 +516,9 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           branchOptions={branchMentionData}
           isReplying={isReplying}
           canSubmit={Boolean(activeConversation)}
+          showThinkingToggle
+          thinkingEnabled={thinkingEnabled}
+          onThinkingEnabledChange={setThinkingEnabled}
           onDraftChange={({ markup, plainText, mentions }) => {
             setDraftMarkup(markup);
             setDraftPlainText(plainText);
@@ -312,6 +526,9 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           }}
           onSubmit={(event) => {
             void handleSubmit(event);
+          }}
+          onStop={() => {
+            replyAbortControllerRef.current?.abort();
           }}
         />
       </div>

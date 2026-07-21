@@ -28,6 +28,9 @@ pub fn run() {
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
+            // 导入备份后的待替换库：须在建立连接前应用
+            db::apply_pending_database(&app_data_dir)
+                .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)?;
             let db_path = app_data_dir.join("jlgit.db");
             let pool = tauri::async_runtime::block_on(db::connect(&db_path))
                 .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)?;
@@ -54,6 +57,15 @@ pub fn run() {
             commands::project::workspace_update,
             commands::project::workspace_delete,
             commands::project::workspace_reorder,
+            commands::chat::chat_list_conversations,
+            commands::chat::chat_upsert_conversation,
+            commands::chat::chat_delete_conversation,
+            commands::chat::chat_reorder_conversations,
+            commands::app_data::app_data_paths,
+            commands::app_data::app_data_reveal,
+            commands::app_data::app_data_clear,
+            commands::app_data::app_data_export,
+            commands::app_data::app_data_import,
             commands::git_ops::git_status,
             commands::git_ops::git_identity,
             commands::git_ops::git_identity_global,

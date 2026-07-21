@@ -1,4 +1,4 @@
-/** 简历帮：设置中的默认「简历指令」（用户可改） */
+/** 鲸履：设置中的默认「简历指令」（用户可改） */
 
 const ZH = [
   "先吃透证据，再输出可粘贴的标准项目经历；禁止半成品与反问。",
@@ -17,6 +17,6 @@ const EN = [
 ].join("\n");
 
 /** 按界面语言返回默认简历指令 */
-export function getDefaultResumeHelperInstructions(locale: string): string {
+export function getDefaultJinglvInstructions(locale: string): string {
   return locale.startsWith("zh") ? ZH : EN;
 }

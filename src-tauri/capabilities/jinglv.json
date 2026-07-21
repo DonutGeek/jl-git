@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "resume-helper",
-  "description": "Capability for Resume Helper agent window",
-  "windows": ["resume-helper"],
+  "identifier": "jinglv",
+  "description": "Capability for Jinglü agent window",
+  "windows": ["jinglv"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
