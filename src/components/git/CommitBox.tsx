@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
 import "dayjs/locale/en";
-import { LoaderCircle, Sparkles, X } from "lucide-react";
+import { Loader2, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
@@ -468,7 +468,7 @@ export function CommitBox() {
                 onClick={() => void handleGenerateCommitMessage()}
               >
                 {isGenerating ? (
-                  <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+                  <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />
                 ) : (
                   <Sparkles className="size-3.5" aria-hidden="true" />
                 )}
