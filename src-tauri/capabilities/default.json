@@ -19,6 +19,7 @@
     "fs:default",
     "notification:default",
     "updater:default",
+    "process:default",
     "clipboard-manager:default",
     "clipboard-manager:allow-write-text",
     "log:default",

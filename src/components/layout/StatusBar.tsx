@@ -33,6 +33,10 @@ import {
   type SystemAppInfo,
   type SystemDiskSpace,
 } from "@/services/system/system.info";
+import {
+  checkAppUpdate,
+  installPendingAppUpdate,
+} from "@/services/system/system.updater";
 import { openMultiAgentWindow } from "@/services/window/multiAgentWindow";
 import {
   selectLatestEntry,
@@ -91,6 +95,58 @@ export function StatusBar() {
   const [appInfo, setAppInfo] = useState<SystemAppInfo | null>(null);
   const [disk, setDisk] = useState<SystemDiskSpace | null>(null);
   const [fallbackIdentity, setFallbackIdentity] = useState<GitIdentity | null>(null);
+  const [updating, setUpdating] = useState(false);
+
+  async function handleAppUpdate(): Promise<void> {
+    if (updating) {
+      return;
+    }
+    setUpdating(true);
+    const toastId = toast.loading(t("statusBar.updateChecking"));
+    try {
+      const info = await checkAppUpdate();
+      if (!info) {
+        toast.success(t("statusBar.updateUpToDate"), { id: toastId });
+        return;
+      }
+
+      toast.message(
+        t("statusBar.updateAvailable", {
+          version: info.version,
+          current: info.currentVersion,
+        }),
+        {
+          id: toastId,
+          duration: 20_000,
+          action: {
+            label: t("statusBar.updateInstallNow"),
+            onClick: () => {
+              void (async () => {
+                const installId = toast.loading(t("statusBar.updateDownloading"));
+                try {
+                  await installPendingAppUpdate();
+                } catch (error) {
+                  toast.error(
+                    toUserMessage(error) || t("statusBar.updateFailed"),
+                    { id: installId },
+                  );
+                }
+              })();
+            },
+          },
+        },
+      );
+    } catch (error) {
+      toast.error(
+        import.meta.env.DEV
+          ? t("statusBar.updateDevHint")
+          : toUserMessage(error) || t("statusBar.updateCheckFailed"),
+        { id: toastId },
+      );
+    } finally {
+      setUpdating(false);
+    }
+  }
 
   const prefersDark =
     typeof window !== "undefined" &&
@@ -227,17 +283,23 @@ export function StatusBar() {
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="absolute left-1/2 -translate-x-1/2 rounded-md focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none"
+                className="absolute left-1/2 -translate-x-1/2 rounded-md focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none disabled:opacity-60"
                 aria-label={t("statusBar.update")}
+                aria-busy={updating}
+                disabled={updating}
                 onClick={() => {
-                  toast.message(t("statusBar.updateNotReady"));
+                  void handleAppUpdate();
                 }}
               >
                 <Badge className="group h-5 cursor-pointer gap-0 px-1.5 py-0 text-[10px] font-semibold transition-all duration-150 group-hover:gap-1">
-                  <Download
-                    className="size-3 transition-all duration-150 group-hover:w-0 group-hover:opacity-0"
-                    aria-hidden="true"
-                  />
+                  {updating ? (
+                    <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Download
+                      className="size-3 transition-all duration-150 group-hover:w-0 group-hover:opacity-0"
+                      aria-hidden="true"
+                    />
+                  )}
                   <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-150 group-hover:max-w-10 group-hover:opacity-100">
                     {t("statusBar.update")}
                   </span>

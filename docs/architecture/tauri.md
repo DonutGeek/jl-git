@@ -55,7 +55,8 @@ src-tauri/
 | `tauri-plugin-dialog` | 打开目录/文件 |
 | `tauri-plugin-fs` | 受控文件访问 |
 | `tauri-plugin-notification` | 系统通知 |
-| `tauri-plugin-updater` | 应用更新（需配置 pubkey/endpoints） |
+| `tauri-plugin-updater` | 应用更新：GitHub Releases `latest.json` + 状态栏检查安装 |
+| `tauri-plugin-process` | 更新安装后 `relaunch` |
 | `tauri-plugin-clipboard-manager` | 剪贴板 |
 | `tauri-plugin-log` | 日志 |
 | `tauri-plugin-opener` | 用系统默认程序打开 URL/路径 |

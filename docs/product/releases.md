@@ -64,11 +64,31 @@ AI 生成 Release Notes 时，必须以 CHANGELOG 与提交记录为输入，并
 
 ---
 
-## 更新通道
+## 更新通道（GitHub Releases 线上升级）
 
-- 稳定版：默认
+应用通过 `tauri-plugin-updater` 读取：
+
+`https://github.com/DonutGeek/jl-git/releases/latest/download/latest.json`
+
+流程：
+
+1. 打 tag `vX.Y.Z` 并 push → `publish-desktop` 构建 macOS DMG / Windows NSIS，并上传 updater 产物与 `latest.json`
+2. 用户点击状态栏「更新」→ 比对版本 → 确认后下载、验签、安装并重启
+
+### 首次启用必做（维护者）
+
+1. 本地已生成密钥对（仓库外 / `.secrets/`，**私钥永不提交**）：
+   ```bash
+   pnpm tauri signer generate -w .secrets/jlgit-updater.key
+   ```
+2. 公钥写入 `src-tauri/tauri.conf.json` → `plugins.updater.pubkey`（当前已配置）
+3. 在 GitHub 仓库 **Settings → Secrets** 添加：
+   - `TAURI_SIGNING_PRIVATE_KEY`：私钥文件**全文**（与 `.secrets/jlgit-updater.key` 内容一致）
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`：若生成时设了密码则填写，否则可留空
+4. 丢失私钥后无法为后续版本签名，已安装客户端将无法继续线上升级——务必备份私钥到安全位置
+
+- 稳定版：默认（`releases/latest`）
 - 可选后续：beta 通道（不同 endpoint）
-- 未配置 `plugins.updater` 时，应用内不提示虚假更新
 
 ---
 

@@ -162,6 +162,7 @@
 | Tauri 窗口壳 | In Progress | 默认窗口配置 |
 | 插件预置 | Done | SQL/Store/Dialog/FS/Notification/Updater/Clipboard/Log/Opener |
 | 底部状态栏 | Done | 版本 / 主题 / 磁盘 / Git 身份 / 操作日志入口 |
+| 应用线上升级 | Done | GitHub Releases + updater；状态栏「更新」检查/下载/重启；需 CI 配置签名私钥 |
 | Git 操作日志 | Done | 提交/检查更新/推送；可展开命令明细；图标反映最近结果 |
 | 文档体系 | Done | 本仓库 docs |
 | shadcn Button 起步 | In Progress | |

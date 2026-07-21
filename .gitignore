@@ -16,6 +16,9 @@ dist-ssr
 # Brainstorm visual companion
 .superpowers/
 
+# Updater 私钥（仅公钥进仓库；私钥进 GitHub Secrets）
+.secrets/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

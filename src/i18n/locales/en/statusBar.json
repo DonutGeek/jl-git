@@ -18,7 +18,14 @@
   "localeZh": "中",
   "localeEn": "EN",
   "update": "Update",
-  "updateNotReady": "App updates are not available yet — coming soon",
+  "updateChecking": "Checking for app updates…",
+  "updateUpToDate": "You're up to date",
+  "updateAvailable": "Update available: {{version}} (current {{current}})",
+  "updateInstallNow": "Update now",
+  "updateDownloading": "Downloading and installing update…",
+  "updateCheckFailed": "Failed to check for updates",
+  "updateFailed": "Failed to install update",
+  "updateDevHint": "In-app updates require a packaged build, not the dev server",
   "multiAgent": "Jingling",
   "settings": "Settings"
 }

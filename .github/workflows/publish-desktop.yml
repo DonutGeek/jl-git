@@ -48,10 +48,16 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && '-' || '' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUST_LOG: tauri_bundler=debug
+          # 线上升级签名：仓库 Secrets 配置私钥（勿提交 .secrets/）
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 鲸灵Git ${{ github.ref_name }}
           generateReleaseNotes: true
           releaseDraft: false
           prerelease: false
+          # 合并各平台产物到 latest.json，供应用内 updater 拉取
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
           args: ${{ matrix.args }}

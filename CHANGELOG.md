@@ -14,6 +14,7 @@
 - DeepSeek 提交文案建议：基于暂存区 Diff 生成 Conventional Commit 信息，用户确认后提交
 - 可配置的 AI Git 指令：提交指令已用于提交文案生成，拉取请求指令为后续 PR 文案生成保留
 - DeepSeek API Key 列表：支持创建、启用/禁用、删除与脱敏展示
+- 应用线上升级：GitHub Releases + 状态栏「更新」检查/下载/验签/重启
 
 ### Changed
 
