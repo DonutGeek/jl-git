@@ -16,10 +16,11 @@ jobs:
         include:
           - name: Windows x64
             platform: windows-latest
-            args: ""
+            # WiX MSI 对中文 productName 易在 light.exe 因 code page 失败；Windows 用 NSIS
+            args: "--bundles nsis"
           - name: macOS Apple Silicon
             platform: macos-latest
-            args: "--target aarch64-apple-darwin"
+            args: "--target aarch64-apple-darwin --bundles dmg"
     runs-on: ${{ matrix.platform }}
 
     steps:

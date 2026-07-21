@@ -110,6 +110,8 @@ pnpm tauri build
 
 产物位置与平台差异以 Tauri 构建输出为准（通常在 `src-tauri/target/release/bundle/`）。
 
+Windows 默认打 **NSIS**（`.exe`），不用 MSI：WiX `light.exe` 对中文 `productName`（如「鲸灵Git」）在 en-US code page 下会失败。若必须打 MSI，需配置 `bundle.windows.wix.language` 为 `zh-CN`，并自行验证 CI。
+
 ---
 
 ## 目录速览
