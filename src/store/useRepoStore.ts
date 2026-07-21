@@ -1044,7 +1044,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
     try {
       const repoPath = requireRepoPath(get().repoPath);
-      await revealOpLogBeforeInvoke();
       set({ demotedConflictPaths: [] });
       await gitService.stageAll(repoPath);
       const status = await gitService.getStatus(repoPath);
@@ -1060,7 +1059,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
     try {
       const repoPath = requireRepoPath(get().repoPath);
-      await revealOpLogBeforeInvoke();
       const entries = get().status?.entries ?? [];
       // 冲突文件保持在待提交；仅取消暂存其余文件
       const gitPaths = entries

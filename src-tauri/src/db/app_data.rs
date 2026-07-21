@@ -23,6 +23,10 @@ const STORE_AI: &str = "ai-secrets.json";
 const STORE_GIT: &str = "git-accounts.json";
 /// 简历插件联系信息 Store（多仓鲸灵）
 const STORE_AGENT_IDENTITY: &str = "agent-identity.json";
+/// 应用内 SSH 密钥登记（不含 ~/.ssh 系统密钥文件本身）
+const STORE_SSH_KEYS: &str = "ssh-keys.json";
+/// 插件/技能卸载偏好
+const STORE_AGENT_PLUGINS: &str = "agent-plugins.json";
 /// 旧版文件名，按顺序保留兼容（备份/恢复/清理时一并处理）
 const STORE_AGENT_IDENTITY_LEGACY: [&str; 2] = ["jinglv.json", "resume-helper.json"];
 
@@ -209,6 +213,8 @@ async fn reset_app_stores_and_chats(
     reset_store_file(app_data_dir, STORE_AI)?;
     reset_store_file(app_data_dir, STORE_GIT)?;
     reset_store_file(app_data_dir, STORE_AGENT_IDENTITY)?;
+    reset_store_file(app_data_dir, STORE_SSH_KEYS)?;
+    reset_store_file(app_data_dir, STORE_AGENT_PLUGINS)?;
     for legacy in STORE_AGENT_IDENTITY_LEGACY {
         let _ = fs::remove_file(app_data_dir.join(legacy));
     }
@@ -242,10 +248,13 @@ async fn clear_chats(pool: &SqlitePool, scope: &str) -> Result<(), AppError> {
 
 fn reset_store_file(app_data_dir: &Path, file_name: &str) -> Result<(), AppError> {
     let path = app_data_dir.join(file_name);
-    fs::write(&path, "{}\n").map_err(|error| {
-        AppError::new("IO", format!("无法重置 {file_name}")).with_details(error.to_string())
-    })?;
-    Ok(())
+    // 删除文件，避免前端 LazyStore 内存态与磁盘「空对象」不一致后又被 save 写回
+    match fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(AppError::new("IO", format!("无法重置 {file_name}"))
+            .with_details(error.to_string())),
+    }
 }
 
 pub async fn export_backup(

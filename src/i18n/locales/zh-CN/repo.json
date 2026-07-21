@@ -316,6 +316,7 @@
   "aiGenerate": "生成提交信息",
   "aiGenerating": "生成中…",
   "generateCommitMessage": "根据暂存区改动生成提交文案",
+  "generateCommitMessageNoApiKey": "请先在设置中配置并启用 API Key",
   "generatingCommitMessage": "正在根据暂存区改动生成提交文案",
   "aiCommitGenerated": "已生成提交文案，可编辑后提交",
   "commitSuccess": "提交成功",

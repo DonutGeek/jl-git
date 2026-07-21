@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-import { generateCommitMessage } from "@/services/ai";
+import { AI_API_KEYS_CHANGED_EVENT, generateCommitMessage, getAgentKey } from "@/services/ai";
 import { getCommitMessage } from "@/services/git";
 import { useAppPrefsStore } from "@/store/useAppPrefsStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
@@ -99,6 +99,7 @@ export function CommitBox() {
   const [pushAfterCommit, setPushAfterCommit] = useState(defaultPushAfterCommit);
   const [busy, setBusy] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [hasApiKey, setHasApiKey] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPosition, setHistoryPosition] = useState({
     left: 0,
@@ -111,6 +112,36 @@ export function CommitBox() {
   useEffect(() => {
     setPushAfterCommit(defaultPushAfterCommit);
   }, [defaultPushAfterCommit]);
+
+  // 检测是否已配置并启用 API Key（设置变更 / 窗口 focus 时刷新）
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshApiKey(): Promise<void> {
+      try {
+        const key = await getAgentKey();
+        if (!cancelled) {
+          setHasApiKey(Boolean(key));
+        }
+      } catch {
+        if (!cancelled) {
+          setHasApiKey(false);
+        }
+      }
+    }
+
+    void refreshApiKey();
+    const onFocus = () => void refreshApiKey();
+    const onKeysChanged = () => void refreshApiKey();
+    window.addEventListener("focus", onFocus);
+    window.addEventListener(AI_API_KEYS_CHANGED_EVENT, onKeysChanged);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener(AI_API_KEYS_CHANGED_EVENT, onKeysChanged);
+    };
+  }, []);
+
   const demotedSet = useMemo(
     () => new Set(demotedConflictPaths),
     [demotedConflictPaths],
@@ -118,6 +149,7 @@ export function CommitBox() {
   const stagedCount =
     status?.entries.filter((entry) => isStagedEntry(entry, demotedSet)).length ?? 0;
   const working = loading || busy;
+  const canGenerateCommitMessage = hasApiKey && stagedCount > 0 && !working;
   // 待提交为空不可提交；合并进行中且冲突已清时可提交以结束合并
   const canCommit =
     !working &&
@@ -295,7 +327,7 @@ export function CommitBox() {
   }
 
   async function handleGenerateCommitMessage(): Promise<void> {
-    if (!repoPath || stagedCount === 0 || working) {
+    if (!repoPath || !canGenerateCommitMessage) {
       return;
     }
 
@@ -411,29 +443,38 @@ export function CommitBox() {
         </label>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1 px-2 text-xs"
-              aria-label={
-                isGenerating
-                  ? t("repo.generatingCommitMessage")
-                  : t("repo.generateCommitMessage")
-              }
-              disabled={working || stagedCount === 0}
-              onClick={() => void handleGenerateCommitMessage()}
-            >
-              {isGenerating ? (
-                <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
-              ) : (
-                <Sparkles className="size-3.5" aria-hidden="true" />
-              )}
-              <span>{isGenerating ? t("repo.aiGenerating") : t("repo.aiGenerate")}</span>
-            </Button>
+            {/* disabled 按钮需包一层，否则无法悬停展示原因 */}
+            <span className="inline-flex">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs"
+                aria-label={
+                  !hasApiKey
+                    ? t("repo.generateCommitMessageNoApiKey")
+                    : isGenerating
+                      ? t("repo.generatingCommitMessage")
+                      : t("repo.generateCommitMessage")
+                }
+                disabled={!canGenerateCommitMessage}
+                onClick={() => void handleGenerateCommitMessage()}
+              >
+                {isGenerating ? (
+                  <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Sparkles className="size-3.5" aria-hidden="true" />
+                )}
+                <span>{isGenerating ? t("repo.aiGenerating") : t("repo.aiGenerate")}</span>
+              </Button>
+            </span>
           </TooltipTrigger>
           <TooltipContent>
-            {isGenerating ? t("repo.generatingCommitMessage") : t("repo.generateCommitMessage")}
+            {!hasApiKey
+              ? t("repo.generateCommitMessageNoApiKey")
+              : isGenerating
+                ? t("repo.generatingCommitMessage")
+                : t("repo.generateCommitMessage")}
           </TooltipContent>
         </Tooltip>
       </div>

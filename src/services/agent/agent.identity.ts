@@ -74,6 +74,19 @@ export function emptyAgentIdentity(): AgentIdentity {
   return { ...EMPTY_IDENTITY };
 }
 
+/** 清空联系信息（出厂重置用） */
+export async function clearPersistedAgentIdentity(): Promise<void> {
+  const store = await getStore();
+  await store.set(IDENTITY_KEY, { ...EMPTY_IDENTITY });
+  await store.save();
+}
+
+/** 丢弃 LazyStore 单例 */
+export function invalidateAgentIdentityStore(): void {
+  storePromise = null;
+  migratedLegacy = false;
+}
+
 function normalizeIdentity(value: unknown): AgentIdentity {
   if (!isRecord(value)) {
     return { ...EMPTY_IDENTITY };

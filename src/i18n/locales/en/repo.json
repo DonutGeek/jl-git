@@ -316,6 +316,7 @@
   "aiGenerate": "Generate commit message",
   "aiGenerating": "Generating…",
   "generateCommitMessage": "Generate a commit message from staged changes",
+  "generateCommitMessageNoApiKey": "Configure and enable an API Key in Settings first",
   "generatingCommitMessage": "Generating a commit message from staged changes",
   "aiCommitGenerated": "Commit message generated. Review it before committing.",
   "commitSuccess": "Committed",

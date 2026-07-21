@@ -637,7 +637,7 @@ interface GitBranch {
 | `app_data_export` | `{ input: { destPath, localStorage } }` | `{ ok: true }` |
 | `app_data_import` | `{ input: { sourcePath } }` | `{ ok, localStorage, requiresRestart }` |
 
-`module`：`agent_chats` · `multi_agent_chats` · `ai_secrets` · `git_accounts` · `multi_agent_identity` · `ui_prefs` · `open_tabs` · `all_app_data`（不含 projects/workspaces）· `factory_reset`（出厂重置：含清空已登记仓库/工作区；不含磁盘仓库与 `~/.ssh`）。导入 DB 写入 `jlgit.db.pending`，下次启动替换。
+`module`：`agent_chats` · `multi_agent_chats` · `ai_secrets` · `git_accounts` · `multi_agent_identity` · `ui_prefs` · `open_tabs` · `all_app_data`（不含 projects/workspaces）· `factory_reset`（出厂重置：含清空已登记仓库/工作区、API Key、Git 账号、SSH 登记列表、插件偏好；不含磁盘仓库与 `~/.ssh`）。清理 Store 时**删除**对应 json，并由前端先清空 LazyStore 再丢弃单例，避免内存缓存写回。导入 DB 写入 `jlgit.db.pending`，下次启动替换。
 
 ## AI
 

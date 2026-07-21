@@ -1,6 +1,23 @@
 import { save, open } from "@tauri-apps/plugin-dialog";
 
+import { clearPersistedAgentIdentity, invalidateAgentIdentityStore } from "@/services/agent/agent.identity";
+import {
+  clearPersistedAgentPluginPrefs,
+  invalidateAgentPluginsStore,
+} from "@/services/agent/agent.plugins";
+import {
+  clearPersistedAiApiKeys,
+  invalidateAiSettingsStore,
+} from "@/services/ai/ai.settings";
+import {
+  clearPersistedGitIdentityAccounts,
+  invalidateGitIdentityAccountsStore,
+} from "@/services/git/git.accounts";
 import { invokeCommand } from "@/services/invoke";
+import {
+  clearPersistedSshKeys,
+  invalidateSshKeysStore,
+} from "@/services/ssh/ssh.keys";
 
 export type AppDataClearModule =
   | "agent_chats"
@@ -112,15 +129,60 @@ export async function clearModule(module: AppDataClearModule): Promise<void> {
     module === "open_tabs" ||
     module === "all_app_data" ||
     module === "factory_reset";
+  const clearsGitAccounts =
+    module === "git_accounts" ||
+    module === "all_app_data" ||
+    module === "factory_reset";
+  const clearsAiSecrets =
+    module === "ai_secrets" ||
+    module === "all_app_data" ||
+    module === "factory_reset";
+  const clearsAgentIdentity =
+    module === "multi_agent_identity" ||
+    module === "all_app_data" ||
+    module === "factory_reset";
+  const clearsAllStores =
+    module === "all_app_data" || module === "factory_reset";
+
   if (clearsUiPrefs) {
     clearUiPrefsLocalStorage();
   }
   if (clearsOpenTabs) {
     clearOpenTabsLocalStorage();
   }
+
+  // 先清空 LazyStore 内存并落盘，再让 Rust 删除文件，最后丢弃单例，避免旧缓存写回
+  if (clearsGitAccounts) {
+    await clearPersistedGitIdentityAccounts();
+  }
+  if (clearsAiSecrets) {
+    await clearPersistedAiApiKeys();
+  }
+  if (clearsAgentIdentity) {
+    await clearPersistedAgentIdentity();
+  }
+  if (clearsAllStores) {
+    await clearPersistedSshKeys();
+    await clearPersistedAgentPluginPrefs();
+  }
+
   await invokeCommand<{ ok: boolean }>("app_data_clear", {
     input: { module },
   });
+
+  if (clearsGitAccounts) {
+    invalidateGitIdentityAccountsStore();
+  }
+  if (clearsAiSecrets) {
+    invalidateAiSettingsStore();
+  }
+  if (clearsAgentIdentity) {
+    invalidateAgentIdentityStore();
+  }
+  if (clearsAllStores) {
+    invalidateSshKeysStore();
+    invalidateAgentPluginsStore();
+  }
 }
 
 export async function exportBackup(): Promise<string | null> {

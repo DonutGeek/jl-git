@@ -195,6 +195,18 @@ async function saveKeys(keys: SshKeyRecord[]): Promise<void> {
   await store.save();
 }
 
+/** 清空应用内 SSH 密钥登记（出厂重置用；不删 ~/.ssh 文件） */
+export async function clearPersistedSshKeys(): Promise<void> {
+  const store = await getStore();
+  await store.set(KEYS_KEY, []);
+  await store.save();
+}
+
+/** 丢弃 LazyStore 单例 */
+export function invalidateSshKeysStore(): void {
+  storePromise = null;
+}
+
 function parseKeys(value: unknown): SshKeyRecord[] {
   if (!Array.isArray(value)) {
     return [];

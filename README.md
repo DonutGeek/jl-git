@@ -96,6 +96,8 @@ pnpm dev
 pnpm tauri dev
 ```
 
+开发版使用独立 identifier（`com.jingling.jlgit.dev`），数据目录与正式包（`com.jingling.jlgit`）隔离，避免测试数据污染安装版。
+
 ### 构建
 
 ```bash

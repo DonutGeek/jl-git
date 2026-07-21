@@ -232,3 +232,15 @@ async function saveAccounts(accounts: GitIdentityAccount[]): Promise<void> {
   await store.set(ACCOUNTS_KEY, accounts);
   await store.save();
 }
+
+/** 清空磁盘中的 Git 账号列表（出厂重置 / 清理模块用） */
+export async function clearPersistedGitIdentityAccounts(): Promise<void> {
+  const store = await getStore();
+  await store.set(ACCOUNTS_KEY, []);
+  await store.save();
+}
+
+/** 丢弃 LazyStore 单例，下次读取从磁盘重新加载 */
+export function invalidateGitIdentityAccountsStore(): void {
+  storePromise = null;
+}

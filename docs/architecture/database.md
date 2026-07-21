@@ -4,6 +4,15 @@
 
 JLGit 使用 SQLite（`tauri-plugin-sql`，库名 `sqlite:jlgit.db`）存储**应用数据**。Git 对象与引用仍由各仓库 `.git` 管理。
 
+应用数据目录由 Tauri `identifier` 决定：
+
+| 构建 | identifier | macOS 路径示例 |
+|------|------------|----------------|
+| `pnpm tauri build`（正式包） | `com.jingling.jlgit` | `~/Library/Application Support/com.jingling.jlgit/` |
+| `pnpm tauri dev`（开发） | `com.jingling.jlgit.dev` | `~/Library/Application Support/com.jingling.jlgit.dev/` |
+
+开发与正式包**不得**共用同一目录，避免测试数据进入安装包体验。轻量偏好另存于 Tauri Store 文件（如 `ai-secrets.json`、`git-accounts.json`），与 SQLite 同目录。
+
 ---
 
 ## 设计原则

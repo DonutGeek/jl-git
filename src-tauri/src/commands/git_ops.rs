@@ -428,37 +428,19 @@ pub fn git_unstage(path: String, paths: Vec<String>) -> Result<OkResult, AppErro
 }
 
 #[tauri::command]
-pub async fn git_stage_all(app: AppHandle, path: String) -> Result<OkResult, AppError> {
+pub fn git_stage_all(path: String) -> Result<OkResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    let repo_key = path;
-
-    tauri::async_runtime::spawn_blocking(move || {
-        oplog::run_logged(&app, &repo_key, "stageAll", || {
-            runner::run_git(&repo_path, &["add", "-A"])?;
-            Ok(OkResult { ok: true })
-        })
-    })
-    .await
-    .map_err(|error| {
-        AppError::new("INTERNAL", "stage all 任务失败").with_details(error.to_string())
-    })?
+    // 高频轻量操作，不写入操作日志
+    runner::run_git(&repo_path, &["add", "-A"])?;
+    Ok(OkResult { ok: true })
 }
 
 #[tauri::command]
-pub async fn git_unstage_all(app: AppHandle, path: String) -> Result<OkResult, AppError> {
+pub fn git_unstage_all(path: String) -> Result<OkResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    let repo_key = path;
-
-    tauri::async_runtime::spawn_blocking(move || {
-        oplog::run_logged(&app, &repo_key, "unstageAll", || {
-            runner::run_git(&repo_path, &["restore", "--staged", "."])?;
-            Ok(OkResult { ok: true })
-        })
-    })
-    .await
-    .map_err(|error| {
-        AppError::new("INTERNAL", "unstage all 任务失败").with_details(error.to_string())
-    })?
+    // 高频轻量操作，不写入操作日志
+    runner::run_git(&repo_path, &["restore", "--staged", "."])?;
+    Ok(OkResult { ok: true })
 }
 
 #[tauri::command]

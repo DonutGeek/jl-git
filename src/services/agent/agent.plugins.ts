@@ -79,3 +79,15 @@ export function filterEnabledAgentSkills(
 ): readonly AgentPluginDefinition[] {
   return filterEnabled(AGENT_SKILLS, disabledIds);
 }
+
+/** 清空插件卸载偏好（出厂重置用） */
+export async function clearPersistedAgentPluginPrefs(): Promise<void> {
+  const store = await getStore();
+  await store.set(DISABLED_IDS_KEY, []);
+  await store.save();
+}
+
+/** 丢弃 LazyStore 单例 */
+export function invalidateAgentPluginsStore(): void {
+  storePromise = null;
+}

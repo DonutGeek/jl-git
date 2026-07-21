@@ -16,6 +16,16 @@ const LEGACY_RESUME_INSTRUCTIONS_KEYS = [
   "resumeHelperInstructions",
 ];
 
+/** 本机 API Key 变更后派发，供 UI 刷新「是否已配置」状态 */
+export const AI_API_KEYS_CHANGED_EVENT = "jlgit:ai-api-keys-changed";
+
+function notifyAiApiKeysChanged(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.dispatchEvent(new Event(AI_API_KEYS_CHANGED_EVENT));
+}
+
 export interface AiInstructions {
   commit: string;
   pullRequest: string;
@@ -160,6 +170,21 @@ async function saveApiKeys(keys: AiApiKey[]): Promise<void> {
   const store = await getStore();
   await store.set(API_KEYS, keys);
   await store.save();
+  notifyAiApiKeysChanged();
+}
+
+/** 清空磁盘中的 API Key（出厂重置 / 清理模块用） */
+export async function clearPersistedAiApiKeys(): Promise<void> {
+  const store = await getStore();
+  await store.set(API_KEYS, []);
+  await store.delete(LEGACY_AGENT_KEY);
+  await store.save();
+  notifyAiApiKeysChanged();
+}
+
+/** 丢弃 LazyStore 单例，下次读取从磁盘重新加载 */
+export function invalidateAiSettingsStore(): void {
+  storePromise = null;
 }
 
 /** 读取 AI 文案约束；未配置时回退 JLGit 默认规则。 */

@@ -1,8 +1,11 @@
 export {
+  AI_API_KEYS_CHANGED_EVENT,
   createAiApiKey,
+  clearPersistedAiApiKeys,
   deleteAiApiKey,
   getAiInstructions,
   getAgentKey,
+  invalidateAiSettingsStore,
   listAiApiKeys,
   renameAiApiKey,
   setAiApiKeyEnabled,
