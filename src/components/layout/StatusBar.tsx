@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
+import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import { gitService } from "@/services/git";
 import {
   getAppInfo,
@@ -67,8 +68,12 @@ export function StatusBar() {
   const toggleZhEn = useLocaleStore((state) => state.toggleZhEn);
   const openDrawer = useSettingsDrawerStore((state) => state.openDrawer);
   const settingsOpen = useSettingsDrawerStore((state) => state.open);
+  const hasApiKey = useHasAgentApiKey();
 
   async function handleOpenMultiAgent(): Promise<void> {
+    if (!hasApiKey) {
+      return;
+    }
     try {
       await openMultiAgentWindow();
     } catch (error) {
@@ -218,15 +223,29 @@ export function StatusBar() {
           {versionLabel}
         </span>
         <span className="relative flex h-5 w-14 shrink-0 items-center justify-center">
-          <Badge className="group absolute left-1/2 h-5 -translate-x-1/2 cursor-pointer gap-0 px-1.5 py-0 text-[10px] font-semibold transition-all duration-150 group-hover:gap-1">
-            <Download
-              className="size-3 transition-all duration-150 group-hover:w-0 group-hover:opacity-0"
-              aria-hidden="true"
-            />
-            <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-150 group-hover:max-w-10 group-hover:opacity-100">
-              {t("statusBar.update")}
-            </span>
-          </Badge>
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="absolute left-1/2 -translate-x-1/2 rounded-md focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none"
+                aria-label={t("statusBar.update")}
+                onClick={() => {
+                  toast.message(t("statusBar.updateNotReady"));
+                }}
+              >
+                <Badge className="group h-5 cursor-pointer gap-0 px-1.5 py-0 text-[10px] font-semibold transition-all duration-150 group-hover:gap-1">
+                  <Download
+                    className="size-3 transition-all duration-150 group-hover:w-0 group-hover:opacity-0"
+                    aria-hidden="true"
+                  />
+                  <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-150 group-hover:max-w-10 group-hover:opacity-100">
+                    {t("statusBar.update")}
+                  </span>
+                </Badge>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("statusBar.update")}</TooltipContent>
+          </Tooltip>
         </span>
       </div>
 
@@ -293,9 +312,9 @@ export function StatusBar() {
               <div className="space-y-1.5 text-xs">
                 <p className="font-medium">{t("statusBar.diskSpace")}</p>
                 <p className="text-muted-foreground break-all">{disk.path}</p>
-                {/* 进度条仅在悬停弹出层展示 */}
+                {/* 进度条仅在悬停弹出层展示；轨道用 background 透明度，适配 Tooltip 反色浅底 */}
                 <div
-                  className="bg-border relative h-2 w-full overflow-hidden rounded-full"
+                  className="bg-background/25 relative h-2 w-full overflow-hidden rounded-full"
                   role="progressbar"
                   aria-valuemin={0}
                   aria-valuemax={100}
@@ -373,20 +392,27 @@ export function StatusBar() {
 
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground size-6 [&_svg]:size-3.5"
-              aria-label={t("statusBar.multiAgent")}
-              onClick={() => {
-                void handleOpenMultiAgent();
-              }}
-            >
-              <Sparkles aria-hidden="true" />
-            </Button>
+            <span className="inline-flex">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground size-6 [&_svg]:size-3.5"
+                aria-label={
+                  hasApiKey ? t("statusBar.multiAgent") : t("common.aiApiKeyRequired")
+                }
+                disabled={!hasApiKey}
+                onClick={() => {
+                  void handleOpenMultiAgent();
+                }}
+              >
+                <Sparkles aria-hidden="true" />
+              </Button>
+            </span>
           </TooltipTrigger>
-          <TooltipContent>{t("statusBar.multiAgent")}</TooltipContent>
+          <TooltipContent>
+            {hasApiKey ? t("statusBar.multiAgent") : t("common.aiApiKeyRequired")}
+          </TooltipContent>
         </Tooltip>
 
         <Tooltip delayDuration={300}>

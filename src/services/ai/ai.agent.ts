@@ -1,4 +1,5 @@
 import { getAgentKey } from "@/services/ai/ai.settings";
+import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { buildAgentSystemPrompt } from "@/prompts/agent";
 import {
@@ -109,7 +110,11 @@ export async function streamAgentReply({
 
     if (!response.ok) {
       const payload = await readResponseJson(response);
-      throw appError("INTERNAL", readErrorMessage(payload) ?? i18n.t("agent.replyFailed"));
+      throw mapDeepSeekHttpError(
+        response.status,
+        payload,
+        i18n.t("agent.replyFailed"),
+      );
     }
     if (!response.body) {
       throw appError("INTERNAL", i18n.t("agent.replyFailed"));
@@ -611,13 +616,6 @@ async function readResponseJson(response: Response): Promise<unknown> {
   } catch {
     return null;
   }
-}
-
-function readErrorMessage(payload: unknown): string | null {
-  if (!isRecord(payload) || !isRecord(payload.error) || typeof payload.error.message !== "string") {
-    return null;
-  }
-  return payload.error.message;
 }
 
 function appError(code: AppError["code"], message: string): AppError {

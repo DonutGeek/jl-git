@@ -2,5 +2,6 @@
   "back": "返回",
   "loading": "加载中...",
   "error": "出错了",
-  "cancel": "取消"
+  "cancel": "取消",
+  "aiApiKeyRequired": "请先在设置中配置并启用 API Key"
 }

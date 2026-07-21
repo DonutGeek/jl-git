@@ -4,6 +4,15 @@
     "emptyStagedDiff": "There are no staged changes to generate a message from",
     "requestFailed": "Failed to generate the commit message",
     "invalidResponse": "DeepSeek did not return a valid commit message",
-    "timeout": "Generating the commit message timed out. Try again."
+    "timeout": "Generating the commit message timed out. Try again.",
+    "badRequest": "The request format was invalid. Try again, or report it if it keeps happening.",
+    "authFailed": "DeepSeek API Key is invalid or expired — check and reconfigure it",
+    "createApiKeyAction": "Create key",
+    "balanceExhausted": "DeepSeek balance is insufficient — top up and try again",
+    "topUpAction": "Top up",
+    "invalidParams": "Request parameters were invalid. Try again, or report it if it keeps happening.",
+    "rateLimited": "Too many requests — rate limit reached. Wait a moment and try again.",
+    "serverError": "DeepSeek is temporarily unavailable. Try again shortly.",
+    "serverBusy": "DeepSeek is busy. Try again in a moment."
   }
 }

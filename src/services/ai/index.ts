@@ -13,12 +13,26 @@ export {
 } from "./ai.settings";
 export type { AiApiKey, AiInstructions } from "./ai.settings";
 export { generateCommitMessage } from "./ai.commit";
+export {
+  AI_AUTH_FAILED_CODE,
+  AI_BAD_REQUEST_CODE,
+  AI_BALANCE_EXHAUSTED_CODE,
+  AI_INVALID_PARAMS_CODE,
+  AI_RATE_LIMITED_CODE,
+  AI_SERVER_BUSY_CODE,
+  AI_SERVER_ERROR_CODE,
+  isAiAuthFailedError,
+  isAiBalanceExhaustedError,
+  mapDeepSeekHttpError,
+  toastAiFailure,
+} from "./ai.httpError";
 export { streamAgentReply } from "./ai.agent";
 export { streamMultiAgentReply } from "./ai.multi";
 export { streamJinglingReply } from "./ai.stream";
 export type { StreamJinglingReplyOptions } from "./ai.stream";
 export {
   fetchDeepSeekBalance,
+  getDeepSeekApiKeysUrl,
   getDeepSeekBalanceDocsUrl,
   getDeepSeekTopUpUrl,
   pickPreferredBalance,

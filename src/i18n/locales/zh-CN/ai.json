@@ -4,6 +4,15 @@
     "emptyStagedDiff": "暂存区没有可用于生成文案的改动",
     "requestFailed": "生成提交文案失败",
     "invalidResponse": "DeepSeek 未返回有效的提交文案",
-    "timeout": "生成提交文案超时，请重试"
+    "timeout": "生成提交文案超时，请重试",
+    "badRequest": "请求格式有误，请稍后重试；若持续出现请反馈给我们",
+    "authFailed": "DeepSeek API Key 无效或已失效，请检查后重新配置",
+    "createApiKeyAction": "去创建 Key",
+    "balanceExhausted": "DeepSeek 账户余额不足，请充值后再试",
+    "topUpAction": "去充值",
+    "invalidParams": "请求参数无效，请稍后重试；若持续出现请反馈给我们",
+    "rateLimited": "请求过于频繁，已触发速率限制，请稍后再试",
+    "serverError": "DeepSeek 服务暂时异常，请稍后重试",
+    "serverBusy": "DeepSeek 服务繁忙，请稍后再试"
   }
 }

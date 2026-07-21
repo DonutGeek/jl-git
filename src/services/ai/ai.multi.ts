@@ -1,5 +1,7 @@
 import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
+import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
+import { buildMultiAgentSystemPrompt } from "@/prompts/agent/multi";
 import { buildResumeSystemPrompt } from "@/prompts/resume";
 import i18n from "@/i18n";
 import { isRecord, type AppError } from "@/types/error";
@@ -7,8 +9,8 @@ import type { AgentChatMessage } from "@/types/ai";
 import type { AgentProjectProfile } from "@/types/agent";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
-/** 简历插件使用 V4 Pro；thinking 提升成稿质量，正文只消费 content */
-const DEEPSEEK_RESUME_MODEL = "deepseek-v4-pro";
+/** 多仓通用与简历技能共用 V4 Pro；thinking 提升质量，正文只消费 content */
+const DEEPSEEK_MULTI_MODEL = "deepseek-v4-pro";
 const REQUEST_TIMEOUT_MS = 150_000;
 const HISTORY_LIMIT = 24;
 const CONTEXT_CHAR_BUDGET = 48_000;
@@ -33,7 +35,7 @@ interface StreamMultiAgentReplyOptions {
   onReasoningDelta?: (content: string) => void;
 }
 
-/** 多仓鲸灵流式对话（复用鲸灵 Key；简历等插件走独立 system prompt）。 */
+/** 多仓鲸灵流式对话：默认多仓 Git Agent；仅本轮启用简历技能时走简历 prompt。 */
 export async function streamMultiAgentReply({
   messages,
   profiles,
@@ -49,10 +51,18 @@ export async function streamMultiAgentReply({
     throw appError("VALIDATION", i18n.t("ai.errors.missingApiKey"));
   }
 
-  const { resume: resumeInstructions } = await getAiInstructions();
+  const resumeMode = isResumeSkillTurn(messages);
   const projectContext = redactSecrets(
-    formatProfilesContext(profiles, gitAuthors),
+    formatProfilesContext(profiles, gitAuthors, resumeMode),
   );
+  const systemPrompt = resumeMode
+    ? buildResumeSystemPrompt(
+        locale,
+        projectContext,
+        (await getAiInstructions()).resume,
+      )
+    : buildMultiAgentSystemPrompt(locale, projectContext);
+
   const controller = new AbortController();
   const abortFromCaller = (): void => controller.abort();
   signal?.addEventListener("abort", abortFromCaller, { once: true });
@@ -66,10 +76,10 @@ export async function streamMultiAgentReply({
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: DEEPSEEK_RESUME_MODEL,
+        model: DEEPSEEK_MULTI_MODEL,
         stream: true,
-        // 略提高以利于简历表述升维，仍靠 system 硬规则约束事实与禁写依据
-        temperature: 0.55,
+        // 简历成稿略高；普通多仓问答更克制
+        temperature: resumeMode ? 0.55 : 0.3,
         ...(enableThinking
           ? {
               thinking: { type: "enabled" },
@@ -81,11 +91,7 @@ export async function streamMultiAgentReply({
         messages: [
           {
             role: "system",
-            content: buildResumeSystemPrompt(
-              locale,
-              projectContext,
-              resumeInstructions,
-            ),
+            content: systemPrompt,
           },
           ...messages.slice(-HISTORY_LIMIT).map((message) => ({
             role: message.role,
@@ -98,9 +104,10 @@ export async function streamMultiAgentReply({
 
     if (!response.ok) {
       const payload = await readResponseJson(response);
-      throw appError(
-        "INTERNAL",
-        readErrorMessage(payload) ?? i18n.t("multiAgent.replyFailed"),
+      throw mapDeepSeekHttpError(
+        response.status,
+        payload,
+        i18n.t("multiAgent.replyFailed"),
       );
     }
     if (!response.body) {
@@ -119,9 +126,32 @@ export async function streamMultiAgentReply({
   }
 }
 
+/**
+ * 是否进入简历技能：本轮用户消息显式 @简历，或明确要求生成简历/项目经历。
+ * 普通多仓问答不得因此走简历 system prompt。
+ */
+function isResumeSkillTurn(messages: readonly AgentChatMessage[]): boolean {
+  const lastUser = [...messages].reverse().find((message) => message.role === "user");
+  if (!lastUser) {
+    return false;
+  }
+  if (
+    lastUser.mentions?.some(
+      (mention) => mention.type === "plugin" && mention.id === "resume",
+    )
+  ) {
+    return true;
+  }
+  // 无 @ 时：仅明确成稿意图才切换，避免「简历」二字出现在普通叙述里误伤
+  return /(?:生成|撰写|写一?[下段份]|帮我写|出一?[下段份]).{0,12}(?:简历|项目经历)|(?:简历|项目经历).{0,12}(?:生成|成稿|模板)|write\s+(?:a\s+)?resume|\bgenerate\s+resume\b/i.test(
+    lastUser.content,
+  );
+}
+
 function formatProfilesContext(
   profiles: readonly AgentProjectProfile[],
   gitAuthors: ReadonlyArray<{ name: string; email: string }>,
+  resumeMode: boolean,
 ): string {
   const authors = gitAuthors.filter(
     (author) => author.name.trim() || author.email.trim(),
@@ -136,18 +166,31 @@ function formatProfilesContext(
           .join("\n")
       : "- （未配置，请在设置 → Git 中添加）";
 
-  const header = [
-    `Registered projects: ${profiles.length}.`,
-    "Evidence policy: subjectIndex + changed paths are enough to write approach bullets; diff excerpts are optional boosts. Never refuse or ask user for more evidence because excerpts are truncated. All Git data below is from read-only queries.",
-    "Output only project-experience blocks; never write contact/basics sections (name/phone/email).",
-    "Git 作者账号（来自设置 → Git 的全部配置项，与启用/停用无关；提交命中任一即计入）：",
-    authorLines,
-    "项目列表：下列为全部已登记仓库，列举时必须全部告知用户，不要因 matchedCommits=0 而省略或替用户筛选「没改过」的仓。",
-    authors.length > 0
-      ? "提交摘要：各仓 recentCommits 已按上述 Git 账号收窄；matchedCommits=0 表示暂无本人抽样提交，仍须出现在项目清单里；成稿时无证据则不要编造项目经历。"
-      : "Git 作者未配置：请引导用户去设置 → Git 添加账号；下列仍列出全部已登记仓库。",
-    "Time ranges are from matched sampled commits (not necessarily the absolute first commit of huge repos).",
-  ].join("\n");
+  const header = resumeMode
+    ? [
+        `Registered projects: ${profiles.length}.`,
+        "Evidence policy: subjectIndex + changed paths are enough to write approach bullets; diff excerpts are optional boosts. Never refuse or ask user for more evidence because excerpts are truncated. All Git data below is from read-only queries.",
+        "Output only project-experience blocks; never write contact/basics sections (name/phone/email).",
+        "Git 作者账号（来自设置 → Git 的全部配置项，与启用/停用无关；提交命中任一即计入）：",
+        authorLines,
+        "项目列表：下列为全部已登记仓库，列举时必须全部告知用户，不要因 matchedCommits=0 而省略或替用户筛选「没改过」的仓。",
+        authors.length > 0
+          ? "提交摘要：各仓 recentCommits 已按上述 Git 账号收窄；matchedCommits=0 表示暂无本人抽样提交，仍须出现在项目清单里；成稿时无证据则不要编造项目经历。"
+          : "Git 作者未配置：请引导用户去设置 → Git 添加账号；下列仍列出全部已登记仓库。",
+        "Time ranges are from matched sampled commits (not necessarily the absolute first commit of huge repos).",
+      ].join("\n")
+    : [
+        `Registered projects: ${profiles.length}.`,
+        "Evidence policy: use jlgitMeta, README excerpts, subjectIndex, tech stack hints, and optional commit details to answer Git/project questions. All Git data below is from read-only queries.",
+        "This turn is general multi-repo Q&A — not resume drafting. Do not output resume templates or solicit 生成简历.",
+        "Git 作者账号（来自设置 → Git；用于理解提交归属，与启用/停用无关）：",
+        authorLines,
+        "项目列表：下列为全部已登记仓库；列举时必须全部告知，不要因 matchedCommits=0 省略。",
+        authors.length > 0
+          ? "提交摘要：各仓 recentCommits 已按上述 Git 账号收窄；matchedCommits=0 表示暂无本人抽样提交。"
+          : "Git 作者未配置：可提醒用户去设置 → Git 添加账号；下列仍列出全部已登记仓库。",
+        "Time ranges are from matched sampled commits when present.",
+      ].join("\n");
 
   // 先拼「主题索引优先」的块，超预算时按仓公平缩短，避免整段截断导致后半仓库证据丢失
   const blocks = profiles
@@ -406,18 +449,6 @@ async function readResponseJson(response: Response): Promise<unknown> {
   } catch {
     return null;
   }
-}
-
-function readErrorMessage(payload: unknown): string | null {
-  if (!isRecord(payload)) return null;
-  const error = payload.error;
-  if (isRecord(error) && typeof error.message === "string") {
-    return error.message;
-  }
-  if (typeof payload.message === "string") {
-    return payload.message;
-  }
-  return null;
 }
 
 /** 简历周期展示：YYYY.MM；无效则 null */

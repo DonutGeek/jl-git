@@ -20,6 +20,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import { cn } from "@/lib/utils";
 import type { AgentMention, AgentMentionKind } from "@/types/ai";
 
@@ -198,7 +199,12 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
     ref,
   ) {
     const { t } = useTranslation();
-    const inputPlaceholder = placeholder ?? t("agent.inputPlaceholder");
+    const hasApiKey = useHasAgentApiKey();
+    const inputLocked = !hasApiKey;
+    const effectiveCanSubmit = canSubmit && hasApiKey;
+    const inputPlaceholder = inputLocked
+      ? t("common.aiApiKeyRequired")
+      : (placeholder ?? t("agent.inputPlaceholder"));
     const inputScrollRef = useRef<HTMLDivElement>(null);
     // enableMentions=false 时走纯文本（关闭 @）
     const mentionsOn = enableMentions;
@@ -260,6 +266,9 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
         return;
       }
       event.preventDefault();
+      if (!effectiveCanSubmit || draftPlainText.trim().length === 0) {
+        return;
+      }
       event.currentTarget.form?.requestSubmit();
     }
 
@@ -293,7 +302,13 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
       <form
         ref={ref}
         className="bg-background absolute inset-x-3 bottom-3 z-10 rounded-md"
-        onSubmit={onSubmit}
+        onSubmit={(event) => {
+          if (!effectiveCanSubmit || draftPlainText.trim().length === 0) {
+            event.preventDefault();
+            return;
+          }
+          onSubmit(event);
+        }}
       >
         {topAccessory ? (
           <div className="mb-2 flex min-w-0 flex-wrap items-center gap-1.5">
@@ -372,7 +387,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                 customSuggestionsContainer={(children) => (
                   <MentionSuggestionVirtualList>{children}</MentionSuggestionVirtualList>
                 )}
-                disabled={isReplying}
+                disabled={isReplying || inputLocked}
               >
                 <Mention<AgentMentionOption>
                   trigger="@"
@@ -446,7 +461,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                 rows={1}
                 aria-label={inputPlaceholder}
                 placeholder={inputPlaceholder}
-                disabled={isReplying}
+                disabled={isReplying || inputLocked}
                 className={COMPOSER_INPUT_CLASS}
               />
             )}
@@ -468,6 +483,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                   )}
                   aria-pressed={thinkingEnabled}
                   aria-label={t("agent.deepThinkingToggle")}
+                  disabled={inputLocked || isReplying}
                   onClick={() => {
                     onThinkingEnabledChange?.(!thinkingEnabled);
                   }}
@@ -500,16 +516,28 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
             ) : (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    type="submit"
-                    size="icon-sm"
-                    aria-label={t("agent.sendMessage")}
-                    disabled={!canSubmit || draftPlainText.trim().length === 0}
-                  >
-                    <ArrowUp aria-hidden="true" />
-                  </Button>
+                  <span className="inline-flex">
+                    <Button
+                      type="submit"
+                      size="icon-sm"
+                      aria-label={
+                        inputLocked
+                          ? t("common.aiApiKeyRequired")
+                          : t("agent.sendMessage")
+                      }
+                      disabled={
+                        !effectiveCanSubmit || draftPlainText.trim().length === 0
+                      }
+                    >
+                      <ArrowUp aria-hidden="true" />
+                    </Button>
+                  </span>
                 </TooltipTrigger>
-                <TooltipContent>{t("agent.sendMessage")}</TooltipContent>
+                <TooltipContent>
+                  {inputLocked
+                    ? t("common.aiApiKeyRequired")
+                    : t("agent.sendMessage")}
+                </TooltipContent>
               </Tooltip>
             )}
           </div>

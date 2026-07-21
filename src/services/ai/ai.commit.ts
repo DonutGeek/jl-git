@@ -1,5 +1,6 @@
 import { buildCommitMessageSystemPrompt } from "@/prompts/git";
 import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
+import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getStagedDiff } from "@/services/git/git.diff";
 
@@ -12,17 +13,6 @@ const AI_REQUEST_TIMEOUT_MS = 30_000;
 const AI_DIFF_MAX_BYTES = 65_536;
 const CONVENTIONAL_COMMIT_PATTERN =
   /^(feat|fix|refactor|style|docs|test|perf|build|ci|chore)(\([^)\r\n]+\))?:\s+\S.+$/;
-
-interface ChatCompletionResponse {
-  choices?: Array<{
-    message?: {
-      content?: string | null;
-    };
-  }>;
-  error?: {
-    message?: string;
-  };
-}
 
 /**
  * 根据已暂存的改动生成 Conventional Commit 标题与简短正文。
@@ -76,12 +66,16 @@ export async function generateCommitMessage(
       }),
       signal: controller.signal,
     });
-    const payload = (await response.json()) as ChatCompletionResponse;
+    const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
-      throw appError("INTERNAL", payload.error?.message ?? i18n.t("ai.errors.requestFailed"));
+      throw mapDeepSeekHttpError(
+        response.status,
+        payload,
+        i18n.t("ai.errors.requestFailed"),
+      );
     }
 
-    const content = payload.choices?.[0]?.message?.content;
+    const content = readCommitChoiceContent(payload);
     const message = normalizeCommitMessage(content);
     if (!message) {
       throw appError("INTERNAL", i18n.t("ai.errors.invalidResponse"));
@@ -124,6 +118,26 @@ function normalizeCommitMessage(content: string | null | undefined): string | nu
     .filter((line) => line.length <= 240);
 
   return detailLines.length > 0 ? `${firstLine}\n\n${detailLines.join("\n")}` : firstLine;
+}
+
+function readCommitChoiceContent(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const choices = (payload as { choices?: unknown }).choices;
+  if (!Array.isArray(choices) || choices.length === 0) {
+    return null;
+  }
+  const first = choices[0];
+  if (!first || typeof first !== "object") {
+    return null;
+  }
+  const message = (first as { message?: unknown }).message;
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+  const content = (message as { content?: unknown }).content;
+  return typeof content === "string" ? content : null;
 }
 
 function appError(code: AppError["code"], message: string): AppError {

@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import {
   appendAgentMentionMarkup,
   buildAgentPluginTryMarkup,
@@ -31,6 +32,7 @@ import {
   listChatConversations,
   reorderChatConversations,
   streamJinglingReply,
+  toastAiFailure,
   upsertChatConversation,
 } from "@/services/ai";
 import {
@@ -62,6 +64,7 @@ interface AgentChatPanelProps {
 /** Agent 对话入口：编排会话 / 消息列表 / 输入区；模型与仓库上下文经 AiService 接入。 */
 export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   const { t } = useTranslation();
+  const hasApiKey = useHasAgentApiKey();
   const composerRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const replyAbortControllerRef = useRef<AbortController | null>(null);
@@ -489,7 +492,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
         await persistActiveConversation(conversationId);
       }
       if (!controller.signal.aborted) {
-        toast.error(toUserMessage(error) || t("agent.replyFailed"));
+        toastAiFailure(error, t("agent.replyFailed"));
       }
     } finally {
       if (replyAbortControllerRef.current === controller) {
@@ -637,7 +640,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           conversationId={activeConversation?.id}
           composerPadPx={composerPadPx}
           onCompareBranches={handleCompareBranches}
-          actionsDisabled={isReplying}
+          actionsDisabled={isReplying || !hasApiKey}
           onRegenerateLast={() => {
             void handleRegenerateLast();
           }}

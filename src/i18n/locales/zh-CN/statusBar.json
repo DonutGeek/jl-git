@@ -18,6 +18,7 @@
   "localeZh": "中",
   "localeEn": "EN",
   "update": "更新",
+  "updateNotReady": "应用更新功能暂未开放，敬请期待",
   "multiAgent": "鲸灵",
   "settings": "设置"
 }

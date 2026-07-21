@@ -71,6 +71,7 @@ import {
   createAiApiKey,
   deleteAiApiKey,
   getAiInstructions,
+  getDeepSeekApiKeysUrl,
   listAiApiKeys,
   renameAiApiKey,
   setAiApiKeyEnabled,
@@ -87,6 +88,7 @@ import {
 } from "@/services/git/git.accounts";
 import { listSystemFonts } from "@/services/system/system.info";
 import { setLaunchAtLoginEnabled } from "@/services/system/system.autostart";
+import { openExternalUrl } from "@/services/system/open-url";
 import type { ThemeMode } from "@/services/theme/theme.service";
 import {
   CLIENT_FONT_SYSTEM,
@@ -449,6 +451,14 @@ export function SettingsDrawer() {
     open,
     pullRequestInstructions,
   ]);
+
+  async function handleOpenDeepSeekApiKeysConsole(): Promise<void> {
+    try {
+      await openExternalUrl(getDeepSeekApiKeysUrl());
+    } catch (error) {
+      toast.error(toUserMessage(error) || t("settings.apiKeyOpenConsoleFailed"));
+    }
+  }
 
   async function handleCreateApiKey(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -1142,8 +1152,22 @@ export function SettingsDrawer() {
                 <SettingsFieldHeading
                   className="mb-0"
                   icon={<KeyRound />}
-                  tip={t("settings.apiKeyListHint")}
                   tipAria={t("settings.apiKeyTipAria")}
+                  tip={
+                    <span>
+                      {t("settings.apiKeyListHintBefore")}
+                      <button
+                        type="button"
+                        className="underline-offset-2 hover:underline"
+                        onClick={() => {
+                          void handleOpenDeepSeekApiKeysConsole();
+                        }}
+                      >
+                        {t("settings.apiKeyListHintLink")}
+                      </button>
+                      {t("settings.apiKeyListHintAfter")}
+                    </span>
+                  }
                 >
                   {t("settings.apiKeyTitle")}
                 </SettingsFieldHeading>

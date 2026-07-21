@@ -18,6 +18,7 @@
   "localeZh": "中",
   "localeEn": "EN",
   "update": "Update",
+  "updateNotReady": "App updates are not available yet — coming soon",
   "multiAgent": "Jingling",
   "settings": "Settings"
 }

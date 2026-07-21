@@ -15,6 +15,7 @@ import { AgentComposer, type AgentMentionOption } from "@/components/ai/AgentCom
 import { AgentMessageList } from "@/components/ai/AgentMessageList";
 import { AgentCatalogPanel } from "@/components/ai/AgentCatalogPanel";
 import { MultiAgentSidebar } from "@/components/agent/MultiAgentSidebar";
+import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import {
   appendAgentMentionMarkup,
   agentProjectMentionId,
@@ -28,6 +29,7 @@ import {
   upsertChatConversation,
 } from "@/services/ai/ai.chatPersist";
 import { streamJinglingReply } from "@/services/ai";
+import { toastAiFailure } from "@/services/ai/ai.httpError";
 import { listAllGitAuthorsForMatching } from "@/services/git/git.accounts";
 import {
   disableAgentPlugin,
@@ -78,6 +80,7 @@ const COMPOSER_PAD_FALLBACK_PX = 140;
 /** 多仓鲸灵子窗主界面：画像加载 + 对话（AgentHost = global） */
 export function MultiAgentWorkspace() {
   const { t } = useTranslation();
+  const hasApiKey = useHasAgentApiKey();
   const composerRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const replyAbortRef = useRef<AbortController | null>(null);
@@ -620,7 +623,7 @@ export function MultiAgentWorkspace() {
         }
       } else {
         removeMessage(assistantId);
-        toast.error(toUserMessage(error) || t("multiAgent.replyFailed"));
+        toastAiFailure(error, t("multiAgent.replyFailed"));
       }
     } finally {
       if (replyAbortRef.current === controller) {
@@ -972,7 +975,7 @@ export function MultiAgentWorkspace() {
         createdAt: new Date().toISOString(),
       });
       if (!controller.signal.aborted) {
-        toast.error(toUserMessage(error) || t("multiAgent.replyFailed"));
+        toastAiFailure(error, t("multiAgent.replyFailed"));
       }
     } finally {
       if (replyAbortRef.current === controller) {
@@ -1088,7 +1091,7 @@ export function MultiAgentWorkspace() {
               conversationId={activeConversationId ?? "agent-global"}
               composerPadPx={composerPadPx}
               onCompareBranches={() => undefined}
-              actionsDisabled={isReplying || profilesLoading}
+              actionsDisabled={isReplying || profilesLoading || !hasApiKey}
               emptyTitle={t("multiAgent.emptyState")}
               emptyDescription={t("multiAgent.emptyStateDescription")}
               onRegenerateLast={() => {

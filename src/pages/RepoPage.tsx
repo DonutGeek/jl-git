@@ -22,6 +22,7 @@ import { CommitBox } from "@/components/git/CommitBox";
 import { FileTree } from "@/components/git/FileTree";
 import { HistoryWorkspace } from "@/components/git/HistoryWorkspace";
 import { WorkspaceBrowser } from "@/components/git/WorkspaceBrowser";
+import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import { cn } from "@/lib/utils";
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
@@ -105,6 +106,14 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
   const [visitedViews, setVisitedViews] = useState<ReadonlySet<RepoMainView>>(
     () => new Set<RepoMainView>(["changes"]),
   );
+  const hasApiKey = useHasAgentApiKey();
+
+  // 无 API Key 时不可停留在鲸灵侧栏
+  useEffect(() => {
+    if (!hasApiKey && sidebarView === "agent") {
+      setSidebarView("branches");
+    }
+  }, [hasApiKey, sidebarView]);
 
   // 换仓：本帧只换工具栏元数据，不碰 Git store（避免点击同步重渲）
   if (projectId !== routeProjectId) {

@@ -1,4 +1,5 @@
 import { getAgentKey } from "@/services/ai/ai.settings";
+import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
 
 import i18n from "@/i18n";
 import type { AppError } from "@/types/error";
@@ -6,6 +7,7 @@ import { isRecord } from "@/types/error";
 
 const DEEPSEEK_BALANCE_URL = "https://api.deepseek.com/user/balance";
 const DEEPSEEK_TOP_UP_URL = "https://platform.deepseek.com/top_up";
+const DEEPSEEK_API_KEYS_URL = "https://platform.deepseek.com/api_keys";
 /** 余额 API 官方文档 */
 const DEEPSEEK_BALANCE_DOCS_URL =
   "https://api-docs.deepseek.com/zh-cn/api/get-user-balance";
@@ -27,6 +29,11 @@ export interface DeepSeekBalanceResult {
 
 export function getDeepSeekTopUpUrl(): string {
   return DEEPSEEK_TOP_UP_URL;
+}
+
+/** DeepSeek 控制台：创建 / 管理 API Key */
+export function getDeepSeekApiKeysUrl(): string {
+  return DEEPSEEK_API_KEYS_URL;
 }
 
 export function getDeepSeekBalanceDocsUrl(): string {
@@ -57,9 +64,10 @@ export async function fetchDeepSeekBalance(): Promise<DeepSeekBalanceResult> {
 
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
-      throw appError(
-        response.status === 401 || response.status === 403 ? "VALIDATION" : "INTERNAL",
-        readErrorMessage(payload) ?? i18n.t("settings.balanceFetchFailed"),
+      throw mapDeepSeekHttpError(
+        response.status,
+        payload,
+        i18n.t("settings.balanceFetchFailed"),
       );
     }
 
@@ -123,20 +131,6 @@ function readBalanceString(value: unknown): string {
     return String(value);
   }
   return "0";
-}
-
-function readErrorMessage(payload: unknown): string | null {
-  if (!isRecord(payload)) {
-    return null;
-  }
-  const error = payload.error;
-  if (isRecord(error) && typeof error.message === "string" && error.message.trim()) {
-    return error.message.trim();
-  }
-  if (typeof payload.message === "string" && payload.message.trim()) {
-    return payload.message.trim();
-  }
-  return null;
 }
 
 function appError(code: AppError["code"], message: string): AppError {

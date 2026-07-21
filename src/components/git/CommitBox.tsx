@@ -11,9 +11,10 @@ import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import { cn } from "@/lib/utils";
 
-import { AI_API_KEYS_CHANGED_EVENT, generateCommitMessage, getAgentKey } from "@/services/ai";
+import { generateCommitMessage, toastAiFailure } from "@/services/ai";
 import { getCommitMessage } from "@/services/git";
 import { useAppPrefsStore } from "@/store/useAppPrefsStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
@@ -99,7 +100,7 @@ export function CommitBox() {
   const [pushAfterCommit, setPushAfterCommit] = useState(defaultPushAfterCommit);
   const [busy, setBusy] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [hasApiKey, setHasApiKey] = useState(false);
+  const hasApiKey = useHasAgentApiKey();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPosition, setHistoryPosition] = useState({
     left: 0,
@@ -112,35 +113,6 @@ export function CommitBox() {
   useEffect(() => {
     setPushAfterCommit(defaultPushAfterCommit);
   }, [defaultPushAfterCommit]);
-
-  // 检测是否已配置并启用 API Key（设置变更 / 窗口 focus 时刷新）
-  useEffect(() => {
-    let cancelled = false;
-
-    async function refreshApiKey(): Promise<void> {
-      try {
-        const key = await getAgentKey();
-        if (!cancelled) {
-          setHasApiKey(Boolean(key));
-        }
-      } catch {
-        if (!cancelled) {
-          setHasApiKey(false);
-        }
-      }
-    }
-
-    void refreshApiKey();
-    const onFocus = () => void refreshApiKey();
-    const onKeysChanged = () => void refreshApiKey();
-    window.addEventListener("focus", onFocus);
-    window.addEventListener(AI_API_KEYS_CHANGED_EVENT, onKeysChanged);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener(AI_API_KEYS_CHANGED_EVENT, onKeysChanged);
-    };
-  }, []);
 
   const demotedSet = useMemo(
     () => new Set(demotedConflictPaths),
@@ -343,7 +315,7 @@ export function CommitBox() {
       toast.success(t("repo.aiCommitGenerated"));
       messageInputRef.current?.focus();
     } catch (error) {
-      toast.error(toUserMessage(error));
+      toastAiFailure(error, t("ai.errors.requestFailed"));
     } finally {
       setIsGenerating(false);
       setBusy(false);
@@ -452,7 +424,7 @@ export function CommitBox() {
                 className="h-7 gap-1 px-2 text-xs"
                 aria-label={
                   !hasApiKey
-                    ? t("repo.generateCommitMessageNoApiKey")
+                    ? t("common.aiApiKeyRequired")
                     : isGenerating
                       ? t("repo.generatingCommitMessage")
                       : t("repo.generateCommitMessage")
@@ -471,7 +443,7 @@ export function CommitBox() {
           </TooltipTrigger>
           <TooltipContent>
             {!hasApiKey
-              ? t("repo.generateCommitMessageNoApiKey")
+              ? t("common.aiApiKeyRequired")
               : isGenerating
                 ? t("repo.generatingCommitMessage")
                 : t("repo.generateCommitMessage")}

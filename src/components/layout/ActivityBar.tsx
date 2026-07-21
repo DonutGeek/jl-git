@@ -7,6 +7,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import { cn } from "@/lib/utils";
 
 import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
@@ -36,6 +37,7 @@ export function ActivityBar({ active, onChange }: ActivityBarProps) {
   const { t } = useTranslation();
   const openDrawer = useSettingsDrawerStore((state) => state.openDrawer);
   const settingsOpen = useSettingsDrawerStore((state) => state.open);
+  const hasApiKey = useHasAgentApiKey();
 
   return (
     <nav
@@ -46,29 +48,34 @@ export function ActivityBar({ active, onChange }: ActivityBarProps) {
         const Icon = item.icon;
         const isActive = item.id === active;
         const label = t(item.labelKey);
+        const agentLocked = item.id === "agent" && !hasApiKey;
+        const tip = agentLocked ? t("common.aiApiKeyRequired") : label;
 
         return (
           <Tooltip key={item.id} delayDuration={300}>
             <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "size-8 transition-colors",
-                  isActive
-                    ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                    : "text-muted-foreground",
-                )}
-                aria-label={label}
-                aria-pressed={isActive}
-                onClick={() => onChange(item.id)}
-              >
-                <Icon className="size-4" aria-hidden="true" />
-              </Button>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "size-8 transition-colors",
+                    isActive
+                      ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                      : "text-muted-foreground",
+                  )}
+                  aria-label={tip}
+                  aria-pressed={isActive}
+                  disabled={agentLocked}
+                  onClick={() => onChange(item.id)}
+                >
+                  <Icon className="size-4" aria-hidden="true" />
+                </Button>
+              </span>
             </TooltipTrigger>
             <TooltipContent side="right" sideOffset={8}>
-              {label}
+              {tip}
             </TooltipContent>
           </Tooltip>
         );
