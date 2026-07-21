@@ -863,6 +863,10 @@ export function HistoryList() {
           ? t("repo.historyDate30d")
           : t("repo.historyDate90d");
 
+  // absolute 行不受 padding 约束；用 left/right 避开图谱列与左右留白
+  const commitRowLeft = HISTORY_EDGE_GAP_PX + graphWidth + HISTORY_EDGE_GAP_PX;
+  const commitRowRight = HISTORY_EDGE_GAP_PX + 4;
+
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       {/* 筛选条：左=范围+搜索+用户/日期；右=排序/更多 */}
@@ -1297,10 +1301,6 @@ export function HistoryList() {
             className="relative w-full min-w-0"
             style={{
               height: `${commitVirtualizer.getTotalSize()}px`,
-              // 左边距 + 图谱列 + 间隙 | 行 | 右侧留白（对齐参考图 hash 列）
-              paddingLeft: HISTORY_EDGE_GAP_PX + graphWidth + HISTORY_EDGE_GAP_PX,
-              // 右侧略留，保证 7 位 hash 与悬停下划线不被视口裁切
-              paddingRight: HISTORY_EDGE_GAP_PX + 4,
             }}
             role="listbox"
             aria-label={t("repo.history")}
@@ -1330,10 +1330,12 @@ export function HistoryList() {
                   expandBranchNames={viewPrefs.expandBranchNames}
                   branchOnLeft={viewPrefs.branchOnLeft}
                   onSelect={handleSelectCommit}
-                  className="absolute top-0 left-0 w-full min-w-0"
+                  className="absolute top-0 min-w-0"
                   style={{
                     height: `${virtualItem.size}px`,
                     transform: `translateY(${virtualItem.start}px)`,
+                    left: commitRowLeft,
+                    right: commitRowRight,
                   }}
                 />
               );
@@ -1428,7 +1430,8 @@ export function HistoryList() {
             aria-valuenow={Math.round(graphWidth)}
             tabIndex={0}
             className={cn(
-              "absolute inset-y-0 z-20 w-1.5 cursor-col-resize bg-transparent",
+              // 与 SplitPane 一致：分隔槽铺底，避免选中行从线左侧透出
+              "absolute inset-y-0 z-20 w-1.5 cursor-col-resize bg-background",
               "before:bg-border before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:transition-[background-color,width]",
               "after:absolute after:inset-y-0 after:left-1/2 after:w-3 after:-translate-x-1/2",
               "hover:before:bg-primary hover:before:w-0.5",

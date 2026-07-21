@@ -505,19 +505,22 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
 
       <div className="bg-border h-6 w-px shrink-0" aria-hidden="true" />
 
-      {/* 分支：无「分支」小字；宽度随内容，上限截断；轻边框无重阴影 */}
+      {/* 分支：固定宽度 + truncate，避免短/长分支名切换时工具栏抖动 */}
       <DropdownMenu open={branchMenuOpen} onOpenChange={setBranchMenuOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
             variant="ghost"
-            className="border-border h-8 w-auto max-w-60 gap-1.5 border px-2.5 shadow-none"
+            className="border-border h-8 w-40 shrink-0 justify-start gap-1.5 border px-2.5 shadow-none"
             style={noDragStyle}
             disabled={checkingOut || loading}
             aria-label={t("repo.branchLabel")}
+            title={branchLabel}
           >
             <GitBranchIcon className="size-3.5 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 truncate text-sm font-medium">{branchLabel}</span>
+            <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">
+              {branchLabel}
+            </span>
             <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>

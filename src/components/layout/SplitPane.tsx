@@ -267,7 +267,8 @@ export function SplitPane({
         aria-orientation={isHorizontal ? "vertical" : "horizontal"}
         tabIndex={0}
         className={cn(
-          "relative shrink-0 bg-transparent",
+          // 分隔槽铺底，避免邻栏选中/背景从透明 6px 缝里透出
+          "relative shrink-0 bg-background",
           isHorizontal ? "w-1.5 cursor-col-resize" : "h-1.5 cursor-row-resize",
           "before:bg-border before:absolute before:transition-[background-color,width,height]",
           isHorizontal
