@@ -25,6 +25,7 @@ import { toUserMessage } from "@/types/error";
 import type { GitBranch } from "@/types/git";
 import type { Project } from "@/types/project";
 import { isBranchActive } from "@/utils/branchActivity";
+import { deferUi } from "@/utils/deferUi";
 
 type ScopeFilter = "local" | "remote";
 type ActivityFilter = "all" | "active" | "inactive";
@@ -183,9 +184,11 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
     if (branch.isRemote || branch.isCurrent) {
       return;
     }
-    setDeleteTarget(branch);
-    setDeleteRemoteAlso(false);
-    setDeleteBusy(false);
+    deferUi(() => {
+      setDeleteTarget(branch);
+      setDeleteRemoteAlso(false);
+      setDeleteBusy(false);
+    });
   }
 
   async function confirmDelete(): Promise<void> {

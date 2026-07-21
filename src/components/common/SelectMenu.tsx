@@ -79,12 +79,13 @@ export function SelectMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
+        // 禁止 Content 自身滚动，交由内部 ScrollArea，避免长列表撑满屏却无滚动条
         className={cn(
-          "min-w-[var(--radix-dropdown-menu-trigger-width)] p-0",
+          "max-h-[min(16rem,var(--radix-dropdown-menu-content-available-height))] min-w-[var(--radix-dropdown-menu-trigger-width)] overflow-hidden p-0",
           contentClassName,
         )}
       >
-        <ScrollArea className="max-h-64">
+        <ScrollArea className="h-full max-h-[min(16rem,var(--radix-dropdown-menu-content-available-height))]">
           <div className="p-1">
             {options.map((option) => {
               const selected = option.value === value;

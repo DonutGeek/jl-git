@@ -56,6 +56,7 @@ import {
   type BranchListPrefs,
 } from "@/utils/branchListPrefs";
 import { copyToClipboard } from "@/utils/clipboard";
+import { deferUi } from "@/utils/deferUi";
 import { buildBranchTree } from "@/utils/branchTree";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
 
@@ -286,9 +287,12 @@ export function BranchList() {
   }
 
   function openDelete(branch: GitBranch): void {
-    setDeleteTarget(branch);
-    setDeleteRemoteAlso(false);
-    setDeleteBusy(false);
+    // 等右键菜单卸载后再开确认框，避免焦点冲突导致无二次确认
+    deferUi(() => {
+      setDeleteTarget(branch);
+      setDeleteRemoteAlso(false);
+      setDeleteBusy(false);
+    });
   }
 
   function openMerge(branch: GitBranch): void {

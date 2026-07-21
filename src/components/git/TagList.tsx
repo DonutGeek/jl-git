@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import {
   Copy,
   GitBranch as GitBranchIcon,
@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Tag,
   Trash2,
+  TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,6 +25,13 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -35,6 +43,7 @@ import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { GitTag } from "@/types/git";
 import { copyToClipboard } from "@/utils/clipboard";
+import { deferUi } from "@/utils/deferUi";
 import {
   filterAndSortTags,
   patchTagListPrefs,
@@ -65,6 +74,8 @@ export function TagList({ onSelectTag }: TagListProps) {
   const [creatingTag, setCreatingTag] = useState(false);
   const [createTagFrom, setCreateTagFrom] = useState<string | null>(null);
   const [createBranchFrom, setCreateBranchFrom] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [busyName, setBusyName] = useState<string | null>(null);
 
   const filtered = useMemo(
@@ -107,17 +118,29 @@ export function TagList({ onSelectTag }: TagListProps) {
     }
   }
 
-  async function remove(name: string): Promise<void> {
-    if (!window.confirm(t("repo.deleteTagQuestion", { name }))) {
+  function openDelete(name: string): void {
+    // 等右键菜单卸载后再开确认框，避免焦点冲突
+    deferUi(() => {
+      setDeleteTarget(name);
+      setDeleteBusy(false);
+    });
+  }
+
+  async function confirmDelete(): Promise<void> {
+    if (!deleteTarget || deleteBusy) {
       return;
     }
+    const name = deleteTarget;
+    setDeleteBusy(true);
     setBusyName(name);
     try {
       await deleteTag(name);
+      setDeleteTarget(null);
       toast.success(t("repo.deleteTagSuccess", { name }));
     } catch (error) {
       toast.error(toUserMessage(error));
     } finally {
+      setDeleteBusy(false);
       setBusyName(null);
     }
   }
@@ -243,13 +266,17 @@ export function TagList({ onSelectTag }: TagListProps) {
                     busy={busyName === tag.name}
                     onSelect={() => void select(tag.name)}
                     onCheckout={() => void checkoutTag(tag.name)}
-                    onCreateBranch={() => setCreateBranchFrom(tag.name)}
-                    onCreateTag={() => {
-                      setCreateTagFrom(tag.name);
-                      setCreatingTag(true);
-                    }}
+                    onCreateBranch={() =>
+                      deferUi(() => setCreateBranchFrom(tag.name))
+                    }
+                    onCreateTag={() =>
+                      deferUi(() => {
+                        setCreateTagFrom(tag.name);
+                        setCreatingTag(true);
+                      })
+                    }
                     onCopyName={() => void copyName(tag.name)}
-                    onDelete={() => void remove(tag.name)}
+                    onDelete={() => openDelete(tag.name)}
                   />
                 </div>
               );
@@ -279,6 +306,59 @@ export function TagList({ onSelectTag }: TagListProps) {
         fixedStartPoint={createBranchFrom}
         fixedStartIsTag
       />
+
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open && !deleteBusy) {
+            setDeleteTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md gap-4 p-5 sm:rounded-lg">
+          <DialogHeader>
+            <DialogTitle>{t("repo.deleteTagTitle")}</DialogTitle>
+          </DialogHeader>
+          <div className="flex gap-3">
+            <TriangleAlert
+              className="text-chart-4 mt-0.5 size-5 shrink-0"
+              aria-hidden="true"
+            />
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="text-foreground text-sm">
+                <Trans
+                  i18nKey="repo.deleteTagQuestion"
+                  values={{ name: deleteTarget ?? "" }}
+                  components={{
+                    name: <span className="font-mono font-medium" />,
+                  }}
+                />
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {t("repo.deleteTagIrreversible")}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deleteBusy}
+              onClick={() => setDeleteTarget(null)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteBusy}
+              onClick={() => void confirmDelete()}
+            >
+              {t("repo.deleteTagAction")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
