@@ -1,14 +1,14 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
 
-import type { JinglvIdentity } from "@/types/jinglv";
+import type { AgentIdentity } from "@/types/agent";
 import { isRecord } from "@/types/error";
 
-const STORE_FILE = "jinglv.json";
-/** 旧版简历帮 Store，读取后迁移到 jinglv.json */
-const LEGACY_STORE_FILE = "resume-helper.json";
+const STORE_FILE = "agent-identity.json";
+/** 旧版 Store 文件，按顺序读取后迁移到 agent-identity.json */
+const LEGACY_STORE_FILES = ["jinglv.json", "resume-helper.json"];
 const IDENTITY_KEY = "identity";
 
-const EMPTY_IDENTITY: JinglvIdentity = {
+const EMPTY_IDENTITY: AgentIdentity = {
   displayName: "",
   phone: "",
   email: "",
@@ -33,32 +33,35 @@ async function migrateLegacyStoreIfNeeded(store: LazyStore): Promise<void> {
   if (isRecord(existing)) {
     return;
   }
-  try {
-    const legacy = new LazyStore(LEGACY_STORE_FILE);
-    const saved = await legacy.get<unknown>(IDENTITY_KEY);
-    if (!isRecord(saved)) {
+  for (const legacyFile of LEGACY_STORE_FILES) {
+    try {
+      const legacy = new LazyStore(legacyFile);
+      const saved = await legacy.get<unknown>(IDENTITY_KEY);
+      if (!isRecord(saved)) {
+        continue;
+      }
+      const next = normalizeIdentity(saved);
+      await store.set(IDENTITY_KEY, next);
+      await store.save();
       return;
+    } catch {
+      // 旧文件不存在或不可读时尝试下一个
     }
-    const next = normalizeIdentity(saved);
-    await store.set(IDENTITY_KEY, next);
-    await store.save();
-  } catch {
-    // 旧文件不存在或不可读时忽略
   }
 }
 
-/** 读取鲸履联系信息（Git 账号见 settings → Git）。 */
-export async function getJinglvIdentity(): Promise<JinglvIdentity> {
+/** 读取简历插件联系信息（Git 账号见 settings → Git）。 */
+export async function getAgentIdentity(): Promise<AgentIdentity> {
   const store = await getStore();
   await migrateLegacyStoreIfNeeded(store);
   const saved = await store.get<unknown>(IDENTITY_KEY);
   return normalizeIdentity(saved);
 }
 
-/** 保存鲸履联系信息。 */
-export async function setJinglvIdentity(
-  identity: JinglvIdentity,
-): Promise<JinglvIdentity> {
+/** 保存简历插件联系信息。 */
+export async function setAgentIdentity(
+  identity: AgentIdentity,
+): Promise<AgentIdentity> {
   const next = normalizeIdentity(identity);
   const store = await getStore();
   await migrateLegacyStoreIfNeeded(store);
@@ -67,11 +70,11 @@ export async function setJinglvIdentity(
   return next;
 }
 
-export function emptyJinglvIdentity(): JinglvIdentity {
+export function emptyAgentIdentity(): AgentIdentity {
   return { ...EMPTY_IDENTITY };
 }
 
-function normalizeIdentity(value: unknown): JinglvIdentity {
+function normalizeIdentity(value: unknown): AgentIdentity {
   if (!isRecord(value)) {
     return { ...EMPTY_IDENTITY };
   }

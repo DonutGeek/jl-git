@@ -21,6 +21,15 @@ JLGit 是基于 **Tauri 2 + React + TypeScript** 的现代 Git 桌面客户端�
 
 完整愿景与阶段见 [docs/product/roadmap.md](docs/product/roadmap.md)。
 
+### 鲸灵宿主（对内术语）
+
+| 说法 | 含义 |
+|------|------|
+| **单仓鲸灵** | 主窗；仅当前项目上下文（`host: "project"`） |
+| **多仓鲸灵** | 子窗；可访问已登记多仓，首期只读画像 + 插件（`host: "global"`） |
+
+二者是**同一套 Agent**，产品名都叫鲸灵；简历是插件之一。详见 [统一鲸灵设计](docs/superpowers/specs/2026-07-21-unified-jingling-agent-design.md) 与 [product/ai](docs/product/ai.md)。
+
 ---
 
 ## 2. 技术栈
@@ -31,7 +40,7 @@ JLGit 是基于 **Tauri 2 + React + TypeScript** 的现代 Git 桌面客户端�
 | UI | React 19 + TypeScript（strict） | 函数组件 + Hooks |
 | 构建 | Vite | 前端打包 |
 | 样式 | Tailwind CSS 4 + CSS Variables | 禁止硬编码颜色 |
-| 组件 | [shadcn/ui](https://ui.shadcn.com/) + lucide-react | 按需 `pnpm dlx shadcn@latest add <name>` 引入官方组件；**UI 图标**仅 lucide。工作区文件/目录类型图标例外：用 [material-icon-theme](https://www.npmjs.com/package/material-icon-theme)（VS Code Material Icon Theme 同源）。**面板主滚动**必须用 `@/components/ui/scroll-area`（见 §15）。细则见 [ui-guidelines](docs/development/ui-guidelines.md) |
+| 组件 | [shadcn/ui](https://ui.shadcn.com/) + lucide-react | **仅**经官方 CLI `pnpm dlx shadcn@latest add <name>`（更新用 `--overwrite`）写入 `src/components/ui/`；**禁止**人工修改该目录任何文件。业务只组合引用。**UI 图标**仅 lucide；工作区文件类型图标例外：`material-icon-theme`。**面板主滚动**必须用 `@/components/ui/scroll-area`（见 §15）。细则见 [ui-guidelines](docs/development/ui-guidelines.md) |
 | 状态 | Zustand | 唯一全局状态方案 |
 | 路由 | React Router | 见 routing 文档 |
 | 表单 | React Hook Form + Zod | 校验与提交 |
@@ -218,6 +227,7 @@ Local State → Zustand → SQLite
 - 颜色 / 圆角 / 阴影只用 Design Tokens（CSS Variables）
 - 必须支持 Light / Dark
 - 图标：UI 仅 `lucide-react`；工作区文件类型图标用 `material-icon-theme`（禁止再用 lucide 冒充文件类型）
+- **`src/components/ui/`（硬性）**：只允许 shadcn **官方 CLI** 引入或覆盖生成；**永远不要**手工编辑、局部打补丁或在该目录新增非官方文件。业务组件放 `components/common` / 各域目录，**组合** `@/components/ui/*`，不复制、不改写 ui 源码
 - **滚动区域（硬性）**：面板 / 列表 / 侧栏等**主滚动容器**必须使用 shadcn `@/components/ui/scroll-area`；**禁止**以裸 `overflow-auto` / `overflow-x-auto` / `overflow-y-auto` 作为交付用的主滚动方案（调试对照除外）。滚动条默认悬停/滚动时显示（不设 `type="always"`）。大列表另须虚拟滚动，见 §16 与 [performance](docs/development/performance.md)。细则见 [ui-guidelines](docs/development/ui-guidelines.md)
 
 详见：[docs/development/theme.md](docs/development/theme.md)、[docs/development/ui-guidelines.md](docs/development/ui-guidelines.md)
@@ -315,6 +325,7 @@ AI 修改代码时必须：
 10. 涉及 Git/FS/安全时先读 security 与 git 架构文档
 11. **写完必须自检**（见 [quality](docs/development/quality.md)）：至少 `tsc` + 相关冒烟；不得把 S0/S1 留给用户发现
 12. 向用户声称完成前，按 quality 文档的 Bug 级别自查；已知未修问题须标明级别
+13. **禁止**编辑 `src/components/ui/`；缺组件时只走官方 `pnpm dlx shadcn@latest add <name>`（见 §15 / Never Rules）
 
 ---
 
@@ -351,6 +362,7 @@ AI 修改代码时必须：
 11. 带着 **S0/S1**（崩溃、无限重渲染、核心路径不可用）声称完成或请用户验收
 12. 只跑类型检查、不跑与改动相关的运行时冒烟就交付
 13. 用裸 `overflow-*-auto` 替代 shadcn `ScrollArea` 作为面板主滚动交付方案
+14. **手工修改** `src/components/ui/` 下任何文件（含「顺手修样式」）；该目录只允许官方 `pnpm dlx shadcn@latest add …` 引入/覆盖
 
 ---
 
@@ -380,7 +392,8 @@ AI 修改代码时必须：
 | [product/feature-list](docs/product/feature-list.md) | 功能状态 |
 | [product/roadmap](docs/product/roadmap.md) | 路线图 |
 | [product/releases](docs/product/releases.md) | 发布规范 |
-| [product/ai](docs/product/ai.md) | AI 能力 |
+| [product/ai](docs/product/ai.md) | AI 能力（单仓/多仓鲸灵） |
+| [统一鲸灵设计](docs/superpowers/specs/2026-07-21-unified-jingling-agent-design.md) | AgentHost、插件壳、会话分桶 |
 | [api/project](docs/api/project.md) | ProjectService |
 | [api/git](docs/api/git.md) | GitService |
 | [api/settings](docs/api/settings.md) | SettingsService |

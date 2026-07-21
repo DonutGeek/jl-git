@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dayjs from "dayjs";
 import { LoaderCircle, Pencil, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { AgentChatMessage } from "@/types/ai";
+import { scheduleFocusInputCaretAtEnd } from "@/utils/focusInputCaretAtEnd";
 
 interface AgentMessageItemProps {
   message: AgentChatMessage;
@@ -22,8 +23,12 @@ interface AgentMessageItemProps {
   canRegenerate?: boolean;
   /** 用户消息可内联修改后截断重发 */
   canEdit?: boolean;
+  /** 由列表统一控制：同一时间仅一条处于编辑 */
+  isEditing?: boolean;
   actionsDisabled?: boolean;
   onRegenerate?: () => void;
+  onStartEdit?: () => void;
+  onCancelEdit?: () => void;
   onEditSubmit?: (content: string) => void;
 }
 
@@ -45,14 +50,17 @@ export function AgentMessageItem({
   onCompareBranches,
   canRegenerate = false,
   canEdit = false,
+  isEditing = false,
   actionsDisabled = false,
   onRegenerate,
+  onStartEdit,
+  onCancelEdit,
   onEditSubmit,
 }: AgentMessageItemProps) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
-  const [isEditing, setIsEditing] = useState(false);
   const [editDraft, setEditDraft] = useState(message.content);
+  const editInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!isEditing) {
@@ -60,9 +68,17 @@ export function AgentMessageItem({
     }
   }, [message.content, isEditing]);
 
+  useEffect(() => {
+    if (!isEditing) {
+      return;
+    }
+    setEditDraft(message.content);
+    scheduleFocusInputCaretAtEnd(() => editInputRef.current);
+  }, [isEditing, message.content]);
+
   function cancelEdit(): void {
     setEditDraft(message.content);
-    setIsEditing(false);
+    onCancelEdit?.();
   }
 
   function submitEdit(): void {
@@ -72,7 +88,7 @@ export function AgentMessageItem({
     }
     // 先提交再关编辑，避免虚拟列表在截断前先闪回旧气泡
     onEditSubmit?.(next);
-    setIsEditing(false);
+    onCancelEdit?.();
   }
 
   const showFooter =
@@ -89,12 +105,12 @@ export function AgentMessageItem({
           )}
         >
           <textarea
+            ref={editInputRef}
             value={editDraft}
             onChange={(event) => setEditDraft(event.target.value)}
             rows={Math.min(8, Math.max(2, editDraft.split("\n").length))}
             className="placeholder:text-muted-foreground field-sizing-content max-h-48 w-full resize-none border-0 bg-transparent text-xs leading-relaxed outline-none"
             aria-label={t("agent.editMessage")}
-            autoFocus
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 event.preventDefault();
@@ -188,7 +204,7 @@ export function AgentMessageItem({
                   className="text-muted-foreground hover:text-foreground inline-flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
                   aria-label={t("agent.editMessage")}
                   disabled={actionsDisabled}
-                  onClick={() => setIsEditing(true)}
+                  onClick={() => onStartEdit?.()}
                 >
                   <Pencil className="size-3" strokeWidth={1.75} aria-hidden="true" />
                 </button>

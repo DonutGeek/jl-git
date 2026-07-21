@@ -1,7 +1,8 @@
 import { invokeCommand } from "@/services/invoke";
-import type { AgentBranchMention, AgentChatMessage, AgentConversation } from "@/types/ai";
+import type { AgentChatMessage, AgentConversation, AgentMention } from "@/types/ai";
+import { isRecord } from "@/types/error";
 
-export type ChatScope = "agent" | "jinglv";
+export type ChatScope = "agent" | "agent_global";
 
 interface PersistedChatMessage {
   id: string;
@@ -26,7 +27,7 @@ interface PersistedChatConversation {
 }
 
 function mentionsToJson(
-  mentions: readonly AgentBranchMention[] | undefined,
+  mentions: readonly AgentMention[] | undefined,
 ): string | null {
   if (!mentions || mentions.length === 0) {
     return null;
@@ -36,7 +37,7 @@ function mentionsToJson(
 
 function mentionsFromJson(
   value: string | null | undefined,
-): readonly AgentBranchMention[] | undefined {
+): readonly AgentMention[] | undefined {
   if (!value?.trim()) {
     return undefined;
   }
@@ -45,19 +46,24 @@ function mentionsFromJson(
     if (!Array.isArray(parsed)) {
       return undefined;
     }
-    const mentions: AgentBranchMention[] = [];
+    const mentions: AgentMention[] = [];
     for (const item of parsed) {
+      if (!isRecord(item) || typeof item.name !== "string") {
+        continue;
+      }
+      if (item.type === "branch") {
+        mentions.push({ type: "branch", name: item.name });
+        continue;
+      }
       if (
-        item &&
-        typeof item === "object" &&
-        "type" in item &&
-        "name" in item &&
-        (item as { type: unknown }).type === "branch" &&
-        typeof (item as { name: unknown }).name === "string"
+        (item.type === "plugin" || item.type === "project") &&
+        typeof item.id === "string" &&
+        item.id.trim()
       ) {
         mentions.push({
-          type: "branch",
-          name: (item as { name: string }).name,
+          type: item.type,
+          id: item.id,
+          name: item.name,
         });
       }
     }

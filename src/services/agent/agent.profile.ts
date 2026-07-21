@@ -9,13 +9,13 @@ import {
   extractTechFromPackageJson,
   filterTechByAuthorUsage,
   mergePackageTech,
-} from "@/services/jinglv/jinglv.techStack";
+} from "@/services/agent/agent.techStack";
 import type { Project } from "@/types/project";
 import type {
   ResumeCommitChangedFile,
   ResumeCommitSample,
-  JinglvProjectProfile,
-} from "@/types/jinglv";
+  AgentProjectProfile,
+} from "@/types/agent";
 
 /** git_log 单次硬上限 200 */
 const LOG_PAGE_SIZE = 200;
@@ -66,7 +66,7 @@ const FALLBACK_TECH_FILES: ReadonlyArray<{ file: string; hint: string }> = [
   { file: "tauri.conf.json", hint: "Tauri" },
 ];
 
-export interface JinglvAuthorFilter {
+export interface AgentAuthorFilter {
   name: string;
   email: string;
 }
@@ -76,12 +76,12 @@ export interface JinglvAuthorFilter {
  * 已配置作者时：`git log --author` 尽量全量拉取；发送前再时间分桶。
  * 未配置时：近期窗口抽样（兼容旧行为）。
  */
-export async function buildJinglvProfiles(
+export async function buildAgentProfiles(
   projects: readonly Project[],
-  authors: readonly JinglvAuthorFilter[] = [],
-): Promise<JinglvProjectProfile[]> {
+  authors: readonly AgentAuthorFilter[] = [],
+): Promise<AgentProjectProfile[]> {
   const authorPatterns = toGitAuthorPatterns(authors);
-  const results: JinglvProjectProfile[] = new Array(projects.length);
+  const results: AgentProjectProfile[] = new Array(projects.length);
   let cursor = 0;
 
   async function worker(): Promise<void> {
@@ -102,55 +102,84 @@ export async function buildJinglvProfiles(
   return results;
 }
 
-/**
- * 按多个 Git 作者过滤各仓提交摘要（命中任一账号即保留）。
- * 已配置作者时：无匹配提交的仓库直接丢弃，不进入简历上下文。
- */
-export function filterProfilesByAuthor(
-  profiles: readonly JinglvProjectProfile[],
-  authors: readonly JinglvAuthorFilter[],
-): JinglvProjectProfile[] {
-  const filters = authors
+function normalizeAuthorFilters(
+  authors: readonly AgentAuthorFilter[],
+): ReadonlyArray<{ name: string; email: string }> {
+  return authors
     .map((author) => ({
       name: author.name.trim().toLowerCase(),
       email: author.email.trim().toLowerCase(),
     }))
     .filter((author) => author.name || author.email);
+}
 
-  if (filters.length === 0) {
-    // 未配置作者时仍只保留有抽样提交的仓，避免空仓进成稿
-    return profiles
-      .filter((profile) => !profile.error && profile.recentCommits.length > 0)
-      .map((profile) => {
-        const sampled = selectTimeBucketedCommits(
-          profile.recentCommits,
-          AUTHOR_COMMIT_LIMIT,
-        );
-        // 周期用全量抽样窗口，不被分桶截断
+/**
+ * 按多个 Git 作者过滤各仓提交摘要（命中任一账号即保留）。
+ * 已配置作者时：无匹配提交的仓库直接丢弃（用于串行成稿等需证据的路径）。
+ */
+export function filterProfilesByAuthor(
+  profiles: readonly AgentProjectProfile[],
+  authors: readonly AgentAuthorFilter[],
+): AgentProjectProfile[] {
+  return prepareProfilesForAgentContext(profiles, authors).filter(
+    (profile) =>
+      !profile.error && profile.recentCommits.length > 0,
+  );
+}
+
+/**
+ * 多仓对话上下文：保留全部已登记仓库，不因「无本人提交」丢弃。
+ * 提交摘要仍按 Git 作者收窄（可为空），供列举项目与按需成稿。
+ */
+export function prepareProfilesForAgentContext(
+  profiles: readonly AgentProjectProfile[],
+  authors: readonly AgentAuthorFilter[],
+): AgentProjectProfile[] {
+  const filters = normalizeAuthorFilters(authors);
+
+  return profiles.map((profile) => {
+    if (profile.error) {
+      return profile;
+    }
+
+    if (filters.length === 0) {
+      if (profile.recentCommits.length === 0) {
         return {
           ...profile,
-          recentCommits: sampled,
-          sampledCommitCount: sampled.length,
-          firstCommitAt: earliestAuthoredAt(profile.recentCommits),
-          lastCommitAt: latestAuthoredAt(profile.recentCommits),
+          recentCommits: [],
+          sampledCommitCount: 0,
+          firstCommitAt: null,
+          lastCommitAt: null,
         };
-      });
-  }
-
-  const next: JinglvProjectProfile[] = [];
-  for (const profile of profiles) {
-    if (profile.error) {
-      continue;
+      }
+      const sampled = selectTimeBucketedCommits(
+        profile.recentCommits,
+        AUTHOR_COMMIT_LIMIT,
+      );
+      return {
+        ...profile,
+        recentCommits: sampled,
+        sampledCommitCount: sampled.length,
+        firstCommitAt: earliestAuthoredAt(profile.recentCommits),
+        lastCommitAt: latestAuthoredAt(profile.recentCommits),
+      };
     }
+
     const matched = profile.recentCommits.filter((commit) =>
       filters.some((filter) => commitMatchesAuthor(commit, filter)),
     );
     if (matched.length === 0) {
-      continue;
+      return {
+        ...profile,
+        recentCommits: [],
+        sampledCommitCount: 0,
+        firstCommitAt: null,
+        lastCommitAt: null,
+      };
     }
+
     const sampled = selectTimeBucketedCommits(matched, AUTHOR_COMMIT_LIMIT);
-    // 接手/末次：优先保留构建期 reverse 精确值，并与匹配集取并集
-    next.push({
+    return {
       ...profile,
       recentCommits: sampled,
       sampledCommitCount: sampled.length,
@@ -162,16 +191,15 @@ export function filterProfilesByAuthor(
         profile.lastCommitAt,
         latestAuthoredAt(matched),
       ),
-    });
-  }
-  return next;
+    };
+  });
 }
 
 /**
  * 将 `--author` 用的正则特殊字符转义；优先邮箱，否则姓名。
  */
 export function toGitAuthorPatterns(
-  authors: readonly JinglvAuthorFilter[],
+  authors: readonly AgentAuthorFilter[],
 ): string[] {
   const patterns: string[] = [];
   for (const author of authors) {
@@ -306,9 +334,9 @@ function maxIsoDate(a: string | null, b: string | null): string | null {
  * 仅调用查询类 Git Command，不执行任何写操作。
  */
 export async function enrichProfilesWithCodeEvidence(
-  profiles: readonly JinglvProjectProfile[],
-): Promise<JinglvProjectProfile[]> {
-  const results: JinglvProjectProfile[] = new Array(profiles.length);
+  profiles: readonly AgentProjectProfile[],
+): Promise<AgentProjectProfile[]> {
+  const results: AgentProjectProfile[] = new Array(profiles.length);
   let cursor = 0;
 
   async function worker(): Promise<void> {
@@ -349,7 +377,7 @@ function commitMatchesAuthor(
 async function buildOneProfile(
   project: Project,
   authorPatterns: readonly string[],
-): Promise<JinglvProjectProfile> {
+): Promise<AgentProjectProfile> {
   try {
     const [logCommits, treeResult] = await Promise.all([
       loadSampledLogCommits(project.path, authorPatterns),
@@ -491,8 +519,8 @@ async function resolveAuthorInvolvementRange(
 }
 
 async function enrichOneProfile(
-  profile: JinglvProjectProfile,
-): Promise<JinglvProjectProfile> {
+  profile: AgentProjectProfile,
+): Promise<AgentProjectProfile> {
   if (profile.error || !profile.projectPath || profile.recentCommits.length === 0) {
     return profile;
   }

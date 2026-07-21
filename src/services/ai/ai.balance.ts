@@ -6,6 +6,9 @@ import { isRecord } from "@/types/error";
 
 const DEEPSEEK_BALANCE_URL = "https://api.deepseek.com/user/balance";
 const DEEPSEEK_TOP_UP_URL = "https://platform.deepseek.com/top_up";
+/** 余额 API 官方文档 */
+const DEEPSEEK_BALANCE_DOCS_URL =
+  "https://api-docs.deepseek.com/zh-cn/api/get-user-balance";
 const REQUEST_TIMEOUT_MS = 20_000;
 
 export type DeepSeekCurrency = "CNY" | "USD";
@@ -24,6 +27,10 @@ export interface DeepSeekBalanceResult {
 
 export function getDeepSeekTopUpUrl(): string {
   return DEEPSEEK_TOP_UP_URL;
+}
+
+export function getDeepSeekBalanceDocsUrl(): string {
+  return DEEPSEEK_BALANCE_DOCS_URL;
 }
 
 /**

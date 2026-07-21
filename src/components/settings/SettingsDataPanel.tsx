@@ -31,7 +31,7 @@ import {
   type AppDataPaths,
 } from "@/services/data/data.service";
 import { useAgentChatStore } from "@/store/useAgentChatStore";
-import { useJinglvStore } from "@/store/useJinglvStore";
+import { useMultiAgentStore } from "@/store/useMultiAgentStore";
 import { toUserMessage } from "@/types/error";
 
 interface ClearTarget {
@@ -52,7 +52,7 @@ export function SettingsDataPanel() {
   const [importConfirmOpen, setImportConfirmOpen] = useState(false);
 
   const clearAgentChats = useAgentChatStore((state) => state.clearAllConversations);
-  const clearResumeChats = useJinglvStore(
+  const clearMultiAgentChats = useMultiAgentStore(
     (state) => state.clearAllConversations,
   );
 
@@ -83,10 +83,10 @@ export function SettingsDataPanel() {
       confirm: t("settings.dataClearAgentChatsConfirm"),
     },
     {
-      module: "jinglv_chats",
-      title: t("settings.dataClearJinglvChats"),
-      description: t("settings.dataClearJinglvChatsHint"),
-      confirm: t("settings.dataClearJinglvChatsConfirm"),
+      module: "multi_agent_chats",
+      title: t("settings.dataClearMultiAgentChats"),
+      description: t("settings.dataClearMultiAgentChatsHint"),
+      confirm: t("settings.dataClearMultiAgentChatsConfirm"),
     },
     {
       module: "ai_secrets",
@@ -101,10 +101,10 @@ export function SettingsDataPanel() {
       confirm: t("settings.dataClearGitAccountsConfirm"),
     },
     {
-      module: "jinglv_identity",
-      title: t("settings.dataClearJinglvIdentity"),
-      description: t("settings.dataClearJinglvIdentityHint"),
-      confirm: t("settings.dataClearJinglvIdentityConfirm"),
+      module: "multi_agent_identity",
+      title: t("settings.dataClearMultiAgentIdentity"),
+      description: t("settings.dataClearMultiAgentIdentityHint"),
+      confirm: t("settings.dataClearMultiAgentIdentityConfirm"),
     },
     {
       module: "ui_prefs",
@@ -155,10 +155,10 @@ export function SettingsDataPanel() {
         clearAgentChats();
       }
       if (
-        target.module === "jinglv_chats" ||
+        target.module === "multi_agent_chats" ||
         target.module === "all_app_data"
       ) {
-        clearResumeChats();
+        clearMultiAgentChats();
       }
       toast.success(t("settings.dataClearDone"));
       if (target.module === "ui_prefs" || target.module === "all_app_data") {
@@ -195,7 +195,7 @@ export function SettingsDataPanel() {
         return;
       }
       clearAgentChats();
-      clearResumeChats();
+      clearMultiAgentChats();
       toast.success(t("settings.dataImportDone"));
       if (result.requiresRestart) {
         toast.message(t("settings.dataImportRestartHint"));

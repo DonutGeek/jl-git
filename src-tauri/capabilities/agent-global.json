@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "jinglv",
-  "description": "Capability for Jinglü agent window",
-  "windows": ["jinglv"],
+  "identifier": "agent-global",
+  "description": "Capability for the multi-repo Jingling agent window (AgentHost = global)",
+  "windows": ["agent-global", "jinglv"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",

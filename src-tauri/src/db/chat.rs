@@ -6,7 +6,8 @@ use crate::error::AppError;
 use super::{now, to_db_error};
 
 pub const CHAT_SCOPE_AGENT: &str = "agent";
-pub const CHAT_SCOPE_JINGLV: &str = "jinglv";
+/// 多仓鲸灵（AgentHost = global）会话 scope
+pub const CHAT_SCOPE_AGENT_GLOBAL: &str = "agent_global";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -120,7 +121,7 @@ pub async fn migrate_chat_tables(pool: &SqlitePool) -> Result<(), AppError> {
     .await
     .map_err(to_db_error)?;
 
-    // schema v5：会话 scope resume_helper → jinglv（鲸履）
+    // schema v5：会话 scope resume_helper → jinglv（历史命名，已废弃）
     sqlx::query(
         r#"
         UPDATE chat_conversations
@@ -143,6 +144,29 @@ pub async fn migrate_chat_tables(pool: &SqlitePool) -> Result<(), AppError> {
     .await
     .map_err(to_db_error)?;
 
+    // schema v6：会话 scope jinglv / resume_helper → agent_global（统一鲸灵：多仓命名）
+    sqlx::query(
+        r#"
+        UPDATE chat_conversations
+        SET scope = 'agent_global'
+        WHERE scope IN ('jinglv', 'resume_helper')
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(to_db_error)?;
+
+    sqlx::query(
+        r#"
+        INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+        VALUES (6, ?1)
+        "#,
+    )
+    .bind(now())
+    .execute(pool)
+    .await
+    .map_err(to_db_error)?;
+
     Ok(())
 }
 
@@ -154,9 +178,9 @@ fn validate_scope_project(scope: &str, project_id: Option<&str>) -> Result<(), A
             }
             Ok(())
         }
-        CHAT_SCOPE_JINGLV => {
+        CHAT_SCOPE_AGENT_GLOBAL => {
             if project_id.is_some() {
-                return Err(AppError::new("VALIDATION", "鲸履会话不应绑定项目 ID"));
+                return Err(AppError::new("VALIDATION", "多仓鲸灵会话不应绑定项目 ID"));
             }
             Ok(())
         }

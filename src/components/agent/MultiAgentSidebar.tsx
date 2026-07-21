@@ -15,7 +15,13 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { MessageSquarePlus, MoreHorizontal, Pin, Trash2 } from "lucide-react";
+import {
+  Blocks,
+  MessageSquarePlus,
+  MoreHorizontal,
+  Pin,
+  Trash2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -46,15 +52,19 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import type { AgentConversation } from "@/types/ai";
 
-interface JinglvConversationSidebarProps {
+interface MultiAgentSidebarProps {
   conversations: readonly AgentConversation[];
   activeConversationId: string | null;
+  /** 右侧是否正在展示插件列表 */
+  pluginsActive: boolean;
   onSelect: (conversationId: string) => void;
   onCreate: () => void;
   onDelete: (conversationId: string) => void;
   onRename: (conversationId: string, title: string) => void;
   onPin: (conversationId: string, pinned: boolean) => void;
   onReorder: (activeId: string, overId: string) => void;
+  /** 打开右侧插件列表 */
+  onOpenPlugins: () => void;
 }
 
 interface ConversationMenuLabels {
@@ -224,17 +234,19 @@ function SortableConversationRow({
   );
 }
 
-/** 鲸履左侧会话栏：顶部新建，下方可拖拽 / 右键与「更多」菜单管理的会话列表 */
-export function JinglvConversationSidebar({
+/** 多仓鲸灵左侧会话栏：顶部新建 / 插件入口，下方会话列表 */
+export function MultiAgentSidebar({
   conversations,
   activeConversationId,
+  pluginsActive,
   onSelect,
   onCreate,
   onDelete,
   onRename,
   onPin,
   onReorder,
-}: JinglvConversationSidebarProps) {
+  onOpenPlugins,
+}: MultiAgentSidebarProps) {
   const { t } = useTranslation();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
@@ -245,17 +257,17 @@ export function JinglvConversationSidebar({
 
   const labels = useMemo(
     () => ({
-      rename: t("jinglv.tabRename"),
-      pin: t("jinglv.tabPin"),
-      unpin: t("jinglv.tabUnpin"),
-      delete: t("jinglv.deleteConversation"),
-      more: t("jinglv.tabMore"),
+      rename: t("multiAgent.tabRename"),
+      pin: t("multiAgent.tabPin"),
+      unpin: t("multiAgent.tabUnpin"),
+      delete: t("multiAgent.deleteConversation"),
+      more: t("multiAgent.tabMore"),
     }),
     [t],
   );
 
   const conversationLabel = (conversation: AgentConversation): string =>
-    conversation.title || t("jinglv.newConversation");
+    conversation.title || t("multiAgent.newConversation");
 
   const draggingConversation = useMemo(
     () => conversations.find((item) => item.id === draggingId) ?? null,
@@ -295,80 +307,109 @@ export function JinglvConversationSidebar({
     <>
       <aside
         className="border-border bg-muted/20 flex w-48 shrink-0 flex-col border-r"
-        aria-label={t("jinglv.conversationsAria")}
+        aria-label={t("multiAgent.sidebarAria")}
       >
-        <div className="shrink-0 p-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="border-border h-8 w-full justify-start gap-1.5 px-2 text-xs shadow-none"
-                aria-label={t("jinglv.createConversation")}
-                onClick={onCreate}
-              >
-                <MessageSquarePlus className="size-3.5" aria-hidden="true" />
-                {t("jinglv.createConversation")}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              {t("jinglv.createConversation")}
-            </TooltipContent>
-          </Tooltip>
-        </div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="shrink-0 space-y-1.5 p-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-border h-8 w-full justify-start gap-1.5 px-2 text-xs shadow-none"
+                  aria-label={t("multiAgent.createConversation")}
+                  onClick={onCreate}
+                >
+                  <MessageSquarePlus className="size-3.5" aria-hidden="true" />
+                  {t("multiAgent.createConversation")}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {t("multiAgent.createConversation")}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant={pluginsActive ? "secondary" : "outline"}
+                  size="sm"
+                  className="border-border h-8 w-full justify-start gap-1.5 px-2 text-xs shadow-none"
+                  aria-label={t("multiAgent.openPlugins")}
+                  aria-pressed={pluginsActive}
+                  onClick={onOpenPlugins}
+                >
+                  <Blocks className="size-3.5" aria-hidden="true" />
+                  {t("multiAgent.openPlugins")}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {t("multiAgent.openPluginsHint")}
+              </TooltipContent>
+            </Tooltip>
+          </div>
 
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={(event: DragStartEvent) => {
-            setDraggingId(String(event.active.id));
-          }}
-          onDragEnd={(event: DragEndEvent) => {
-            setDraggingId(null);
-            if (event.over) {
-              onReorder(String(event.active.id), String(event.over.id));
-            }
-          }}
-          onDragCancel={() => setDraggingId(null)}
-        >
-          <ScrollArea className="min-h-0 flex-1">
-            <SortableContext
-              items={conversations.map((item) => item.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="flex flex-col gap-0.5 pb-1.5">
-                {conversations.map((conversation) => (
-                  <SortableConversationRow
-                    key={conversation.id}
-                    conversation={conversation}
-                    label={conversationLabel(conversation)}
-                    isActive={conversation.id === activeConversationId}
-                    canDelete={canDelete}
-                    onSelect={onSelect}
-                    onDelete={onDelete}
-                    onRename={openRename}
-                    onPin={onPin}
-                    labels={labels}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={(event: DragStartEvent) => {
+              setDraggingId(String(event.active.id));
+            }}
+            onDragEnd={(event: DragEndEvent) => {
+              setDraggingId(null);
+              if (event.over) {
+                onReorder(String(event.active.id), String(event.over.id));
+              }
+            }}
+            onDragCancel={() => setDraggingId(null)}
+          >
+            <ScrollArea className="min-h-0 flex-1">
+              <SortableContext
+                items={conversations.map((item) => item.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div
+                  className="flex flex-col gap-0.5 pb-1.5"
+                  aria-label={t("multiAgent.conversationsAria")}
+                >
+                  {conversations.map((conversation) => (
+                    <SortableConversationRow
+                      key={conversation.id}
+                      conversation={conversation}
+                      label={conversationLabel(conversation)}
+                      isActive={
+                        !pluginsActive &&
+                        conversation.id === activeConversationId
+                      }
+                      canDelete={canDelete}
+                      onSelect={onSelect}
+                      onDelete={onDelete}
+                      onRename={openRename}
+                      onPin={onPin}
+                      labels={labels}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </ScrollArea>
+            <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
+              {draggingConversation ? (
+                <div className="bg-muted ring-border flex w-44 items-center rounded-md ring-1">
+                  <ConversationRowChrome
+                    conversation={draggingConversation}
+                    label={conversationLabel(draggingConversation)}
+                    isActive={
+                      draggingConversation.id === activeConversationId
+                    }
+                    dragging
+                    onSelect={() => undefined}
                   />
-                ))}
-              </div>
-            </SortableContext>
-          </ScrollArea>
-          <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
-            {draggingConversation ? (
-              <div className="bg-muted ring-border flex w-44 items-center rounded-md ring-1">
-                <ConversationRowChrome
-                  conversation={draggingConversation}
-                  label={conversationLabel(draggingConversation)}
-                  isActive={draggingConversation.id === activeConversationId}
-                  dragging
-                  onSelect={() => undefined}
-                />
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        </div>
       </aside>
 
       <Dialog
@@ -381,7 +422,7 @@ export function JinglvConversationSidebar({
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>{t("jinglv.tabRenameTitle")}</DialogTitle>
+            <DialogTitle>{t("multiAgent.tabRenameTitle")}</DialogTitle>
           </DialogHeader>
           <form className="grid gap-3" onSubmit={submitRename}>
             <Input
@@ -390,11 +431,11 @@ export function JinglvConversationSidebar({
               placeholder={
                 renameTarget
                   ? conversationLabel(renameTarget)
-                  : t("jinglv.newConversation")
+                  : t("multiAgent.newConversation")
               }
               maxLength={48}
               autoFocus
-              aria-label={t("jinglv.tabRename")}
+              aria-label={t("multiAgent.tabRename")}
             />
             <DialogFooter>
               <Button
@@ -405,7 +446,7 @@ export function JinglvConversationSidebar({
                 {t("agent.editCancel")}
               </Button>
               <Button type="submit" disabled={renameValue.trim().length === 0}>
-                {t("jinglv.tabRenameConfirm")}
+                {t("multiAgent.tabRenameConfirm")}
               </Button>
             </DialogFooter>
           </form>

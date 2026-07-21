@@ -113,19 +113,19 @@ erDiagram
 | `model` | TEXT NULL | |
 | `created_at` | TEXT NOT NULL | |
 
-面向提交建议等短历史（预留）。**鲸灵 / 鲸履多轮对话**不走本表，见下方 `chat_*`。
+面向提交建议等短历史（预留）。**单仓 / 多仓鲸灵多轮对话**不走本表，见下方 `chat_*`。
 
 不存 API Key；密钥走系统安全存储或环境变量（见 security / ai 文档）。
 
 ### `chat_conversations` / `chat_messages`（schema v4）
 
-多轮对话持久化：鲸灵按项目归属，鲸履全局、仅手动删除。设置「数据」可按 scope 清理或完整备份（见 `app_data_*`）。
+多轮对话持久化：单仓鲸灵按项目归属，多仓鲸灵全局、仅手动删除。设置「数据」可按 scope 清理或完整备份（见 `app_data_*`）。
 
 | 表 | 列 | 说明 |
 |----|----|------|
 | `chat_conversations` | `id` TEXT PK | 会话 ID |
-| | `scope` TEXT | `agent` \| `jinglv`（鲸履；旧 `resume_helper` 在 schema v5 迁移） |
-| | `project_id` TEXT NULL | 鲸灵必填，FK → `projects(id)` **ON DELETE CASCADE**；鲸履必须为 NULL |
+| | `scope` TEXT | `agent`（单仓）\| `agent_global`（多仓；旧 `jinglv` / `resume_helper` 在 schema v6 迁移） |
+| | `project_id` TEXT NULL | 单仓鲸灵必填，FK → `projects(id)` **ON DELETE CASCADE**；多仓鲸灵必须为 NULL |
 | | `title` / `pinned` / `sort_order` | 展示与排序 |
 | | `created_at` / `updated_at` | ISO 时间 |
 | `chat_messages` | `id` TEXT PK | 消息 ID |

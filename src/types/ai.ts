@@ -1,9 +1,28 @@
 export type AgentChatMessageRole = "assistant" | "user";
 
+export type AgentMentionKind = "branch" | "plugin" | "project";
+
 export interface AgentBranchMention {
   type: "branch";
   name: string;
 }
+
+export interface AgentPluginMention {
+  type: "plugin";
+  id: string;
+  name: string;
+}
+
+export interface AgentProjectMention {
+  type: "project";
+  id: string;
+  name: string;
+}
+
+export type AgentMention =
+  | AgentBranchMention
+  | AgentPluginMention
+  | AgentProjectMention;
 
 export interface AgentChatMessage {
   id: string;
@@ -16,8 +35,8 @@ export interface AgentChatMessage {
   reasoningContent?: string;
   /** 深度思考用时（毫秒），思考结束后写入 */
   reasoningDurationMs?: number;
-  /** 仅候选菜单选中的分支会写入此处，供 AI 作为可信引用使用。 */
-  mentions?: readonly AgentBranchMention[];
+  /** 候选菜单选中的提及（分支 / 插件 / 项目），供上下文解析使用 */
+  mentions?: readonly AgentMention[];
 }
 
 export interface AgentConversation {

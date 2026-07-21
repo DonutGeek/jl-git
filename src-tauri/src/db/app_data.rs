@@ -11,7 +11,7 @@ use zip::{ZipArchive, ZipWriter};
 
 use crate::error::AppError;
 
-use super::{to_db_error, CHAT_SCOPE_AGENT, CHAT_SCOPE_JINGLV};
+use super::{to_db_error, CHAT_SCOPE_AGENT, CHAT_SCOPE_AGENT_GLOBAL};
 
 pub const DB_FILE_NAME: &str = "jlgit.db";
 pub const DB_PENDING_NAME: &str = "jlgit.db.pending";
@@ -21,8 +21,10 @@ pub const APP_ID: &str = "com.jingling.jlgit";
 
 const STORE_AI: &str = "ai-secrets.json";
 const STORE_GIT: &str = "git-accounts.json";
-const STORE_JINGLV: &str = "jinglv.json";
-const STORE_JINGLV_LEGACY: &str = "resume-helper.json";
+/// 简历插件联系信息 Store（多仓鲸灵）
+const STORE_AGENT_IDENTITY: &str = "agent-identity.json";
+/// 旧版文件名，按顺序保留兼容（备份/恢复/清理时一并处理）
+const STORE_AGENT_IDENTITY_LEGACY: [&str; 2] = ["jinglv.json", "resume-helper.json"];
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -168,24 +170,29 @@ pub async fn clear_module(
 ) -> Result<(), AppError> {
     match module {
         "agent_chats" => clear_chats(pool, CHAT_SCOPE_AGENT).await,
-        "jinglv_chats" => clear_chats(pool, CHAT_SCOPE_JINGLV).await,
+        "multi_agent_chats" => clear_chats(pool, CHAT_SCOPE_AGENT_GLOBAL).await,
         "ai_secrets" => reset_store_file(app_data_dir, STORE_AI),
         "git_accounts" => reset_store_file(app_data_dir, STORE_GIT),
-        "jinglv_identity" => {
-            reset_store_file(app_data_dir, STORE_JINGLV)?;
-            let _ = fs::remove_file(app_data_dir.join(STORE_JINGLV_LEGACY));
+        "multi_agent_identity" => {
+            reset_store_file(app_data_dir, STORE_AGENT_IDENTITY)?;
+            for legacy in STORE_AGENT_IDENTITY_LEGACY {
+                let _ = fs::remove_file(app_data_dir.join(legacy));
+            }
             Ok(())
         }
         "ui_prefs" | "open_tabs" => Ok(()),
         "all_app_data" => {
             clear_chats(pool, CHAT_SCOPE_AGENT).await?;
-            clear_chats(pool, CHAT_SCOPE_JINGLV).await?;
+            clear_chats(pool, CHAT_SCOPE_AGENT_GLOBAL).await?;
             // 兼容：旧 scope 一并清掉（迁移前残留）
+            let _ = clear_chats(pool, "jinglv").await;
             let _ = clear_chats(pool, "resume_helper").await;
             reset_store_file(app_data_dir, STORE_AI)?;
             reset_store_file(app_data_dir, STORE_GIT)?;
-            reset_store_file(app_data_dir, STORE_JINGLV)?;
-            let _ = fs::remove_file(app_data_dir.join(STORE_JINGLV_LEGACY));
+            reset_store_file(app_data_dir, STORE_AGENT_IDENTITY)?;
+            for legacy in STORE_AGENT_IDENTITY_LEGACY {
+                let _ = fs::remove_file(app_data_dir.join(legacy));
+            }
             Ok(())
         }
         _ => Err(AppError::new("VALIDATION", "未知的清理模块")),
@@ -267,13 +274,14 @@ pub async fn export_backup(
     let mut db_file = File::open(&temp_db).map_err(io_err)?;
     std::io::copy(&mut db_file, &mut zip).map_err(io_err)?;
 
-    for name in [STORE_AI, STORE_GIT, STORE_JINGLV] {
+    for name in [STORE_AI, STORE_GIT, STORE_AGENT_IDENTITY] {
         let store_path = app_data_dir.join(name);
-        let legacy_path = app_data_dir.join(STORE_JINGLV_LEGACY);
         let bytes = if store_path.is_file() {
             fs::read(&store_path).map_err(io_err)?
-        } else if name == STORE_JINGLV && legacy_path.is_file() {
-            fs::read(&legacy_path).map_err(io_err)?
+        } else if name == STORE_AGENT_IDENTITY {
+            // 新文件不存在时按顺序回退旧版简历插件配置文件
+            read_first_existing(app_data_dir, &STORE_AGENT_IDENTITY_LEGACY)
+                .unwrap_or_else(|| b"{}\n".to_vec())
         } else {
             b"{}\n".to_vec()
         };
@@ -368,7 +376,7 @@ pub fn import_backup(
         }
     };
 
-    for name in [STORE_AI, STORE_GIT, STORE_JINGLV] {
+    for name in [STORE_AI, STORE_GIT, STORE_AGENT_IDENTITY] {
         let src = staging.join("stores").join(name);
         let dest = app_data_dir.join(name);
         if src.is_file() {
@@ -385,6 +393,19 @@ pub fn import_backup(
         local_storage,
         requires_restart: true,
     })
+}
+
+/// 按顺序尝试读取第一个存在的旧版文件内容
+fn read_first_existing(app_data_dir: &Path, names: &[&str]) -> Option<Vec<u8>> {
+    for name in names {
+        let path = app_data_dir.join(name);
+        if path.is_file() {
+            if let Ok(bytes) = fs::read(&path) {
+                return Some(bytes);
+            }
+        }
+    }
+    None
 }
 
 fn zip_err(error: zip::result::ZipError) -> AppError {

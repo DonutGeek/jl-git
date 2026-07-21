@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  CircleHelp,
   Database,
-  FileUser,
   GitBranch,
+  GitCommitHorizontal,
+  GitPullRequest,
   KeyRound,
   Palette,
   Pencil,
@@ -64,13 +66,6 @@ import {
 import { listSystemFonts } from "@/services/system/system.info";
 import type { ThemeMode } from "@/services/theme/theme.service";
 import {
-  emptyJinglvIdentity,
-  getJinglvIdentity,
-  setJinglvIdentity,
-} from "@/services/jinglv/jinglv.identity";
-import { openJinglvWindow } from "@/services/window/jinglvWindow";
-import type { JinglvIdentity } from "@/types/jinglv";
-import {
   CLIENT_FONT_SYSTEM,
   EDITOR_FONT_SYSTEM,
   useAppPrefsStore,
@@ -126,11 +121,38 @@ function FieldLabel({ children }: { children: ReactNode }) {
   return <label className="text-muted-foreground mb-1 block text-[11px]">{children}</label>;
 }
 
+/** 与账户余额同级的小节标题旁说明（问号 Tooltip） */
+function SettingsTip({ ariaLabel, children }: { ariaLabel: string; children: ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground inline-flex size-4 items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={ariaLabel}
+        >
+          <CircleHelp className="size-3.5" aria-hidden="true" />
+        </button>
+      </TooltipTrigger>
+      {/* 覆盖 ui/tooltip 默认 text-balance，避免长说明右侧大块留白 */}
+      <TooltipContent
+        side="top"
+        className="max-w-xs text-left leading-relaxed text-pretty text-wrap"
+      >
+        {children}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 /** 设置表单控件：与顶栏分支选择器同系（轻边框、无阴影） */
 const settingsFieldClassName =
   "border-border h-8 px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/40";
 const settingsTextareaClassName =
   "border-border min-h-28 resize-y px-2.5 py-2 text-xs shadow-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/40";
+/** API Key 表格列：各列按比例吃满行宽，避免右侧大块留白 */
+const apiKeysGridClassName =
+  "grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)_minmax(0,0.7fr)_minmax(0,0.9fr)_auto] items-center gap-3";
 
 type SettingsCategory =
   | "appearance"
@@ -138,7 +160,6 @@ type SettingsCategory =
   | "ssh"
   | "ai"
   | "tools"
-  | "jinglv"
   | "data"
   | "general";
 
@@ -257,26 +278,14 @@ export function SettingsDrawer() {
   const [apiKeyCreating, setApiKeyCreating] = useState(false);
   const [commitInstructions, setCommitInstructions] = useState("");
   const [pullRequestInstructions, setPullRequestInstructions] = useState("");
-  const [jinglvInstructions, setJinglvInstructions] = useState("");
   const [instructionsLoading, setInstructionsLoading] = useState(false);
   const [instructionsReady, setInstructionsReady] = useState(false);
-  const [resumeIdentity, setResumeIdentity] = useState<JinglvIdentity>(
-    emptyJinglvIdentity(),
-  );
-  const [resumeIdentityLoading, setResumeIdentityLoading] = useState(false);
-  const [resumeIdentityReady, setResumeIdentityReady] = useState(false);
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("appearance");
 
   const [systemFonts, setSystemFonts] = useState<string[]>([]);
   const [fontsLoading, setFontsLoading] = useState(false);
 
-  const savedResumeIdentityRef = useRef<JinglvIdentity>(emptyJinglvIdentity());
-  const resumeIdentityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const savedInstructionsRef = useRef({
-    commit: "",
-    pullRequest: "",
-    jinglv: "",
-  });
+  const savedInstructionsRef = useRef({ commit: "", pullRequest: "" });
   const instructionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -289,8 +298,6 @@ export function SettingsDrawer() {
     setApiKeysLoading(true);
     setInstructionsLoading(true);
     setInstructionsReady(false);
-    setResumeIdentityLoading(true);
-    setResumeIdentityReady(false);
     setFontsLoading(true);
 
     void listGitIdentityAccounts()
@@ -332,8 +339,10 @@ export function SettingsDrawer() {
         if (!cancelled) {
           setCommitInstructions(instructions.commit);
           setPullRequestInstructions(instructions.pullRequest);
-          setJinglvInstructions(instructions.jinglv);
-          savedInstructionsRef.current = instructions;
+          savedInstructionsRef.current = {
+            commit: instructions.commit,
+            pullRequest: instructions.pullRequest,
+          };
           setInstructionsReady(true);
         }
       })
@@ -345,25 +354,6 @@ export function SettingsDrawer() {
       .finally(() => {
         if (!cancelled) {
           setInstructionsLoading(false);
-        }
-      });
-
-    void getJinglvIdentity()
-      .then((identity) => {
-        if (!cancelled) {
-          setResumeIdentity(identity);
-          savedResumeIdentityRef.current = identity;
-          setResumeIdentityReady(true);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          toast.error(toUserMessage(error));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setResumeIdentityLoading(false);
         }
       });
 
@@ -387,9 +377,9 @@ export function SettingsDrawer() {
 
     return () => {
       cancelled = true;
-      if (resumeIdentityTimerRef.current) {
-        clearTimeout(resumeIdentityTimerRef.current);
-        resumeIdentityTimerRef.current = null;
+      if (instructionsTimerRef.current) {
+        clearTimeout(instructionsTimerRef.current);
+        instructionsTimerRef.current = null;
       }
     };
   }, [open]);
@@ -397,16 +387,17 @@ export function SettingsDrawer() {
   async function persistInstructions(instructions: {
     commit: string;
     pullRequest: string;
-    jinglv: string;
   }): Promise<void> {
     try {
       await setAiInstructions(instructions);
       // 清空后回退默认规则，与 getAiInstructions 生效值对齐
       const effective = await getAiInstructions();
-      savedInstructionsRef.current = effective;
+      savedInstructionsRef.current = {
+        commit: effective.commit,
+        pullRequest: effective.pullRequest,
+      };
       setCommitInstructions(effective.commit);
       setPullRequestInstructions(effective.pullRequest);
-      setJinglvInstructions(effective.jinglv);
       toast.success(t("settings.aiInstructionsSaved"));
     } catch (error) {
       toast.error(toUserMessage(error));
@@ -416,7 +407,7 @@ export function SettingsDrawer() {
   const persistInstructionsRef = useRef(persistInstructions);
   persistInstructionsRef.current = persistInstructions;
 
-  /** 输入停顿后自动保存 AI 指令（Git / 鲸履），首次加载不回写。 */
+  /** 输入停顿后自动保存 Git AI 指令；首次加载不回写。 */
   useEffect(() => {
     if (!open || instructionsLoading || !instructionsReady) {
       return;
@@ -425,12 +416,10 @@ export function SettingsDrawer() {
     const next = {
       commit: commitInstructions,
       pullRequest: pullRequestInstructions,
-      jinglv: jinglvInstructions,
     };
     if (
       next.commit === savedInstructionsRef.current.commit &&
-      next.pullRequest === savedInstructionsRef.current.pullRequest &&
-      next.jinglv === savedInstructionsRef.current.jinglv
+      next.pullRequest === savedInstructionsRef.current.pullRequest
     ) {
       return;
     }
@@ -454,7 +443,6 @@ export function SettingsDrawer() {
     instructionsReady,
     open,
     pullRequestInstructions,
-    jinglvInstructions,
   ]);
 
   async function handleCreateApiKey(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -561,63 +549,9 @@ export function SettingsDrawer() {
     { id: "ssh", label: t("settings.sectionSsh"), icon: <KeyRound /> },
     { id: "ai", label: t("settings.sectionAi"), icon: <Sparkles /> },
     { id: "tools", label: t("settings.sectionTools"), icon: <Terminal /> },
-    {
-      id: "jinglv",
-      label: t("jinglv.sectionTitle"),
-      icon: <FileUser />,
-    },
     { id: "data", label: t("settings.sectionData"), icon: <Database /> },
     { id: "general", label: t("settings.sectionGeneral"), icon: <Power /> },
   ];
-
-  async function handleOpenJinglv(): Promise<void> {
-    try {
-      await openJinglvWindow();
-    } catch (error) {
-      toast.error(toUserMessage(error) || t("jinglv.openFailed"));
-    }
-  }
-
-  async function persistResumeIdentity(identity: JinglvIdentity): Promise<void> {
-    try {
-      const saved = await setJinglvIdentity(identity);
-      savedResumeIdentityRef.current = saved;
-      setResumeIdentity(saved);
-      toast.success(t("jinglv.identitySaved"));
-    } catch (error) {
-      toast.error(toUserMessage(error));
-    }
-  }
-
-  const persistResumeIdentityRef = useRef(persistResumeIdentity);
-  persistResumeIdentityRef.current = persistResumeIdentity;
-
-  /** 输入停顿后自动保存鲸履身份 */
-  useEffect(() => {
-    if (!open || resumeIdentityLoading || !resumeIdentityReady) {
-      return;
-    }
-    const saved = savedResumeIdentityRef.current;
-    if (
-      resumeIdentity.displayName === saved.displayName &&
-      resumeIdentity.phone === saved.phone &&
-      resumeIdentity.email === saved.email
-    ) {
-      return;
-    }
-    if (resumeIdentityTimerRef.current) {
-      clearTimeout(resumeIdentityTimerRef.current);
-    }
-    resumeIdentityTimerRef.current = setTimeout(() => {
-      void persistResumeIdentityRef.current(resumeIdentity);
-    }, 600);
-    return () => {
-      if (resumeIdentityTimerRef.current) {
-        clearTimeout(resumeIdentityTimerRef.current);
-        resumeIdentityTimerRef.current = null;
-      }
-    };
-  }, [open, resumeIdentity, resumeIdentityLoading, resumeIdentityReady]);
 
   async function handleCreateGitAccount(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -727,7 +661,7 @@ export function SettingsDrawer() {
                           : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                       )}
                       onClick={() => {
-                        // 仅切换右侧分区；鲸履窗口由分区内按钮手动打开
+                        // 仅切换右侧分区；多仓鲸灵窗口由分区内按钮手动打开
                         setActiveCategory(category.id);
                       }}
                     >
@@ -741,7 +675,7 @@ export function SettingsDrawer() {
               </nav>
             </aside>
             <ScrollArea className="h-full min-w-0 flex-1 px-6 py-5">
-              <div className="mx-auto max-w-xl space-y-8">
+              <div className="w-full max-w-3xl space-y-8">
           {/* 1. 外观 */}
           {activeCategory === "appearance" ? <SettingsSection
             icon={<Palette />}
@@ -1178,20 +1112,35 @@ export function SettingsDrawer() {
           {activeCategory === "ai" ? <SettingsSection
             icon={<Sparkles />}
             title={t("settings.sectionAi")}
-            action={
-              <Button
-                type="button"
-                size="sm"
-                className="h-8 shrink-0"
-                onClick={() => setApiKeyDialogOpen(true)}
-              >
-                <Plus aria-hidden="true" />
-                {t("settings.createApiKey")}
-              </Button>
-            }
           >
-            <div className="border-border overflow-hidden rounded-md border">
-              <div className="bg-muted/40 text-muted-foreground grid grid-cols-[minmax(80px,0.9fr)_minmax(120px,1.35fr)_52px_78px_100px] gap-3 border-b px-3 py-2 text-[11px] font-medium">
+            <div className="w-full space-y-2">
+              <div className="flex w-full items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5">
+                  <KeyRound className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
+                  <p className="text-foreground text-xs font-medium">
+                    {t("settings.apiKeyTitle")}
+                  </p>
+                  <SettingsTip ariaLabel={t("settings.apiKeyTipAria")}>
+                    {t("settings.apiKeyListHint")}
+                  </SettingsTip>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 shrink-0"
+                  onClick={() => setApiKeyDialogOpen(true)}
+                >
+                  <Plus aria-hidden="true" />
+                  {t("settings.createApiKey")}
+                </Button>
+              </div>
+            <div className="border-border w-full overflow-hidden rounded-md border">
+              <div
+                className={cn(
+                  apiKeysGridClassName,
+                  "bg-muted/40 text-muted-foreground border-b px-3 py-2 text-[11px] font-medium",
+                )}
+              >
                 <span>{t("settings.apiKeyName")}</span>
                 <span>{t("settings.apiKeyValue")}</span>
                 <span>{t("settings.apiKeyStatus")}</span>
@@ -1213,7 +1162,10 @@ export function SettingsDrawer() {
                     return (
                       <li
                         key={key.id}
-                        className="grid grid-cols-[minmax(80px,0.9fr)_minmax(120px,1.35fr)_52px_78px_100px] items-center gap-3 px-3 py-3 [&:not(:last-child)]:border-b"
+                        className={cn(
+                          apiKeysGridClassName,
+                          "px-3 py-3 [&:not(:last-child)]:border-b",
+                        )}
                       >
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -1312,6 +1264,7 @@ export function SettingsDrawer() {
                 </ul>
               )}
             </div>
+            </div>
             <SettingsAiBalance
               hasEnabledKey={apiKeys.some((key) => key.enabled)}
               refreshToken={`${apiKeys
@@ -1319,64 +1272,47 @@ export function SettingsDrawer() {
                 .map((key) => key.id)
                 .join(",")}|${activeCategory}`}
             />
-            <div className="space-y-3">
-              <div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <GitCommitHorizontal
+                  className="text-muted-foreground size-4 shrink-0"
+                  aria-hidden="true"
+                />
                 <p className="text-foreground text-xs font-medium">
-                  {t("settings.aiInstructionsGitLabel")}
+                  {t("settings.commitInstructions")}
                 </p>
-                <p className="text-muted-foreground mt-0.5 text-[11px] leading-relaxed">
-                  {t("settings.aiInstructionsGitHint")}
-                </p>
-              </div>
-              <div>
-                <FieldLabel>{t("settings.commitInstructions")}</FieldLabel>
-                <p className="text-muted-foreground mb-1 text-[11px] leading-relaxed">
+                <SettingsTip ariaLabel={t("settings.commitInstructionsTipAria")}>
                   {t("settings.commitInstructionsHint")}
-                </p>
-                <Textarea
-                  className={settingsTextareaClassName}
-                  value={commitInstructions}
-                  onChange={(event) => setCommitInstructions(event.target.value)}
-                  placeholder={t("settings.commitInstructionsPlaceholder")}
-                  disabled={instructionsLoading}
-                />
+                </SettingsTip>
               </div>
-              <div>
-                <FieldLabel>{t("settings.pullRequestInstructions")}</FieldLabel>
-                <p className="text-muted-foreground mb-1 text-[11px] leading-relaxed">
-                  {t("settings.pullRequestInstructionsHint")}
-                </p>
-                <Textarea
-                  className={settingsTextareaClassName}
-                  value={pullRequestInstructions}
-                  onChange={(event) => setPullRequestInstructions(event.target.value)}
-                  placeholder={t("settings.pullRequestInstructionsPlaceholder")}
-                  disabled={instructionsLoading}
-                />
-              </div>
+              <Textarea
+                className={settingsTextareaClassName}
+                value={commitInstructions}
+                onChange={(event) => setCommitInstructions(event.target.value)}
+                placeholder={t("settings.commitInstructionsPlaceholder")}
+                disabled={instructionsLoading}
+              />
             </div>
-            <div className="space-y-3">
-              <div>
-                <p className="text-foreground text-xs font-medium">
-                  {t("settings.aiInstructionsJinglvLabel")}
-                </p>
-                <p className="text-muted-foreground mt-0.5 text-[11px] leading-relaxed">
-                  {t("settings.aiInstructionsJinglvHint")}
-                </p>
-              </div>
-              <div>
-                <FieldLabel>{t("settings.jinglvInstructions")}</FieldLabel>
-                <p className="text-muted-foreground mb-1 text-[11px] leading-relaxed">
-                  {t("settings.jinglvInstructionsHint")}
-                </p>
-                <Textarea
-                  className={settingsTextareaClassName}
-                  value={jinglvInstructions}
-                  onChange={(event) => setJinglvInstructions(event.target.value)}
-                  placeholder={t("settings.jinglvInstructionsPlaceholder")}
-                  disabled={instructionsLoading}
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <GitPullRequest
+                  className="text-muted-foreground size-4 shrink-0"
+                  aria-hidden="true"
                 />
+                <p className="text-foreground text-xs font-medium">
+                  {t("settings.pullRequestInstructions")}
+                </p>
+                <SettingsTip ariaLabel={t("settings.pullRequestInstructionsTipAria")}>
+                  {t("settings.pullRequestInstructionsHint")}
+                </SettingsTip>
               </div>
+              <Textarea
+                className={settingsTextareaClassName}
+                value={pullRequestInstructions}
+                onChange={(event) => setPullRequestInstructions(event.target.value)}
+                placeholder={t("settings.pullRequestInstructionsPlaceholder")}
+                disabled={instructionsLoading}
+              />
             </div>
           </SettingsSection> : null}
 
@@ -1581,84 +1517,6 @@ export function SettingsDrawer() {
               />
             </div>
           </SettingsSection> : null}
-
-          {/* 6. 鲸履 */}
-          {activeCategory === "jinglv" ? (
-            <SettingsSection
-              icon={<FileUser />}
-              title={t("jinglv.sectionTitle")}
-              description={t("jinglv.sectionHint")}
-            >
-              <Button
-                type="button"
-                size="sm"
-                className="h-8"
-                onClick={() => {
-                  void handleOpenJinglv();
-                }}
-              >
-                {t("jinglv.openButton")}
-              </Button>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-foreground text-xs font-medium">
-                    {t("jinglv.identityTitle")}
-                  </p>
-                  <p className="text-muted-foreground mt-0.5 text-[11px] leading-relaxed">
-                    {t("jinglv.identityHint")}
-                  </p>
-                </div>
-                <div>
-                  <FieldLabel>{t("jinglv.displayName")}</FieldLabel>
-                  <Input
-                    className={settingsFieldClassName}
-                    value={resumeIdentity.displayName}
-                    onChange={(event) =>
-                      setResumeIdentity((current) => ({
-                        ...current,
-                        displayName: event.target.value,
-                      }))
-                    }
-                    placeholder={t("jinglv.displayNamePlaceholder")}
-                    disabled={resumeIdentityLoading}
-                  />
-                </div>
-                <div>
-                  <FieldLabel>{t("jinglv.phone")}</FieldLabel>
-                  <Input
-                    className={settingsFieldClassName}
-                    value={resumeIdentity.phone}
-                    onChange={(event) =>
-                      setResumeIdentity((current) => ({
-                        ...current,
-                        phone: event.target.value,
-                      }))
-                    }
-                    placeholder={t("jinglv.phonePlaceholder")}
-                    disabled={resumeIdentityLoading}
-                  />
-                </div>
-                <div>
-                  <FieldLabel>{t("jinglv.contactEmail")}</FieldLabel>
-                  <Input
-                    className={settingsFieldClassName}
-                    value={resumeIdentity.email}
-                    onChange={(event) =>
-                      setResumeIdentity((current) => ({
-                        ...current,
-                        email: event.target.value,
-                      }))
-                    }
-                    placeholder={t("jinglv.contactEmailPlaceholder")}
-                    disabled={resumeIdentityLoading}
-                  />
-                </div>
-                <p className="text-muted-foreground text-[11px] leading-relaxed">
-                  {t("jinglv.gitAccountsSharedHint")}
-                </p>
-              </div>
-            </SettingsSection>
-          ) : null}
 
           {activeCategory === "data" ? <SettingsDataPanel /> : null}
 

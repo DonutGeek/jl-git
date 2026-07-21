@@ -1,13 +1,13 @@
 import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
-import { buildJinglvSystemPrompt } from "@/prompts/jinglv";
+import { buildResumeSystemPrompt } from "@/prompts/resume";
 import i18n from "@/i18n";
 import { isRecord, type AppError } from "@/types/error";
 import type { AgentChatMessage } from "@/types/ai";
-import type { JinglvIdentity, JinglvProjectProfile } from "@/types/jinglv";
+import type { AgentProjectProfile } from "@/types/agent";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
-/** 鲸履使用 V4 Pro；thinking 提升成稿质量，正文只消费 content */
+/** 简历插件使用 V4 Pro；thinking 提升成稿质量，正文只消费 content */
 const DEEPSEEK_RESUME_MODEL = "deepseek-v4-pro";
 const REQUEST_TIMEOUT_MS = 150_000;
 const HISTORY_LIMIT = 24;
@@ -20,37 +20,38 @@ const CONTEXT_DETAIL_COMMITS_PER_PROJECT = 6;
 /** README 注入上限，避免挤掉提交主题 */
 const CONTEXT_README_CHARS = 1_800;
 
-interface StreamJinglvReplyOptions {
+interface StreamMultiAgentReplyOptions {
   messages: readonly AgentChatMessage[];
-  profiles: readonly JinglvProjectProfile[];
-  identity: JinglvIdentity;
+  profiles: readonly AgentProjectProfile[];
   gitAuthors: ReadonlyArray<{ name: string; email: string }>;
   locale: string;
   signal?: AbortSignal;
+  /** 关闭时同模型禁用 thinking，无 reasoning 流（与单仓一致） */
+  enableThinking?: boolean;
   onDelta: (content: string) => void;
   /** DeepSeek thinking 的 reasoning_content 增量 */
   onReasoningDelta?: (content: string) => void;
 }
 
-/** 鲸履专用流式对话（复用鲸灵 Key，独立 system prompt）。 */
-export async function streamJinglvReply({
+/** 多仓鲸灵流式对话（复用鲸灵 Key；简历等插件走独立 system prompt）。 */
+export async function streamMultiAgentReply({
   messages,
   profiles,
-  identity,
   gitAuthors,
   locale,
   signal,
+  enableThinking = true,
   onDelta,
   onReasoningDelta,
-}: StreamJinglvReplyOptions): Promise<void> {
+}: StreamMultiAgentReplyOptions): Promise<void> {
   const apiKey = await getAgentKey();
   if (!apiKey) {
     throw appError("VALIDATION", i18n.t("ai.errors.missingApiKey"));
   }
 
-  const { jinglv: resumeInstructions } = await getAiInstructions();
+  const { resume: resumeInstructions } = await getAiInstructions();
   const projectContext = redactSecrets(
-    formatProfilesContext(profiles, identity, gitAuthors),
+    formatProfilesContext(profiles, gitAuthors),
   );
   const controller = new AbortController();
   const abortFromCaller = (): void => controller.abort();
@@ -69,13 +70,18 @@ export async function streamJinglvReply({
         stream: true,
         // 略提高以利于简历表述升维，仍靠 system 硬规则约束事实与禁写依据
         temperature: 0.55,
-        // Pro + thinking：reasoning 流式展示，正文只消费 content
-        thinking: { type: "enabled" },
-        reasoning_effort: "high",
+        ...(enableThinking
+          ? {
+              thinking: { type: "enabled" },
+              reasoning_effort: "high",
+            }
+          : {
+              thinking: { type: "disabled" },
+            }),
         messages: [
           {
             role: "system",
-            content: buildJinglvSystemPrompt(
+            content: buildResumeSystemPrompt(
               locale,
               projectContext,
               resumeInstructions,
@@ -94,17 +100,17 @@ export async function streamJinglvReply({
       const payload = await readResponseJson(response);
       throw appError(
         "INTERNAL",
-        readErrorMessage(payload) ?? i18n.t("jinglv.replyFailed"),
+        readErrorMessage(payload) ?? i18n.t("multiAgent.replyFailed"),
       );
     }
     if (!response.body) {
-      throw appError("INTERNAL", i18n.t("jinglv.replyFailed"));
+      throw appError("INTERNAL", i18n.t("multiAgent.replyFailed"));
     }
 
     await readSseStream(response.body, onDelta, onReasoningDelta);
   } catch (error) {
     if (controller.signal.aborted) {
-      throw appError("INTERNAL", i18n.t("jinglv.replyTimeout"));
+      throw appError("INTERNAL", i18n.t("multiAgent.replyTimeout"));
     }
     throw error;
   } finally {
@@ -113,17 +119,8 @@ export async function streamJinglvReply({
   }
 }
 
-function identityContactComplete(identity: JinglvIdentity): boolean {
-  return (
-    identity.displayName.trim().length > 0 &&
-    identity.phone.trim().length > 0 &&
-    identity.email.trim().length > 0
-  );
-}
-
 function formatProfilesContext(
-  profiles: readonly JinglvProjectProfile[],
-  identity: JinglvIdentity,
+  profiles: readonly AgentProjectProfile[],
   gitAuthors: ReadonlyArray<{ name: string; email: string }>,
 ): string {
   const authors = gitAuthors.filter(
@@ -142,18 +139,13 @@ function formatProfilesContext(
   const header = [
     `Registered projects: ${profiles.length}.`,
     "Evidence policy: subjectIndex + changed paths are enough to write approach bullets; diff excerpts are optional boosts. Never refuse or ask user for more evidence because excerpts are truncated. All Git data below is from read-only queries.",
-    "## 用户身份配置（设置中已保存；已填字段勿重复追问）",
-    `- 姓名: ${identity.displayName.trim() || "（未配置）"}`,
-    `- 手机: ${identity.phone.trim() || "（未配置）"}`,
-    `- 联系邮箱: ${identity.email.trim() || "（未配置）"}`,
-    identityContactComplete(identity)
-      ? "联系信息已齐：仅当用户明确要完整简历时才可写入文首；默认仍可只输出项目简历。"
-      : "联系信息未齐：成稿不要输出基本信息/待补充段，也不要在回复里再催填（首条问候已提示）。",
+    "Output only project-experience blocks; never write contact/basics sections (name/phone/email).",
     "Git 作者账号（来自设置 → Git 的全部配置项，与启用/停用无关；提交命中任一即计入）：",
     authorLines,
+    "项目列表：下列为全部已登记仓库，列举时必须全部告知用户，不要因 matchedCommits=0 而省略或替用户筛选「没改过」的仓。",
     authors.length > 0
-      ? "提交过滤：下列仓库均已按上述 Git 账号过滤，且仅包含有匹配提交的仓库；无本人提交的仓已省略，成稿不要输出它们。"
-      : "Git 作者未配置：请引导用户去设置 → Git 添加账号；下列仅含有抽样提交的仓库。",
+      ? "提交摘要：各仓 recentCommits 已按上述 Git 账号收窄；matchedCommits=0 表示暂无本人抽样提交，仍须出现在项目清单里；成稿时无证据则不要编造项目经历。"
+      : "Git 作者未配置：请引导用户去设置 → Git 添加账号；下列仍列出全部已登记仓库。",
     "Time ranges are from matched sampled commits (not necessarily the absolute first commit of huge repos).",
   ].join("\n");
 
@@ -179,14 +171,31 @@ function formatProfilesContext(
 }
 
 function formatProfileBlock(
-  profile: JinglvProjectProfile,
+  profile: AgentProjectProfile,
   mode: "full" | "compact",
 ): string | null {
   if (profile.error) {
     return `### ${profile.projectName}\nERROR: ${profile.error}`;
   }
   if (profile.recentCommits.length === 0) {
-    return null;
+    const readmeRaw = profile.readmeExcerpt?.trim() ?? "";
+    const readmeLimit = mode === "full" ? CONTEXT_README_CHARS : 800;
+    const readmeExcerpt =
+      readmeRaw.length > readmeLimit
+        ? `${readmeRaw.slice(0, readmeLimit)}\n…[truncated]`
+        : readmeRaw;
+    return [
+      `### ${profile.projectName}`,
+      `repoFolderName: ${profile.projectName}`,
+      `projectId: ${profile.projectId}`,
+      "matchedCommits=0",
+      "authorInvolvementRange: —",
+      `techStack (package.json ∩ author usage): ${profile.techStackHints.join(", ") || "—"}`,
+      readmeExcerpt
+        ? `readmeExcerpt:\n${readmeExcerpt}`
+        : "readmeExcerpt: (none)",
+      "(no author-matched commit samples; still list this project when enumerating; do not invent personal contributions)",
+    ].join("\n");
   }
 
   const subjectLimit =

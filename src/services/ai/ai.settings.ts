@@ -9,15 +9,18 @@ const API_KEYS = "apiKeys";
 const LEGACY_AGENT_KEY = "agentKey";
 const COMMIT_INSTRUCTIONS = "commitInstructions";
 const PULL_REQUEST_INSTRUCTIONS = "pullRequestInstructions";
-const JINGLV_INSTRUCTIONS = "jinglvInstructions";
-/** 旧键名，读取后迁移到 jinglvInstructions */
-const LEGACY_JINGLV_INSTRUCTIONS = "resumeHelperInstructions";
+const RESUME_INSTRUCTIONS = "resumeInstructions";
+/** 旧键名，按顺序读取后迁移到 resumeInstructions */
+const LEGACY_RESUME_INSTRUCTIONS_KEYS = [
+  "jinglvInstructions",
+  "resumeHelperInstructions",
+];
 
 export interface AiInstructions {
   commit: string;
   pullRequest: string;
-  /** 鲸履对话文案约束（与 Git 提交/PR 指令隔离） */
-  jinglv: string;
+  /** 简历插件默认指令（代码内置；设置页不再提供编辑入口） */
+  resume: string;
 }
 
 export interface AiApiKey {
@@ -159,26 +162,29 @@ async function saveApiKeys(keys: AiApiKey[]): Promise<void> {
   await store.save();
 }
 
-/** 读取 AI 文案约束（Git / 鲸履）；未配置时回退 JLGit 默认规则。 */
+/** 读取 AI 文案约束；未配置时回退 JLGit 默认规则。 */
 export async function getAiInstructions(): Promise<AiInstructions> {
   const store = await getStore();
   const commit = await store.get<string>(COMMIT_INSTRUCTIONS);
   const pullRequest = await store.get<string>(PULL_REQUEST_INSTRUCTIONS);
-  let jinglv = await store.get<string>(JINGLV_INSTRUCTIONS);
-  if (typeof jinglv !== "string") {
-    const legacy = await store.get<string>(LEGACY_JINGLV_INSTRUCTIONS);
-    if (typeof legacy === "string" && legacy.trim()) {
-      jinglv = legacy;
-      await store.set(JINGLV_INSTRUCTIONS, legacy);
-      await store.delete(LEGACY_JINGLV_INSTRUCTIONS);
-      await store.save();
+  let resume = await store.get<string>(RESUME_INSTRUCTIONS);
+  if (typeof resume !== "string") {
+    for (const legacyKey of LEGACY_RESUME_INSTRUCTIONS_KEYS) {
+      const legacy = await store.get<string>(legacyKey);
+      if (typeof legacy === "string" && legacy.trim()) {
+        resume = legacy;
+        await store.set(RESUME_INSTRUCTIONS, legacy);
+        await store.delete(legacyKey);
+        await store.save();
+        break;
+      }
     }
   }
   const defaults = getDefaultAiInstructions(i18n.language ?? "zh-CN");
   return {
     commit: typeof commit === "string" ? commit : defaults.commit,
     pullRequest: typeof pullRequest === "string" ? pullRequest : defaults.pullRequest,
-    jinglv: typeof jinglv === "string" ? jinglv : defaults.jinglv,
+    resume: typeof resume === "string" ? resume : defaults.resume,
   };
 }
 
@@ -190,7 +196,7 @@ export async function setAiInstructions(
   const entries: Array<[key: string, value: string | undefined]> = [
     [COMMIT_INSTRUCTIONS, instructions.commit],
     [PULL_REQUEST_INSTRUCTIONS, instructions.pullRequest],
-    [JINGLV_INSTRUCTIONS, instructions.jinglv],
+    [RESUME_INSTRUCTIONS, instructions.resume],
   ];
 
   for (const [key, value] of entries) {

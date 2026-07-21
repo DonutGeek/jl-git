@@ -4,10 +4,10 @@ import { invokeCommand } from "@/services/invoke";
 
 export type AppDataClearModule =
   | "agent_chats"
-  | "jinglv_chats"
+  | "multi_agent_chats"
   | "ai_secrets"
   | "git_accounts"
-  | "jinglv_identity"
+  | "multi_agent_identity"
   | "ui_prefs"
   | "open_tabs"
   | "all_app_data";

@@ -1,6 +1,7 @@
 import {
   forwardRef,
   useCallback,
+  useMemo,
   useRef,
   type FormEvent,
   type KeyboardEvent,
@@ -21,21 +22,46 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { AgentBranchMention } from "@/types/ai";
+import type { AgentMention, AgentMentionKind } from "@/types/ai";
 
 export interface AgentMentionOption extends Record<string, unknown> {
   id: string;
   display: string;
-  isRemote: boolean;
+  kind: AgentMentionKind;
+  /** 分支：是否远端；插件/项目可省略 */
+  isRemote?: boolean;
   /** 是否在该项上方渲染分组标题（过滤后各组首条） */
   showGroupHeader?: boolean;
 }
 
-function compareBranchDisplay(left: string, right: string): number {
+function compareMentionDisplay(left: string, right: string): number {
   return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
 }
 
-/** 本地组在前、远端组在后；组内按名称；各组首条带分组标题 */
+function mentionGroupOrder(option: AgentMentionOption): number {
+  if (option.kind === "plugin") {
+    return 0;
+  }
+  if (option.kind === "project") {
+    return 1;
+  }
+  return option.isRemote ? 3 : 2;
+}
+
+function mentionGroupLabelKey(option: {
+  kind?: AgentMentionKind;
+  isRemote?: boolean;
+}): string {
+  if (option.kind === "plugin") {
+    return "agent.mentionGroupPlugins";
+  }
+  if (option.kind === "project") {
+    return "multiAgent.mentionGroupProjects";
+  }
+  return option.isRemote ? "repo.remote" : "repo.local";
+}
+
+/** 插件 → 项目 → 本地分支 → 远端分支；组内按名称；各组首条带分组标题 */
 function buildMentionSuggestions(
   options: readonly AgentMentionOption[],
   query: string,
@@ -51,29 +77,54 @@ function buildMentionSuggestions(
     );
   });
 
-  const local = matched
-    .filter((option) => !option.isRemote)
-    .sort((a, b) => compareBranchDisplay(a.display, b.display));
-  const remote = matched
-    .filter((option) => option.isRemote)
-    .sort((a, b) => compareBranchDisplay(a.display, b.display));
+  const sorted = [...matched].sort((left, right) => {
+    const groupDiff = mentionGroupOrder(left) - mentionGroupOrder(right);
+    if (groupDiff !== 0) {
+      return groupDiff;
+    }
+    return compareMentionDisplay(left.display, right.display);
+  });
 
-  return [
-    ...local.map((option, index) => ({
-      ...option,
-      showGroupHeader: index === 0,
-    })),
-    ...remote.map((option, index) => ({
-      ...option,
-      showGroupHeader: index === 0,
-    })),
-  ];
+  let lastGroupKey = "";
+  return sorted.map((option) => {
+    const groupKey = `${option.kind}:${option.isRemote === true ? "remote" : "local"}`;
+    const showGroupHeader = groupKey !== lastGroupKey;
+    lastGroupKey = groupKey;
+    return { ...option, showGroupHeader };
+  });
+}
+
+function toAgentMention(
+  mentionId: string,
+  display: string,
+  option: AgentMentionOption | undefined,
+): AgentMention {
+  const kind = option?.kind ?? "branch";
+  if (kind === "plugin") {
+    const id = mentionId.startsWith("plugin:")
+      ? mentionId.slice("plugin:".length)
+      : mentionId;
+    return { type: "plugin", id, name: display };
+  }
+  if (kind === "project") {
+    const id = mentionId.startsWith("project:")
+      ? mentionId.slice("project:".length)
+      : mentionId;
+    return { type: "project", id, name: display };
+  }
+  return { type: "branch", name: mentionId };
 }
 
 interface AgentComposerProps {
   draftMarkup: string;
   draftPlainText: string;
+  /** @ 候选（插件/项目等）；单仓鲸灵传空且 enableMentions=false */
   branchOptions: readonly AgentMentionOption[];
+  /**
+   * 是否启用 @ 提及。
+   * 单仓鲸灵为 false（纯文本）；多仓鲸灵为 true（插件/项目）。
+   */
+  enableMentions?: boolean;
   isReplying: boolean;
   canSubmit: boolean;
   /** 覆盖默认占位文案 */
@@ -84,7 +135,7 @@ interface AgentComposerProps {
   onDraftChange: (next: {
     markup: string;
     plainText: string;
-    mentions: readonly AgentBranchMention[];
+    mentions: readonly AgentMention[];
   }) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   /** 生成中点击停止（Abort 当前流式请求） */
@@ -95,6 +146,9 @@ interface AgentComposerProps {
   onThinkingEnabledChange?: (enabled: boolean) => void;
 }
 
+const COMPOSER_INPUT_CLASS =
+  "placeholder:text-muted-foreground relative z-[1] block min-h-full w-full min-w-0 resize-none overflow-hidden rounded-none border-0 bg-transparent px-3 pt-2 pb-10 text-xs leading-5 break-words whitespace-pre-wrap shadow-none outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50";
+
 /** Agent 输入区：Mentions + shadcn ScrollArea + 发送 / 停止 */
 export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
   function AgentComposer(
@@ -102,6 +156,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
       draftMarkup,
       draftPlainText,
       branchOptions,
+      enableMentions = true,
       isReplying,
       canSubmit,
       placeholder,
@@ -119,6 +174,8 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
     const { t } = useTranslation();
     const inputPlaceholder = placeholder ?? t("agent.inputPlaceholder");
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+    // 单仓：仅插件；多仓：插件+项目。enableMentions=false 时走纯文本（无分支 @）
+    const mentionsOn = enableMentions;
     // 中文等 IME：选词回车时部分环境 isComposing 已是 false，需组合态标记 + keyCode 229
     const isComposingRef = useRef(false);
     const skipEnterSubmitRef = useRef(false);
@@ -127,6 +184,22 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
       (query: string) => buildMentionSuggestions(branchOptions, query),
       [branchOptions],
     );
+    const optionsById = useMemo(() => {
+      const map = new Map<string, AgentMentionOption>();
+      for (const option of branchOptions) {
+        map.set(option.id, option);
+      }
+      return map;
+    }, [branchOptions]);
+    const hasPluginOrProject = branchOptions.some(
+      (option) => option.kind === "plugin" || option.kind === "project",
+    );
+    const emptyMentionsKey = hasPluginOrProject
+      ? "agent.noMentions"
+      : "agent.noBranchMentions";
+    const suggestionsA11yKey = hasPluginOrProject
+      ? "agent.mentionsAria"
+      : "agent.branchMentions";
 
     function handleCompositionStart(): void {
       isComposingRef.current = true;
@@ -212,6 +285,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                 "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
               )}
             >
+              {mentionsOn ? (
               <MentionsInput<AgentMentionOption>
                 inputRef={(element) => {
                   if (typeof inputRef === "function") {
@@ -225,10 +299,11 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                   onDraftChange({
                     markup: value,
                     plainText: plainTextValue,
-                    mentions: mentions.map((mention) => ({
-                      type: "branch",
-                      name: String(mention.id),
-                    })),
+                    mentions: mentions.map((mention) => {
+                      const id = String(mention.id);
+                      const display = String(mention.display ?? mention.id);
+                      return toAgentMention(id, display, optionsById.get(id));
+                    }),
                   });
                 }}
                 onKeyDown={handleInputKeyDown}
@@ -237,7 +312,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                 onWheel={handleInputWheel}
                 aria-label={inputPlaceholder}
                 placeholder={inputPlaceholder}
-                a11ySuggestionsListLabel={t("agent.branchMentions")}
+                a11ySuggestionsListLabel={t(suggestionsA11yKey)}
                 // 贴输入框左缘展开；库默认 portal+fixed，勿再写 absolute/bottom-full
                 anchorMode="left"
                 suggestionsPlacement="above"
@@ -248,8 +323,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                   control:
                     "relative block min-h-full w-full min-w-0 rounded-md border-0 bg-transparent p-0 shadow-none",
                   // 空态贴满视口；内容变高后由外层 ScrollArea 滚动
-                  input:
-                    "placeholder:text-muted-foreground relative z-[1] block min-h-full w-full min-w-0 resize-none overflow-hidden rounded-none border-0 bg-transparent px-3 pt-2 pb-10 text-xs leading-5 break-words whitespace-pre-wrap shadow-none outline-none focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50",
+                  input: COMPOSER_INPUT_CLASS,
                   // 必须 absolute，否则与 textarea 叠高，空态也会溢出
                   highlighter:
                     "pointer-events-none absolute inset-0 box-border min-h-full w-full min-w-0 overflow-hidden px-3 pt-2 pb-10 text-xs leading-5 break-words whitespace-pre-wrap",
@@ -278,13 +352,18 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                   // highlighter 与 textarea 叠字对齐：禁止 padding/inline-flex（会撑宽导致错位）
                   // 用同色 box-shadow 模拟 Badge 胶囊边距，不改文字度量
                   className="rounded-sm bg-secondary text-secondary-foreground shadow-[0_0_0_2px_var(--secondary)] box-decoration-clone"
-                  renderSuggestion={(branch, _query, _highlighted, _index, focused) => {
-                    const display = String(branch.display ?? branch.id);
+                  renderSuggestion={(option, _query, _highlighted, _index, focused) => {
+                    const display = String(option.display ?? option.id);
+                    const kind =
+                      typeof option.kind === "string"
+                        ? (option.kind as AgentMentionKind)
+                        : undefined;
+                    const isRemote = option.isRemote === true;
                     return (
                       <div className="min-w-0">
-                        {branch.showGroupHeader ? (
+                        {option.showGroupHeader ? (
                           <div className="text-muted-foreground pointer-events-none px-1.5 pt-1.5 pb-1 text-[10px] font-medium tracking-wide">
-                            {t(branch.isRemote ? "repo.remote" : "repo.local")}
+                            {t(mentionGroupLabelKey({ kind, isRemote }))}
                           </div>
                         ) : null}
                         <div
@@ -302,11 +381,39 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                   }}
                   renderEmpty={() => (
                     <span className="text-muted-foreground block px-2 py-1.5 text-xs">
-                      {t("agent.noBranchMentions")}
+                      {t(emptyMentionsKey)}
                     </span>
                   )}
                 />
               </MentionsInput>
+              ) : (
+                <textarea
+                  ref={(element) => {
+                    if (typeof inputRef === "function") {
+                      inputRef(element);
+                    } else if (inputRef) {
+                      inputRef.current = element;
+                    }
+                  }}
+                  value={draftPlainText}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    onDraftChange({
+                      markup: value,
+                      plainText: value,
+                      mentions: [],
+                    });
+                  }}
+                  onKeyDown={handleInputKeyDown}
+                  onCompositionStart={handleCompositionStart}
+                  onCompositionEnd={handleCompositionEnd}
+                  onWheel={handleInputWheel}
+                  aria-label={inputPlaceholder}
+                  placeholder={inputPlaceholder}
+                  disabled={isReplying}
+                  className={COMPOSER_INPUT_CLASS}
+                />
+              )}
             </ScrollArea>
           </div>
           {showThinkingToggle ? (

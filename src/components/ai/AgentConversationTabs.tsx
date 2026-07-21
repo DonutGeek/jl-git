@@ -21,7 +21,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Pin, Plus, X } from "lucide-react";
+import { Blocks, Pin, Plus, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,8 @@ interface AgentConversationTabsProps {
   onRename: (conversationId: string, title: string) => void;
   onPin: (conversationId: string, pinned: boolean) => void;
   onReorder: (activeId: string, overId: string) => void;
+  /** 打开插件列表（单仓顶栏入口） */
+  onOpenPlugins?: () => void;
 }
 
 interface ConversationTabChromeProps {
@@ -219,6 +221,7 @@ export function AgentConversationTabs({
   onRename,
   onPin,
   onReorder,
+  onOpenPlugins,
 }: AgentConversationTabsProps) {
   const { t } = useTranslation();
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -346,6 +349,23 @@ export function AgentConversationTabs({
           </TooltipTrigger>
           <TooltipContent>{t("agent.createConversation")}</TooltipContent>
         </Tooltip>
+        {onOpenPlugins ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground size-7 shrink-0"
+                aria-label={t("agent.openPlugins")}
+                onClick={onOpenPlugins}
+              >
+                <Blocks aria-hidden="true" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("agent.openPluginsHint")}</TooltipContent>
+          </Tooltip>
+        ) : null}
       </header>
 
       <Dialog

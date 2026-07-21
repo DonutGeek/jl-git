@@ -11,9 +11,12 @@ export {
 export type { AiApiKey, AiInstructions } from "./ai.settings";
 export { generateCommitMessage } from "./ai.commit";
 export { streamAgentReply } from "./ai.agent";
-export { streamJinglvReply } from "./ai.jinglv";
+export { streamMultiAgentReply } from "./ai.multi";
+export { streamJinglingReply } from "./ai.stream";
+export type { StreamJinglingReplyOptions } from "./ai.stream";
 export {
   fetchDeepSeekBalance,
+  getDeepSeekBalanceDocsUrl,
   getDeepSeekTopUpUrl,
   pickPreferredBalance,
 } from "./ai.balance";

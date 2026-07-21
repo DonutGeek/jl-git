@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
-import { emptyJinglvIdentity } from "@/services/jinglv/jinglv.identity";
+import { emptyAgentIdentity } from "@/services/agent/agent.identity";
 import type { AgentChatMessage, AgentConversation } from "@/types/ai";
-import type { JinglvIdentity, JinglvProjectProfile } from "@/types/jinglv";
+import type { AgentIdentity, AgentProjectProfile } from "@/types/agent";
 
 function createEmptyConversation(): AgentConversation {
   return {
@@ -41,24 +41,24 @@ function mapActiveConversation(
   return { conversations: next, activeConversationId };
 }
 
-interface JinglvState {
-  profiles: JinglvProjectProfile[];
+interface MultiAgentState {
+  profiles: AgentProjectProfile[];
   profilesLoading: boolean;
   profilesError: string | null;
   conversations: readonly AgentConversation[];
   activeConversationId: string | null;
-  identity: JinglvIdentity;
+  identity: AgentIdentity;
   identityReady: boolean;
   /** 来自设置 → Git 的公共账号，用于匹配提交 */
   gitAuthors: Array<{ name: string; email: string }>;
   setProfilesLoading: (loading: boolean) => void;
-  setProfiles: (profiles: JinglvProjectProfile[], error?: string | null) => void;
-  setIdentity: (identity: JinglvIdentity) => void;
-  patchIdentity: (patch: Partial<JinglvIdentity>) => void;
+  setProfiles: (profiles: AgentProjectProfile[], error?: string | null) => void;
+  setIdentity: (identity: AgentIdentity) => void;
+  patchIdentity: (patch: Partial<AgentIdentity>) => void;
   setGitAuthors: (authors: Array<{ name: string; email: string }>) => void;
   /** 从 SQLite 灌入会话列表（覆盖内存） */
   hydrateConversations: (conversations: readonly AgentConversation[]) => void;
-  /** 清空全部鲸履会话（设置清理） */
+  /** 清空全部多仓鲸灵会话（设置清理） */
   clearAllConversations: () => void;
   ensureDefaultConversation: () => void;
   createConversation: () => string;
@@ -79,13 +79,13 @@ interface JinglvState {
   resetConversation: () => void;
 }
 
-export const useJinglvStore = create<JinglvState>((set) => ({
+export const useMultiAgentStore = create<MultiAgentState>((set) => ({
   profiles: [],
   profilesLoading: false,
   profilesError: null,
   conversations: [],
   activeConversationId: null,
-  identity: emptyJinglvIdentity(),
+  identity: emptyAgentIdentity(),
   identityReady: false,
   gitAuthors: [],
 
@@ -354,16 +354,16 @@ export const useJinglvStore = create<JinglvState>((set) => ({
 }));
 
 /** 读取当前会话消息（供非 React 路径使用） */
-export function getActiveJinglvMessages(): readonly AgentChatMessage[] {
-  const state = useJinglvStore.getState();
+export function getActiveMultiAgentMessages(): readonly AgentChatMessage[] {
+  const state = useMultiAgentStore.getState();
   const conversation = state.conversations.find(
     (item) => item.id === state.activeConversationId,
   );
   return conversation?.messages ?? [];
 }
 
-export function getActiveJinglvConversation(): AgentConversation | null {
-  const state = useJinglvStore.getState();
+export function getActiveMultiAgentConversation(): AgentConversation | null {
+  const state = useMultiAgentStore.getState();
   return (
     state.conversations.find((item) => item.id === state.activeConversationId) ??
     null

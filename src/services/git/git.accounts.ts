@@ -6,9 +6,9 @@ import { isRecord } from "@/types/error";
 
 const STORE_FILE = "git-accounts.json";
 const ACCOUNTS_KEY = "accounts";
-const JINGLV_STORE_FILE = "jinglv.json";
-const LEGACY_JINGLV_STORE_FILE = "resume-helper.json";
-const JINGLV_IDENTITY_KEY = "identity";
+/** 简历插件联系信息 Store（含旧文件名），仅用于播种初始 Git 账号 */
+const AGENT_IDENTITY_STORE_FILES = ["agent-identity.json", "jinglv.json", "resume-helper.json"];
+const AGENT_IDENTITY_KEY = "identity";
 
 /** 应用内登记的 Git 提交身份（启用项会同步到 git config --global） */
 export interface GitIdentityAccount {
@@ -28,7 +28,7 @@ function getStore(): Promise<LazyStore> {
   return storePromise;
 }
 
-/** 列出 Git 账号；空列表时从全局身份 / 旧鲸履配置播种。 */
+/** 列出 Git 账号；空列表时从全局身份 / 简历插件旧配置播种。 */
 export async function listGitIdentityAccounts(): Promise<GitIdentityAccount[]> {
   const store = await getStore();
   const saved = await store.get<unknown>(ACCOUNTS_KEY);
@@ -172,7 +172,7 @@ export async function deleteGitIdentityAccount(
 }
 
 /**
- * 供鲸履等只读消费：返回设置中配置的全部 Git 账号。
+ * 供多仓鲸灵简历插件等只读消费：返回设置中配置的全部 Git 账号。
  * 故意忽略 enabled——启用/停用只同步 git config --global，不限制简历匹配。
  */
 export async function listAllGitAuthorsForMatching(): Promise<
@@ -202,10 +202,10 @@ async function seedInitialAccounts(): Promise<GitIdentityAccount[]> {
     // 忽略全局身份读取失败
   }
 
-  for (const storeFile of [JINGLV_STORE_FILE, LEGACY_JINGLV_STORE_FILE]) {
+  for (const storeFile of AGENT_IDENTITY_STORE_FILES) {
     try {
-      const jinglvStore = new LazyStore(storeFile);
-      const saved = await jinglvStore.get<unknown>(JINGLV_IDENTITY_KEY);
+      const identityStore = new LazyStore(storeFile);
+      const saved = await identityStore.get<unknown>(AGENT_IDENTITY_KEY);
       if (!isRecord(saved) || !Array.isArray(saved.gitAuthors)) {
         continue;
       }
@@ -225,7 +225,7 @@ async function seedInitialAccounts(): Promise<GitIdentityAccount[]> {
         });
       }
     } catch {
-      // 忽略旧鲸履配置迁移失败
+      // 忽略旧版简历插件配置迁移失败
     }
   }
 

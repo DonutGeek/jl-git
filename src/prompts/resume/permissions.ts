@@ -1,6 +1,6 @@
-/** 鲸履：只读权限与证据边界（禁止写操作） */
+/** 简历插件：只读权限与证据边界（禁止写操作） */
 
-export const JINGLV_PERMISSIONS_PROMPT: readonly string[] = [
+export const RESUME_PERMISSIONS_PROMPT: readonly string[] = [
   "## 权限（硬性）",
   "- 你只能使用应用提供的只读 Git 查询结果（提交元数据、改动文件列表、diff 摘录、README、package 技术栈等）。",
   "- 禁止要求、暗示或描述任何增删改操作：不要 stage/commit/push/reset/rebase/merge/checkout 写分支、改文件、删仓库等。",

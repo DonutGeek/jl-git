@@ -17,6 +17,9 @@ interface AgentMessageListProps {
   actionsDisabled?: boolean;
   onRegenerateLast?: () => void;
   onEditUserMessage?: (messageId: string, content: string) => void;
+  /** 覆盖默认空状态文案（多仓鲸灵等） */
+  emptyTitle?: string;
+  emptyDescription?: string;
 }
 
 /** 消息列表：虚拟滚动 + 粘底跟随流式输出 */
@@ -28,6 +31,8 @@ export function AgentMessageList({
   actionsDisabled = false,
   onRegenerateLast,
   onEditUserMessage,
+  emptyTitle,
+  emptyDescription,
 }: AgentMessageListProps) {
   const { t } = useTranslation();
   const stickToBottomRef = useRef(true);
@@ -40,9 +45,24 @@ export function AgentMessageList({
     Map<number, (element: HTMLDivElement | null) => void>
   >(new Map());
   const [messageViewport, setMessageViewport] = useState<HTMLDivElement | null>(null);
+  /** 同一会话同时只允许一条用户消息处于编辑 */
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 
   messagesLengthRef.current = messages.length;
   messageViewportRef.current = messageViewport;
+
+  useEffect(() => {
+    setEditingMessageId(null);
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (
+      editingMessageId &&
+      !messages.some((message) => message.id === editingMessageId)
+    ) {
+      setEditingMessageId(null);
+    }
+  }, [editingMessageId, messages]);
 
   /** 贴底时滚到最末；虚拟列表高度常晚于内容更新，需在测量后再补一次 */
   const scrollToBottomIfSticky = useCallback((): void => {
@@ -226,57 +246,81 @@ export function AgentMessageList({
   }, [lastMessage?.id, lastMessage?.isStreaming, messageViewport, scrollToBottomIfSticky]);
 
   return (
-    <ScrollArea ref={bindMessageScrollArea} className="h-full w-full">
-      <div className="px-3 pt-2" style={{ paddingBottom: composerPadPx }}>
-        {messages.length === 0 ? (
-          <EmptyState
-            compact
-            className="h-full min-h-44"
-            icon={<Sparkles />}
-            title={t("agent.emptyState")}
-            description={t("agent.emptyStateDescription")}
-          />
-        ) : null}
-        <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
-          {virtualizer.getVirtualItems().map((virtualItem) => {
-            const message = messages[virtualItem.index];
-            const isLast = virtualItem.index === messages.length - 1;
-            const canRegenerate =
-              Boolean(onRegenerateLast) &&
-              isLast &&
-              message.role === "assistant" &&
-              !message.isStreaming &&
-              Boolean(message.content.trim());
-            const canEdit =
-              Boolean(onEditUserMessage) &&
-              message.role === "user" &&
-              !message.isStreaming;
-            return (
-              <div
-                key={message.id}
-                data-index={virtualItem.index}
-                ref={getMessageRowRef(virtualItem.index)}
-                className="absolute top-0 left-0 w-full pb-3"
-                style={{ transform: `translateY(${virtualItem.start}px)` }}
-              >
-                <AgentMessageItem
-                  message={message}
-                  onCompareBranches={onCompareBranches}
-                  canRegenerate={canRegenerate}
-                  canEdit={canEdit}
-                  actionsDisabled={actionsDisabled}
-                  onRegenerate={onRegenerateLast}
-                  onEditSubmit={
-                    onEditUserMessage
-                      ? (content) => onEditUserMessage(message.id, content)
-                      : undefined
-                  }
-                />
-              </div>
-            );
-          })}
+    <div className="relative h-full w-full">
+      {messages.length === 0 ? (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 z-[1] flex items-center justify-center"
+          style={{ bottom: composerPadPx }}
+        >
+          <div className="pointer-events-auto px-3">
+            <EmptyState
+              compact
+              className="py-0"
+              icon={<Sparkles />}
+              title={emptyTitle ?? t("agent.emptyState")}
+              description={
+                emptyDescription ?? t("agent.emptyStateDescription")
+              }
+            />
+          </div>
         </div>
-      </div>
-    </ScrollArea>
+      ) : null}
+      <ScrollArea ref={bindMessageScrollArea} className="h-full w-full">
+        <div className="px-3 pt-2" style={{ paddingBottom: composerPadPx }}>
+          <div
+            className="relative w-full"
+            style={{ height: `${virtualizer.getTotalSize()}px` }}
+          >
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const message = messages[virtualItem.index];
+              const isLast = virtualItem.index === messages.length - 1;
+              const canRegenerate =
+                Boolean(onRegenerateLast) &&
+                isLast &&
+                message.role === "assistant" &&
+                !message.isStreaming &&
+                Boolean(message.content.trim());
+              const canEdit =
+                Boolean(onEditUserMessage) &&
+                message.role === "user" &&
+                !message.isStreaming;
+              return (
+                <div
+                  key={message.id}
+                  data-index={virtualItem.index}
+                  ref={getMessageRowRef(virtualItem.index)}
+                  className="absolute top-0 left-0 w-full pb-3"
+                  style={{ transform: `translateY(${virtualItem.start}px)` }}
+                >
+                  <AgentMessageItem
+                    message={message}
+                    onCompareBranches={onCompareBranches}
+                    canRegenerate={canRegenerate}
+                    canEdit={canEdit}
+                    isEditing={editingMessageId === message.id}
+                    actionsDisabled={actionsDisabled}
+                    onRegenerate={onRegenerateLast}
+                    onStartEdit={() => setEditingMessageId(message.id)}
+                    onCancelEdit={() => {
+                      setEditingMessageId((current) =>
+                        current === message.id ? null : current,
+                      );
+                    }}
+                    onEditSubmit={
+                      onEditUserMessage
+                        ? (content) => {
+                            onEditUserMessage(message.id, content);
+                            setEditingMessageId(null);
+                          }
+                        : undefined
+                    }
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </ScrollArea>
+    </div>
   );
 }

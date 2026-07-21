@@ -1,5 +1,5 @@
-/** 鲸履联系信息（Git 账号复用设置 → Git 公共列表） */
-export interface JinglvIdentity {
+/** 简历插件联系信息（Git 账号复用设置 → Git 公共列表） */
+export interface AgentIdentity {
   /** 简历展示姓名 */
   displayName: string;
   phone: string;
@@ -7,8 +7,8 @@ export interface JinglvIdentity {
   email: string;
 }
 
-/** 单仓简历画像（只读汇总，注入 Agent 上下文） */
-export interface JinglvProjectProfile {
+/** 单仓画像（只读汇总，注入多仓鲸灵 Agent 上下文） */
+export interface AgentProjectProfile {
   projectId: string;
   projectName: string;
   /** 仓库绝对路径仅前端拉取证据用，不注入模型 */

@@ -1,25 +1,50 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { AgentComposer } from "@/components/ai/AgentComposer";
+import { AgentComposer, type AgentMentionOption } from "@/components/ai/AgentComposer";
 import { AgentConversationTabs } from "@/components/ai/AgentConversationTabs";
 import { AgentMessageList } from "@/components/ai/AgentMessageList";
+import { AgentCatalogPanel } from "@/components/ai/AgentCatalogPanel";
 import type { CompareBranchesAction } from "@/components/ai/AgentRichMessage";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  appendAgentMentionMarkup,
+  buildAgentPluginTryMarkup,
+  type AgentPluginDefinition,
+} from "@/plugins/agent/registry";
 import {
   deleteChatConversation,
   listChatConversations,
   reorderChatConversations,
-  streamAgentReply,
+  streamJinglingReply,
   upsertChatConversation,
 } from "@/services/ai";
+import {
+  disableAgentPlugin,
+  filterEnabledAgentPlugins,
+  getDisabledAgentPluginIds,
+} from "@/services/agent/agent.plugins";
 import { openBranchCompareWindow } from "@/services/window/branchCompareWindow";
 import { EMPTY_CONVERSATIONS, useAgentChatStore } from "@/store/useAgentChatStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
-import type { AgentBranchMention, AgentChatMessage, AgentConversation } from "@/types/ai";
+import type { AgentChatMessage, AgentConversation, AgentMention } from "@/types/ai";
+import { scheduleFocusInputCaretAtEnd } from "@/utils/focusInputCaretAtEnd";
 
 const EMPTY_MESSAGES: readonly AgentChatMessage[] = [];
 
@@ -43,10 +68,27 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   const conversationSequence = useRef(0);
   const [draftMarkup, setDraftMarkup] = useState("");
   const [draftPlainText, setDraftPlainText] = useState("");
-  const [branchMentions, setBranchMentions] = useState<readonly AgentBranchMention[]>([]);
+  const [draftMentions, setDraftMentions] = useState<readonly AgentMention[]>(
+    [],
+  );
+  const [pluginsOpen, setPluginsOpen] = useState(false);
   const [isReplying, setIsReplying] = useState(false);
   const [thinkingEnabled, setThinkingEnabled] = useState(true);
   const [composerPadPx, setComposerPadPx] = useState(COMPOSER_PAD_FALLBACK_PX);
+  const [disabledPluginIds, setDisabledPluginIds] = useState<string[]>([]);
+
+  const enabledPlugins = useMemo(
+    () => filterEnabledAgentPlugins(disabledPluginIds),
+    [disabledPluginIds],
+  );
+
+  const pluginMentionOptions = useMemo((): AgentMentionOption[] => {
+    return enabledPlugins.map((plugin) => ({
+      id: plugin.mentionId,
+      display: t(plugin.mentionDisplayKey),
+      kind: "plugin" as const,
+    }));
+  }, [enabledPlugins, t]);
   const locale = useLocaleStore((state) => state.locale);
   const branches = useRepoStore((state) => state.branches);
   const conversations = useAgentChatStore(
@@ -73,16 +115,6 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     conversations[0] ??
     null;
   const messages = activeConversation?.messages ?? EMPTY_MESSAGES;
-  const branchMentionData = useMemo(
-    () =>
-      branches.map((branch) => ({
-        id: branch.name,
-        display: branch.name,
-        isRemote: branch.isRemote,
-      })),
-    [branches],
-  );
-
   function handleCompareBranches(action: CompareBranchesAction): void {
     const branchNames = new Set(branches.map((branch) => branch.name));
     if (!branchNames.has(action.base) || !branchNames.has(action.target)) {
@@ -206,7 +238,99 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   function clearDraft(): void {
     setDraftMarkup("");
     setDraftPlainText("");
-    setBranchMentions([]);
+    setDraftMentions([]);
+  }
+
+  useEffect(() => {
+    let active = true;
+    void getDisabledAgentPluginIds()
+      .then((ids) => {
+        if (active) {
+          setDisabledPluginIds(ids);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error(error);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function markupToPlain(markup: string): string {
+    return markup.replace(
+      /@\[([^\]]+)\]\([^)]+\)/g,
+      (_full, name: string) => `@${name}`,
+    );
+  }
+
+  function handleInsertPlugin(plugin: AgentPluginDefinition): void {
+    const display = t(plugin.mentionDisplayKey);
+    const nextMarkup = appendAgentMentionMarkup(
+      draftMarkup,
+      display,
+      plugin.mentionId,
+    );
+    setDraftMarkup(nextMarkup);
+    setDraftPlainText(markupToPlain(nextMarkup));
+    setDraftMentions((prev) => {
+      if (prev.some((item) => item.type === "plugin" && item.id === plugin.id)) {
+        return prev;
+      }
+      return [...prev, { type: "plugin", id: plugin.id, name: display }];
+    });
+    setPluginsOpen(false);
+    scheduleFocusInputCaretAtEnd(() => inputRef.current);
+  }
+
+  function handleTryPlugin(plugin: AgentPluginDefinition): void {
+    // 已有空会话则切过去，否则新建
+    const emptyConversation = conversations.find(
+      (conversation) => conversation.messages.length === 0,
+    );
+    if (emptyConversation) {
+      if (emptyConversation.id !== activeConversation?.id) {
+        setActiveConversation(projectId, emptyConversation.id);
+      }
+    } else {
+      conversationSequence.current += 1;
+      const created: AgentConversation = {
+        id: `conversation-${Date.now()}-${conversationSequence.current}`,
+        title: "",
+        messages: [],
+      };
+      createConversation(projectId, created);
+      void persistConversation(created);
+    }
+
+    const display = t(plugin.mentionDisplayKey);
+    const nextMarkup = buildAgentPluginTryMarkup(
+      display,
+      plugin.mentionId,
+      t(plugin.tryExampleKey),
+    );
+    setDraftMarkup(nextMarkup);
+    setDraftPlainText(markupToPlain(nextMarkup));
+    setDraftMentions([{ type: "plugin", id: plugin.id, name: display }]);
+    setPluginsOpen(false);
+    scheduleFocusInputCaretAtEnd(() => inputRef.current);
+  }
+
+  function handleUninstallPlugin(plugin: AgentPluginDefinition): void {
+    void (async () => {
+      try {
+        await disableAgentPlugin(plugin.id);
+        setDisabledPluginIds((prev) =>
+          prev.includes(plugin.id) ? prev : [...prev, plugin.id],
+        );
+        toast.success(
+          t("agent.pluginUninstalled", { name: t(plugin.titleKey) }),
+        );
+      } catch (error: unknown) {
+        console.error(error);
+        toast.error(toUserMessage(error) || t("agent.pluginUninstallFailed"));
+      }
+    })();
   }
 
   function nextMessageId(prefix: "user" | "assistant"): string {
@@ -294,7 +418,8 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     };
 
     try {
-      await streamAgentReply({
+      await streamJinglingReply({
+        host: "project",
         messages: historyForRequest,
         repoPath,
         locale,
@@ -368,7 +493,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
       role: "user",
       content,
       createdAt: askedAt,
-      mentions: branchMentions,
+      ...(draftMentions.length > 0 ? { mentions: draftMentions } : {}),
     };
     const conversationId = activeConversation.id;
     const historyForRequest = [...messages, userMessage];
@@ -484,6 +609,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           reorderConversations(projectId, activeId, overId);
           void persistOrder();
         }}
+        onOpenPlugins={() => setPluginsOpen(true)}
       />
 
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -513,7 +639,8 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           inputRef={inputRef}
           draftMarkup={draftMarkup}
           draftPlainText={draftPlainText}
-          branchOptions={branchMentionData}
+          branchOptions={pluginMentionOptions}
+          enableMentions
           isReplying={isReplying}
           canSubmit={Boolean(activeConversation)}
           showThinkingToggle
@@ -522,7 +649,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           onDraftChange={({ markup, plainText, mentions }) => {
             setDraftMarkup(markup);
             setDraftPlainText(plainText);
-            setBranchMentions(mentions);
+            setDraftMentions(mentions);
           }}
           onSubmit={(event) => {
             void handleSubmit(event);
@@ -532,6 +659,24 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           }}
         />
       </div>
+
+      <Dialog open={pluginsOpen} onOpenChange={setPluginsOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="sr-only">
+              {t("agent.catalogSwitchAria")}
+            </DialogTitle>
+          </DialogHeader>
+          <AgentCatalogPanel
+            variant="compact"
+            showHint
+            plugins={enabledPlugins}
+            onSelectPlugin={handleInsertPlugin}
+            onTryPlugin={handleTryPlugin}
+            onUninstallPlugin={handleUninstallPlugin}
+          />
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

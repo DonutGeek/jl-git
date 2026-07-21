@@ -22,7 +22,7 @@ import type {
 } from "@/types/git";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
-/** 与鲸履一致：V4 Pro + thinking，正文只消费 content */
+/** 与简历插件一致：V4 Pro + thinking，正文只消费 content */
 const DEEPSEEK_AGENT_MODEL = "deepseek-v4-pro";
 const AGENT_REQUEST_TIMEOUT_MS = 150_000;
 const AGENT_HISTORY_LIMIT = 20;
