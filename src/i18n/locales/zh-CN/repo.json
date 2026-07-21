@@ -374,6 +374,8 @@
     "emptyMessage": "请输入提交信息",
     "nothingToCommit": "待提交列表为空，请先暂存文件",
     "nothingToUndo": "没有可撤销的未推送提交",
-    "emptyBranchName": "请输入分支名"
-  }
+    "emptyBranchName": "请输入分支名",
+    "noGitIdentity": "请先在设置 → Git 中配置用户名和电子邮箱"
+  },
+  "goToGitSettings": "去配置"
 }

@@ -1,11 +1,14 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
 
 import i18n from "@/i18n";
-import { setGlobalIdentity } from "@/services/git/git.identity";
+import { getGlobalIdentity, setGlobalIdentity } from "@/services/git/git.identity";
 import { isRecord } from "@/types/error";
+import { hasConfiguredGitIdentity } from "@/utils/gitIdentity";
 
 const STORE_FILE = "git-accounts.json";
 const ACCOUNTS_KEY = "accounts";
+/** 是否已完成过「从全局 git 播种」尝试结果落盘（成功导入或用户已清空账号） */
+const SEEDED_KEY = "seededFromGlobal";
 
 /** 应用内登记的 Git 提交身份（启用项会同步到 git config --global） */
 export interface GitIdentityAccount {
@@ -25,11 +28,24 @@ function getStore(): Promise<LazyStore> {
   return storePromise;
 }
 
-/** 列出 Git 账号；未配置时为空列表（不从全局 git / 旧插件自动播种）。 */
+/**
+ * 列出 Git 账号。
+ * 首次（列表为空且尚未播种）时，若本机全局 git 已有 name+email，则自动导入一条并启用。
+ */
 export async function listGitIdentityAccounts(): Promise<GitIdentityAccount[]> {
   const store = await getStore();
   const saved = await store.get<unknown>(ACCOUNTS_KEY);
-  return ensureSingleEnabled(parseAccounts(saved));
+  const accounts = ensureSingleEnabled(parseAccounts(saved));
+  if (accounts.length > 0) {
+    return accounts;
+  }
+
+  const alreadySeeded = (await store.get<unknown>(SEEDED_KEY)) === true;
+  if (alreadySeeded) {
+    return [];
+  }
+
+  return seedFromGlobalIdentityIfPossible(store);
 }
 
 /** 创建并启用账号；同时写入 git config --global。 */
@@ -136,6 +152,7 @@ export async function deleteGitIdentityAccount(
   }
 
   if (next.length === 0) {
+    // 用户主动清空：标记已播种，避免再次从全局 git 自动填回
     await saveAccounts([]);
     return [];
   }
@@ -168,6 +185,38 @@ export async function listAllGitAuthorsForMatching(): Promise<
 > {
   const accounts = await listGitIdentityAccounts();
   return accounts.map((item) => ({ name: item.name, email: item.email }));
+}
+
+/**
+ * 列表为空且尚未播种时：读取全局 git identity，完整则写入一条启用账号。
+ * 不写回 git config（只读导入）。本机尚无身份时不打播种标记，下次再试。
+ */
+async function seedFromGlobalIdentityIfPossible(
+  store: LazyStore,
+): Promise<GitIdentityAccount[]> {
+  try {
+    const identity = await getGlobalIdentity();
+    if (!hasConfiguredGitIdentity(identity)) {
+      return [];
+    }
+
+    const name = identity.name?.trim() ?? "";
+    const email = identity.email?.trim() ?? "";
+    const seeded: GitIdentityAccount = {
+      id: crypto.randomUUID(),
+      name,
+      email,
+      enabled: true,
+      createdAt: new Date().toISOString(),
+    };
+    await store.set(ACCOUNTS_KEY, [seeded]);
+    await store.set(SEEDED_KEY, true);
+    await store.save();
+    return [seeded];
+  } catch (error) {
+    console.warn("[git.accounts] seed from global identity failed", error);
+    return [];
+  }
 }
 
 function hasDuplicate(
@@ -230,6 +279,8 @@ function parseAccounts(value: unknown): GitIdentityAccount[] {
 async function saveAccounts(accounts: GitIdentityAccount[]): Promise<void> {
   const store = await getStore();
   await store.set(ACCOUNTS_KEY, accounts);
+  // 任意落盘（含清空）都视为已处理过播种，避免用户删光后又被自动填回
+  await store.set(SEEDED_KEY, true);
   await store.save();
 }
 
@@ -237,6 +288,8 @@ async function saveAccounts(accounts: GitIdentityAccount[]): Promise<void> {
 export async function clearPersistedGitIdentityAccounts(): Promise<void> {
   const store = await getStore();
   await store.set(ACCOUNTS_KEY, []);
+  // 出厂重置后允许再次从本机 git 自动导入
+  await store.set(SEEDED_KEY, false);
   await store.save();
 }
 

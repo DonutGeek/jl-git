@@ -19,10 +19,12 @@ import { getCommitMessage } from "@/services/git";
 import { useAppPrefsStore } from "@/store/useAppPrefsStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
+import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
 
 import { toUserMessage } from "@/types/error";
 import { GitCommitSummary, GitStatusEntry } from "@/types/git";
 import { isStagedChangeEntry } from "@/utils/gitConflict";
+import { hasConfiguredGitIdentity } from "@/utils/gitIdentity";
 
 /** 提交信息历史展示最近几条标题；选择后填入完整提交文案。 */
 const COMMIT_MESSAGE_HISTORY_LIMIT = 5;
@@ -96,6 +98,7 @@ export function CommitBox() {
   );
   const demotedConflictPaths = useRepoStore((state) => state.demotedConflictPaths);
   const defaultPushAfterCommit = useAppPrefsStore((state) => state.pushAfterCommit);
+  const openSettingsDrawer = useSettingsDrawerStore((state) => state.openDrawer);
 
   const [pushAfterCommit, setPushAfterCommit] = useState(defaultPushAfterCommit);
   const [busy, setBusy] = useState(false);
@@ -122,9 +125,11 @@ export function CommitBox() {
     status?.entries.filter((entry) => isStagedEntry(entry, demotedSet)).length ?? 0;
   const working = loading || busy;
   const canGenerateCommitMessage = hasApiKey && stagedCount > 0 && !working;
-  // 待提交为空不可提交；合并进行中且冲突已清时可提交以结束合并
+  const hasIdentity = hasConfiguredGitIdentity(identity);
+  // 待提交为空不可提交；合并进行中且冲突已清时可提交以结束合并；无 Git 身份不可提交
   const canCommit =
     !working &&
+    hasIdentity &&
     conflictCount === 0 &&
     commitMessage.trim().length > 0 &&
     (stagedCount > 0 || sequencerInProgress);
@@ -241,6 +246,16 @@ export function CommitBox() {
   }, [historyOpen]);
 
   async function handleCommit(): Promise<void> {
+    if (!hasConfiguredGitIdentity(identity)) {
+      toast.error(t("repo.errors.noGitIdentity"), {
+        action: {
+          label: t("repo.goToGitSettings"),
+          onClick: () => openSettingsDrawer("git"),
+        },
+      });
+      return;
+    }
+
     setBusy(true);
     try {
       await commit();
@@ -323,11 +338,15 @@ export function CommitBox() {
   }
 
   const identityLabel =
-    identity?.name || identity?.email
+    hasIdentity
       ? t("repo.gitIdentity", {
-          name: identity.name ?? identity.email ?? "",
+          name: identity?.name ?? identity?.email ?? "",
         })
       : t("repo.gitIdentityDefault");
+
+  function openGitSettings(): void {
+    openSettingsDrawer("git");
+  }
 
   const historyPopover =
     historyOpen && commitMessageHistory.length > 0
@@ -482,7 +501,14 @@ export function CommitBox() {
         <div className="flex items-center gap-1.5">
           <Tooltip delayDuration={300}>
             <TooltipTrigger asChild>
-              <span className="inline-flex cursor-pointer">
+              <button
+                type="button"
+                className="inline-flex cursor-pointer rounded-md focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none"
+                aria-label={
+                  hasIdentity ? identityLabel : t("repo.errors.noGitIdentity")
+                }
+                onClick={openGitSettings}
+              >
                 <GitIdentityAvatar
                   name={identity?.name ?? null}
                   email={identity?.email ?? null}
@@ -490,19 +516,30 @@ export function CommitBox() {
                   shape="rounded"
                   className="size-7 text-[10px]"
                 />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {hasIdentity ? identityLabel : t("repo.errors.noGitIdentity")}
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <span className="inline-flex min-w-0 flex-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 w-full min-w-0 px-2 text-xs"
+                  onClick={() => void handleCommit()}
+                  disabled={!canCommit}
+                >
+                  {t("repo.commitTo", { branch: branchLabel })}
+                </Button>
               </span>
             </TooltipTrigger>
-            <TooltipContent>{identityLabel}</TooltipContent>
+            {!hasIdentity ? (
+              <TooltipContent>{t("repo.errors.noGitIdentity")}</TooltipContent>
+            ) : null}
           </Tooltip>
-          <Button
-            type="button"
-            size="sm"
-            className="h-7 min-w-0 flex-1 px-2 text-xs"
-            onClick={() => void handleCommit()}
-            disabled={!canCommit}
-          >
-            {t("repo.commitTo", { branch: branchLabel })}
-          </Button>
         </div>
       </div>
 

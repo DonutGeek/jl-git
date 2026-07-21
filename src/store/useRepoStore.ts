@@ -29,6 +29,7 @@ import {
   isUnstagedChangeEntry,
   pruneDemotedConflictPaths,
 } from "@/utils/gitConflict";
+import { hasConfiguredGitIdentity } from "@/utils/gitIdentity";
 import {
   hasUnresolvedConflicts,
   isWriteOpBlocked,
@@ -378,6 +379,8 @@ interface RepoStoreActions {
   selectChange: (selection: SelectedChange | null) => void;
   selectCommitFile: (file: SelectedCommitFile | null) => void;
   refreshRepoState: () => Promise<GitRepoState | null>;
+  /** 重新拉取当前仓库生效的 Git 身份（设置改账号后调用） */
+  refreshIdentity: () => Promise<void>;
   /** 选中首个冲突文件并请求聚焦变更视图 */
   focusFirstConflict: () => void;
   loadAll: (repoPath: string) => Promise<void>;
@@ -582,6 +585,24 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     } catch (error) {
       console.warn("[useRepoStore] refreshRepoState failed", error);
       return get().repoState;
+    }
+  },
+
+  async refreshIdentity() {
+    const repoPath = get().repoPath;
+    if (!repoPath) {
+      set({ identity: null });
+      return;
+    }
+    try {
+      const identity = await gitService.getIdentity(repoPath);
+      if (get().repoPath !== repoPath) {
+        return;
+      }
+      set({ identity });
+      saveRepoSession(repoPath, get());
+    } catch (error) {
+      console.warn("[useRepoStore] refreshIdentity failed", error);
     }
   },
 
@@ -1093,6 +1114,11 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       if (!message) {
         throwValidationError(i18n.t("repo.errors.emptyMessage"));
+      }
+
+      if (!hasConfiguredGitIdentity(get().identity)) {
+        // 无 name/email 时 Git 会失败；先拦截并引导去设置
+        throwValidationError(i18n.t("repo.errors.noGitIdentity"));
       }
 
       const stagedEntries = (get().status?.entries ?? []).filter(

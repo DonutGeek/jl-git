@@ -97,7 +97,11 @@ import {
   type StartupTabsMode,
 } from "@/store/useAppPrefsStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
-import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
+import { useRepoStore } from "@/store/useRepoStore";
+import {
+  useSettingsDrawerStore,
+  type SettingsDrawerCategory,
+} from "@/store/useSettingsDrawerStore";
 import { useThemeStore } from "@/store/useThemeStore";
 import { toUserMessage } from "@/types/error";
 import type { AppLocale } from "@/i18n/locale";
@@ -158,15 +162,7 @@ const settingsTextareaClassName =
 const apiKeysGridClassName =
   "grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)_minmax(0,0.7fr)_minmax(0,0.9fr)_auto] items-center gap-3";
 
-type SettingsCategory =
-  | "appearance"
-  | "git"
-  | "ssh"
-  | "ai"
-  | "tools"
-  | "data"
-  | "about"
-  | "general";
+type SettingsCategory = SettingsDrawerCategory;
 
 function maskApiKey(key: string): string {
   if (key.length <= 12) {
@@ -233,6 +229,11 @@ export function SettingsDrawer() {
   const { t } = useTranslation();
   const open = useSettingsDrawerStore((state) => state.open);
   const setOpen = useSettingsDrawerStore((state) => state.setOpen);
+  const requestedCategory = useSettingsDrawerStore((state) => state.requestedCategory);
+  const clearRequestedCategory = useSettingsDrawerStore(
+    (state) => state.clearRequestedCategory,
+  );
+  const refreshIdentity = useRepoStore((state) => state.refreshIdentity);
 
   const mode = useThemeStore((state) => state.mode);
   const setMode = useThemeStore((state) => state.setMode);
@@ -294,6 +295,15 @@ export function SettingsDrawer() {
 
   const savedInstructionsRef = useRef({ commit: "", pullRequest: "" });
   const instructionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 外部 openDrawer("git") 时落到对应分区
+  useEffect(() => {
+    if (!open || !requestedCategory) {
+      return;
+    }
+    setActiveCategory(requestedCategory);
+    clearRequestedCategory();
+  }, [open, requestedCategory, clearRequestedCategory]);
 
   useEffect(() => {
     if (!open) {
@@ -582,6 +592,7 @@ export function SettingsDrawer() {
       setGitAccountDialogOpen(false);
       setNewGitAccountName("");
       setNewGitAccountEmail("");
+      await refreshIdentity();
       toast.success(t("settings.gitAccountCreated"));
     } catch (error) {
       toast.error(toUserMessage(error));
@@ -608,6 +619,7 @@ export function SettingsDrawer() {
         ),
       );
       setGitAccountEditing(null);
+      await refreshIdentity();
       toast.success(t("settings.gitAccountUpdated"));
     } catch (error) {
       toast.error(toUserMessage(error));
@@ -620,6 +632,7 @@ export function SettingsDrawer() {
     setGitAccountActionId(account.id);
     try {
       setGitAccounts(await setGitIdentityAccountEnabled(account.id, !account.enabled));
+      await refreshIdentity();
     } catch (error) {
       toast.error(toUserMessage(error));
     } finally {
@@ -634,6 +647,7 @@ export function SettingsDrawer() {
     try {
       setGitAccounts(await deleteGitIdentityAccount(account.id));
       setGitAccountPendingDeletion(null);
+      await refreshIdentity();
       toast.success(t("settings.gitAccountDeleted"));
     } catch (error) {
       toast.error(toUserMessage(error));

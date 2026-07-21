@@ -377,6 +377,8 @@
     "emptyMessage": "Enter a commit message",
     "nothingToCommit": "Nothing staged — stage files first",
     "nothingToUndo": "No unpushed commit to undo",
-    "emptyBranchName": "Enter a branch name"
-  }
+    "emptyBranchName": "Enter a branch name",
+    "noGitIdentity": "Set your name and email in Settings → Git first"
+  },
+  "goToGitSettings": "Configure"
 }

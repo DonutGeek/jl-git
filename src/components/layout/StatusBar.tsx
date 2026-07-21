@@ -429,7 +429,7 @@ export function StatusBar() {
               )}
               aria-label={t("statusBar.settings")}
               aria-pressed={settingsOpen}
-              onClick={openDrawer}
+              onClick={() => openDrawer()}
             >
               <Settings aria-hidden="true" />
             </Button>

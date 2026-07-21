@@ -96,7 +96,7 @@ export function ActivityBar({ active, onChange }: ActivityBarProps) {
               )}
               aria-label={t("repo.settings")}
               aria-pressed={settingsOpen}
-              onClick={openDrawer}
+              onClick={() => openDrawer()}
             >
               <Settings className="size-4" aria-hidden="true" />
             </Button>
