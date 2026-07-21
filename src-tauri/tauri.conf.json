@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "鲸灵Git",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "identifier": "com.jingling.jlgit",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -33,7 +33,13 @@
   "bundle": {
     "active": true,
     "createUpdaterArtifacts": true,
-    "targets": ["app", "dmg", "nsis", "deb", "appimage"],
+    "targets": [
+      "app",
+      "dmg",
+      "nsis",
+      "deb",
+      "appimage"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -47,7 +53,10 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["SimpChinese", "English"],
+        "languages": [
+          "SimpChinese",
+          "English"
+        ],
         "displayLanguageSelector": false
       },
       "wix": {
@@ -57,7 +66,9 @@
   },
   "plugins": {
     "sql": {
-      "preload": ["sqlite:jlgit.db"]
+      "preload": [
+        "sqlite:jlgit.db"
+      ]
     },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU1RjZBNkVFRDc2NTQ3RDYKUldUV1IyWFg3cWIyVlEycGpWbHA3REJJZE9lOCt0L2RSVFgwMFErNStadjZOWGNkRkFLVlhMcnUK",

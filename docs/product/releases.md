@@ -18,6 +18,23 @@
 
 应用版本与 `package.json` / `src-tauri/tauri.conf.json` / `Cargo.toml` **保持一致**。
 
+### 自动同步版本
+
+不必每次手改三处，任选其一：
+
+1. **本地一键写入（推荐提交进仓库后再打 tag）**
+   ```bash
+   pnpm version:set 1.0.2
+   git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
+   git commit -m "chore(release): 1.0.2"
+   git tag v1.0.2
+   git push origin main v1.0.2
+   ```
+2. **仅打 tag**：CI（`publish-desktop`）会在构建前执行 `scripts/set-version.mjs`，按 `vX.Y.Z` 写入三处后再打包。  
+   注意：这只影响 CI 构建产物；若希望 `main` 上的版本号也一致，仍建议用方式 1 提交一次。
+
+脚本：`scripts/set-version.mjs`（`pnpm version:set <version>`）。
+
 ---
 
 ## 发布检查清单
@@ -25,11 +42,12 @@
 1. [ ] `feature-list` 状态已更新
 2. [ ] `CHANGELOG.md` 的 `[Unreleased]` 已归入新版本节
 3. [ ] Command/API 文档与实现一致
-4. [ ] `pnpm build` 与 `pnpm tauri build` 通过
-5. [ ] 手工验收关键路径（见 [testing](../development/testing.md)）
-6. [ ] 无密钥提交；updater 公钥不进错误渠道
-7. [ ] 打 tag：`vX.Y.Z`
-8. [ ] 上传安装包与校验和（若提供 GitHub Releases）
+4. [ ] 版本已同步（`pnpm version:set X.Y.Z` 或依赖 CI 按 tag 写入）
+5. [ ] `pnpm build` 与 `pnpm tauri build` 通过
+6. [ ] 手工验收关键路径（见 [testing](../development/testing.md)）
+7. [ ] 无密钥提交；updater 公钥不进错误渠道
+8. [ ] 打 tag：`vX.Y.Z`（小写 `v`）并 push
+9. [ ] 确认 Release 含安装包与 `latest.json`（线上升级）
 
 ---
 

@@ -32,6 +32,10 @@ jobs:
         with:
           node-version: lts/*
 
+      # 按 tag（如 v1.0.2）自动写入 package.json / tauri.conf / Cargo.toml，避免手改三处
+      - name: Sync version from tag
+        run: node ./scripts/set-version.mjs "${{ github.ref_name }}"
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:

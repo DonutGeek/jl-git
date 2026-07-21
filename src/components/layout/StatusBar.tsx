@@ -36,6 +36,7 @@ import {
 import {
   checkAppUpdate,
   installPendingAppUpdate,
+  type AppUpdateInfo,
 } from "@/services/system/system.updater";
 import { openMultiAgentWindow } from "@/services/window/multiAgentWindow";
 import {
@@ -96,53 +97,29 @@ export function StatusBar() {
   const [disk, setDisk] = useState<SystemDiskSpace | null>(null);
   const [fallbackIdentity, setFallbackIdentity] = useState<GitIdentity | null>(null);
   const [updating, setUpdating] = useState(false);
+  /** 仅有新版本时展示状态栏更新入口；无更新则隐藏 */
+  const [availableUpdate, setAvailableUpdate] = useState<AppUpdateInfo | null>(null);
 
   async function handleAppUpdate(): Promise<void> {
-    if (updating) {
+    if (updating || !availableUpdate) {
       return;
     }
     setUpdating(true);
-    const toastId = toast.loading(t("statusBar.updateChecking"));
+    const toastId = toast.loading(t("statusBar.updateDownloading"));
     try {
+      // 再确认一次，避免长时间挂起后清单已变
       const info = await checkAppUpdate();
       if (!info) {
+        setAvailableUpdate(null);
         toast.success(t("statusBar.updateUpToDate"), { id: toastId });
         return;
       }
-
-      toast.message(
-        t("statusBar.updateAvailable", {
-          version: info.version,
-          current: info.currentVersion,
-        }),
-        {
-          id: toastId,
-          duration: 20_000,
-          action: {
-            label: t("statusBar.updateInstallNow"),
-            onClick: () => {
-              void (async () => {
-                const installId = toast.loading(t("statusBar.updateDownloading"));
-                try {
-                  await installPendingAppUpdate();
-                } catch (error) {
-                  toast.error(
-                    toUserMessage(error) || t("statusBar.updateFailed"),
-                    { id: installId },
-                  );
-                }
-              })();
-            },
-          },
-        },
-      );
+      setAvailableUpdate(info);
+      await installPendingAppUpdate();
     } catch (error) {
-      toast.error(
-        import.meta.env.DEV
-          ? t("statusBar.updateDevHint")
-          : toUserMessage(error) || t("statusBar.updateCheckFailed"),
-        { id: toastId },
-      );
+      toast.error(toUserMessage(error) || t("statusBar.updateFailed"), {
+        id: toastId,
+      });
     } finally {
       setUpdating(false);
     }
@@ -169,10 +146,32 @@ export function StatusBar() {
       })
       .catch(() => {
         if (!cancelled) {
-          setAppInfo({ name: "鲸灵Git", version: "0.1.0", arch: "", os: "" });
+          setAppInfo({ name: "鲸灵Git", version: "1.0.1", arch: "", os: "" });
         }
       });
 
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 启动后静默检查 GitHub Releases；无新版本不显示更新按钮
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      return;
+    }
+    let cancelled = false;
+    void checkAppUpdate()
+      .then((info) => {
+        if (!cancelled) {
+          setAvailableUpdate(info);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAvailableUpdate(null);
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -278,37 +277,47 @@ export function StatusBar() {
         <span className="truncate font-medium" title={versionLabel}>
           {versionLabel}
         </span>
-        <span className="relative flex h-5 w-14 shrink-0 items-center justify-center">
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="absolute left-1/2 -translate-x-1/2 rounded-md focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none disabled:opacity-60"
-                aria-label={t("statusBar.update")}
-                aria-busy={updating}
-                disabled={updating}
-                onClick={() => {
-                  void handleAppUpdate();
-                }}
-              >
-                <Badge className="group h-5 cursor-pointer gap-0 px-1.5 py-0 text-[10px] font-semibold transition-all duration-150 group-hover:gap-1">
-                  {updating ? (
-                    <Loader2 className="size-3 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Download
-                      className="size-3 transition-all duration-150 group-hover:w-0 group-hover:opacity-0"
-                      aria-hidden="true"
-                    />
-                  )}
-                  <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-150 group-hover:max-w-10 group-hover:opacity-100">
-                    {t("statusBar.update")}
-                  </span>
-                </Badge>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{t("statusBar.update")}</TooltipContent>
-          </Tooltip>
-        </span>
+        {availableUpdate ? (
+          <span className="relative flex h-5 w-14 shrink-0 items-center justify-center">
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="absolute left-1/2 -translate-x-1/2 rounded-md focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none disabled:opacity-60"
+                  aria-label={t("statusBar.updateAvailable", {
+                    version: availableUpdate.version,
+                    current: availableUpdate.currentVersion,
+                  })}
+                  aria-busy={updating}
+                  disabled={updating}
+                  onClick={() => {
+                    void handleAppUpdate();
+                  }}
+                >
+                  <Badge className="group h-5 cursor-pointer gap-0 px-1.5 py-0 text-[10px] font-semibold transition-all duration-150 group-hover:gap-1">
+                    {updating ? (
+                      <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Download
+                        className="size-3 transition-all duration-150 group-hover:w-0 group-hover:opacity-0"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-150 group-hover:max-w-10 group-hover:opacity-100">
+                      {t("statusBar.update")}
+                    </span>
+                  </Badge>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {t("statusBar.updateAvailable", {
+                  version: availableUpdate.version,
+                  current: availableUpdate.currentVersion,
+                })}
+              </TooltipContent>
+            </Tooltip>
+          </span>
+        ) : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">

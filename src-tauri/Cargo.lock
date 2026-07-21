@@ -2351,7 +2351,7 @@ dependencies = [
 
 [[package]]
 name = "jlgit"
-version = "0.1.0"
+version = "1.0.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
