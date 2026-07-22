@@ -104,6 +104,7 @@ AI 生成 Release Notes 时，必须以 CHANGELOG 与提交记录为输入，并
 | 现象 | 常见原因 |
 |------|----------|
 | 检测不到新版本 | Release **缺少** macOS `*.app.tar.gz` + `.sig`；或 `latest.json` 无 `darwin-aarch64` |
+| 检查更新失败（红 toast） | 会区分超时 / 网络 / 清单未找到（发包中）/ 服务器异常，并尽量带出细节。**不是**「已是最新」；已是最新为绿提示 |
 | 检查更新 404 | 确认 endpoint 指向 **jl-git-releases**；浏览器未登录打开 `latest.json` 须 200 |
 | CI 发布失败 | 源码仓未配置 `RELEASES_GITHUB_TOKEN`；或公开仓尚无 `main`（先提交 README） |
 | 开发模式提示不可用 | 预期：仅正式安装包支持线上升级 |
