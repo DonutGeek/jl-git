@@ -351,7 +351,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
   }
 
   const sidebar = (
-    <aside className="h-full min-h-0 overflow-hidden">
+    <aside data-jlgit-sidebar="" className="h-full min-h-0 overflow-hidden">
       {sidebarView === "files" ? <FileTree key={project.path} repoPath={project.path} /> : null}
       {sidebarView === "branches" ? <BranchList /> : null}
       {sidebarView === "tags" ? <TagList onSelectTag={() => handleMainViewChange("history")} /> : null}

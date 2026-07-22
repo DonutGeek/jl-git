@@ -5,6 +5,7 @@ import {
   applyThemeToDocument,
   type ThemeMode,
 } from "@/services/theme/theme.service";
+import { refreshAppThemeForColorMode } from "@/store/useAppPrefsStore";
 import {
   listenGlobalPreferenceChange,
   notifyGlobalPreferenceChange,
@@ -26,6 +27,7 @@ export const useThemeStore = create<ThemeState>()(
 
       setMode(mode) {
         applyThemeToDocument(mode);
+        refreshAppThemeForColorMode();
         set({ mode });
         notifyGlobalPreferenceChange("theme");
       },
@@ -37,6 +39,7 @@ export const useThemeStore = create<ThemeState>()(
           current === "system" ? (prefersDark ? "dark" : "light") : current;
         const next: ThemeMode = effective === "dark" ? "light" : "dark";
         applyThemeToDocument(next);
+        refreshAppThemeForColorMode();
         set({ mode: next });
         notifyGlobalPreferenceChange("theme");
       },
@@ -60,6 +63,7 @@ export const useThemeStore = create<ThemeState>()(
       },
       onRehydrateStorage: () => (state) => {
         applyThemeToDocument(state?.mode ?? "system");
+        refreshAppThemeForColorMode();
       },
     },
   ),
@@ -69,11 +73,13 @@ export const useThemeStore = create<ThemeState>()(
 export function initTheme(): void {
   const mode = useThemeStore.getState().mode;
   applyThemeToDocument(mode);
+  refreshAppThemeForColorMode();
 
   const media = window.matchMedia("(prefers-color-scheme: dark)");
   const onChange = (): void => {
     if (useThemeStore.getState().mode === "system") {
       applyThemeToDocument("system");
+      refreshAppThemeForColorMode();
     }
   };
   media.addEventListener("change", onChange);

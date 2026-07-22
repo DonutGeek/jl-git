@@ -3,7 +3,7 @@ use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
 
 use crate::db::{
-    self, AppDataExportInput, AppDataImportResult, AppDataPaths,
+    self, AppDataExportInput, AppDataImportResult, AppDataPaths, AppDataUsage,
 };
 use crate::error::AppError;
 
@@ -41,6 +41,16 @@ fn app_data_dir(app: &AppHandle) -> Result<std::path::PathBuf, AppError> {
 pub async fn app_data_paths(app: AppHandle) -> Result<AppDataPaths, AppError> {
     let dir = app_data_dir(&app)?;
     Ok(db::resolve_paths(&dir))
+}
+
+#[tauri::command]
+pub async fn app_data_usage(app: AppHandle) -> Result<AppDataUsage, AppError> {
+    let dir = app_data_dir(&app)?;
+    tauri::async_runtime::spawn_blocking(move || db::measure_usage(&dir))
+        .await
+        .map_err(|error| {
+            AppError::new("INTERNAL", "统计应用数据目录失败").with_details(error.to_string())
+        })?
 }
 
 #[tauri::command]

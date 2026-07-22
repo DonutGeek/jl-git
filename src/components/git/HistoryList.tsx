@@ -222,6 +222,7 @@ interface HistoryCommitRowProps {
   isSelected: boolean;
   /** 图谱悬停同步高亮（未选中时） */
   isHovered: boolean;
+  /** 当前检出分支 tip：行内空心圆标记（不占非 tip 行的空白列） */
   isTip: boolean;
   /** 行内展示的 refs（已按「远程分支」开关过滤） */
   visibleRefs: string[];
@@ -358,15 +359,13 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
         onClick={() => onSelect(commit.id)}
       >
         <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-          {/* 当前分支 tip：空心圆，对齐参考客户端 HEAD 标记 */}
+          {/* 仅 tip 行显示空心圆；非 tip 不占位，避免出现「圈下面一整列空白」 */}
           {isTip ? (
             <Circle
               className="text-primary size-3 shrink-0 stroke-[2.5]"
               aria-hidden="true"
             />
-          ) : (
-            <span className="size-3 shrink-0" aria-hidden="true" />
-          )}
+          ) : null}
           {branchOnLeft ? branchSlot : null}
           <span className={subjectClassName} title={commit.subject}>
             {commit.subject}
@@ -1375,9 +1374,10 @@ export function HistoryList() {
         </ScrollArea>
 
         {/*
-         * 图谱列：视口等高 overlay，横滑条贴在列底（勿挂进列表内容流，否则横条沉到列表底）。
-         * 纵向用 translateY 跟列表 scrollTop；禁止本列纵滚以免双滚动条。
-         * 客户端筛选后改用 filteredCommits，与列表行一一对齐（parent 不在结果集内则由图谱侧截断）。
+         * 图谱列：视口等高 overlay。
+         * 纵位：外层 overflow 裁切 + translateY 跟列表 scrollTop（勿放进 h-full ScrollArea 视口内，
+         * 否则 Radix 纵向 scrollTop 会把整图滚出可视区，只剩行内 tip 占位的假象）。
+         * 横滑：列宽受限时用 ScrollArea；高度跟 SVG，避免视口可纵滚。
          */}
         {filteredCommits.length > 0 ? (
           <div
@@ -1386,31 +1386,38 @@ export function HistoryList() {
             onWheel={handleGraphColumnWheel}
             aria-hidden="true"
           >
-            <ScrollArea
-              className={cn(
-                "h-full w-full",
-                // Radix Viewport 默认 overflow:scroll；强制仅横滑
-                "[&_[data-slot=scroll-area-viewport]]:!overflow-x-auto [&_[data-slot=scroll-area-viewport]]:!overflow-y-hidden",
-                "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:hidden",
-              )}
+            <div
+              style={{
+                transform: `translateY(${-graphScrollTop}px)`,
+              }}
             >
-              {/* 仅用内容宽度撑开横滑；高度由内部 SVG 决定，勿再套 h-full absolute */}
-              <div
-                style={{
-                  width: Math.max(graphWidth, graphContentWidth || graphWidth),
-                  transform: `translateY(${-graphScrollTop}px)`,
-                }}
+              <ScrollArea
+                className={cn(
+                  "w-full",
+                  // 高度跟内容，不写 h-full，杜绝纵向可滚视口
+                  "[&_[data-slot=scroll-area-viewport]]:!h-auto [&_[data-slot=scroll-area-viewport]]:!max-h-none",
+                  "[&_[data-slot=scroll-area-viewport]]:!overflow-x-auto [&_[data-slot=scroll-area-viewport]]:!overflow-y-hidden",
+                  "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0",
+                  "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:hidden",
+                )}
+                style={{ width: graphWidth }}
               >
-                <HistoryGraph
-                  commits={filteredCommits}
-                  topologyCommits={commits}
-                  currentBranch={currentBranch}
-                  onHoverCommit={setHoveredCommitId}
-                  onSelectCommit={handleSelectCommit}
-                  onContentWidthChange={setGraphContentWidth}
-                />
-              </div>
-            </ScrollArea>
+                <div
+                  style={{
+                    width: Math.max(graphWidth, graphContentWidth || graphWidth),
+                  }}
+                >
+                  <HistoryGraph
+                    commits={filteredCommits}
+                    topologyCommits={commits}
+                    currentBranch={currentBranch}
+                    onHoverCommit={setHoveredCommitId}
+                    onSelectCommit={handleSelectCommit}
+                    onContentWidthChange={setGraphContentWidth}
+                  />
+                </div>
+              </ScrollArea>
+            </div>
           </div>
         ) : null}
 

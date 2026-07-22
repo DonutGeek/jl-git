@@ -63,3 +63,10 @@
     );
   }
 }
+
+/* 应用主题：半透明侧栏（活动栏 + 左栏） */
+html[data-sidebar-translucent="true"] [data-jlgit-activity-bar],
+html[data-sidebar-translucent="true"] [data-jlgit-sidebar] {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}

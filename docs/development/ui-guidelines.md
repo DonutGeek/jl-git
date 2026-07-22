@@ -62,9 +62,80 @@ JLGit 以 [shadcn/ui](https://ui.shadcn.com/) 作为基础组件来源（代码�
 
 本仓库已配置 `components.json`（style: `new-york`，输出目录 `@/components/ui`，图标 `lucide`）。
 
+### 选型优先级（硬性）
+
+**能用 shadcn 就尽量用 shadcn**，禁止业务层再手搓一套等价基础控件。
+
+| 场景 | 做法 |
+|------|------|
+| 官方有同名/等价组件 | **必须**用 `@/components/ui/*`（先查下表与 [组件目录](https://ui.shadcn.com/docs/components)） |
+| 常见叫法对照 | 「Tag / 标签 / 胶囊状态」→ **`Badge`**；「开关」→ **`Switch`**；「抽屉」→ **`Sheet`**；「表格」→ **`Table`** |
+| 仓库尚未引入 | `pnpm dlx shadcn@latest add <name>` 引入后再用，**禁止**用原生标签或手写仿造冒充 |
+| 官方没有、且属领域 UI | 放 `components/common` 或各域目录，**不要**塞进 `ui/` |
+| AI / 贡献者 | 写 UI 前先搜 `src/components/ui/` 与官方文档；缺件先 CLI，再写业务 |
+
+### 本仓库已引入（`src/components/ui/`）
+
+| 组件 | 文件 |
+|------|------|
+| Alert | `alert.tsx` |
+| Alert Dialog | `alert-dialog.tsx` |
+| Avatar | `avatar.tsx` |
+| Badge | `badge.tsx` |
+| Button | `button.tsx` |
+| Card | `card.tsx` |
+| Checkbox | `checkbox.tsx` |
+| Context Menu | `context-menu.tsx` |
+| Dialog | `dialog.tsx` |
+| Dropdown Menu | `dropdown-menu.tsx` |
+| Empty | `empty.tsx` |
+| Field | `field.tsx` |
+| Input | `input.tsx` |
+| Item | `item.tsx` |
+| Label | `label.tsx` |
+| Popover | `popover.tsx` |
+| Radio Group | `radio-group.tsx` |
+| Resizable | `resizable.tsx` |
+| Scroll Area | `scroll-area.tsx` |
+| Select | `select.tsx` |
+| Separator | `separator.tsx` |
+| Sheet | `sheet.tsx` |
+| Skeleton | `skeleton.tsx` |
+| Spinner | `spinner.tsx` |
+| Switch | `switch.tsx` |
+| Table | `table.tsx` |
+| Tabs | `tabs.tsx` |
+| Textarea | `textarea.tsx` |
+| Tooltip | `tooltip.tsx` |
+
+Toast 使用依赖包 `sonner`（与官方 Sonner 方案一致），不单独放在 `ui/`。
+
+> CLI 提示：若本机 `pnpm dlx shadcn@latest` 因 zod v4 / MCP SDK 报 `Package subpath './v4' is not defined`，可在临时目录安装 `shadcn@latest` + `zod@3` 后执行 `./node_modules/.bin/shadcn add <name> --yes --cwd <项目根>`。依赖组件若提示覆盖已有文件，加 `--overwrite`。
+
+### 官方有、本仓库尚未引入（摘录）
+
+对照 [All Components](https://ui.shadcn.com/docs/components)。**不默认全量 `add`**：全量会引入大量未用 Radix/图表/日历依赖，违背项目 YAGNI（见 [AGENTS.md](../../AGENTS.md) §4 / §9）。缺什么加什么；常用缺口优先：
+
+| 优先级 | 组件 | 典型用途 |
+|--------|------|----------|
+| 中 | `progress` / `collapsible` / `toggle` / `toggle-group` / `kbd` | 进度、折叠、工具条切换 |
+| 中 | `command` / `combobox` / `input-group` | 命令面板与增强输入 |
+| 低 / 按需 | `calendar`、`chart`、`carousel`、`sidebar`、`menubar`、`navigation-menu`、`pagination`、`drawer`、会话类 `message` / `bubble` 等 | 有明确产品需求再引入 |
+
+完整未引入列表随时可用：
+
+```bash
+# 本地已有
+ls src/components/ui | sed 's/\.tsx$//'
+
+# 对照官方目录：https://ui.shadcn.com/docs/components
+```
+
+若产品明确要求「预置全量 ui」，须单独批准后再执行（例如按批 `pnpm dlx shadcn@latest add …`），并在 PR 中说明依赖增量。
+
 ### 按需引入（硬性）
 
-需要 Dialog、Dropdown、Tabs、Tooltip、Command、Spinner 等时，**必须**用官方 CLI **按需添加**。与 [AGENTS.md §15 / Never Rules §14](../../AGENTS.md) 一致：
+需要 Dialog、Dropdown、Tabs、Tooltip、Command、Spinner、**Badge / Table** 等时，**必须**用官方 CLI **按需添加**。与 [AGENTS.md §15 / Never Rules §14](../../AGENTS.md) 一致：
 
 | 要求 | 说明 |
 |------|------|
@@ -78,6 +149,8 @@ pnpm dlx shadcn@latest add button
 pnpm dlx shadcn@latest add dialog
 pnpm dlx shadcn@latest add dropdown-menu
 pnpm dlx shadcn@latest add spinner
+pnpm dlx shadcn@latest add badge
+pnpm dlx shadcn@latest add table
 # 其余组件名见官方组件目录
 ```
 
@@ -85,7 +158,7 @@ pnpm dlx shadcn@latest add spinner
 
 1. `src/components/ui/` **只**存放官方 CLI 生成件
 2. 业务组件（`components/git` 等）**组合** ui 层，不复制、不改写 ui 源码
-3. 只添加当前功能用到的组件，避免一次性 `add` 全量目录
+3. **默认按需添加**；避免无产品批准的一次性全量 `add`
 4. 新增官方组件若引入额外 Radix / 依赖，在 PR 中说明用途；仍遵守「不引入第二套 UI 体系」
 5. 官方没有、且属于领域 UI 的控件，放 `components/common` 或对应域目录，而不是硬塞进 `ui/`
 

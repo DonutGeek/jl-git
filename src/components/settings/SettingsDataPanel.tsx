@@ -1,5 +1,4 @@
 import {
-  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -10,7 +9,6 @@ import {
   Database,
   FolderOpen,
   HardDriveDownload,
-  HardDriveUpload,
   PanelsTopLeft,
   RotateCcw,
   Sparkles,
@@ -19,7 +17,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { SettingsFieldHeading } from "@/components/settings/SettingsFieldHeading";
+import { SettingsPreferenceGroup } from "@/components/settings/SettingsPreferenceGroup";
+import { SettingsPreferenceRow } from "@/components/settings/SettingsPreferenceRow";
 import { SettingsTip } from "@/components/settings/SettingsTip";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,9 +33,8 @@ import {
   Item,
   ItemActions,
   ItemContent,
-  ItemGroup,
+  ItemDescription,
   ItemMedia,
-  ItemSeparator,
   ItemTitle,
 } from "@/components/ui/item";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -67,8 +65,7 @@ interface ClearTarget {
   id: ClearUiId;
   modules: AppDataClearModule[];
   title: string;
-  tip: string;
-  tipAria: string;
+  description: string;
   confirm: string;
   icon: ReactNode;
   destructive?: boolean;
@@ -117,8 +114,7 @@ export function SettingsDataPanel() {
       id: "jingling_chats",
       modules: ["agent_chats", "multi_agent_chats"],
       title: t("settings.dataClearAgentChats"),
-      tip: t("settings.dataClearAgentChatsHint"),
-      tipAria: t("settings.dataClearAgentChatsTipAria"),
+      description: t("settings.dataClearAgentChatsHint"),
       confirm: t("settings.dataClearAgentChatsConfirm"),
       icon: <Sparkles />,
     },
@@ -126,8 +122,7 @@ export function SettingsDataPanel() {
       id: "open_tabs",
       modules: ["open_tabs"],
       title: t("settings.dataClearOpenTabs"),
-      tip: t("settings.dataClearOpenTabsHint"),
-      tipAria: t("settings.dataClearOpenTabsTipAria"),
+      description: t("settings.dataClearOpenTabsHint"),
       confirm: t("settings.dataClearOpenTabsConfirm"),
       icon: <PanelsTopLeft />,
     },
@@ -135,8 +130,7 @@ export function SettingsDataPanel() {
       id: "all_cache",
       modules: ["agent_chats", "multi_agent_chats", "open_tabs"],
       title: t("settings.dataClearAll"),
-      tip: t("settings.dataClearAllHint"),
-      tipAria: t("settings.dataClearAllTipAria"),
+      description: t("settings.dataClearAllHint"),
       confirm: t("settings.dataClearAllConfirm"),
       icon: <Trash2 />,
       destructive: true,
@@ -242,28 +236,30 @@ export function SettingsDataPanel() {
             </SettingsTip>
           </div>
         </div>
-        <div className="min-w-0 space-y-6 pl-6">
+        <div className="min-w-0 space-y-3 pl-6">
           {pathsError ? (
             <p className="text-destructive text-xs">{pathsError}</p>
           ) : null}
-          <PathRow
-            icon={<FolderOpen />}
-            label={t("settings.dataAppDir")}
-            value={paths?.appDataDir}
-            onReveal={() => {
-              void handleReveal("dir");
-            }}
-            revealLabel={t("settings.dataRevealDir")}
-          />
-          <PathRow
-            icon={<Database />}
-            label={t("settings.dataDatabase")}
-            value={paths?.databasePath}
-            onReveal={() => {
-              void handleReveal("database");
-            }}
-            revealLabel={t("settings.dataRevealDatabase")}
-          />
+          <SettingsPreferenceGroup>
+            <PathRow
+              icon={<FolderOpen />}
+              label={t("settings.dataAppDir")}
+              value={paths?.appDataDir}
+              onReveal={() => {
+                void handleReveal("dir");
+              }}
+              revealLabel={t("settings.dataRevealDir")}
+            />
+            <PathRow
+              icon={<Database />}
+              label={t("settings.dataDatabase")}
+              value={paths?.databasePath}
+              onReveal={() => {
+                void handleReveal("database");
+              }}
+              revealLabel={t("settings.dataRevealDatabase")}
+            />
+          </SettingsPreferenceGroup>
         </div>
       </section>
 
@@ -280,34 +276,33 @@ export function SettingsDataPanel() {
           </div>
         </div>
         <div className="pl-6">
-          <ItemGroup className="border-border overflow-hidden rounded-md border">
-            {clearTargets.map((target, index) => (
-              <Fragment key={target.id}>
-                {index > 0 ? <ItemSeparator /> : null}
-                <Item size="sm" className="rounded-none">
-                  <ItemMedia variant="icon">{target.icon}</ItemMedia>
-                  <ItemContent>
-                    <ItemTitle className="text-foreground text-xs">
-                      {target.title}
-                      <SettingsTip ariaLabel={target.tipAria}>{target.tip}</SettingsTip>
-                    </ItemTitle>
-                  </ItemContent>
-                  <ItemActions>
-                    <Button
-                      type="button"
-                      variant={target.destructive ? "destructive" : "outline"}
-                      size="sm"
-                      className="h-7 shrink-0 px-2.5 text-xs shadow-none"
-                      disabled={busy}
-                      onClick={() => setPendingClear(target)}
-                    >
-                      {t("settings.dataClearAction")}
-                    </Button>
-                  </ItemActions>
-                </Item>
-              </Fragment>
+          <SettingsPreferenceGroup>
+            {clearTargets.map((target) => (
+              <Item key={target.id} size="sm" className="rounded-none">
+                <ItemMedia variant="icon">{target.icon}</ItemMedia>
+                <ItemContent>
+                  <ItemTitle className="text-foreground text-xs">
+                    {target.title}
+                  </ItemTitle>
+                  <ItemDescription className="text-xs">
+                    {target.description}
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Button
+                    type="button"
+                    variant={target.destructive ? "destructive" : "outline"}
+                    size="sm"
+                    className="h-7 shrink-0 px-2.5 text-xs shadow-none"
+                    disabled={busy}
+                    onClick={() => setPendingClear(target)}
+                  >
+                    {t("settings.dataClearAction")}
+                  </Button>
+                </ItemActions>
+              </Item>
             ))}
-          </ItemGroup>
+          </SettingsPreferenceGroup>
         </div>
       </section>
 
@@ -323,31 +318,41 @@ export function SettingsDataPanel() {
             </SettingsTip>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 pl-6">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 text-xs shadow-none"
-            disabled={busy}
-            onClick={() => {
-              void handleExport();
-            }}
-          >
-            <HardDriveDownload className="size-3.5" aria-hidden="true" />
-            {t("settings.dataExport")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 text-xs shadow-none"
-            disabled={busy}
-            onClick={() => setImportConfirmOpen(true)}
-          >
-            <HardDriveUpload className="size-3.5" aria-hidden="true" />
-            {t("settings.dataImport")}
-          </Button>
+        <div className="pl-6">
+          <SettingsPreferenceGroup>
+            <SettingsPreferenceRow
+              label={t("settings.dataExport")}
+              description={t("settings.dataExportHint")}
+            >
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 shrink-0 px-2.5 text-xs shadow-none"
+                disabled={busy}
+                onClick={() => {
+                  void handleExport();
+                }}
+              >
+                {t("settings.dataExportAction")}
+              </Button>
+            </SettingsPreferenceRow>
+            <SettingsPreferenceRow
+              label={t("settings.dataImport")}
+              description={t("settings.dataImportHint")}
+            >
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 shrink-0 px-2.5 text-xs shadow-none"
+                disabled={busy}
+                onClick={() => setImportConfirmOpen(true)}
+              >
+                {t("settings.dataImportAction")}
+              </Button>
+            </SettingsPreferenceRow>
+          </SettingsPreferenceGroup>
         </div>
       </section>
 
@@ -364,7 +369,7 @@ export function SettingsDataPanel() {
           </div>
         </div>
         <div className="pl-6">
-          <ItemGroup className="border-border overflow-hidden rounded-md border">
+          <SettingsPreferenceGroup>
             <Item size="sm" className="rounded-none">
               <ItemMedia variant="icon">
                 <RotateCcw />
@@ -372,10 +377,10 @@ export function SettingsDataPanel() {
               <ItemContent>
                 <ItemTitle className="text-foreground text-xs">
                   {t("settings.dataFactoryResetAction")}
-                  <SettingsTip ariaLabel={t("settings.dataFactoryResetTipAria")}>
-                    {t("settings.dataFactoryResetHint")}
-                  </SettingsTip>
                 </ItemTitle>
+                <ItemDescription className="text-xs">
+                  {t("settings.dataFactoryResetHint")}
+                </ItemDescription>
               </ItemContent>
               <ItemActions>
                 <Button
@@ -386,11 +391,11 @@ export function SettingsDataPanel() {
                   disabled={busy}
                   onClick={() => setFactoryResetOpen(true)}
                 >
-                  {t("settings.dataFactoryResetAction")}
+                  {t("settings.dataFactoryResetButton")}
                 </Button>
               </ItemActions>
             </Item>
-          </ItemGroup>
+          </SettingsPreferenceGroup>
         </div>
       </section>
 
@@ -628,11 +633,10 @@ function PathRow({ icon, label, value, onReveal, revealLabel }: PathRowProps) {
   }
 
   return (
-    <div className="min-w-0">
-      <SettingsFieldHeading icon={icon}>
-        {label}
-      </SettingsFieldHeading>
-      <div className="flex min-w-0 items-center gap-1.5">
+    <Item size="sm" className="min-w-0 rounded-none">
+      <ItemMedia variant="icon">{icon}</ItemMedia>
+      <ItemContent className="min-w-0 overflow-hidden">
+        <ItemTitle className="text-foreground text-xs">{label}</ItemTitle>
         {value ? (
           <Tooltip open={copied ? true : undefined} delayDuration={300}>
             <TooltipTrigger asChild>
@@ -640,7 +644,7 @@ function PathRow({ icon, label, value, onReveal, revealLabel }: PathRowProps) {
                 type="button"
                 aria-label={t("settings.dataCopyPath")}
                 className={cn(
-                  "group/path bg-muted/50 border-border text-foreground flex h-8 min-w-0 flex-1 cursor-pointer items-center overflow-hidden rounded-md border px-2",
+                  "text-muted-foreground group/path block w-full min-w-0 cursor-pointer border-0 bg-transparent p-0 text-left",
                 )}
                 onClick={() => {
                   void handleCopyPath();
@@ -648,29 +652,28 @@ function PathRow({ icon, label, value, onReveal, revealLabel }: PathRowProps) {
               >
                 <span
                   ref={bindRef}
-                  className="block w-full min-w-0 overflow-hidden text-left font-mono text-[11px] leading-5 whitespace-nowrap underline-offset-2 group-hover/path:underline"
+                  className="block w-full min-w-0 overflow-hidden font-mono text-[11px] leading-5 whitespace-nowrap underline-offset-2 group-hover/path:underline"
                 >
                   {display}
                 </span>
               </button>
             </TooltipTrigger>
-            {/* 宽触发器勿 align=start，否则箭头可能被隐藏 */}
             <TooltipContent side="top" className="max-w-sm break-all font-mono">
               {copied ? t("settings.dataPathCopied") : value}
             </TooltipContent>
           </Tooltip>
         ) : (
-          <div className="bg-muted/50 border-border text-muted-foreground flex h-8 min-w-0 flex-1 items-center rounded-md border px-2 font-mono text-[11px]">
-            …
-          </div>
+          <p className="text-muted-foreground font-mono text-[11px] leading-5">…</p>
         )}
+      </ItemContent>
+      <ItemActions>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               type="button"
               variant="outline"
               size="icon"
-              className="size-8 shrink-0 shadow-none"
+              className="size-7 shrink-0 shadow-none"
               disabled={!value}
               aria-label={revealLabel}
               onClick={onReveal}
@@ -680,7 +683,7 @@ function PathRow({ icon, label, value, onReveal, revealLabel }: PathRowProps) {
           </TooltipTrigger>
           <TooltipContent>{revealLabel}</TooltipContent>
         </Tooltip>
-      </div>
-    </div>
+      </ItemActions>
+    </Item>
   );
 }

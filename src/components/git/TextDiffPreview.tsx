@@ -42,11 +42,15 @@ import {
   useMonacoHostSize,
 } from "@/components/git/monacoPreviewShared";
 import {
-  applyJlGitMonacoTheme,
-  forceMonacoThemeRepaint,
-  getJlGitMonacoThemeName,
-} from "@/design/monaco.theme";
+  applyAppMonacoTheme,
+  getAppMonacoThemeName,
+} from "@/design/editor-themes";
+import { forceMonacoThemeRepaint } from "@/design/monaco.theme";
 import { gitService } from "@/services/git";
+import {
+  getActiveThemeChrome,
+  useAppPrefsStore,
+} from "@/store/useAppPrefsStore";
 import { toUserMessage } from "@/types/error";
 import type { GitBlameLine, GitDiffResult } from "@/types/git";
 import {
@@ -179,11 +183,18 @@ function TextDiffPreview(
   } | null>(null);
   const [blameLines, setBlameLines] = useState<GitBlameLine[]>([]);
 
+  const appThemeId = useAppPrefsStore((state) => state.appThemeId);
+  const themeChromeLight = useAppPrefsStore((state) => state.themeChromeLight);
+  const themeChromeDark = useAppPrefsStore((state) => state.themeChromeDark);
   const showEditor = !diff.binary || allowBinaryEditor;
   const sideBySide = diffLayout === "sideBySide";
   const language = diff.binary ? "plaintext" : languageFromPath(path);
   const fontFamily = viewPrefs.monospace ? readMonoFont() : readSansFont();
-  const monacoTheme = getJlGitMonacoThemeName(dark);
+  const monacoTheme = getAppMonacoThemeName(
+    appThemeId,
+    dark,
+    dark ? themeChromeDark : themeChromeLight,
+  );
   const editorKey = `${selectionKey}:${mode}:${diffLayout}:${foldUnchanged ? "fold" : "full"}`;
   const ready = size.width > 0 && size.height > 0;
   const baseEol = diff.binary ? "HEX" : detectLineEnding(diff.oldText);
@@ -217,7 +228,12 @@ function TextDiffPreview(
           return;
         }
         if (monacoRef.current) {
-          applyJlGitMonacoTheme(monacoRef.current);
+          const prefs = useAppPrefsStore.getState();
+          applyAppMonacoTheme(
+            monacoRef.current,
+            prefs.appThemeId,
+            getActiveThemeChrome(prefs),
+          );
         }
         forceMonacoThemeRepaint(diffEditorRef.current, fileEditorRef.current);
         setPreviewViewport((prev) => (prev ? { ...prev } : prev));
@@ -227,7 +243,7 @@ function TextDiffPreview(
       cancelled = true;
       window.cancelAnimationFrame(frame);
     };
-  }, [dark]);
+  }, [dark, appThemeId, themeChromeLight, themeChromeDark]);
 
   useEffect(() => {
     if (size.width <= 0 || size.height <= 0) {
@@ -245,7 +261,8 @@ function TextDiffPreview(
 
   function handleBeforeMount(monaco: Monaco): void {
     monacoRef.current = monaco;
-    applyJlGitMonacoTheme(monaco);
+    const prefs = useAppPrefsStore.getState();
+    applyAppMonacoTheme(monaco, prefs.appThemeId, getActiveThemeChrome(prefs));
   }
 
   const handleDiffMount: DiffOnMount = (editor, monaco) => {

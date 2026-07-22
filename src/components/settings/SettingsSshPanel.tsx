@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { SettingsFieldHeading } from "@/components/settings/SettingsFieldHeading";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -24,6 +25,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
@@ -43,9 +52,9 @@ import { copyToClipboard } from "@/utils/clipboard";
 const settingsFieldClassName =
   "border-border h-8 px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/40";
 
-/** 表格列：密钥文件名 | 文件路径 | 公钥 | 状态 | 操作 */
-const sshTableGridClassName =
-  "grid grid-cols-[minmax(72px,0.55fr)_minmax(100px,1.1fr)_minmax(100px,1.1fr)_minmax(56px,0.45fr)_152px] gap-3";
+const settingsTableHeadClassName =
+  "bg-muted/40 text-muted-foreground h-9 px-3 text-[11px] font-medium";
+const settingsTableCellClassName = "px-3 py-2.5";
 
 /** 取私钥所在目录，供文件管理器打开 */
 function parentDirectory(filePath: string): string {
@@ -269,212 +278,261 @@ export function SettingsSshPanel() {
         </div>
 
         <div className="border-border min-w-0 overflow-hidden rounded-md border">
-          <div
-            className={cn(
-              "bg-muted/40 text-muted-foreground border-b px-3 py-2 text-[11px] font-medium",
-              sshTableGridClassName,
-            )}
-          >
-            <span>{t("settings.sshKeyName")}</span>
-            <span>{t("settings.sshFilePath")}</span>
-            <span>{t("settings.sshPublicKey")}</span>
-            <span>{t("settings.apiKeyStatus")}</span>
-            <span>{t("settings.apiKeyActions")}</span>
-          </div>
-          {loading ? (
-            <p className="text-muted-foreground flex items-center justify-center gap-2 px-3 py-6 text-xs">
-              <Spinner className="size-3.5" />
-              {t("common.loading")}
-            </p>
-          ) : keys.length === 0 ? (
-            <p className="text-muted-foreground px-3 py-6 text-center text-xs">
-              {t("settings.sshEmpty")}
-            </p>
-          ) : (
-            <ul className="min-w-0">
-              {keys.map((key) => (
-                <li
-                  key={key.id}
-                  className={cn(
-                    "items-center px-3 py-3 not-last:border-b",
-                    sshTableGridClassName,
-                  )}
-                >
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <Tooltip delayDuration={300}>
-                      <TooltipTrigger asChild>
-                        <span className="block min-w-0 flex-1 cursor-default truncate text-xs font-medium">
-                          {key.name}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-sm break-all text-left text-wrap">
-                        {key.name}
-                      </TooltipContent>
-                    </Tooltip>
-                    {key.hasPassphrase ? (
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
-                          <span
-                            className="text-muted-foreground inline-flex shrink-0"
-                            aria-label={t("settings.sshHasPassphrase")}
-                          >
-                            <Lock className="size-3.5" aria-hidden="true" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>{t("settings.sshHasPassphrase")}</TooltipContent>
-                      </Tooltip>
-                    ) : null}
-                  </div>
-                  <Tooltip delayDuration={300}>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label={t("settings.dataCopyPath")}
-                        className="text-muted-foreground group/sshpath block min-w-0 w-full cursor-pointer border-0 bg-transparent p-0 text-left"
-                        onClick={() => {
-                          void handleCopyPath(key.privateKeyPath);
-                        }}
-                      >
-                        <span
-                          className="block w-full min-w-0 overflow-hidden font-mono text-[11px] leading-5 whitespace-nowrap text-ellipsis underline-offset-2 group-hover/sshpath:underline"
-                          style={{ direction: "rtl" }}
-                        >
-                          <bdi style={{ direction: "ltr" }}>{key.privateKeyPath}</bdi>
-                        </span>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="top"
-                      className="max-w-sm break-all font-mono text-left text-wrap"
-                    >
-                      {key.privateKeyPath}
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip delayDuration={300}>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label={t("settings.sshCopyPublicKey")}
-                        className="text-muted-foreground group/sshpub block min-w-0 w-full cursor-pointer border-0 bg-transparent p-0 text-left"
-                        onClick={() => {
-                          void handleCopyPublicKey(key.publicKey);
-                        }}
-                      >
-                        <span className="block min-w-0 w-full truncate font-mono text-[11px] underline-offset-2 group-hover/sshpub:underline">
-                          {maskPublicKey(key.publicKey)}
-                        </span>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="top"
-                      className="max-w-md break-all font-mono text-[11px] text-left text-wrap"
-                    >
-                      {key.publicKey}
-                    </TooltipContent>
-                  </Tooltip>
-                  <span
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className={settingsTableHeadClassName}>
+                  {t("settings.sshKeyName")}
+                </TableHead>
+                <TableHead className={settingsTableHeadClassName}>
+                  {t("settings.sshFilePath")}
+                </TableHead>
+                <TableHead className={settingsTableHeadClassName}>
+                  {t("settings.sshPublicKey")}
+                </TableHead>
+                <TableHead className={cn(settingsTableHeadClassName, "w-[4.5rem]")}>
+                  {t("settings.apiKeyStatus")}
+                </TableHead>
+                <TableHead className={cn(settingsTableHeadClassName, "w-[9.5rem]")}>
+                  {t("settings.apiKeyActions")}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell
+                    colSpan={5}
                     className={cn(
-                      "justify-self-start rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                      key.enabled
-                        ? "bg-primary/10 text-primary"
-                        : "bg-muted text-muted-foreground",
+                      settingsTableCellClassName,
+                      "text-muted-foreground text-center text-xs",
                     )}
                   >
-                    {key.enabled
-                      ? t("settings.sshKeyEnabled")
-                      : t("settings.sshKeyDisabled")}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className={cn(
-                            "size-7",
-                            key.enabled
-                              ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-                              : "border-primary/30 text-primary hover:bg-primary/10 hover:text-primary",
-                          )}
-                          aria-label={
-                            key.enabled
-                              ? t("settings.disableSshKey")
-                              : t("settings.enableSshKey")
-                          }
-                          disabled={busy}
-                          onClick={() => {
-                            void handleToggleEnabled(key);
-                          }}
+                    <span className="inline-flex items-center justify-center gap-2">
+                      <Spinner className="size-3.5" />
+                      {t("common.loading")}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ) : keys.length === 0 ? (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell
+                    colSpan={5}
+                    className={cn(
+                      settingsTableCellClassName,
+                      "text-muted-foreground py-6 text-center text-xs",
+                    )}
+                  >
+                    {t("settings.sshEmpty")}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                keys.map((key) => (
+                  <TableRow key={key.id}>
+                    <TableCell
+                      className={cn(settingsTableCellClassName, "max-w-[8rem]")}
+                    >
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <Tooltip delayDuration={300}>
+                          <TooltipTrigger asChild>
+                            <span className="block min-w-0 flex-1 cursor-default truncate text-xs font-medium">
+                              {key.name}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="top"
+                            className="max-w-sm break-all text-left text-wrap"
+                          >
+                            {key.name}
+                          </TooltipContent>
+                        </Tooltip>
+                        {key.hasPassphrase ? (
+                          <Tooltip delayDuration={300}>
+                            <TooltipTrigger asChild>
+                              <span
+                                className="text-muted-foreground inline-flex shrink-0"
+                                aria-label={t("settings.sshHasPassphrase")}
+                              >
+                                <Lock className="size-3.5" aria-hidden="true" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {t("settings.sshHasPassphrase")}
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell
+                      className={cn(settingsTableCellClassName, "max-w-[12rem]")}
+                    >
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={t("settings.dataCopyPath")}
+                            className="text-muted-foreground group/sshpath block min-w-0 w-full cursor-pointer border-0 bg-transparent p-0 text-left"
+                            onClick={() => {
+                              void handleCopyPath(key.privateKeyPath);
+                            }}
+                          >
+                            <span
+                              className="block w-full min-w-0 overflow-hidden font-mono text-[11px] leading-5 whitespace-nowrap text-ellipsis underline-offset-2 group-hover/sshpath:underline"
+                              style={{ direction: "rtl" }}
+                            >
+                              <bdi style={{ direction: "ltr" }}>
+                                {key.privateKeyPath}
+                              </bdi>
+                            </span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          className="max-w-sm break-all font-mono text-left text-wrap"
                         >
-                          {key.enabled ? (
-                            <PowerOff aria-hidden="true" />
-                          ) : (
-                            <Power aria-hidden="true" />
-                          )}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
+                          {key.privateKeyPath}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell
+                      className={cn(settingsTableCellClassName, "max-w-[12rem]")}
+                    >
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={t("settings.sshCopyPublicKey")}
+                            className="text-muted-foreground group/sshpub block min-w-0 w-full cursor-pointer border-0 bg-transparent p-0 text-left"
+                            onClick={() => {
+                              void handleCopyPublicKey(key.publicKey);
+                            }}
+                          >
+                            <span className="block min-w-0 w-full truncate font-mono text-[11px] underline-offset-2 group-hover/sshpub:underline">
+                              {maskPublicKey(key.publicKey)}
+                            </span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          className="max-w-md break-all font-mono text-[11px] text-left text-wrap"
+                        >
+                          {key.publicKey}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell className={settingsTableCellClassName}>
+                      <Badge
+                        variant={key.enabled ? "default" : "secondary"}
+                        className={cn(
+                          "h-4 px-1.5 text-[10px]",
+                          !key.enabled && "text-muted-foreground",
+                        )}
+                      >
                         {key.enabled
-                          ? t("settings.disableSshKey")
-                          : t("settings.enableSshKey")}
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="size-7"
-                          aria-label={t("settings.sshEditPassphrase")}
-                          disabled={busy}
-                          onClick={() => openEditPassphrase(key)}
-                        >
-                          <Pencil aria-hidden="true" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>{t("settings.sshEditPassphrase")}</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="size-7"
-                          aria-label={t("settings.sshRevealFolder")}
-                          disabled={busy}
-                          onClick={() => {
-                            void handleRevealFolder(key);
-                          }}
-                        >
-                          <FolderOpen aria-hidden="true" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>{t("settings.sshRevealFolder")}</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive size-7"
-                          aria-label={t("settings.sshDeleteKey", { name: key.name })}
-                          disabled={busy}
-                          onClick={() => setPendingDeletion(key)}
-                        >
-                          <Trash2 aria-hidden="true" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>{t("settings.delete")}</TooltipContent>
-                    </Tooltip>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+                          ? t("settings.sshKeyEnabled")
+                          : t("settings.sshKeyDisabled")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className={settingsTableCellClassName}>
+                      <span className="flex items-center gap-1.5">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className={cn(
+                                "size-7",
+                                key.enabled
+                                  ? "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                  : "border-primary/30 text-primary hover:bg-primary/10 hover:text-primary",
+                              )}
+                              aria-label={
+                                key.enabled
+                                  ? t("settings.disableSshKey")
+                                  : t("settings.enableSshKey")
+                              }
+                              disabled={busy}
+                              onClick={() => {
+                                void handleToggleEnabled(key);
+                              }}
+                            >
+                              {key.enabled ? (
+                                <PowerOff aria-hidden="true" />
+                              ) : (
+                                <Power aria-hidden="true" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {key.enabled
+                              ? t("settings.disableSshKey")
+                              : t("settings.enableSshKey")}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="size-7"
+                              aria-label={t("settings.sshEditPassphrase")}
+                              disabled={busy}
+                              onClick={() => openEditPassphrase(key)}
+                            >
+                              <Pencil aria-hidden="true" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {t("settings.sshEditPassphrase")}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="size-7"
+                              aria-label={t("settings.sshRevealFolder")}
+                              disabled={busy}
+                              onClick={() => {
+                                void handleRevealFolder(key);
+                              }}
+                            >
+                              <FolderOpen aria-hidden="true" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {t("settings.sshRevealFolder")}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive size-7"
+                              aria-label={t("settings.sshDeleteKey", {
+                                name: key.name,
+                              })}
+                              disabled={busy}
+                              onClick={() => setPendingDeletion(key)}
+                            >
+                              <Trash2 aria-hidden="true" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>{t("settings.delete")}</TooltipContent>
+                        </Tooltip>
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
       </div>
 

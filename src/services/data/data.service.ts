@@ -36,6 +36,11 @@ export interface AppDataPaths {
   databasePath: string;
 }
 
+export interface AppDataUsage {
+  path: string;
+  totalBytes: number;
+}
+
 export interface AppDataImportResult {
   ok: boolean;
   localStorage: Record<string, string>;
@@ -112,6 +117,11 @@ export function clearOpenTabsLocalStorage(): void {
 
 export async function getPaths(): Promise<AppDataPaths> {
   return invokeCommand<AppDataPaths>("app_data_paths");
+}
+
+/** 应用数据目录占用（性能页低频刷新） */
+export async function getAppDataUsage(): Promise<AppDataUsage> {
+  return invokeCommand<AppDataUsage>("app_data_usage");
 }
 
 export async function reveal(target: "dir" | "database"): Promise<void> {

@@ -6,7 +6,7 @@ pub fn system_app_info() -> SystemAppInfo {
     system::app_info()
 }
 
-/// 本进程内存 / CPU / 运行时长（设置「关于」实时区）
+/// 本进程内存 / CPU / 运行时长 / 线程（设置「性能」实时区）
 #[tauri::command]
 pub fn system_runtime_stats() -> Result<SystemRuntimeStats, AppError> {
     system::runtime_stats()

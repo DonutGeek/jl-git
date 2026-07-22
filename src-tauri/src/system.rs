@@ -26,6 +26,8 @@ pub struct SystemRuntimeStats {
     /// 本进程 CPU 占用百分比；不可用时为 0
     pub cpu_percent: f32,
     pub uptime_ms: u64,
+    /// 线程数；当前平台取不到则为 null
+    pub thread_count: Option<u32>,
 }
 
 fn process_start() -> &'static Instant {
@@ -57,27 +59,38 @@ pub fn app_info() -> SystemAppInfo {
     }
 }
 
-/// 本进程轻量运行时指标（供设置「关于」约 1s 轮询）
+/// 本进程轻量运行时指标（供设置「性能」约 1s 轮询）
 pub fn runtime_stats() -> Result<SystemRuntimeStats, AppError> {
     let pid = std::process::id();
     let uptime_ms = process_start().elapsed().as_millis() as u64;
-    let (rss_bytes, cpu_percent) = read_process_metrics(pid)?;
+    let metrics = read_process_metrics(pid)?;
     Ok(SystemRuntimeStats {
         pid,
-        rss_bytes,
-        cpu_percent,
+        rss_bytes: metrics.rss_bytes,
+        cpu_percent: metrics.cpu_percent,
         uptime_ms,
+        thread_count: metrics.thread_count,
     })
 }
 
+struct ProcessMetrics {
+    rss_bytes: u64,
+    cpu_percent: f32,
+    thread_count: Option<u32>,
+}
+
 #[cfg(any(target_os = "macos", target_os = "linux"))]
-fn read_process_metrics(pid: u32) -> Result<(u64, f32), AppError> {
-    let output = Command::new("ps")
-        .args(["-o", "rss=,pcpu=", "-p", &pid.to_string()])
-        .output()
-        .map_err(|error| {
-            AppError::new("INTERNAL", "无法读取进程状态").with_details(error.to_string())
-        })?;
+fn read_process_metrics(pid: u32) -> Result<ProcessMetrics, AppError> {
+    // macOS 的 ps 无 thcount（带上会导致 exit 1，整次采样失败）；Linux 用 nlwp。
+    let pid_arg = pid.to_string();
+    #[cfg(target_os = "macos")]
+    let args: [&str; 4] = ["-o", "rss=,pcpu=", "-p", &pid_arg];
+    #[cfg(target_os = "linux")]
+    let args: [&str; 4] = ["-o", "rss=,pcpu=,nlwp=", "-p", &pid_arg];
+
+    let output = Command::new("ps").args(args).output().map_err(|error| {
+        AppError::new("INTERNAL", "无法读取进程状态").with_details(error.to_string())
+    })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -85,12 +98,12 @@ fn read_process_metrics(pid: u32) -> Result<(u64, f32), AppError> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    parse_ps_rss_pcpu(&stdout)
+    parse_ps_metrics(&stdout)
 }
 
-/// 解析 `ps -o rss=,pcpu=`：RSS 为 KB，pcpu 为百分比
+/// 解析 `ps`：RSS 为 KB，pcpu 为百分比，可选线程数
 #[cfg(any(target_os = "macos", target_os = "linux"))]
-fn parse_ps_rss_pcpu(stdout: &str) -> Result<(u64, f32), AppError> {
+fn parse_ps_metrics(stdout: &str) -> Result<ProcessMetrics, AppError> {
     let line = stdout
         .lines()
         .find(|line| !line.trim().is_empty())
@@ -105,18 +118,23 @@ fn parse_ps_rss_pcpu(stdout: &str) -> Result<(u64, f32), AppError> {
     let cpu_percent: f32 = parts[1]
         .parse()
         .map_err(|_| AppError::new("INTERNAL", "无法解析进程 CPU"))?;
-    Ok((rss_kb.saturating_mul(1024), cpu_percent))
+    let thread_count = parts.get(2).and_then(|raw| raw.parse::<u32>().ok());
+    Ok(ProcessMetrics {
+        rss_bytes: rss_kb.saturating_mul(1024),
+        cpu_percent,
+        thread_count,
+    })
 }
 
 #[cfg(target_os = "windows")]
-fn read_process_metrics(pid: u32) -> Result<(u64, f32), AppError> {
+fn read_process_metrics(pid: u32) -> Result<ProcessMetrics, AppError> {
     // WorkingSetSize 单位字节；CPU 百分比 Windows 侧不易瞬时取得，返回 0 由 UI 显示「—」
     let output = Command::new("powershell")
         .args([
             "-NoProfile",
             "-Command",
             &format!(
-                "(Get-Process -Id {pid} -ErrorAction Stop).WorkingSet64"
+                "$p = Get-Process -Id {pid} -ErrorAction Stop; Write-Output \"$($p.WorkingSet64) $($p.Threads.Count)\""
             ),
         ])
         .output()
@@ -130,15 +148,22 @@ fn read_process_metrics(pid: u32) -> Result<(u64, f32), AppError> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let rss_bytes: u64 = stdout
-        .trim()
+    let parts: Vec<&str> = stdout.split_whitespace().collect();
+    let rss_bytes: u64 = parts
+        .first()
+        .ok_or_else(|| AppError::new("INTERNAL", "无法解析进程内存"))?
         .parse()
         .map_err(|_| AppError::new("INTERNAL", "无法解析进程内存"))?;
-    Ok((rss_bytes, 0.0))
+    let thread_count = parts.get(1).and_then(|raw| raw.parse::<u32>().ok());
+    Ok(ProcessMetrics {
+        rss_bytes,
+        cpu_percent: 0.0,
+        thread_count,
+    })
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
-fn read_process_metrics(_pid: u32) -> Result<(u64, f32), AppError> {
+fn read_process_metrics(_pid: u32) -> Result<ProcessMetrics, AppError> {
     Err(AppError::new("INTERNAL", "当前平台不支持进程采样"))
 }
 
@@ -311,10 +336,15 @@ mod tests {
 
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     #[test]
-    fn parses_ps_rss_pcpu() {
-        let (rss, cpu) = parse_ps_rss_pcpu("  12345  3.5\n").expect("parse");
-        assert_eq!(rss, 12345 * 1024);
-        assert!((cpu - 3.5).abs() < f32::EPSILON);
+    fn parses_ps_metrics() {
+        let with_threads = parse_ps_metrics("  12345  3.5  12\n").expect("parse");
+        assert_eq!(with_threads.rss_bytes, 12345 * 1024);
+        assert!((with_threads.cpu_percent - 3.5).abs() < f32::EPSILON);
+        assert_eq!(with_threads.thread_count, Some(12));
+
+        let mac_style = parse_ps_metrics("  12345  3.5\n").expect("parse mac");
+        assert_eq!(mac_style.rss_bytes, 12345 * 1024);
+        assert_eq!(mac_style.thread_count, None);
     }
 }
 

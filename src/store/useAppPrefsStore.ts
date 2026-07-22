@@ -2,6 +2,15 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import {
+  applyAppThemeToDocument,
+  chromeFromPreset,
+  DEFAULT_APP_THEME_ID,
+  normalizeAppThemeChrome,
+  normalizeAppThemeId,
+  type AppThemeChrome,
+  type AppThemeId,
+} from "@/design/editor-themes";
+import {
   listenGlobalPreferenceChange,
   notifyGlobalPreferenceChange,
 } from "@/services/window/globalPreferences";
@@ -19,7 +28,6 @@ const SYSTEM_SANS =
 const SYSTEM_MONO =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
 
-/** 旧版分段控件 ID → 字体族 / 系统哨兵值 */
 const LEGACY_CLIENT_FONT: Record<string, string> = {
   system: CLIENT_FONT_SYSTEM,
   inter: "Inter",
@@ -34,22 +42,31 @@ const LEGACY_EDITOR_FONT: Record<string, string> = {
   cascadia: "Cascadia Code",
 };
 
-/** 冷启动标签策略：恢复上次 / 仅新标签页 */
 export type StartupTabsMode = "restore" | "fresh";
 
 interface AppPrefsState {
   clientFont: string;
   editorFont: string;
+  /** 应用主题包（整站 + Monaco） */
+  appThemeId: AppThemeId;
+  /** @deprecated 读时映射到 appThemeId */
+  editorThemeId: AppThemeId;
+  themeChromeLight: AppThemeChrome;
+  themeChromeDark: AppThemeChrome;
   externalEditor: string;
   externalEditorPath: string;
   shell: string;
   shellPath: string;
   launchAtLogin: boolean;
-  /** 冷启动时是否恢复上次打开的标签 */
   startupTabsMode: StartupTabsMode;
   pushAfterCommit: boolean;
   setClientFont: (font: string) => void;
   setEditorFont: (font: string) => void;
+  /** 切换主题包：自动套用该主题明暗预设色 */
+  setAppThemeId: (themeId: AppThemeId) => void;
+  /** @deprecated */
+  setEditorThemeId: (themeId: AppThemeId) => void;
+  patchThemeChrome: (patch: Partial<AppThemeChrome>) => void;
   setExternalEditor: (value: string) => void;
   setExternalEditorPath: (value: string) => void;
   setShell: (value: string) => void;
@@ -63,7 +80,30 @@ function normalizeStartupTabsMode(value: unknown): StartupTabsMode {
   return value === "fresh" ? "fresh" : "restore";
 }
 
-/** CSS font-family 中安全引用字体族名 */
+function isDocumentDarkNow(): boolean {
+  return document.documentElement.classList.contains("dark");
+}
+
+export function getActiveThemeChrome(
+  state: Pick<
+    AppPrefsState,
+    "appThemeId" | "themeChromeLight" | "themeChromeDark"
+  > = useAppPrefsStore.getState(),
+): AppThemeChrome {
+  const dark = isDocumentDarkNow();
+  const raw = dark ? state.themeChromeDark : state.themeChromeLight;
+  return normalizeAppThemeChrome(raw, state.appThemeId, dark);
+}
+
+function applyActiveTheme(
+  state: Pick<
+    AppPrefsState,
+    "appThemeId" | "themeChromeLight" | "themeChromeDark"
+  >,
+): void {
+  applyAppThemeToDocument(state.appThemeId, getActiveThemeChrome(state));
+}
+
 function quoteFontFamily(name: string): string {
   if (/^[a-zA-Z0-9-]+$/.test(name)) {
     return name;
@@ -85,7 +125,6 @@ function resolveEditorStack(editorFont: string): string {
   return `${quoteFontFamily(editorFont)}, ${SYSTEM_MONO}`;
 }
 
-/** 将客户端 / 编辑器字体应用到 CSS 变量 */
 export function applyAppFonts(clientFont: string, editorFont: string): void {
   const root = document.documentElement;
   root.style.setProperty("--font-sans", resolveClientStack(clientFont));
@@ -103,11 +142,30 @@ function migrateFontId(
   return legacy[value] ?? value;
 }
 
+function applyThemePack(themeId: AppThemeId): {
+  appThemeId: AppThemeId;
+  editorThemeId: AppThemeId;
+  themeChromeLight: AppThemeChrome;
+  themeChromeDark: AppThemeChrome;
+} {
+  const id = normalizeAppThemeId(themeId);
+  return {
+    appThemeId: id,
+    editorThemeId: id,
+    themeChromeLight: chromeFromPreset(id, false),
+    themeChromeDark: chromeFromPreset(id, true),
+  };
+}
+
 export const useAppPrefsStore = create<AppPrefsState>()(
   persist(
     (set, get) => ({
       clientFont: DEFAULT_APP_FONT,
       editorFont: DEFAULT_APP_FONT,
+      appThemeId: DEFAULT_APP_THEME_ID,
+      editorThemeId: DEFAULT_APP_THEME_ID,
+      themeChromeLight: chromeFromPreset(DEFAULT_APP_THEME_ID, false),
+      themeChromeDark: chromeFromPreset(DEFAULT_APP_THEME_ID, true),
       externalEditor: "auto",
       externalEditorPath: "",
       shell: "auto",
@@ -124,6 +182,31 @@ export const useAppPrefsStore = create<AppPrefsState>()(
       setEditorFont(font) {
         applyAppFonts(get().clientFont, font);
         set({ editorFont: font });
+        notifyGlobalPreferenceChange("app-prefs");
+      },
+      setAppThemeId(themeId) {
+        const next = applyThemePack(themeId);
+        set(next);
+        applyActiveTheme({ ...get(), ...next });
+        notifyGlobalPreferenceChange("app-prefs");
+      },
+      setEditorThemeId(themeId) {
+        get().setAppThemeId(themeId);
+      },
+      patchThemeChrome(patch) {
+        const state = get();
+        const dark = isDocumentDarkNow();
+        const current = getActiveThemeChrome(state);
+        const merged = normalizeAppThemeChrome(
+          { ...current, ...patch },
+          state.appThemeId,
+          dark,
+        );
+        const next = dark
+          ? { themeChromeDark: merged }
+          : { themeChromeLight: merged };
+        set(next);
+        applyActiveTheme({ ...state, ...next });
         notifyGlobalPreferenceChange("app-prefs");
       },
       setExternalEditor(value) {
@@ -157,13 +240,15 @@ export const useAppPrefsStore = create<AppPrefsState>()(
     }),
     {
       name: APP_PREFS_STORAGE_KEY,
-      version: 3,
+      version: 7,
       migrate: (persisted, version) => {
-        const state = persisted as Partial<AppPrefsState> | undefined;
+        const state = persisted as Partial<AppPrefsState> & {
+          editorChromeLight?: AppThemeChrome;
+          editorChromeDark?: AppThemeChrome;
+        };
         if (!state) {
           return persisted as AppPrefsState;
         }
-        // v0 → v1：产品默认改为 JetBrains Mono（仅替换旧的系统哨兵值）
         if (version < 1) {
           if (
             !state.clientFont ||
@@ -180,13 +265,46 @@ export const useAppPrefsStore = create<AppPrefsState>()(
             state.editorFont = DEFAULT_APP_FONT;
           }
         }
-        // v1 → v2：启动标签策略
         if (version < 2) {
           state.startupTabsMode = normalizeStartupTabsMode(state.startupTabsMode);
         }
-        // v2 → v3：开机自启默认关闭，需用户手动开启
         if (version < 3) {
           state.launchAtLogin = false;
+        }
+        if (version < 4) {
+          state.appThemeId = DEFAULT_APP_THEME_ID;
+          state.editorThemeId = DEFAULT_APP_THEME_ID;
+        }
+        if (version < 5) {
+          const id = normalizeAppThemeId(
+            state.appThemeId ?? state.editorThemeId,
+          );
+          Object.assign(state, applyThemePack(id));
+          if (state.editorChromeLight && !state.themeChromeLight) {
+            state.themeChromeLight = state.editorChromeLight;
+          }
+          if (state.editorChromeDark && !state.themeChromeDark) {
+            state.themeChromeDark = state.editorChromeDark;
+          }
+        }
+        if (version < 6) {
+          // 模块化五套主题：按 id 重套预设；曾误把 Codex 色当「鲸灵」的，回到默认鲸灵 Git
+          let id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
+          const darkBg = String(state.themeChromeDark?.background ?? "")
+            .trim()
+            .toUpperCase();
+          const lookedLikeFalseJingling =
+            id === DEFAULT_APP_THEME_ID &&
+            (darkBg === "#181818" || darkBg === "#0D1117");
+          if (lookedLikeFalseJingling) {
+            id = DEFAULT_APP_THEME_ID;
+          }
+          Object.assign(state, applyThemePack(id));
+        }
+        if (version < 7) {
+          // 按官网/公开设计系统校准色板后，重套当前主题预设
+          const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
+          Object.assign(state, applyThemePack(id));
         }
         return state as AppPrefsState;
       },
@@ -204,8 +322,22 @@ export const useAppPrefsStore = create<AppPrefsState>()(
           LEGACY_EDITOR_FONT,
           DEFAULT_APP_FONT,
         );
+        const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
+        state.appThemeId = id;
+        state.editorThemeId = id;
+        state.themeChromeLight = normalizeAppThemeChrome(
+          state.themeChromeLight,
+          id,
+          false,
+        );
+        state.themeChromeDark = normalizeAppThemeChrome(
+          state.themeChromeDark,
+          id,
+          true,
+        );
         state.startupTabsMode = normalizeStartupTabsMode(state.startupTabsMode);
         applyAppFonts(state.clientFont, state.editorFont);
+        applyActiveTheme(state);
       },
     },
   ),
@@ -214,8 +346,8 @@ export const useAppPrefsStore = create<AppPrefsState>()(
 export function initAppPrefs(): void {
   const state = useAppPrefsStore.getState();
   applyAppFonts(state.clientFont, state.editorFont);
+  applyActiveTheme(state);
 
-  // 水合后把开机自启偏好同步到系统启动项
   const syncAutostart = (): void => {
     const preferred = useAppPrefsStore.getState().launchAtLogin;
     void import("@/services/system/system.autostart")
@@ -230,10 +362,10 @@ export function initAppPrefs(): void {
     const unsub = useAppPrefsStore.persist.onFinishHydration(() => {
       unsub();
       syncAutostart();
+      applyActiveTheme(useAppPrefsStore.getState());
     });
   }
 
-  // 保证设置页修改字体后，已打开的子窗口也使用相同字体栈。
   window.addEventListener("storage", (event) => {
     if (event.key === APP_PREFS_STORAGE_KEY) {
       void useAppPrefsStore.persist.rehydrate();
@@ -247,4 +379,9 @@ export function initAppPrefs(): void {
   }).catch((error: unknown) => {
     console.error("Failed to listen for app preference changes", error);
   });
+}
+
+/** 明暗 class 变化后重刷当前主题包色到 document */
+export function refreshAppThemeForColorMode(): void {
+  applyActiveTheme(useAppPrefsStore.getState());
 }

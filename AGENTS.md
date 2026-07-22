@@ -40,7 +40,7 @@ JLGit 是基于 **Tauri 2 + React + TypeScript** 的现代 Git 桌面客户端�
 | UI | React 19 + TypeScript（strict） | 函数组件 + Hooks |
 | 构建 | Vite | 前端打包 |
 | 样式 | Tailwind CSS 4 + CSS Variables | 禁止硬编码颜色 |
-| 组件 | [shadcn/ui](https://ui.shadcn.com/) + lucide-react | **硬性**：shadcn **必须**用官方 CLI `pnpm dlx shadcn@latest add <name>` 引入（更新 `--overwrite`）；**禁止手写**、**禁止私自改** `src/components/ui/`。业务只组合引用。**UI 图标**仅 lucide；工作区文件类型图标例外：`material-icon-theme`。**面板主滚动**必须用 `@/components/ui/scroll-area`（见 §15）。细则见 [ui-guidelines](docs/development/ui-guidelines.md) |
+| 组件 | [shadcn/ui](https://ui.shadcn.com/) + lucide-react | **硬性**：能用 shadcn 就尽量用；**必须**用官方 CLI `pnpm dlx shadcn@latest add <name>` 引入（更新 `--overwrite`）；**禁止手写**、**禁止私自改** `src/components/ui/`。业务只组合引用。**UI 图标**仅 lucide；工作区文件类型图标例外：`material-icon-theme`。**面板主滚动**必须用 `@/components/ui/scroll-area`（见 §15）。细则与已引入清单见 [ui-guidelines](docs/development/ui-guidelines.md) |
 | 状态 | Zustand | 唯一全局状态方案 |
 | 路由 | React Router | 见 routing 文档 |
 | 表单 | React Hook Form + Zod | 校验与提交 |
@@ -228,10 +228,11 @@ Local State → Zustand → SQLite
 - 必须支持 Light / Dark
 - 图标：UI 仅 `lucide-react`；工作区文件类型图标用 `material-icon-theme`（禁止再用 lucide 冒充文件类型）
 - **shadcn / `src/components/ui/`（硬性，AI 与人类同等）**：
-  1. **必须**用官方命令引入或覆盖：`pnpm dlx shadcn@latest add <name>`（更新/恢复加 `--overwrite`）
-  2. **禁止手写**：不得用编辑器 / Agent Write 工具 / 从 registry JSON 粘贴等方式「仿造」官方组件写入 `ui/`
-  3. **禁止私自更改**：不得改样式、结构、依赖、导出名；业务需求只在业务层**组合** `@/components/ui/*`，或把领域控件放 `components/common` / 各域目录
-  4. CLI 失败时修环境/换官方推荐调用方式后重试，**不得**退化为手写落地
+  1. **能用 shadcn 就尽量用**：官方有等价组件（如状态胶囊用 `Badge`、开关用 `Switch`、表用 `Table`）时，禁止业务层手搓或退回原生控件冒充
+  2. **必须**用官方命令引入或覆盖：`pnpm dlx shadcn@latest add <name>`（更新/恢复加 `--overwrite`）
+  3. **禁止手写**：不得用编辑器 / Agent Write 工具 / 从 registry JSON 粘贴等方式「仿造」官方组件写入 `ui/`
+  4. **禁止私自更改**：不得改样式、结构、依赖、导出名；业务需求只在业务层**组合** `@/components/ui/*`，或把领域控件放 `components/common` / 各域目录
+  5. CLI 失败时修环境/换官方推荐调用方式后重试，**不得**退化为手写落地；**默认按需引入**，全量预置须产品明确批准（见 [ui-guidelines · shadcn](docs/development/ui-guidelines.md)）
 - **滚动区域（硬性）**：面板 / 列表 / 侧栏等**主滚动容器**必须使用 shadcn `@/components/ui/scroll-area`；**禁止**以裸 `overflow-auto` / `overflow-x-auto` / `overflow-y-auto` 作为交付用的主滚动方案（调试对照除外）。滚动条默认悬停/滚动时显示（不设 `type="always"`）。大列表另须虚拟滚动，见 §16 与 [performance](docs/development/performance.md)。细则见 [ui-guidelines](docs/development/ui-guidelines.md)
 
 详见：[docs/development/theme.md](docs/development/theme.md)、[docs/development/ui-guidelines.md](docs/development/ui-guidelines.md)
@@ -329,7 +330,7 @@ AI 修改代码时必须：
 10. 涉及 Git/FS/安全时先读 security 与 git 架构文档
 11. **写完必须自检**（见 [quality](docs/development/quality.md)）：至少 `tsc` + 相关冒烟；不得把 S0/S1 留给用户发现
 12. 向用户声称完成前，按 quality 文档的 Bug 级别自查；已知未修问题须标明级别
-13. **shadcn 硬性**：缺组件只跑官方 `pnpm dlx shadcn@latest add <name>`；**禁止**手写 / 粘贴 registry / 私改 `src/components/ui/`（见 §15 / Never Rules）
+13. **shadcn 硬性**：能用官方组件就用；缺组件只跑官方 `pnpm dlx shadcn@latest add <name>`；**禁止**手写 / 粘贴 registry / 私改 `src/components/ui/`（见 §15 / Never Rules）
 
 ---
 

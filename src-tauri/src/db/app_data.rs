@@ -37,6 +37,13 @@ pub struct AppDataPaths {
     pub database_path: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppDataUsage {
+    pub path: String,
+    pub total_bytes: u64,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppDataExportInput {
@@ -89,6 +96,36 @@ pub fn resolve_paths(app_data_dir: &Path) -> AppDataPaths {
         app_data_dir: app_data_dir.to_string_lossy().into_owned(),
         database_path: app_data_dir.join(DB_FILE_NAME).to_string_lossy().into_owned(),
     }
+}
+
+/// 递归统计应用数据目录占用（设置「性能」低频刷新）
+pub fn measure_usage(app_data_dir: &Path) -> Result<AppDataUsage, AppError> {
+    let total_bytes = dir_total_bytes(app_data_dir).map_err(|error| {
+        AppError::new("INTERNAL", "无法统计应用数据目录体积").with_details(error.to_string())
+    })?;
+    Ok(AppDataUsage {
+        path: app_data_dir.to_string_lossy().into_owned(),
+        total_bytes,
+    })
+}
+
+fn dir_total_bytes(path: &Path) -> std::io::Result<u64> {
+    let meta = fs::symlink_metadata(path)?;
+    if meta.file_type().is_symlink() {
+        return Ok(0);
+    }
+    if meta.is_file() {
+        return Ok(meta.len());
+    }
+    if !meta.is_dir() {
+        return Ok(0);
+    }
+    let mut total = 0u64;
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        total = total.saturating_add(dir_total_bytes(&entry.path())?);
+    }
+    Ok(total)
 }
 
 pub fn reveal_target(app_data_dir: &Path, target: &str) -> Result<(), AppError> {

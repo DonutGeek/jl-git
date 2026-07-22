@@ -122,9 +122,9 @@ export const HistoryGraph = memo(function HistoryGraph({
 
   const tipHalf = DOT_SIZE + 1.5;
 
-  // 单色：跟随 text-muted-foreground（currentColor），不按 lane 上色
+  // 单色：跟随 foreground 略透明，保证暗色主题下竖轨/圆点仍清晰可见
   return (
-    <div className="text-muted-foreground pointer-events-auto w-max" aria-hidden="true">
+    <div className="text-foreground/55 pointer-events-auto w-max" aria-hidden="true">
       <svg
         width={width}
         height={height}
@@ -223,7 +223,8 @@ export const HistoryGraph = memo(function HistoryGraph({
                   r={DOT_SIZE}
                   fill="var(--background)"
                   stroke="currentColor"
-                  strokeWidth={1.5}
+                  strokeWidth={2}
+                  className="text-foreground"
                 />
               ) : (
                 <circle

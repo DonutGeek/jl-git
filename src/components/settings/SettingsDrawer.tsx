@@ -1,17 +1,20 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
-  AppWindow,
-  Code2,
   Database,
-  FolderOpen,
   GitBranch,
   GitCommitHorizontal,
   GitPullRequest,
+  Activity,
   Info,
   KeyRound,
-  Languages,
-  LayoutPanelTop,
   Palette,
   Pencil,
   Plus,
@@ -19,11 +22,8 @@ import {
   PowerOff,
   Settings2,
   Sparkles,
-  SunMoon,
   Terminal,
   Trash2,
-  Type,
-  Upload,
   UserRound,
   X,
 } from "lucide-react";
@@ -33,17 +33,24 @@ import { SettingsAboutPanel } from "@/components/settings/SettingsAboutPanel";
 import { SettingsAiBalance } from "@/components/settings/SettingsAiBalance";
 import { SettingsDataPanel } from "@/components/settings/SettingsDataPanel";
 import { SettingsFieldHeading } from "@/components/settings/SettingsFieldHeading";
+import { SettingsColorSwatch } from "@/components/settings/SettingsColorSwatch";
+import { SettingsPerformancePanel } from "@/components/settings/SettingsPerformancePanel";
+import { SettingsPreferenceGroup } from "@/components/settings/SettingsPreferenceGroup";
+import { SettingsPreferenceRow } from "@/components/settings/SettingsPreferenceRow";
 import { SettingsSshPanel } from "@/components/settings/SettingsSshPanel";
 import { SettingsTip } from "@/components/settings/SettingsTip";
 import { Button } from "@/components/ui/button";
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemGroup,
-  ItemTitle,
-} from "@/components/ui/item";
+import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 import {
   coerceShellPreference,
@@ -98,6 +105,10 @@ import { listSystemFonts } from "@/services/system/system.info";
 import { setLaunchAtLoginEnabled } from "@/services/system/system.autostart";
 import { openExternalUrl } from "@/services/system/open-url";
 import type { ThemeMode } from "@/services/theme/theme.service";
+import {
+  APP_THEME_OPTIONS,
+  normalizeAppThemeId,
+} from "@/design/editor-themes";
 import {
   CLIENT_FONT_SYSTEM,
   EDITOR_FONT_SYSTEM,
@@ -166,9 +177,11 @@ const settingsFieldClassName =
   "border-border h-8 px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/40";
 const settingsTextareaClassName =
   "border-border min-h-28 resize-y px-2.5 py-2 text-xs shadow-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/40";
-/** API Key 表格列：各列按比例吃满行宽，避免右侧大块留白 */
-const apiKeysGridClassName =
-  "grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)_minmax(0,0.7fr)_minmax(0,0.9fr)_auto] items-center gap-3";
+
+/** 设置列表表头：略紧凑，与原先 grid 视觉接近 */
+const settingsTableHeadClassName =
+  "bg-muted/40 text-muted-foreground h-9 px-3 text-[11px] font-medium";
+const settingsTableCellClassName = "px-3 py-2.5";
 
 type SettingsCategory = SettingsDrawerCategory;
 
@@ -196,15 +209,24 @@ function SegmentedControl<T extends string>({
   options,
   ariaLabel,
   onChange,
+  fit = false,
+  className,
 }: {
   value: T;
   options: { value: T; label: string }[];
   ariaLabel: string;
   onChange: (value: T) => void;
+  /** 右栏紧凑：按内容宽度，不拉满 */
+  fit?: boolean;
+  className?: string;
 }) {
   return (
     <div
-      className="bg-muted/60 flex flex-wrap gap-1 rounded-lg p-1"
+      className={cn(
+        "bg-muted/60 flex flex-wrap gap-1 rounded-lg p-1",
+        fit && "w-max max-w-full",
+        className,
+      )}
       role="radiogroup"
       aria-label={ariaLabel}
     >
@@ -217,7 +239,8 @@ function SegmentedControl<T extends string>({
             role="radio"
             aria-checked={selected}
             className={cn(
-              "hover:bg-background/80 min-w-0 flex-1 cursor-pointer rounded-md px-2 py-1.5 text-xs transition-colors",
+              "hover:bg-background/80 cursor-pointer rounded-md px-2.5 py-1.5 text-xs transition-colors",
+              fit ? "shrink-0" : "min-w-0 flex-1",
               selected
                 ? "bg-background text-foreground"
                 : "text-muted-foreground",
@@ -251,6 +274,9 @@ export function SettingsDrawer() {
 
   const clientFont = useAppPrefsStore((state) => state.clientFont);
   const editorFont = useAppPrefsStore((state) => state.editorFont);
+  const appThemeId = useAppPrefsStore((state) => state.appThemeId);
+  const themeChromeLight = useAppPrefsStore((state) => state.themeChromeLight);
+  const themeChromeDark = useAppPrefsStore((state) => state.themeChromeDark);
   const externalEditor = useAppPrefsStore((state) => state.externalEditor);
   const externalEditorPath = useAppPrefsStore((state) => state.externalEditorPath);
   const shell = useAppPrefsStore((state) => state.shell);
@@ -260,7 +286,16 @@ export function SettingsDrawer() {
   const pushAfterCommit = useAppPrefsStore((state) => state.pushAfterCommit);
   const setClientFont = useAppPrefsStore((state) => state.setClientFont);
   const setEditorFont = useAppPrefsStore((state) => state.setEditorFont);
+  const setAppThemeId = useAppPrefsStore((state) => state.setAppThemeId);
+  const patchThemeChrome = useAppPrefsStore((state) => state.patchThemeChrome);
   const setExternalEditor = useAppPrefsStore((state) => state.setExternalEditor);
+
+  /** 当前昼夜模式下正在编辑的主题色（切换主题包会重置为该包预设） */
+  const activeChrome = useMemo(() => {
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const dark = mode === "dark" || (mode === "system" && prefersDark);
+    return dark ? themeChromeDark : themeChromeLight;
+  }, [mode, themeChromeDark, themeChromeLight]);
   const setExternalEditorPath = useAppPrefsStore((state) => state.setExternalEditorPath);
   const setShell = useAppPrefsStore((state) => state.setShell);
   const setShellPath = useAppPrefsStore((state) => state.setShellPath);
@@ -586,6 +621,7 @@ export function SettingsDrawer() {
     { id: "tools", label: t("settings.sectionTools"), icon: <Terminal /> },
     { id: "data", label: t("settings.sectionData"), icon: <Database /> },
     { id: "general", label: t("settings.sectionGeneral"), icon: <Settings2 /> },
+    { id: "performance", label: t("settings.sectionPerformance"), icon: <Activity /> },
     { id: "about", label: t("settings.sectionAbout"), icon: <Info /> },
   ];
 
@@ -724,102 +760,173 @@ export function SettingsDrawer() {
             tip={t("settings.sectionAppearanceHint")}
             tipAria={t("settings.sectionAppearanceTipAria")}
           >
-            <div className="space-y-2">
-              <SettingsFieldHeading icon={<SunMoon />}>
-                {t("settings.theme")}
-              </SettingsFieldHeading>
-              <SegmentedControl
-                value={mode}
-                options={themeOptions}
-                ariaLabel={t("settings.theme")}
-                onChange={setMode}
-              />
-            </div>
-            <div className="space-y-2">
-              <SettingsFieldHeading icon={<Languages />}>
-                {t("settings.language")}
-              </SettingsFieldHeading>
-              <SegmentedControl
-                value={locale}
-                options={localeOptions}
-                ariaLabel={t("settings.language")}
-                onChange={setLocale}
-              />
-            </div>
-            <div className="space-y-2">
-              <SettingsFieldHeading icon={<Type />}>
-                {t("settings.clientFont")}
-              </SettingsFieldHeading>
-              <SelectMenu
-                value={clientFont}
-                disabled={fontsLoading}
-                ariaLabel={t("settings.clientFont")}
-                onChange={setClientFont}
-                options={[
-                  { value: CLIENT_FONT_SYSTEM, label: t("settings.fontSystem") },
-                  ...(clientFont !== CLIENT_FONT_SYSTEM &&
-                  !systemFonts.includes(clientFont)
-                    ? [
-                        {
-                          value: clientFont,
-                          label: clientFont,
-                          style: {
-                            fontFamily: `"${clientFont}", ui-sans-serif, system-ui, sans-serif`,
+            <SettingsPreferenceGroup>
+              <SettingsPreferenceRow label={t("settings.theme")}>
+                <SegmentedControl
+                  fit
+                  value={mode}
+                  options={themeOptions}
+                  ariaLabel={t("settings.theme")}
+                  onChange={setMode}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.language")}>
+                <SegmentedControl
+                  fit
+                  value={locale}
+                  options={localeOptions}
+                  ariaLabel={t("settings.language")}
+                  onChange={setLocale}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow
+                label={t("settings.appTheme")}
+                description={t("settings.appThemeHint")}
+              >
+                <SelectMenu
+                  value={appThemeId}
+                  ariaLabel={t("settings.appTheme")}
+                  onChange={(value) => {
+                    setAppThemeId(normalizeAppThemeId(value));
+                  }}
+                  triggerClassName="h-8 w-[12rem] max-w-[40vw]"
+                  options={APP_THEME_OPTIONS.map((option) => ({
+                    value: option.id,
+                    label: t(option.labelKey),
+                  }))}
+                />
+              </SettingsPreferenceRow>
+            </SettingsPreferenceGroup>
+            <SettingsPreferenceGroup>
+              <SettingsPreferenceRow label={t("settings.themeAccent")}>
+                <SettingsColorSwatch
+                  solid
+                  value={activeChrome.accent}
+                  ariaLabel={t("settings.themeAccent")}
+                  onChange={(hex) => patchThemeChrome({ accent: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeBackground")}>
+                <SettingsColorSwatch
+                  value={activeChrome.background}
+                  ariaLabel={t("settings.themeBackground")}
+                  onChange={(hex) => patchThemeChrome({ background: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeForeground")}>
+                <SettingsColorSwatch
+                  value={activeChrome.foreground}
+                  ariaLabel={t("settings.themeForeground")}
+                  onChange={(hex) => patchThemeChrome({ foreground: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow
+                label={t("settings.themeTranslucentSidebar")}
+                description={t("settings.themeTranslucentSidebarHint")}
+              >
+                <Switch
+                  checked={activeChrome.translucentSidebar}
+                  aria-label={t("settings.themeTranslucentSidebar")}
+                  onCheckedChange={(checked) => {
+                    patchThemeChrome({ translucentSidebar: checked });
+                  }}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow
+                label={t("settings.themeContrast")}
+                description={t("settings.themeContrastHint")}
+              >
+                <div className="flex w-[11rem] max-w-[40vw] items-center gap-2">
+                  <Slider
+                    value={[activeChrome.contrast]}
+                    min={0}
+                    max={100}
+                    step={1}
+                    className="w-full"
+                    aria-label={t("settings.themeContrast")}
+                    onValueChange={(value) => {
+                      const next = value[0];
+                      if (typeof next === "number") {
+                        patchThemeChrome({ contrast: next });
+                      }
+                    }}
+                  />
+                  <span className="text-muted-foreground w-7 shrink-0 text-right font-mono text-[11px] tabular-nums">
+                    {activeChrome.contrast}
+                  </span>
+                </div>
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow
+                label={t("settings.clientFont")}
+                description={
+                  fontsLoading ? t("settings.fontsLoading") : undefined
+                }
+              >
+                <SelectMenu
+                  value={clientFont}
+                  disabled={fontsLoading}
+                  ariaLabel={t("settings.clientFont")}
+                  onChange={setClientFont}
+                  triggerClassName="h-8 w-[12rem] max-w-[40vw]"
+                  options={[
+                    { value: CLIENT_FONT_SYSTEM, label: t("settings.fontSystem") },
+                    ...(clientFont !== CLIENT_FONT_SYSTEM &&
+                    !systemFonts.includes(clientFont)
+                      ? [
+                          {
+                            value: clientFont,
+                            label: clientFont,
+                            style: {
+                              fontFamily: `"${clientFont}", ui-sans-serif, system-ui, sans-serif`,
+                            },
                           },
-                        },
-                      ]
-                    : []),
-                  ...systemFonts.map((family) => ({
-                    value: family,
-                    label: family,
-                    style: {
-                      fontFamily: `"${family}", ui-sans-serif, system-ui, sans-serif`,
+                        ]
+                      : []),
+                    ...systemFonts.map((family) => ({
+                      value: family,
+                      label: family,
+                      style: {
+                        fontFamily: `"${family}", ui-sans-serif, system-ui, sans-serif`,
+                      },
+                    })),
+                  ]}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.editorFont")}>
+                <SelectMenu
+                  value={editorFont}
+                  disabled={fontsLoading}
+                  ariaLabel={t("settings.editorFont")}
+                  onChange={setEditorFont}
+                  triggerClassName="h-8 w-[12rem] max-w-[40vw]"
+                  options={[
+                    {
+                      value: EDITOR_FONT_SYSTEM,
+                      label: t("settings.fontSystemMono"),
                     },
-                  })),
-                ]}
-              />
-              {fontsLoading ? (
-                <p className="text-muted-foreground text-[11px]">
-                  {t("settings.fontsLoading")}
-                </p>
-              ) : null}
-            </div>
-            <div className="space-y-2">
-              <SettingsFieldHeading icon={<Code2 />}>
-                {t("settings.editorFont")}
-              </SettingsFieldHeading>
-              <SelectMenu
-                value={editorFont}
-                disabled={fontsLoading}
-                ariaLabel={t("settings.editorFont")}
-                onChange={setEditorFont}
-                options={[
-                  {
-                    value: EDITOR_FONT_SYSTEM,
-                    label: t("settings.fontSystemMono"),
-                  },
-                  ...(editorFont !== EDITOR_FONT_SYSTEM &&
-                  !systemFonts.includes(editorFont)
-                    ? [
-                        {
-                          value: editorFont,
-                          label: editorFont,
-                          style: {
-                            fontFamily: `"${editorFont}", ui-monospace, monospace`,
+                    ...(editorFont !== EDITOR_FONT_SYSTEM &&
+                    !systemFonts.includes(editorFont)
+                      ? [
+                          {
+                            value: editorFont,
+                            label: editorFont,
+                            style: {
+                              fontFamily: `"${editorFont}", ui-monospace, monospace`,
+                            },
                           },
-                        },
-                      ]
-                    : []),
-                  ...systemFonts.map((family) => ({
-                    value: family,
-                    label: family,
-                    style: {
-                      fontFamily: `"${family}", ui-monospace, monospace`,
-                    },
-                  })),
-                ]}
-              />
-            </div>
+                        ]
+                      : []),
+                    ...systemFonts.map((family) => ({
+                      value: family,
+                      label: family,
+                      style: {
+                        fontFamily: `"${family}", ui-monospace, monospace`,
+                      },
+                    })),
+                  ]}
+                />
+              </SettingsPreferenceRow>
+            </SettingsPreferenceGroup>
           </SettingsSection> : null}
 
           {/* 2. Git */}
@@ -848,165 +955,194 @@ export function SettingsDrawer() {
                 </Button>
               </div>
             <div className="border-border overflow-hidden rounded-md border">
-              <div className="bg-muted/40 text-muted-foreground grid grid-cols-[minmax(80px,0.9fr)_minmax(120px,1.35fr)_52px_100px] gap-3 border-b px-3 py-2 text-[11px] font-medium">
-                <span>{t("settings.gitUserName")}</span>
-                <span>{t("settings.gitEmail")}</span>
-                <span>{t("settings.apiKeyStatus")}</span>
-                <span>{t("settings.apiKeyActions")}</span>
-              </div>
-              {gitAccountsLoading ? (
-                <p className="text-muted-foreground flex items-center justify-center gap-2 px-3 py-6 text-xs">
-                  <Spinner className="size-3.5" />
-                  {t("common.loading")}
-                </p>
-              ) : gitAccounts.length === 0 ? (
-                <p className="text-muted-foreground px-3 py-6 text-center text-xs">
-                  {t("settings.gitAccountEmpty")}
-                </p>
-              ) : (
-                <ul>
-                  {gitAccounts.map((account) => {
-                    const actionBusy = gitAccountActionId === account.id;
-                    return (
-                      <li
-                        key={account.id}
-                        className="grid grid-cols-[minmax(80px,0.9fr)_minmax(120px,1.35fr)_52px_100px] items-center gap-3 px-3 py-3 not-last:border-b"
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className={settingsTableHeadClassName}>
+                      {t("settings.gitUserName")}
+                    </TableHead>
+                    <TableHead className={settingsTableHeadClassName}>
+                      {t("settings.gitEmail")}
+                    </TableHead>
+                    <TableHead className={cn(settingsTableHeadClassName, "w-[4.5rem]")}>
+                      {t("settings.apiKeyStatus")}
+                    </TableHead>
+                    <TableHead className={cn(settingsTableHeadClassName, "w-[6.75rem]")}>
+                      {t("settings.apiKeyActions")}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {gitAccountsLoading ? (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell
+                        colSpan={4}
+                        className={cn(
+                          settingsTableCellClassName,
+                          "text-muted-foreground text-center text-xs",
+                        )}
                       >
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="truncate text-xs font-medium">{account.name}</span>
-                          </TooltipTrigger>
-                          <TooltipContent>{account.name}</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="text-muted-foreground truncate font-mono text-[11px]">
-                              {account.email}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>{account.email}</TooltipContent>
-                        </Tooltip>
-                        <span
-                          className={cn(
-                            "justify-self-start rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                            account.enabled
-                              ? "bg-primary/10 text-primary"
-                              : "bg-muted text-muted-foreground",
-                          )}
-                        >
-                          {account.enabled
-                            ? t("settings.apiKeyEnabled")
-                            : t("settings.apiKeyDisabled")}
+                        <span className="inline-flex items-center justify-center gap-2">
+                          <Spinner className="size-3.5" />
+                          {t("common.loading")}
                         </span>
-                        <span className="flex items-center gap-1.5">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className={cn(
-                                  "size-7",
-                                  account.enabled
-                                    ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-                                    : "border-primary/30 text-primary hover:bg-primary/10 hover:text-primary",
-                                )}
-                                aria-label={
-                                  account.enabled
-                                    ? t("settings.disableGitAccount")
-                                    : t("settings.enableGitAccount")
-                                }
-                                disabled={actionBusy}
-                                onClick={() => void handleGitAccountEnabled(account)}
-                              >
-                                {account.enabled ? (
-                                  <PowerOff aria-hidden="true" />
-                                ) : (
-                                  <Power aria-hidden="true" />
-                                )}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
+                      </TableCell>
+                    </TableRow>
+                  ) : gitAccounts.length === 0 ? (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell
+                        colSpan={4}
+                        className={cn(
+                          settingsTableCellClassName,
+                          "text-muted-foreground py-6 text-center text-xs",
+                        )}
+                      >
+                        {t("settings.gitAccountEmpty")}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    gitAccounts.map((account) => {
+                      const actionBusy = gitAccountActionId === account.id;
+                      return (
+                        <TableRow key={account.id}>
+                          <TableCell
+                            className={cn(
+                              settingsTableCellClassName,
+                              "max-w-[10rem] truncate text-xs font-medium",
+                            )}
+                          >
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="block truncate">{account.name}</span>
+                              </TooltipTrigger>
+                              <TooltipContent>{account.name}</TooltipContent>
+                            </Tooltip>
+                          </TableCell>
+                          <TableCell
+                            className={cn(
+                              settingsTableCellClassName,
+                              "text-muted-foreground max-w-[14rem] truncate font-mono text-[11px]",
+                            )}
+                          >
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="block truncate">{account.email}</span>
+                              </TooltipTrigger>
+                              <TooltipContent>{account.email}</TooltipContent>
+                            </Tooltip>
+                          </TableCell>
+                          <TableCell className={settingsTableCellClassName}>
+                            <Badge
+                              variant={account.enabled ? "default" : "secondary"}
+                              className={cn(
+                                "h-4 px-1.5 text-[10px]",
+                                !account.enabled && "text-muted-foreground",
+                              )}
+                            >
                               {account.enabled
-                                ? t("settings.disableGitAccount")
-                                : t("settings.enableGitAccount")}
-                            </TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="size-7"
-                                aria-label={t("settings.editGitAccount", {
-                                  name: account.name,
-                                })}
-                                disabled={actionBusy}
-                                onClick={() => {
-                                  setGitAccountEditing(account);
-                                  setEditedGitAccountName(account.name);
-                                  setEditedGitAccountEmail(account.email);
-                                }}
-                              >
-                                <Pencil aria-hidden="true" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{t("settings.edit")}</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive size-7"
-                                aria-label={t("settings.deleteGitAccount", {
-                                  name: account.name,
-                                })}
-                                disabled={actionBusy}
-                                onClick={() => setGitAccountPendingDeletion(account)}
-                              >
-                                <Trash2 aria-hidden="true" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{t("settings.delete")}</TooltipContent>
-                          </Tooltip>
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+                                ? t("settings.apiKeyEnabled")
+                                : t("settings.apiKeyDisabled")}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className={settingsTableCellClassName}>
+                            <span className="flex items-center gap-1.5">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className={cn(
+                                      "size-7",
+                                      account.enabled
+                                        ? "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                        : "border-primary/30 text-primary hover:bg-primary/10 hover:text-primary",
+                                    )}
+                                    aria-label={
+                                      account.enabled
+                                        ? t("settings.disableGitAccount")
+                                        : t("settings.enableGitAccount")
+                                    }
+                                    disabled={actionBusy}
+                                    onClick={() => void handleGitAccountEnabled(account)}
+                                  >
+                                    {account.enabled ? (
+                                      <PowerOff aria-hidden="true" />
+                                    ) : (
+                                      <Power aria-hidden="true" />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {account.enabled
+                                    ? t("settings.disableGitAccount")
+                                    : t("settings.enableGitAccount")}
+                                </TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="size-7"
+                                    aria-label={t("settings.editGitAccount", {
+                                      name: account.name,
+                                    })}
+                                    disabled={actionBusy}
+                                    onClick={() => {
+                                      setGitAccountEditing(account);
+                                      setEditedGitAccountName(account.name);
+                                      setEditedGitAccountEmail(account.email);
+                                    }}
+                                  >
+                                    <Pencil aria-hidden="true" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{t("settings.edit")}</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive size-7"
+                                    aria-label={t("settings.deleteGitAccount", {
+                                      name: account.name,
+                                    })}
+                                    disabled={actionBusy}
+                                    onClick={() => setGitAccountPendingDeletion(account)}
+                                  >
+                                    <Trash2 aria-hidden="true" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{t("settings.delete")}</TooltipContent>
+                              </Tooltip>
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
             </div>
             </div>
 
-            <div className="space-y-2">
-              <SettingsFieldHeading
-                icon={<Upload />}
-                tip={t("settings.pushAfterCommitHint")}
-                tipAria={t("settings.pushAfterCommitTipAria")}
+            <SettingsPreferenceGroup>
+              <SettingsPreferenceRow
+                label={t("settings.pushAfterCommit")}
+                description={t("settings.pushAfterCommitHint")}
               >
-                {t("settings.gitWorkflowTitle")}
-              </SettingsFieldHeading>
-              <ItemGroup className="border-border overflow-hidden rounded-md border">
-                <Item size="sm" className="rounded-none">
-                  <ItemContent>
-                    <ItemTitle className="text-foreground text-xs font-normal">
-                      {t("settings.pushAfterCommit")}
-                    </ItemTitle>
-                  </ItemContent>
-                  <ItemActions>
-                    <Switch
-                      size="sm"
-                      checked={pushAfterCommit}
-                      onCheckedChange={setPushAfterCommit}
-                      aria-label={t("settings.pushAfterCommit")}
-                    />
-                  </ItemActions>
-                </Item>
-              </ItemGroup>
-            </div>
+                <Switch
+                  size="sm"
+                  checked={pushAfterCommit}
+                  onCheckedChange={setPushAfterCommit}
+                  aria-label={t("settings.pushAfterCommit")}
+                />
+              </SettingsPreferenceRow>
+            </SettingsPreferenceGroup>
           </SettingsSection> : null}
 
           <Dialog
@@ -1205,137 +1341,185 @@ export function SettingsDrawer() {
                   {t("settings.createApiKey")}
                 </Button>
               </div>
-            <div className="border-border w-full overflow-hidden rounded-md border">
-              <div
-                className={cn(
-                  apiKeysGridClassName,
-                  "bg-muted/40 text-muted-foreground border-b px-3 py-2 text-[11px] font-medium",
-                )}
-              >
-                <span>{t("settings.apiKeyName")}</span>
-                <span>{t("settings.apiKeyValue")}</span>
-                <span>{t("settings.apiKeyStatus")}</span>
-                <span>{t("settings.apiKeyCreatedAt")}</span>
-                <span>{t("settings.apiKeyActions")}</span>
-              </div>
-              {apiKeysLoading ? (
-                <p className="text-muted-foreground flex items-center justify-center gap-2 px-3 py-6 text-xs">
-                  <Spinner className="size-3.5" />
-                  {t("common.loading")}
-                </p>
-              ) : apiKeys.length === 0 ? (
-                <p className="text-muted-foreground px-3 py-6 text-center text-xs">
-                  {t("settings.apiKeyEmpty")}
-                </p>
-              ) : (
-                <ul>
-                  {apiKeys.map((key) => {
-                    const actionBusy = apiKeyActionId === key.id;
-                    return (
-                      <li
-                        key={key.id}
-                        className={cn(
-                          apiKeysGridClassName,
-                          "px-3 py-3 [&:not(:last-child)]:border-b",
-                        )}
-                      >
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="truncate text-xs font-medium">{key.name}</span>
-                          </TooltipTrigger>
-                          <TooltipContent>{key.name}</TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="text-muted-foreground truncate font-mono text-[11px]">
-                              {maskApiKey(key.key)}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>{maskApiKey(key.key)}</TooltipContent>
-                        </Tooltip>
-                        <span
+
+              <div className="border-border w-full overflow-hidden rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className={settingsTableHeadClassName}>
+                        {t("settings.apiKeyName")}
+                      </TableHead>
+                      <TableHead className={settingsTableHeadClassName}>
+                        {t("settings.apiKeyValue")}
+                      </TableHead>
+                      <TableHead className={cn(settingsTableHeadClassName, "w-[4.5rem]")}>
+                        {t("settings.apiKeyStatus")}
+                      </TableHead>
+                      <TableHead className={cn(settingsTableHeadClassName, "w-24")}>
+                        {t("settings.apiKeyCreatedAt")}
+                      </TableHead>
+                      <TableHead className={cn(settingsTableHeadClassName, "w-[6.75rem]")}>
+                        {t("settings.apiKeyActions")}
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {apiKeysLoading ? (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell
+                          colSpan={5}
                           className={cn(
-                            "justify-self-start rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                            key.enabled
-                              ? "bg-primary/10 text-primary"
-                              : "bg-muted text-muted-foreground",
+                            settingsTableCellClassName,
+                            "text-muted-foreground text-center text-xs",
                           )}
                         >
-                          {key.enabled ? t("settings.apiKeyEnabled") : t("settings.apiKeyDisabled")}
-                        </span>
-                        <time className="text-muted-foreground text-[11px]" dateTime={key.createdAt}>
-                          {formatApiKeyDate(key.createdAt, locale)}
-                        </time>
-                        <span className="flex items-center gap-1.5">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
+                          <span className="inline-flex items-center justify-center gap-2">
+                            <Spinner className="size-3.5" />
+                            {t("common.loading")}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ) : apiKeys.length === 0 ? (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell
+                          colSpan={5}
+                          className={cn(
+                            settingsTableCellClassName,
+                            "text-muted-foreground py-6 text-center text-xs",
+                          )}
+                        >
+                          {t("settings.apiKeyEmpty")}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      apiKeys.map((key) => {
+                        const actionBusy = apiKeyActionId === key.id;
+                        return (
+                          <TableRow key={key.id}>
+                            <TableCell
+                              className={cn(
+                                settingsTableCellClassName,
+                                "max-w-[10rem] truncate text-xs font-medium",
+                              )}
+                              title={key.name}
+                            >
+                              {key.name}
+                            </TableCell>
+                            <TableCell
+                              className={cn(
+                                settingsTableCellClassName,
+                                "text-muted-foreground max-w-[14rem] truncate font-mono text-[11px]",
+                              )}
+                              title={maskApiKey(key.key)}
+                            >
+                              {maskApiKey(key.key)}
+                            </TableCell>
+                            <TableCell className={settingsTableCellClassName}>
+                              <Badge
+                                variant={key.enabled ? "default" : "secondary"}
                                 className={cn(
-                                  "size-7",
-                                  key.enabled
-                                    ? "text-muted-foreground hover:bg-muted hover:text-foreground"
-                                    : "border-primary/30 text-primary hover:bg-primary/10 hover:text-primary",
+                                  "h-4 px-1.5 text-[10px]",
+                                  !key.enabled && "text-muted-foreground",
                                 )}
-                                aria-label={
-                                  key.enabled
-                                    ? t("settings.disableApiKey")
-                                    : t("settings.enableApiKey")
-                                }
-                                disabled={actionBusy}
-                                onClick={() => void handleApiKeyEnabled(key)}
                               >
-                                {key.enabled ? <PowerOff aria-hidden="true" /> : <Power aria-hidden="true" />}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {key.enabled ? t("settings.disableApiKey") : t("settings.enableApiKey")}
-                            </TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="size-7"
-                                aria-label={t("settings.editApiKeyName", { name: key.name })}
-                                disabled={actionBusy}
-                                onClick={() => {
-                                  setApiKeyEditing(key);
-                                  setEditedApiKeyName(key.name);
-                                }}
-                              >
-                                <Pencil aria-hidden="true" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{t("settings.edit")}</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive size-7"
-                                aria-label={t("settings.deleteApiKey", { name: key.name })}
-                                disabled={actionBusy}
-                                onClick={() => setApiKeyPendingDeletion(key)}
-                              >
-                                <Trash2 aria-hidden="true" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{t("settings.delete")}</TooltipContent>
-                          </Tooltip>
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
+                                {key.enabled
+                                  ? t("settings.apiKeyEnabled")
+                                  : t("settings.apiKeyDisabled")}
+                              </Badge>
+                            </TableCell>
+                            <TableCell
+                              className={cn(
+                                settingsTableCellClassName,
+                                "text-muted-foreground text-[11px] tabular-nums",
+                              )}
+                            >
+                              <time dateTime={key.createdAt}>
+                                {formatApiKeyDate(key.createdAt, locale)}
+                              </time>
+                            </TableCell>
+                            <TableCell className={settingsTableCellClassName}>
+                              <span className="flex h-7 items-center gap-1.5">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="icon-sm"
+                                      className={cn(
+                                        "size-7 shrink-0",
+                                        key.enabled
+                                          ? "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                          : "border-primary/30 text-primary hover:bg-primary/10 hover:text-primary",
+                                      )}
+                                      aria-label={
+                                        key.enabled
+                                          ? t("settings.disableApiKey")
+                                          : t("settings.enableApiKey")
+                                      }
+                                      disabled={actionBusy}
+                                      onClick={() => void handleApiKeyEnabled(key)}
+                                    >
+                                      {key.enabled ? (
+                                        <PowerOff aria-hidden="true" />
+                                      ) : (
+                                        <Power aria-hidden="true" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {key.enabled
+                                      ? t("settings.disableApiKey")
+                                      : t("settings.enableApiKey")}
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="icon-sm"
+                                      className="size-7 shrink-0"
+                                      aria-label={t("settings.editApiKeyName", {
+                                        name: key.name,
+                                      })}
+                                      disabled={actionBusy}
+                                      onClick={() => {
+                                        setApiKeyEditing(key);
+                                        setEditedApiKeyName(key.name);
+                                      }}
+                                    >
+                                      <Pencil aria-hidden="true" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>{t("settings.edit")}</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="icon-sm"
+                                      className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive size-7 shrink-0"
+                                      aria-label={t("settings.deleteApiKey", {
+                                        name: key.name,
+                                      })}
+                                      disabled={actionBusy}
+                                      onClick={() => setApiKeyPendingDeletion(key)}
+                                    >
+                                      <Trash2 aria-hidden="true" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>{t("settings.delete")}</TooltipContent>
+                                </Tooltip>
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
             <SettingsAiBalance
               hasEnabledKey={apiKeys.some((key) => key.enabled)}
@@ -1531,65 +1715,78 @@ export function SettingsDrawer() {
             tip={t("settings.toolsPrefsHint")}
             tipAria={t("settings.toolsPrefsTipAria")}
           >
-            <div className="space-y-2">
-              <SettingsFieldHeading icon={<AppWindow />}>
-                {t("settings.externalEditor")}
-              </SettingsFieldHeading>
-              <SelectMenu
-                value={externalEditor}
-                ariaLabel={t("settings.externalEditor")}
-                onChange={setExternalEditor}
-                options={[
-                  { value: "auto", label: t("settings.editorAuto") },
-                  { value: "cursor", label: "Cursor" },
-                  { value: "vscode", label: "Visual Studio Code" },
-                  { value: "custom", label: t("settings.editorCustom") },
-                ]}
-              />
-            </div>
-            <div className="space-y-2">
-              <SettingsFieldHeading icon={<FolderOpen />}>
-                {t("settings.externalEditorPath")}
-              </SettingsFieldHeading>
-              <Input
-                className={settingsFieldClassName}
-                value={externalEditorPath}
-                onChange={(event) => setExternalEditorPath(event.target.value)}
-                placeholder={t(`settings.${editorPathPlaceholderKey(os)}`)}
-                disabled={externalEditor !== "custom"}
-              />
-            </div>
-            <div className="space-y-2">
-              <SettingsFieldHeading icon={<Terminal />}>
-                {t("settings.shell")}
-              </SettingsFieldHeading>
-              <SelectMenu
-                value={coerceShellPreference(os, shell)}
-                ariaLabel={t("settings.shell")}
-                onChange={setShell}
-                options={shellOptionsForOs(os).map((option) => ({
-                  value: option.value,
-                  label: option.labelKey
-                    ? t(`settings.${option.labelKey}`)
-                    : (option.label ?? option.value),
-                }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <SettingsFieldHeading icon={<FolderOpen />}>
-                {t("settings.shellPath")}
-              </SettingsFieldHeading>
-              <Input
-                className={settingsFieldClassName}
-                value={shellPath}
-                onChange={(event) => setShellPath(event.target.value)}
-                placeholder={t(`settings.${shellPathPlaceholderKey(os)}`)}
-                disabled={coerceShellPreference(os, shell) !== "custom"}
-              />
-            </div>
+            <SettingsPreferenceGroup>
+              <SettingsPreferenceRow label={t("settings.externalEditor")}>
+                <SelectMenu
+                  value={externalEditor}
+                  ariaLabel={t("settings.externalEditor")}
+                  onChange={setExternalEditor}
+                  triggerClassName="h-8 w-[12rem] max-w-[40vw]"
+                  options={[
+                    { value: "auto", label: t("settings.editorAuto") },
+                    { value: "cursor", label: "Cursor" },
+                    { value: "vscode", label: "Visual Studio Code" },
+                    { value: "custom", label: t("settings.editorCustom") },
+                  ]}
+                />
+              </SettingsPreferenceRow>
+              {externalEditor === "custom" ? (
+                <SettingsPreferenceRow
+                  control="below"
+                  label={t("settings.externalEditorPath")}
+                >
+                  <Input
+                    className={cn(settingsFieldClassName, "w-full")}
+                    value={externalEditorPath}
+                    onChange={(event) => setExternalEditorPath(event.target.value)}
+                    placeholder={t(`settings.${editorPathPlaceholderKey(os)}`)}
+                    aria-label={t("settings.externalEditorPath")}
+                  />
+                </SettingsPreferenceRow>
+              ) : null}
+              <SettingsPreferenceRow label={t("settings.shell")}>
+                <SelectMenu
+                  value={coerceShellPreference(os, shell)}
+                  ariaLabel={t("settings.shell")}
+                  onChange={setShell}
+                  triggerClassName="h-8 w-[12rem] max-w-[40vw]"
+                  options={shellOptionsForOs(os).map((option) => ({
+                    value: option.value,
+                    label: option.labelKey
+                      ? t(`settings.${option.labelKey}`)
+                      : (option.label ?? option.value),
+                  }))}
+                />
+              </SettingsPreferenceRow>
+              {coerceShellPreference(os, shell) === "custom" ? (
+                <SettingsPreferenceRow
+                  control="below"
+                  label={t("settings.shellPath")}
+                >
+                  <Input
+                    className={cn(settingsFieldClassName, "w-full")}
+                    value={shellPath}
+                    onChange={(event) => setShellPath(event.target.value)}
+                    placeholder={t(`settings.${shellPathPlaceholderKey(os)}`)}
+                    aria-label={t("settings.shellPath")}
+                  />
+                </SettingsPreferenceRow>
+              ) : null}
+            </SettingsPreferenceGroup>
           </SettingsSection> : null}
 
           {activeCategory === "data" ? <SettingsDataPanel /> : null}
+
+          {activeCategory === "performance" ? (
+            <SettingsSection
+              icon={<Activity />}
+              title={t("settings.sectionPerformance")}
+              tip={t("settings.perfHint")}
+              tipAria={t("settings.perfTipAria")}
+            >
+              <SettingsPerformancePanel />
+            </SettingsSection>
+          ) : null}
 
           {activeCategory === "about" ? <SettingsAboutPanel /> : null}
 
@@ -1598,47 +1795,31 @@ export function SettingsDrawer() {
             icon={<Settings2 />}
             title={t("settings.sectionGeneral")}
           >
-            <div className="space-y-2">
-              <SettingsFieldHeading
-                icon={<Power />}
-                tip={t("settings.launchAtLoginHint")}
-                tipAria={t("settings.launchAtLoginTipAria")}
+            <SettingsPreferenceGroup>
+              <SettingsPreferenceRow
+                label={t("settings.launchAtLogin")}
+                description={t("settings.launchAtLoginHint")}
               >
-                {t("settings.launchTitle")}
-              </SettingsFieldHeading>
-              <ItemGroup className="border-border overflow-hidden rounded-md border">
-                <Item size="sm" className="rounded-none">
-                  <ItemContent>
-                    <ItemTitle className="text-foreground text-xs font-normal">
-                      {t("settings.launchAtLogin")}
-                    </ItemTitle>
-                  </ItemContent>
-                  <ItemActions>
-                    <Switch
-                      size="sm"
-                      checked={launchAtLogin}
-                      onCheckedChange={(next) => {
-                        void handleLaunchToggle(next);
-                      }}
-                      aria-label={t("settings.launchAtLogin")}
-                    />
-                  </ItemActions>
-                </Item>
-              </ItemGroup>
-              <div className="space-y-2 pt-2">
-                <SettingsFieldHeading
-                  icon={<LayoutPanelTop />}
-                  tip={t("settings.startupTabsHint")}
-                  tipAria={t("settings.startupTabsTipAria")}
-                >
-                  {t("settings.startupTabs")}
-                </SettingsFieldHeading>
+                <Switch
+                  size="sm"
+                  checked={launchAtLogin}
+                  onCheckedChange={(next) => {
+                    void handleLaunchToggle(next);
+                  }}
+                  aria-label={t("settings.launchAtLogin")}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow
+                label={t("settings.startupTabs")}
+                description={t("settings.startupTabsHint")}
+              >
                 <SelectMenu
                   value={startupTabsMode}
                   ariaLabel={t("settings.startupTabs")}
                   onChange={(value) => {
                     setStartupTabsMode(value as StartupTabsMode);
                   }}
+                  triggerClassName="h-8 w-[12rem] max-w-[40vw]"
                   options={[
                     {
                       value: "restore",
@@ -1650,8 +1831,8 @@ export function SettingsDrawer() {
                     },
                   ]}
                 />
-              </div>
-            </div>
+              </SettingsPreferenceRow>
+            </SettingsPreferenceGroup>
           </SettingsSection> : null}
             </div>
             </ScrollArea>

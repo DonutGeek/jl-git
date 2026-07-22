@@ -41,6 +41,7 @@ export function ActivityBar({ active, onChange }: ActivityBarProps) {
 
   return (
     <nav
+      data-jlgit-activity-bar=""
       className="border-border bg-muted/30 flex w-11 shrink-0 flex-col items-center gap-1 border-r py-2"
       aria-label={t("repo.activityBar")}
     >

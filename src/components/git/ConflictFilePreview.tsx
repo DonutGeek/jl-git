@@ -42,11 +42,15 @@ import {
 } from "@/components/git/TextDiffPreview";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  applyJlGitMonacoTheme,
-  forceMonacoThemeRepaint,
-  getJlGitMonacoThemeName,
-} from "@/design/monaco.theme";
+  applyAppMonacoTheme,
+  getAppMonacoThemeName,
+} from "@/design/editor-themes";
+import { forceMonacoThemeRepaint } from "@/design/monaco.theme";
 import { gitService } from "@/services/git";
+import {
+  getActiveThemeChrome,
+  useAppPrefsStore,
+} from "@/store/useAppPrefsStore";
 import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { GitBlameLine, GitDiffResult } from "@/types/git";
@@ -102,6 +106,9 @@ export const ConflictFilePreview = forwardRef<
   const [busy, setBusy] = useState(false);
   const [hunkIndex, setHunkIndex] = useState(0);
   const [dark, setDark] = useState(isDocumentDark);
+  const appThemeId = useAppPrefsStore((state) => state.appThemeId);
+  const themeChromeLight = useAppPrefsStore((state) => state.themeChromeLight);
+  const themeChromeDark = useAppPrefsStore((state) => state.themeChromeDark);
   const [mode, setMode] = useState<DiffPreviewMode>("file");
   const [diffLayout, setDiffLayout] = useState<DiffPreviewLayout>("sideBySide");
   const [foldUnchanged, setFoldUnchanged] = useState(false);
@@ -376,7 +383,12 @@ export const ConflictFilePreview = forwardRef<
           return;
         }
         if (monacoRef.current) {
-          applyJlGitMonacoTheme(monacoRef.current);
+          const prefs = useAppPrefsStore.getState();
+          applyAppMonacoTheme(
+            monacoRef.current,
+            prefs.appThemeId,
+            getActiveThemeChrome(prefs),
+          );
         }
         forceMonacoThemeRepaint(null, editorRef.current);
       });
@@ -385,7 +397,7 @@ export const ConflictFilePreview = forwardRef<
       cancelled = true;
       window.cancelAnimationFrame(frame);
     };
-  }, [dark]);
+  }, [dark, appThemeId, themeChromeLight, themeChromeDark]);
 
   useEffect(() => {
     if (size.width > 0 && size.height > 0) {
@@ -728,10 +740,19 @@ export const ConflictFilePreview = forwardRef<
                 height={size.height}
                 value={text}
                 language={languageFromPath(filePath)}
-                theme={getJlGitMonacoThemeName(dark)}
+                theme={getAppMonacoThemeName(
+                  appThemeId,
+                  dark,
+                  dark ? themeChromeDark : themeChromeLight,
+                )}
                 beforeMount={(monaco) => {
                   monacoRef.current = monaco;
-                  applyJlGitMonacoTheme(monaco);
+                  const prefs = useAppPrefsStore.getState();
+                  applyAppMonacoTheme(
+                    monaco,
+                    prefs.appThemeId,
+                    getActiveThemeChrome(prefs),
+                  );
                 }}
                 onMount={(editor) => {
                   editorRef.current = editor;

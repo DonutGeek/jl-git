@@ -13,6 +13,8 @@ export interface SystemRuntimeStats {
   rssBytes: number;
   cpuPercent: number;
   uptimeMs: number;
+  /** 取不到则为 null / undefined */
+  threadCount?: number | null;
 }
 
 export interface SystemDiskSpace {

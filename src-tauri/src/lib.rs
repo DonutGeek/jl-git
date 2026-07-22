@@ -73,6 +73,7 @@ pub fn run() {
             commands::chat::chat_delete_conversation,
             commands::chat::chat_reorder_conversations,
             commands::app_data::app_data_paths,
+            commands::app_data::app_data_usage,
             commands::app_data::app_data_reveal,
             commands::app_data::app_data_clear,
             commands::app_data::app_data_export,

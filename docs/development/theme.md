@@ -126,3 +126,16 @@ settings theme.mode
 ```
 
 见 [api/settings](../api/settings.md)（Theme 也可作为 Settings 的一部分，不强制独立 Command）。
+
+### 应用主题（整站 + Monaco）
+
+| 项 | 说明 |
+|----|------|
+| 入口 | 设置 → 外观 →「应用主题」 |
+| 主题包 | **鲸灵 Git**（默认 tokens 原色，可微调）/ GitHub / Codex / Claude Code / VS Code |
+| 作用 | 非 native 包写入 Design Tokens；Monaco Diff/文件视图共用 |
+| 昼夜 | 仍跟 `html.dark`；切换主题包会重置自定义色 |
+| 偏好 | `appThemeId` + `themeChromeLight` / `themeChromeDark` |
+| 代码 | 模块化目录 `src/design/themes/`（见 [应用主题模块](../superpowers/specs/2026-07-22-app-themes-modular-design.md)） |
+
+新增主题：新建 `packs/<name>.ts` → 挂到 `packs/index.ts` → 扩 `AppThemeId` → i18n。**禁止**把色板堆进 `apply-*` 或设置组件。色板来源见 `src/design/themes/packs/SOURCES.md`。

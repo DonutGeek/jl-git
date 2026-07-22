@@ -69,7 +69,8 @@ export function SplitPane({
 
   const isHorizontal = orientation === "horizontal";
   const [containerSize, setContainerSize] = useState(0);
-  const separatorPx = 6;
+  /** 视觉仅 1px 线；拖拽热区靠 after 加宽，避免 6px 铺底在侧栏/主区间露成「缝」 */
+  const separatorPx = 1;
 
   // storageKey / 默认比例变更时重新读取；用 layout 阶段同步，避免首帧错宽导致邻栏抖动
   useLayoutEffect(() => {
@@ -267,18 +268,12 @@ export function SplitPane({
         aria-orientation={isHorizontal ? "vertical" : "horizontal"}
         tabIndex={0}
         className={cn(
-          // 分隔槽铺底，避免邻栏选中/背景从透明 6px 缝里透出
-          "relative shrink-0 bg-background",
-          isHorizontal ? "w-1.5 cursor-col-resize" : "h-1.5 cursor-row-resize",
-          "before:bg-border before:absolute before:transition-[background-color,width,height]",
-          isHorizontal
-            ? "before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2"
-            : "before:inset-x-0 before:top-1/2 before:h-px before:-translate-y-1/2",
-          "hover:before:bg-primary",
-          isHorizontal ? "hover:before:w-0.5" : "hover:before:h-0.5",
-          dragging && "before:bg-primary",
-          dragging && (isHorizontal ? "before:w-0.5" : "before:h-0.5"),
-          "after:absolute",
+          // 固定 1px 线，热区靠 after；悬停只变色不加宽，避免挤动邻栏
+          "relative z-10 shrink-0 bg-border",
+          isHorizontal ? "w-px cursor-col-resize" : "h-px cursor-row-resize",
+          "hover:bg-primary",
+          dragging && "bg-primary",
+          "after:absolute after:content-['']",
           isHorizontal
             ? "after:inset-y-0 after:left-1/2 after:w-3 after:-translate-x-1/2"
             : "after:inset-x-0 after:top-1/2 after:h-3 after:-translate-y-1/2",

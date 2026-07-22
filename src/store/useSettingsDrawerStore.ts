@@ -9,6 +9,7 @@ export type SettingsDrawerCategory =
   | "tools"
   | "data"
   | "general"
+  | "performance"
   | "about";
 
 interface SettingsDrawerState {
