@@ -26,7 +26,7 @@ interface TagListFilterMenuProps {
   onChange: (patch: Partial<TagListPrefs>) => void;
 }
 
-/** 侧栏标签排序菜单（交互对齐分支列表） */
+/** 侧栏标签排序菜单（仅升序 / 降序，按名称） */
 export function TagListFilterMenu({
   prefs,
   onChange,
@@ -66,36 +66,16 @@ export function TagListFilterMenu({
           onCheckedChange={(checked) =>
             setSort(checked ? "nameAsc" : DEFAULT_TAG_LIST_PREFS.sort)
           }
-          onSelect={(event) => event.preventDefault()}
         >
-          {t("repo.tagFilterSortNameAsc")}
+          {t("repo.sortAsc")}
         </DropdownMenuCheckboxItem>
         <DropdownMenuCheckboxItem
           checked={prefs.sort === "nameDesc"}
           onCheckedChange={(checked) =>
             setSort(checked ? "nameDesc" : DEFAULT_TAG_LIST_PREFS.sort)
           }
-          onSelect={(event) => event.preventDefault()}
         >
-          {t("repo.tagFilterSortNameDesc")}
-        </DropdownMenuCheckboxItem>
-        <DropdownMenuCheckboxItem
-          checked={prefs.sort === "timeDesc"}
-          onCheckedChange={(checked) =>
-            setSort(checked ? "timeDesc" : DEFAULT_TAG_LIST_PREFS.sort)
-          }
-          onSelect={(event) => event.preventDefault()}
-        >
-          {t("repo.tagFilterSortTimeDesc")}
-        </DropdownMenuCheckboxItem>
-        <DropdownMenuCheckboxItem
-          checked={prefs.sort === "timeAsc"}
-          onCheckedChange={(checked) =>
-            setSort(checked ? "timeAsc" : DEFAULT_TAG_LIST_PREFS.sort)
-          }
-          onSelect={(event) => event.preventDefault()}
-        >
-          {t("repo.tagFilterSortTimeAsc")}
+          {t("repo.sortDesc")}
         </DropdownMenuCheckboxItem>
       </DropdownMenuContent>
     </DropdownMenu>

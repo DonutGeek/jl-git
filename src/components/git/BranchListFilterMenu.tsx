@@ -26,7 +26,7 @@ interface BranchListFilterMenuProps {
   onChange: (patch: Partial<BranchListPrefs>) => void;
 }
 
-/** 侧栏分支排序菜单（勾选风格对齐差异「更多」） */
+/** 侧栏分支排序菜单（仅升序 / 降序，按名称） */
 export function BranchListFilterMenu({
   prefs,
   onChange,
@@ -66,36 +66,16 @@ export function BranchListFilterMenu({
           onCheckedChange={(checked) =>
             setSort(checked ? "nameAsc" : DEFAULT_BRANCH_LIST_PREFS.sort)
           }
-          onSelect={(event) => event.preventDefault()}
         >
-          {t("repo.branchFilterSortNameAsc")}
+          {t("repo.sortAsc")}
         </DropdownMenuCheckboxItem>
         <DropdownMenuCheckboxItem
           checked={prefs.sort === "nameDesc"}
           onCheckedChange={(checked) =>
             setSort(checked ? "nameDesc" : DEFAULT_BRANCH_LIST_PREFS.sort)
           }
-          onSelect={(event) => event.preventDefault()}
         >
-          {t("repo.branchFilterSortNameDesc")}
-        </DropdownMenuCheckboxItem>
-        <DropdownMenuCheckboxItem
-          checked={prefs.sort === "timeDesc"}
-          onCheckedChange={(checked) =>
-            setSort(checked ? "timeDesc" : DEFAULT_BRANCH_LIST_PREFS.sort)
-          }
-          onSelect={(event) => event.preventDefault()}
-        >
-          {t("repo.branchFilterSortTimeDesc")}
-        </DropdownMenuCheckboxItem>
-        <DropdownMenuCheckboxItem
-          checked={prefs.sort === "timeAsc"}
-          onCheckedChange={(checked) =>
-            setSort(checked ? "timeAsc" : DEFAULT_BRANCH_LIST_PREFS.sort)
-          }
-          onSelect={(event) => event.preventDefault()}
-        >
-          {t("repo.branchFilterSortTimeAsc")}
+          {t("repo.sortDesc")}
         </DropdownMenuCheckboxItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1,8 +1,9 @@
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, GitBranch as GitBranchIcon, Search, Tag } from "lucide-react";
+import { GitBranch as GitBranchIcon, Tag } from "lucide-react";
 import { toast } from "sonner";
 
+import { GitRefPicker } from "@/components/git/GitRefPicker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,14 +13,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/store/useRepoStore";
 import { listRemotes } from "@/services/git";
 import { toUserMessage } from "@/types/error";
+import {
+  filterAndSortBranches,
+  readBranchListPrefs,
+} from "@/utils/branchListPrefs";
+import { filterAndSortTags, readTagListPrefs } from "@/utils/tagListPrefs";
 
-/** 空字符串表示当前 HEAD */
-const HEAD_REF = "";
+/** 内部键前缀，避免分支与标签同名冲突；提交时取 value（真实 ref） */
+const REF_PREFIX = {
+  local: "local:",
+  remote: "remote:",
+  tag: "tag:",
+} as const;
 
 interface CreateTagDialogProps {
   open: boolean;
@@ -43,22 +52,40 @@ export function CreateTagDialog({
   const createTag = useRepoStore((state) => state.createTag);
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
-  const [ref, setRef] = useState(HEAD_REF);
-  const [filter, setFilter] = useState("");
+  /** 已选 git ref 名（非编码键） */
+  const [ref, setRef] = useState("");
   const [remote, setRemote] = useState<string | null>(null);
   const [push, setPush] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lockedRef = Boolean(fixedRef?.trim());
 
-  const localBranches = useMemo(
-    () => branches.filter((branch) => !branch.isRemote),
-    [branches],
-  );
-  const remoteBranches = useMemo(
-    () => branches.filter((branch) => branch.isRemote),
-    [branches],
-  );
+  // 与侧栏分支/标签列表共用排序偏好
+  const refOptions = useMemo(() => {
+    const branchPrefs = readBranchListPrefs();
+    const tagPrefs = readTagListPrefs();
+    const sortedBranches = filterAndSortBranches(branches, branchPrefs, "");
+    const sortedTags = filterAndSortTags(tags, tagPrefs, "");
+    const localBranches = sortedBranches.filter((branch) => !branch.isRemote);
+    const remoteBranches = sortedBranches.filter((branch) => branch.isRemote);
+    return [
+      ...localBranches.map((branch) => ({
+        key: `${REF_PREFIX.local}${branch.name}`,
+        value: branch.name,
+        label: branch.name,
+      })),
+      ...remoteBranches.map((branch) => ({
+        key: `${REF_PREFIX.remote}${branch.name}`,
+        value: branch.name,
+        label: branch.name,
+      })),
+      ...sortedTags.map((tag) => ({
+        key: `${REF_PREFIX.tag}${tag.name}`,
+        value: tag.name,
+        label: tag.name,
+      })),
+    ];
+  }, [branches, tags]);
 
   useEffect(() => {
     if (!open || !repoPath) return;
@@ -81,65 +108,22 @@ export function CreateTagDialog({
 
   useEffect(() => {
     if (!open) return;
-    const snapshot = useRepoStore.getState();
-    const current = snapshot.status?.branch ?? null;
     setName("");
     setMessage("");
-    setFilter("");
     setBusy(false);
     setError(null);
     setPush(true);
-    const locked = fixedRef?.trim() ?? "";
-    if (locked) {
-      setRef(locked);
-    } else {
-      // 默认基于当前分支；分离 HEAD 时用「当前 HEAD」
-      setRef(current ?? HEAD_REF);
-    }
+    // 无固定基点时不预选；须用户主动选择
+    setRef("");
   }, [open, fixedRef]);
-
-  const filterLower = filter.trim().toLowerCase();
-
-  const filteredLocal = useMemo(() => {
-    if (!filterLower) return localBranches;
-    return localBranches.filter((branch) =>
-      branch.name.toLowerCase().includes(filterLower),
-    );
-  }, [localBranches, filterLower]);
-
-  const filteredRemote = useMemo(() => {
-    if (!filterLower) return remoteBranches;
-    return remoteBranches.filter((branch) =>
-      branch.name.toLowerCase().includes(filterLower),
-    );
-  }, [remoteBranches, filterLower]);
-
-  const filteredTags = useMemo(() => {
-    if (!filterLower) return tags;
-    return tags.filter((tag) => tag.name.toLowerCase().includes(filterLower));
-  }, [tags, filterLower]);
-
-  const headMatches =
-    !filterLower || t("repo.tagCurrentHead").toLowerCase().includes(filterLower);
-
-  const hasPickMatches =
-    headMatches ||
-    filteredLocal.length > 0 ||
-    filteredRemote.length > 0 ||
-    filteredTags.length > 0;
-
-  const selectedLabel = useMemo(() => {
-    if (ref === HEAD_REF) return t("repo.tagCurrentHead");
-    return ref;
-  }, [ref, t]);
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (busy || !name.trim()) return;
+    const baseRef = (lockedRef ? fixedRef : ref)?.trim();
+    if (busy || !name.trim() || !baseRef) return;
     setBusy(true);
     setError(null);
     try {
-      const baseRef = (lockedRef ? fixedRef : ref)?.trim() || undefined;
       const result = await createTag({
         name: name.trim(),
         message: message.trim() || undefined,
@@ -160,13 +144,13 @@ export function CreateTagDialog({
     }
   }
 
+  const canSubmit =
+    !busy && name.trim().length > 0 && (lockedRef || ref.trim().length > 0);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className={cn(
-          "flex flex-col gap-4 overflow-hidden p-5 sm:rounded-lg",
-          lockedRef ? "max-w-md" : "max-h-[min(640px,85vh)] max-w-xl",
-        )}
+        className={cn("flex max-w-md flex-col gap-4 overflow-hidden p-5 sm:rounded-lg")}
       >
         <DialogHeader>
           <DialogTitle>{t("repo.createTagTitle")}</DialogTitle>
@@ -194,97 +178,17 @@ export function CreateTagDialog({
               </div>
             </div>
           ) : (
-            <div className="border-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border">
-              <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
-                <p className="min-w-0 flex-1 truncate text-xs">
-                  <span className="text-muted-foreground">{t("repo.tagBasedOn")}</span>{" "}
-                  <span className="text-foreground font-medium font-mono">
-                    {selectedLabel}
-                  </span>
-                </p>
-                <div className="relative w-36 shrink-0">
-                  <Search
-                    className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
-                    aria-hidden="true"
-                  />
-                  <Input
-                    value={filter}
-                    onChange={(event) => setFilter(event.target.value)}
-                    placeholder={t("repo.filter")}
-                    className="h-7 pl-7 text-xs"
-                    aria-label={t("repo.filter")}
-                    disabled={busy}
-                  />
-                </div>
-              </div>
-
-              <div className="min-h-0 flex-1">
-                <ScrollArea className="h-full max-h-64 py-1">
-                  {headMatches ? (
-                    <ul className="px-1 py-1">
-                      <PickRow
-                        icon="head"
-                        label={t("repo.tagCurrentHead")}
-                        selected={ref === HEAD_REF}
-                        disabled={busy}
-                        onSelect={() => setRef(HEAD_REF)}
-                      />
-                    </ul>
-                  ) : null}
-
-                  {filteredLocal.length > 0 ? (
-                    <PickSection title={t("repo.localBranches")}>
-                      {filteredLocal.map((branch) => (
-                        <PickRow
-                          key={`local:${branch.name}`}
-                          icon="branch"
-                          label={branch.name}
-                          selected={ref === branch.name}
-                          isCurrent={branch.isCurrent}
-                          disabled={busy}
-                          onSelect={() => setRef(branch.name)}
-                        />
-                      ))}
-                    </PickSection>
-                  ) : null}
-
-                  {filteredRemote.length > 0 ? (
-                    <PickSection title={t("repo.remoteBranches")}>
-                      {filteredRemote.map((branch) => (
-                        <PickRow
-                          key={`remote:${branch.name}`}
-                          icon="branch"
-                          label={branch.name}
-                          selected={ref === branch.name}
-                          disabled={busy}
-                          onSelect={() => setRef(branch.name)}
-                        />
-                      ))}
-                    </PickSection>
-                  ) : null}
-
-                  {filteredTags.length > 0 ? (
-                    <PickSection title={t("repo.tags")}>
-                      {filteredTags.map((tag) => (
-                        <PickRow
-                          key={`tag:${tag.name}`}
-                          icon="tag"
-                          label={tag.name}
-                          selected={ref === tag.name}
-                          disabled={busy}
-                          onSelect={() => setRef(tag.name)}
-                        />
-                      ))}
-                    </PickSection>
-                  ) : null}
-
-                  {!hasPickMatches ? (
-                    <p className="text-muted-foreground px-3 py-4 text-xs">
-                      {t("repo.tagBaseNoMatch")}
-                    </p>
-                  ) : null}
-                </ScrollArea>
-              </div>
+            <div className="space-y-1.5">
+              <label htmlFor="create-tag-base" className="text-sm font-medium">
+                {t("repo.tagBasedOn")}
+              </label>
+              <GitRefPicker
+                id="create-tag-base"
+                value={ref}
+                options={refOptions}
+                disabled={busy}
+                onValueChange={setRef}
+              />
             </div>
           )}
 
@@ -333,83 +237,12 @@ export function CreateTagDialog({
             >
               {t("common.cancel")}
             </Button>
-            <Button type="submit" disabled={busy || !name.trim()}>
+            <Button type="submit" disabled={!canSubmit}>
               {t("repo.createTagAction")}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function PickSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="px-1 py-1">
-      <p className="text-muted-foreground px-2 py-1 text-[11px] font-medium tracking-wide">
-        {title}
-      </p>
-      <ul>{children}</ul>
-    </section>
-  );
-}
-
-interface PickRowProps {
-  icon: "head" | "branch" | "tag";
-  label: string;
-  selected: boolean;
-  disabled: boolean;
-  isCurrent?: boolean;
-  onSelect: () => void;
-}
-
-function PickRow({
-  icon,
-  label,
-  selected,
-  disabled,
-  isCurrent,
-  onSelect,
-}: PickRowProps) {
-  return (
-    <li>
-      <button
-        type="button"
-        disabled={disabled}
-        className={cn(
-          "flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-left text-sm transition-colors disabled:cursor-not-allowed",
-          selected
-            ? "bg-primary/10 text-primary"
-            : "hover:bg-accent/60 text-foreground",
-        )}
-        onClick={onSelect}
-        aria-current={isCurrent ? "true" : undefined}
-      >
-        {selected || isCurrent ? (
-          <Check className="size-3.5 shrink-0" aria-hidden="true" />
-        ) : icon === "tag" ? (
-          <Tag className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
-        ) : (
-          <GitBranchIcon
-            className="text-muted-foreground size-3.5 shrink-0"
-            aria-hidden="true"
-          />
-        )}
-        <span
-          className={cn(
-            "min-w-0 flex-1 truncate text-xs",
-            icon === "head" ? "" : "font-mono",
-          )}
-        >
-          {label}
-        </span>
-      </button>
-    </li>
   );
 }

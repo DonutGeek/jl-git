@@ -1,9 +1,10 @@
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Check, GitBranch as GitBranchIcon, Search, Tag } from "lucide-react";
+import { GitBranch as GitBranchIcon, Tag } from "lucide-react";
 import { toast } from "sonner";
 
+import { GitRefPicker } from "@/components/git/GitRefPicker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,18 +14,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 import { useRepoStore } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
-import { GitBranch } from "@/types/git";
+import {
+  filterAndSortBranches,
+  readBranchListPrefs,
+} from "@/utils/branchListPrefs";
 
 interface CreateBranchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** 固定起点（如标签名）；有值时不展示分支选择列表 */
+  /** 固定起点（如标签名）；有值时不展示选择器 */
   fixedStartPoint?: string | null;
   /** 固定起点展示为标签 */
   fixedStartIsTag?: boolean;
@@ -43,39 +46,33 @@ export function CreateBranchDialog({
   const loading = useRepoStore((state) => state.loading);
 
   const [name, setName] = useState("");
-  const [filter, setFilter] = useState("");
-  const [startPoint, setStartPoint] = useState<string>("");
+  const [startPoint, setStartPoint] = useState("");
   const [checkoutAfterCreate, setCheckoutAfterCreate] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const lockedStart = Boolean(fixedStartPoint?.trim());
 
-  const allLocalBranches = useMemo(
-    () => branches.filter((branch) => !branch.isRemote),
-    [branches],
-  );
-  const remoteBranches = useMemo(
-    () => branches.filter((branch) => branch.isRemote),
-    [branches],
-  );
-
-  // 默认分支：后端标记 isDefault；无标记时回退 main/master
-  const defaultBranch = useMemo(() => {
-    const marked = allLocalBranches.find((branch) => branch.isDefault);
-    if (marked) {
-      return marked;
-    }
-    return (
-      allLocalBranches.find((branch) => branch.name === "main" || branch.name === "master") ?? null
+  // 与侧栏分支列表共用排序偏好
+  const startOptions = useMemo(() => {
+    const sortedBranches = filterAndSortBranches(
+      branches,
+      readBranchListPrefs(),
+      "",
     );
-  }, [allLocalBranches]);
-
-  // 本地分支列表排除默认分支，避免与「默认分支」分组重复
-  const localBranches = useMemo(() => {
-    if (!defaultBranch) {
-      return allLocalBranches;
-    }
-    return allLocalBranches.filter((branch) => branch.name !== defaultBranch.name);
-  }, [allLocalBranches, defaultBranch]);
+    const localBranches = sortedBranches.filter((branch) => !branch.isRemote);
+    const remoteBranches = sortedBranches.filter((branch) => branch.isRemote);
+    return [
+      ...localBranches.map((branch) => ({
+        key: `local:${branch.name}`,
+        value: branch.name,
+        label: branch.name,
+      })),
+      ...remoteBranches.map((branch) => ({
+        key: `remote:${branch.name}`,
+        value: branch.name,
+        label: branch.name,
+      })),
+    ];
+  }, [branches]);
 
   // 仅在打开瞬间重置表单，避免输入时被 branches 引用变化冲掉
   useEffect(() => {
@@ -83,13 +80,7 @@ export function CreateBranchDialog({
       return;
     }
 
-    const snapshot = useRepoStore.getState();
-    const locals = snapshot.branches.filter((branch) => !branch.isRemote);
-    const remotes = snapshot.branches.filter((branch) => branch.isRemote);
-    const current = snapshot.status?.branch ?? null;
-
     setName("");
-    setFilter("");
     setSubmitting(false);
     const locked = fixedStartPoint?.trim() ?? "";
     if (locked) {
@@ -97,29 +88,17 @@ export function CreateBranchDialog({
       // 从标签创建时默认不自动检出，与常见客户端一致
       setCheckoutAfterCreate(false);
     } else {
-      setStartPoint(current ?? locals[0]?.name ?? remotes[0]?.name ?? "");
+      // 无默认起点；须用户主动选择
+      setStartPoint("");
       setCheckoutAfterCreate(true);
     }
   }, [open, fixedStartPoint]);
 
-  const filterLower = filter.trim().toLowerCase();
-
-  const filteredLocal = useMemo(() => {
-    if (!filterLower) {
-      return localBranches;
-    }
-    return localBranches.filter((branch) => branch.name.toLowerCase().includes(filterLower));
-  }, [localBranches, filterLower]);
-
-  const filteredRemote = useMemo(() => {
-    if (!filterLower) {
-      return remoteBranches;
-    }
-    return remoteBranches.filter((branch) => branch.name.toLowerCase().includes(filterLower));
-  }, [remoteBranches, filterLower]);
-
   const canSubmit =
-    !submitting && !loading && name.trim().length > 0 && startPoint.trim().length > 0;
+    !submitting &&
+    !loading &&
+    name.trim().length > 0 &&
+    startPoint.trim().length > 0;
 
   function handleOpenChange(next: boolean): void {
     if (!next && submitting) {
@@ -163,16 +142,16 @@ export function CreateBranchDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className={cn(
-          "flex flex-col gap-4 overflow-hidden p-5 sm:rounded-lg",
-          lockedStart ? "max-w-md" : "max-h-[min(640px,85vh)] max-w-xl",
-        )}
+        className={cn("flex max-w-md flex-col gap-4 overflow-hidden p-5 sm:rounded-lg")}
       >
         <DialogHeader>
           <DialogTitle>{t("repo.createBranchTitle")}</DialogTitle>
         </DialogHeader>
 
-        <form className="flex min-h-0 flex-1 flex-col gap-4" onSubmit={(event) => void handleSubmit(event)}>
+        <form
+          className="flex min-h-0 flex-1 flex-col gap-4"
+          onSubmit={(event) => void handleSubmit(event)}
+        >
           {lockedStart ? (
             <div className="space-y-1.5">
               <p className="text-muted-foreground text-sm">
@@ -190,7 +169,20 @@ export function CreateBranchDialog({
                 <span className="min-w-0 truncate font-mono">{startPoint}</span>
               </div>
             </div>
-          ) : null}
+          ) : (
+            <div className="space-y-1.5">
+              <label htmlFor="create-branch-base" className="text-sm font-medium">
+                {t("repo.createBranchBasedOn")}
+              </label>
+              <GitRefPicker
+                id="create-branch-base"
+                value={startPoint}
+                options={startOptions}
+                disabled={submitting}
+                onValueChange={setStartPoint}
+              />
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <label htmlFor="branch-name" className="text-sm font-medium">
@@ -216,87 +208,7 @@ export function CreateBranchDialog({
               />
               <span>{t("repo.createBranchCheckoutAfter")}</span>
             </label>
-          ) : (
-            <div className="border-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border">
-              <div className="border-border flex shrink-0 items-center gap-2 border-b px-3 py-2">
-                <p className="min-w-0 flex-1 truncate text-xs">
-                  <span className="text-muted-foreground">{t("repo.createBranchBasedOn")}</span>{" "}
-                  <span className="text-foreground font-medium font-mono">
-                    {startPoint || "—"}
-                  </span>
-                </p>
-                <div className="relative w-36 shrink-0">
-                  <Search
-                    className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2"
-                    aria-hidden="true"
-                  />
-                  <Input
-                    value={filter}
-                    onChange={(event) => setFilter(event.target.value)}
-                    placeholder={t("repo.filter")}
-                    className="h-7 pl-7 text-xs"
-                    aria-label={t("repo.filter")}
-                    disabled={submitting}
-                  />
-                </div>
-              </div>
-
-              <div className="min-h-0 flex-1">
-                <ScrollArea className="h-full py-1">
-                  {defaultBranch &&
-                  (!filterLower || defaultBranch.name.toLowerCase().includes(filterLower)) ? (
-                    <BranchPickSection title={t("repo.defaultBranch")}>
-                      <BranchPickRow
-                        branch={defaultBranch}
-                        selected={startPoint === defaultBranch.name}
-                        onSelect={setStartPoint}
-                        disabled={submitting}
-                      />
-                    </BranchPickSection>
-                  ) : null}
-
-                  {filteredLocal.length > 0 ? (
-                    <BranchPickSection title={t("repo.localBranches")}>
-                      {filteredLocal.map((branch) => (
-                        <BranchPickRow
-                          key={`local:${branch.name}`}
-                          branch={branch}
-                          selected={startPoint === branch.name}
-                          onSelect={setStartPoint}
-                          disabled={submitting}
-                        />
-                      ))}
-                    </BranchPickSection>
-                  ) : null}
-
-                  {filteredRemote.length > 0 ? (
-                    <BranchPickSection title={t("repo.remoteBranches")}>
-                      {filteredRemote.map((branch) => (
-                        <BranchPickRow
-                          key={`remote:${branch.name}`}
-                          branch={branch}
-                          selected={startPoint === branch.name}
-                          onSelect={setStartPoint}
-                          disabled={submitting}
-                        />
-                      ))}
-                    </BranchPickSection>
-                  ) : null}
-
-                  {filteredLocal.length === 0 &&
-                  filteredRemote.length === 0 &&
-                  !(
-                    defaultBranch &&
-                    (!filterLower || defaultBranch.name.toLowerCase().includes(filterLower))
-                  ) ? (
-                    <p className="text-muted-foreground px-3 py-4 text-xs">
-                      {t("repo.branchesNoMatch")}
-                    </p>
-                  ) : null}
-                </ScrollArea>
-              </div>
-            </div>
-          )}
+          ) : null}
 
           <DialogFooter>
             <Button
@@ -314,57 +226,5 @@ export function CreateBranchDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function BranchPickSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="px-1 py-1">
-      <p className="text-muted-foreground px-2 py-1 text-[11px] font-medium tracking-wide">
-        {title}
-      </p>
-      <ul>{children}</ul>
-    </section>
-  );
-}
-
-interface BranchPickRowProps {
-  branch: GitBranch;
-  selected: boolean;
-  disabled: boolean;
-  onSelect: (name: string) => void;
-}
-
-function BranchPickRow({ branch, selected, disabled, onSelect }: BranchPickRowProps) {
-  const isCurrent = branch.isCurrent;
-
-  return (
-    <li>
-      <button
-        type="button"
-        disabled={disabled}
-        className={cn(
-          "flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-2 text-left text-sm transition-colors disabled:cursor-not-allowed",
-          selected
-            ? "bg-primary/10 text-primary"
-            : "hover:bg-accent/60 text-foreground",
-        )}
-        onClick={() => onSelect(branch.name)}
-        aria-current={isCurrent ? "true" : undefined}
-      >
-        {isCurrent ? (
-          <Check className="size-3.5 shrink-0" aria-hidden="true" />
-        ) : (
-          <GitBranchIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
-        )}
-        <span className="min-w-0 flex-1 truncate font-mono text-xs">{branch.name}</span>
-      </button>
-    </li>
   );
 }

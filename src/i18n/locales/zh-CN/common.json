@@ -3,6 +3,7 @@
   "loading": "加载中...",
   "error": "出错了",
   "cancel": "取消",
+  "pleaseSelect": "请选择",
   "aiApiKeyRequired": "请先在设置中配置并启用 API Key",
   "gitNotFound": "未检测到本机 Git，请先安装并确保已加入系统 PATH"
 }
