@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
+import { useAppUpdateChecker } from "@/hooks/useAppUpdateChecker";
 import { gitService } from "@/services/git";
 import {
   getAppInfo,
@@ -36,7 +37,6 @@ import {
 import {
   checkAppUpdate,
   installPendingAppUpdate,
-  type AppUpdateInfo,
 } from "@/services/system/system.updater";
 import { openMultiAgentWindow } from "@/services/window/multiAgentWindow";
 import {
@@ -44,6 +44,7 @@ import {
   selectRepoEntries,
   useOpLogStore,
 } from "@/store/useOpLogStore";
+import { useAppUpdateStore } from "@/store/useAppUpdateStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
 import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
@@ -74,6 +75,7 @@ export function StatusBar() {
   const openDrawer = useSettingsDrawerStore((state) => state.openDrawer);
   const settingsOpen = useSettingsDrawerStore((state) => state.open);
   const hasApiKey = useHasAgentApiKey();
+  useAppUpdateChecker();
 
   async function handleOpenMultiAgent(): Promise<void> {
     if (!hasApiKey) {
@@ -97,8 +99,9 @@ export function StatusBar() {
   const [disk, setDisk] = useState<SystemDiskSpace | null>(null);
   const [fallbackIdentity, setFallbackIdentity] = useState<GitIdentity | null>(null);
   const [updating, setUpdating] = useState(false);
-  /** 仅有新版本时展示状态栏更新入口；无更新则隐藏 */
-  const [availableUpdate, setAvailableUpdate] = useState<AppUpdateInfo | null>(null);
+  /** 与设置「关于」共享，关于页检查到更新后状态栏同步显示 */
+  const availableUpdate = useAppUpdateStore((state) => state.availableUpdate);
+  const setAvailableUpdate = useAppUpdateStore((state) => state.setAvailableUpdate);
 
   async function handleAppUpdate(): Promise<void> {
     if (updating || !availableUpdate) {
@@ -150,30 +153,6 @@ export function StatusBar() {
         }
       });
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // 启动后静默检查 GitHub Releases；无新版本不显示更新按钮
-  // 失败不弹 toast（避免打扰），可在设置 → 关于手动检查并查看错误
-  useEffect(() => {
-    if (import.meta.env.DEV) {
-      return;
-    }
-    let cancelled = false;
-    void checkAppUpdate()
-      .then((info) => {
-        if (!cancelled) {
-          setAvailableUpdate(info);
-        }
-      })
-      .catch((error: unknown) => {
-        console.warn("[updater] startup check failed", error);
-        if (!cancelled) {
-          setAvailableUpdate(null);
-        }
-      });
     return () => {
       cancelled = true;
     };

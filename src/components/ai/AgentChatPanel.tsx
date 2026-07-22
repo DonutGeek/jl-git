@@ -31,6 +31,7 @@ import {
 import {
   deleteChatConversation,
   formatDeepSeekModelLabel,
+  formatDeepSeekModelShortLabel,
   listChatConversations,
   modelSupportsThinking,
   reorderChatConversations,
@@ -100,6 +101,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
       models.map((model) => ({
         value: model.id,
         label: formatDeepSeekModelLabel(model.id),
+        shortLabel: formatDeepSeekModelShortLabel(model.id),
       })),
     [models],
   );

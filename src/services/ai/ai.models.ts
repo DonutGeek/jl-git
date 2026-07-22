@@ -146,6 +146,13 @@ export function formatDeepSeekModelLabel(modelId: string): string {
     .join(" ");
 }
 
+/** 空间不足时的缩写：DeepSeek V4 Pro → V4 PRO */
+export function formatDeepSeekModelShortLabel(modelId: string): string {
+  const full = formatDeepSeekModelLabel(modelId);
+  const shortened = full.replace(/^DeepSeek\s+/i, "").trim();
+  return shortened || full;
+}
+
 function parseModelsPayload(payload: unknown): DeepSeekModelInfo[] {
   if (!isRecord(payload) || !Array.isArray(payload.data)) {
     return [];

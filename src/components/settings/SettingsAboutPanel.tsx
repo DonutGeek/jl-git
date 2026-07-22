@@ -20,8 +20,8 @@ import {
 import {
   checkAppUpdate,
   installPendingAppUpdate,
-  type AppUpdateInfo,
 } from "@/services/system/system.updater";
+import { useAppUpdateStore } from "@/store/useAppUpdateStore";
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { toUserMessage } from "@/types/error";
 
@@ -244,9 +244,8 @@ export function SettingsAboutPanel() {
   const [cpuHistory, setCpuHistory] = useState<number[]>([]);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [installingUpdate, setInstallingUpdate] = useState(false);
-  const [availableUpdate, setAvailableUpdate] = useState<AppUpdateInfo | null>(
-    null,
-  );
+  const availableUpdate = useAppUpdateStore((state) => state.availableUpdate);
+  const setAvailableUpdate = useAppUpdateStore((state) => state.setAvailableUpdate);
 
   async function handleCheckUpdate(): Promise<void> {
     if (checkingUpdate || installingUpdate) {

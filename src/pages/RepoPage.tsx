@@ -1,6 +1,7 @@
 import {
   useEffect,
   useLayoutEffect,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -114,6 +115,36 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       setSidebarView("branches");
     }
   }, [hasApiKey, sidebarView]);
+
+  // 活动栏切换时静默刷新对应数据（目录树靠重新挂载拉取）
+  const prevSidebarViewRef = useRef<SidebarView | null>(null);
+  useEffect(() => {
+    if (!active || !project) {
+      return;
+    }
+    const prev = prevSidebarViewRef.current;
+    prevSidebarViewRef.current = sidebarView;
+    if (prev === null || prev === sidebarView) {
+      return;
+    }
+    if (sidebarView === "branches") {
+      void useRepoStore
+        .getState()
+        .refreshBranches()
+        .catch((refreshError: unknown) => {
+          console.warn("[RepoPage] refreshBranches on sidebar switch failed", refreshError);
+        });
+      return;
+    }
+    if (sidebarView === "tags") {
+      void useRepoStore
+        .getState()
+        .refreshTags()
+        .catch((refreshError: unknown) => {
+          console.warn("[RepoPage] refreshTags on sidebar switch failed", refreshError);
+        });
+    }
+  }, [active, project, sidebarView]);
 
   // 换仓：本帧只换工具栏元数据，不碰 Git store（避免点击同步重渲）
   if (projectId !== routeProjectId) {
@@ -335,6 +366,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       key={project.path}
       repoPath={project.path}
       repoName={project.name}
+      active={mainView === "workspace"}
     />
   );
 

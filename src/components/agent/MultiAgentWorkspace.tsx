@@ -31,6 +31,7 @@ import {
 } from "@/services/ai/ai.chatPersist";
 import {
   formatDeepSeekModelLabel,
+  formatDeepSeekModelShortLabel,
   modelSupportsThinking,
   streamJinglingReply,
 } from "@/services/ai";
@@ -125,6 +126,7 @@ export function MultiAgentWorkspace() {
       models.map((model) => ({
         value: model.id,
         label: formatDeepSeekModelLabel(model.id),
+        shortLabel: formatDeepSeekModelShortLabel(model.id),
       })),
     [models],
   );

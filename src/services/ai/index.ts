@@ -43,6 +43,7 @@ export {
   DEFAULT_AGENT_MODEL,
   fetchDeepSeekModels,
   formatDeepSeekModelLabel,
+  formatDeepSeekModelShortLabel,
   modelSupportsThinking,
   readAgentModelId,
   writeAgentModelId,

@@ -101,7 +101,7 @@ const DEFAULT_HISTORY_VIEW_PREFS: HistoryViewPrefs = {
   showMergeCommits: true,
   showRemoteBranches: true,
   expandBranchNames: false,
-  branchOnLeft: false,
+  branchOnLeft: true,
 };
 
 function readHistoryGraphWidth(): number {

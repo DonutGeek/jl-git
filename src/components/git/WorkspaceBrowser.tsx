@@ -25,6 +25,8 @@ type BrowserViewMode = "grid" | "list";
 interface WorkspaceBrowserProps {
   repoPath: string;
   repoName: string;
+  /** 主区分栏保活时：变为可见应重新拉目录 */
+  active?: boolean;
 }
 
 function pathSegments(relative: string): string[] {
@@ -54,7 +56,11 @@ function normalizeRelativeInput(raw: string): string | null {
 }
 
 /** 工作区主区：可编辑路径 + 网格/列表浏览；单击选中，双击进入目录 */
-export function WorkspaceBrowser({ repoPath, repoName }: WorkspaceBrowserProps) {
+export function WorkspaceBrowser({
+  repoPath,
+  repoName,
+  active = true,
+}: WorkspaceBrowserProps) {
   const { t } = useTranslation();
 
   const [relative, setRelative] = useState("");
@@ -69,7 +75,10 @@ export function WorkspaceBrowser({ repoPath, repoName }: WorkspaceBrowserProps) 
   const skipBlurCommitRef = useRef(false);
 
   useEffect(() => {
-    let active = true;
+    if (!active) {
+      return;
+    }
+    let cancelled = false;
 
     async function load(): Promise<void> {
       setLoading(true);
@@ -77,16 +86,16 @@ export function WorkspaceBrowser({ repoPath, repoName }: WorkspaceBrowserProps) 
 
       try {
         const result = await gitService.listDir(repoPath, relative);
-        if (active) {
+        if (!cancelled) {
           setEntries(result.entries);
         }
       } catch (loadError) {
-        if (active) {
+        if (!cancelled) {
           setError(toUserMessage(loadError));
           setEntries([]);
         }
       } finally {
-        if (active) {
+        if (!cancelled) {
           setLoading(false);
         }
       }
@@ -95,9 +104,9 @@ export function WorkspaceBrowser({ repoPath, repoName }: WorkspaceBrowserProps) 
     void load();
 
     return () => {
-      active = false;
+      cancelled = true;
     };
-  }, [repoPath, relative]);
+  }, [active, repoPath, relative]);
 
   // 换仓库时回到根目录
   useEffect(() => {
