@@ -318,23 +318,37 @@ mod tests {
     }
 }
 
-/// 在指定目录打开系统默认终端（参数数组，不拼 shell）
-pub fn open_terminal(path: &str) -> Result<OkResult, AppError> {
+/// 在指定目录打开终端（参数数组，不拼 shell）
+pub fn open_terminal(
+    path: &str,
+    preference: Option<&str>,
+    custom_path: Option<&str>,
+) -> Result<OkResult, AppError> {
     let dir = normalize_existing_dir(path)?;
+    let pref = preference.unwrap_or("auto");
+
+    if pref == "custom" {
+        let custom = custom_path
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| AppError::new("INVALID_PATH", "请先在设置中填写自定义终端路径"))?;
+        open_custom_tool(custom, &dir)?;
+        return Ok(OkResult { ok: true });
+    }
 
     #[cfg(target_os = "macos")]
     {
-        open_terminal_macos(&dir)?;
+        open_terminal_macos(&dir, pref)?;
     }
 
     #[cfg(target_os = "windows")]
     {
-        open_terminal_windows(&dir)?;
+        open_terminal_windows(&dir, pref)?;
     }
 
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        open_terminal_linux(&dir)?;
+        open_terminal_linux(&dir, pref)?;
     }
 
     Ok(OkResult { ok: true })
@@ -346,7 +360,6 @@ pub fn reveal_in_file_manager(path: &str) -> Result<OkResult, AppError> {
 
     #[cfg(target_os = "macos")]
     {
-        // `open <dir>`：用 Finder 打开该文件夹
         let status = Command::new("open")
             .arg(&dir)
             .status()
@@ -384,70 +397,157 @@ pub fn reveal_in_file_manager(path: &str) -> Result<OkResult, AppError> {
     Ok(OkResult { ok: true })
 }
 
-/// 用本机编辑器打开目录（依次尝试常见编辑器）
-pub fn open_in_editor(path: &str) -> Result<OkResult, AppError> {
+/// 用本机编辑器打开目录（支持设置偏好：auto / cursor / vscode / custom）
+pub fn open_in_editor(
+    path: &str,
+    preference: Option<&str>,
+    custom_path: Option<&str>,
+) -> Result<OkResult, AppError> {
     let dir = normalize_existing_dir(path)?;
+    let pref = preference.unwrap_or("auto");
+
+    if pref == "custom" {
+        let custom = custom_path
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| AppError::new("INVALID_PATH", "请先在设置中填写自定义编辑器路径"))?;
+        open_custom_tool(custom, &dir)?;
+        return Ok(OkResult { ok: true });
+    }
 
     #[cfg(target_os = "macos")]
     {
-        // 优先 Cursor，再 VS Code / 其它；均用 open -a，不拼 shell
-        let apps = [
+        open_in_editor_macos(&dir, pref)?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        open_in_editor_windows(&dir, pref)?;
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        open_in_editor_linux(&dir, pref)?;
+    }
+
+    Ok(OkResult { ok: true })
+}
+
+/// 自定义可执行文件或 .app：参数数组传入目录，不拼 shell
+fn open_custom_tool(custom: &str, dir: &Path) -> Result<(), AppError> {
+    #[cfg(target_os = "macos")]
+    {
+        if custom.ends_with(".app") || custom.contains(".app/") {
+            let status = Command::new("open")
+                .args(["-a", custom])
+                .arg(dir)
+                .status()
+                .map_err(|error| {
+                    AppError::new("INTERNAL", "无法打开自定义应用").with_details(error.to_string())
+                })?;
+            if status.success() {
+                return Ok(());
+            }
+            return Err(AppError::new("INTERNAL", "打开自定义应用失败"));
+        }
+    }
+
+    Command::new(custom)
+        .arg(dir)
+        .spawn()
+        .map_err(|error| {
+            AppError::new("INTERNAL", "无法启动自定义程序").with_details(error.to_string())
+        })?;
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn open_in_editor_macos(dir: &Path, preference: &str) -> Result<(), AppError> {
+    let apps: &[&str] = match preference {
+        "cursor" => &["Cursor"],
+        "vscode" => &["Visual Studio Code", "Code"],
+        _ => &[
             "Cursor",
             "Visual Studio Code",
             "Code",
             "Trae",
             "Windsurf",
             "Sublime Text",
-        ];
-        for app in apps {
-            let status = Command::new("open").args(["-a", app]).arg(&dir).status();
-            if let Ok(status) = status {
-                if status.success() {
-                    return Ok(OkResult { ok: true });
-                }
+        ],
+    };
+    for app in apps {
+        let status = Command::new("open").args(["-a", app]).arg(dir).status();
+        if let Ok(status) = status {
+            if status.success() {
+                return Ok(());
             }
         }
-        // CLI 回退：code / cursor
-        for bin in ["cursor", "code"] {
-            if Command::new(bin).arg(&dir).spawn().is_ok() {
-                return Ok(OkResult { ok: true });
-            }
-        }
-        return Err(AppError::new(
-            "INTERNAL",
-            "未找到可用编辑器（可安装 Cursor 或 VS Code）",
-        ));
     }
+    let bins: &[&str] = match preference {
+        "cursor" => &["cursor"],
+        "vscode" => &["code"],
+        _ => &["cursor", "code"],
+    };
+    for bin in bins {
+        if Command::new(bin).arg(dir).spawn().is_ok() {
+            return Ok(());
+        }
+    }
+    Err(AppError::new(
+        "INTERNAL",
+        "未找到可用编辑器（可安装 Cursor 或 VS Code）",
+    ))
+}
 
-    #[cfg(target_os = "windows")]
-    {
-        for bin in ["cursor", "code"] {
-            if Command::new(bin).arg(&dir).spawn().is_ok() {
-                return Ok(OkResult { ok: true });
-            }
+#[cfg(target_os = "windows")]
+fn open_in_editor_windows(dir: &Path, preference: &str) -> Result<(), AppError> {
+    let bins: &[&str] = match preference {
+        "cursor" => &["cursor.cmd", "cursor.exe", "cursor"],
+        "vscode" => &["code.cmd", "code.exe", "code"],
+        _ => &[
+            "cursor.cmd",
+            "cursor.exe",
+            "cursor",
+            "code.cmd",
+            "code.exe",
+            "code",
+        ],
+    };
+    for bin in bins {
+        if Command::new(bin).arg(dir).spawn().is_ok() {
+            return Ok(());
         }
-        return Err(AppError::new(
-            "INTERNAL",
-            "未找到可用编辑器（可安装 Cursor 或 VS Code）",
-        ));
     }
+    Err(AppError::new(
+        "INTERNAL",
+        "未找到可用编辑器（可安装 Cursor 或 VS Code，并确保 CLI 在 PATH）",
+    ))
+}
 
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        for bin in ["cursor", "code", "xdg-open"] {
-            if Command::new(bin).arg(&dir).spawn().is_ok() {
-                return Ok(OkResult { ok: true });
-            }
+#[cfg(all(unix, not(target_os = "macos")))]
+fn open_in_editor_linux(dir: &Path, preference: &str) -> Result<(), AppError> {
+    let bins: &[&str] = match preference {
+        "cursor" => &["cursor"],
+        "vscode" => &["code"],
+        _ => &["cursor", "code", "xdg-open"],
+    };
+    for bin in bins {
+        if Command::new(bin).arg(dir).spawn().is_ok() {
+            return Ok(());
         }
-        return Err(AppError::new("INTERNAL", "未找到可用编辑器"));
     }
+    Err(AppError::new("INTERNAL", "未找到可用编辑器"))
 }
 
 #[cfg(target_os = "macos")]
-fn open_terminal_macos(dir: &Path) -> Result<(), AppError> {
-    // `open -a Terminal <dir>`：新开终端窗口并 cd 到该目录
+fn open_terminal_macos(dir: &Path, preference: &str) -> Result<(), AppError> {
+    let app = match preference {
+        "iterm" => "iTerm",
+        "terminal" => "Terminal",
+        _ => "Terminal",
+    };
     let status = Command::new("open")
-        .args(["-a", "Terminal"])
+        .args(["-a", app])
         .arg(dir)
         .status()
         .map_err(|error| {
@@ -455,39 +555,66 @@ fn open_terminal_macos(dir: &Path) -> Result<(), AppError> {
         })?;
 
     if !status.success() {
-        return Err(AppError::new("INTERNAL", "打开 Terminal 失败"));
+        return Err(AppError::new("INTERNAL", "打开终端失败"));
     }
     Ok(())
 }
 
 #[cfg(target_os = "windows")]
-fn open_terminal_windows(dir: &Path) -> Result<(), AppError> {
-    // 优先 Windows Terminal；失败再退回 cmd
-    let wt = Command::new("wt").args(["-d"]).arg(dir).spawn();
-    if wt.is_ok() {
-        return Ok(());
+fn open_terminal_windows(dir: &Path, preference: &str) -> Result<(), AppError> {
+    match preference {
+        "cmd" => {
+            Command::new("cmd")
+                .args(["/C", "start", "cmd.exe", "/K"])
+                .current_dir(dir)
+                .spawn()
+                .map_err(|error| {
+                    AppError::new("INTERNAL", "无法打开命令行").with_details(error.to_string())
+                })?;
+            Ok(())
+        }
+        "wt" => {
+            Command::new("wt")
+                .args(["-d"])
+                .arg(dir)
+                .spawn()
+                .map_err(|error| {
+                    AppError::new("INTERNAL", "无法打开 Windows Terminal")
+                        .with_details(error.to_string())
+                })?;
+            Ok(())
+        }
+        _ => {
+            let wt = Command::new("wt").args(["-d"]).arg(dir).spawn();
+            if wt.is_ok() {
+                return Ok(());
+            }
+            Command::new("cmd")
+                .args(["/C", "start", "cmd.exe", "/K"])
+                .current_dir(dir)
+                .spawn()
+                .map_err(|error| {
+                    AppError::new("INTERNAL", "无法打开命令行").with_details(error.to_string())
+                })?;
+            Ok(())
+        }
     }
-
-    Command::new("cmd")
-        .args(["/C", "start", "cmd.exe", "/K"])
-        .current_dir(dir)
-        .spawn()
-        .map_err(|error| {
-            AppError::new("INTERNAL", "无法打开命令行").with_details(error.to_string())
-        })?;
-    Ok(())
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
-fn open_terminal_linux(dir: &Path) -> Result<(), AppError> {
+fn open_terminal_linux(dir: &Path, preference: &str) -> Result<(), AppError> {
     let dir_str = dir.to_string_lossy();
-    let candidates: [(&str, &[&str]); 5] = [
-        ("x-terminal-emulator", &["--working-directory"]),
-        ("gnome-terminal", &["--working-directory"]),
-        ("konsole", &["--workdir"]),
-        ("xfce4-terminal", &["--working-directory"]),
-        ("xterm", &[]),
-    ];
+    let candidates: Vec<(&str, &[&str])> = match preference {
+        "gnome-terminal" => vec![("gnome-terminal", &["--working-directory"])],
+        "konsole" => vec![("konsole", &["--workdir"])],
+        _ => vec![
+            ("x-terminal-emulator", &["--working-directory"]),
+            ("gnome-terminal", &["--working-directory"]),
+            ("konsole", &["--workdir"]),
+            ("xfce4-terminal", &["--working-directory"]),
+            ("xterm", &[]),
+        ],
+    };
 
     for (bin, prefix) in candidates {
         let mut cmd = Command::new(bin);
@@ -500,7 +627,6 @@ fn open_terminal_linux(dir: &Path) -> Result<(), AppError> {
             return Ok(());
         }
     }
-
     Err(AppError::new(
         "INTERNAL",
         "未找到可用终端，请安装系统终端模拟器",

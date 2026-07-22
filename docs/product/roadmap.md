@@ -137,6 +137,16 @@ flowchart LR
 - 发布通道、安装体验、已知问题清理
 - 贡献流程与 CI 基线就绪
 
+### 桌面三端（已纳入正式支持）
+
+| 平台 | 包 / updater |
+|------|----------------|
+| macOS aarch64 | `.dmg` + `.app.tar.gz` → `darwin-aarch64` |
+| Windows x64 | NSIS → `windows-x86_64` |
+| Linux x64 | AppImage → `linux-x86_64`（参考 Ubuntu 22.04/24.04 + GNOME） |
+
+窗口配置：`tauri.{macos,windows,linux}.conf.json`。细节见 [releases](releases.md) 与 [三端设计](../superpowers/specs/2026-07-22-official-three-platform-design.md)。
+
 **退出标准：** 可作为日常 Git GUI 稳定使用；对外宣布 1.0。
 
 ---
@@ -149,6 +159,7 @@ flowchart LR
 | Cloud Sync | 同步应用数据，不同步 `.git` |
 | 多窗口深度协作 | 多仓库并排高级布局 |
 | 内置完整 Merge Tool | 优先外开成熟工具 |
+| Linux aarch64 / deb·rpm | 首期仅 AppImage x64 |
 
 ---
 

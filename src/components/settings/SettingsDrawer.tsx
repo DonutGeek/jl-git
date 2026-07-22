@@ -44,6 +44,13 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Switch } from "@/components/ui/switch";
+import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
+import {
+  coerceShellPreference,
+  editorPathPlaceholderKey,
+  shellOptionsForOs,
+  shellPathPlaceholderKey,
+} from "@/utils/externalToolsPrefs";
 import {
   Dialog,
   DialogContent,
@@ -228,6 +235,7 @@ function SegmentedControl<T extends string>({
 /** 右侧设置抽屉：按域分组，保留当前工作区 */
 export function SettingsDrawer() {
   const { t } = useTranslation();
+  const { os } = useWindowChromeLayout();
   const open = useSettingsDrawerStore((state) => state.open);
   const setOpen = useSettingsDrawerStore((state) => state.setOpen);
   const requestedCategory = useSettingsDrawerStore((state) => state.requestedCategory);
@@ -1520,8 +1528,8 @@ export function SettingsDrawer() {
           {activeCategory === "tools" ? <SettingsSection
             icon={<Terminal />}
             title={t("settings.sectionTools")}
-            tip={t("settings.sectionToolsHint")}
-            tipAria={t("settings.sectionToolsTipAria")}
+            tip={t("settings.toolsPrefsHint")}
+            tipAria={t("settings.toolsPrefsTipAria")}
           >
             <div className="space-y-2">
               <SettingsFieldHeading icon={<AppWindow />}>
@@ -1547,7 +1555,7 @@ export function SettingsDrawer() {
                 className={settingsFieldClassName}
                 value={externalEditorPath}
                 onChange={(event) => setExternalEditorPath(event.target.value)}
-                placeholder={t("settings.externalEditorPathPlaceholder")}
+                placeholder={t(`settings.${editorPathPlaceholderKey(os)}`)}
                 disabled={externalEditor !== "custom"}
               />
             </div>
@@ -1556,15 +1564,15 @@ export function SettingsDrawer() {
                 {t("settings.shell")}
               </SettingsFieldHeading>
               <SelectMenu
-                value={shell}
+                value={coerceShellPreference(os, shell)}
                 ariaLabel={t("settings.shell")}
                 onChange={setShell}
-                options={[
-                  { value: "auto", label: t("settings.shellAuto") },
-                  { value: "terminal", label: "Terminal.app" },
-                  { value: "iterm", label: "iTerm2" },
-                  { value: "custom", label: t("settings.shellCustom") },
-                ]}
+                options={shellOptionsForOs(os).map((option) => ({
+                  value: option.value,
+                  label: option.labelKey
+                    ? t(`settings.${option.labelKey}`)
+                    : (option.label ?? option.value),
+                }))}
               />
             </div>
             <div className="space-y-2">
@@ -1575,8 +1583,8 @@ export function SettingsDrawer() {
                 className={settingsFieldClassName}
                 value={shellPath}
                 onChange={(event) => setShellPath(event.target.value)}
-                placeholder={t("settings.shellPathPlaceholder")}
-                disabled={shell !== "custom"}
+                placeholder={t(`settings.${shellPathPlaceholderKey(os)}`)}
+                disabled={coerceShellPreference(os, shell) !== "custom"}
               />
             </div>
           </SettingsSection> : null}

@@ -1,18 +1,32 @@
 import { invokeCommand } from "@/services/invoke";
+import { detectAppOs } from "@/services/window/windowChrome";
+import { useAppPrefsStore } from "@/store/useAppPrefsStore";
+import { coerceShellPreference } from "@/utils/externalToolsPrefs";
 
-/** 在文件管理器中打开目录（macOS 访达 / Windows 资源管理器） */
+/** 在文件管理器中打开目录（macOS 访达 / Windows 资源管理器 / Linux 文件管理器） */
 export async function revealInFileManager(path: string): Promise<void> {
   await invokeCommand<{ ok: boolean }>("system_reveal_in_file_manager", { path });
 }
 
-/** 用本机编辑器打开目录（Cursor / VS Code 等） */
+/** 用本机编辑器打开目录（读取设置中的偏好） */
 export async function openInEditor(path: string): Promise<void> {
-  await invokeCommand<{ ok: boolean }>("system_open_in_editor", { path });
+  const { externalEditor, externalEditorPath } = useAppPrefsStore.getState();
+  await invokeCommand<{ ok: boolean }>("system_open_in_editor", {
+    path,
+    preference: externalEditor || "auto",
+    customPath: externalEditor === "custom" ? externalEditorPath.trim() || null : null,
+  });
 }
 
-/** 打开系统默认终端，工作目录为 path（仓库根） */
+/** 打开终端，工作目录为 path（读取设置中的偏好） */
 export async function openTerminal(path: string): Promise<void> {
-  await invokeCommand<{ ok: boolean }>("system_open_terminal", { path });
+  const { shell, shellPath } = useAppPrefsStore.getState();
+  const preference = coerceShellPreference(detectAppOs(), shell);
+  await invokeCommand<{ ok: boolean }>("system_open_terminal", {
+    path,
+    preference,
+    customPath: preference === "custom" ? shellPath.trim() || null : null,
+  });
 }
 
 export const systemOpenService = {

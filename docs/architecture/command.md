@@ -489,14 +489,15 @@ interface GitBranch {
 | `system_runtime_stats` | — | `{ pid; rssBytes; cpuPercent; uptimeMs }` |
 | `system_list_fonts` | — | `string[]`（本机字体族，已排序去重） |
 | `system_disk_space` | `{ path?: string }` | `{ path; totalBytes; availableBytes }` |
-| `system_open_terminal` | `{ path }` | `{ ok: true }` |
+| `system_open_terminal` | `{ path; preference?; customPath? }` | `{ ok: true }` |
 | `system_reveal_in_file_manager` | `{ path }` | `{ ok: true }` |
-| `system_open_in_editor` | `{ path }` | `{ ok: true }` |
+| `system_open_in_editor` | `{ path; preference?; customPath? }` | `{ ok: true }` |
 
-`system_list_fonts` 经 `font-kit` 枚举系统字体族，供设置中客户端 / 编辑器字体下拉使用。  
+`system_list_fonts` 经 `font-kit` 枚举系统字体族，供设置中客户端 / 编辑器字体下拉使用。
 `system_runtime_stats` 供设置「关于」挂载期间约 1s 轮询；`cpuPercent` 在 Windows 上可能为 `0`（UI 显示为不可用）。
 
-`path` 须为已存在目录。终端 / 访达 / 编辑器均用参数数组调用系统命令，不拼 shell。
+`path` 须为已存在目录。终端 / 访达 / 编辑器均用参数数组调用系统命令，不拼 shell。  
+`preference`：编辑器为 `auto` / `cursor` / `vscode` / `custom`；终端按平台为 `auto` 与具体终端 id（如 `wt`、`terminal`、`gnome-terminal`）或 `custom`。`customPath` 仅在 `custom` 时使用。
 
 ### `git_identity_global`
 

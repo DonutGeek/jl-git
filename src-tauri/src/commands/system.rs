@@ -25,8 +25,16 @@ pub fn system_disk_space(path: Option<String>) -> Result<SystemDiskSpace, AppErr
 
 /// 打开系统终端并定位到指定目录（通常为当前仓库根）
 #[tauri::command]
-pub fn system_open_terminal(path: String) -> Result<OkResult, AppError> {
-    system::open_terminal(&path)
+pub fn system_open_terminal(
+    path: String,
+    preference: Option<String>,
+    custom_path: Option<String>,
+) -> Result<OkResult, AppError> {
+    system::open_terminal(
+        &path,
+        preference.as_deref(),
+        custom_path.as_deref(),
+    )
 }
 
 /// 在文件管理器中打开目录
@@ -37,6 +45,14 @@ pub fn system_reveal_in_file_manager(path: String) -> Result<OkResult, AppError>
 
 /// 用本机编辑器打开目录
 #[tauri::command]
-pub fn system_open_in_editor(path: String) -> Result<OkResult, AppError> {
-    system::open_in_editor(&path)
+pub fn system_open_in_editor(
+    path: String,
+    preference: Option<String>,
+    custom_path: Option<String>,
+) -> Result<OkResult, AppError> {
+    system::open_in_editor(
+        &path,
+        preference.as_deref(),
+        custom_path.as_deref(),
+    )
 }
