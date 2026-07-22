@@ -6,5 +6,12 @@
   "pickButton": "Browse",
   "aliasLabel": "Repository alias",
   "aliasPlaceholder": "e.g. JLGit",
+  "detailLabel": "Project details",
+  "detailPlaceholder": "Optional project summary. Type it, or use AI (bottom-right) from README / manifests",
+  "descriptionGenerate": "Generate summary with AI",
+  "descriptionGenerating": "Generating summary…",
+  "descriptionGenerateSuccess": "Project summary generated",
+  "descriptionGenerateFailed": "Failed to generate project summary",
+  "descriptionNeedPath": "Enter a repository path first",
   "submitButton": "Open"
 }

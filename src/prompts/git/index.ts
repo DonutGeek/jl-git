@@ -5,3 +5,4 @@
 export { getDefaultCommitInstructions } from "./commitInstructions";
 export { getDefaultPullRequestInstructions } from "./pullRequestInstructions";
 export { buildCommitMessageSystemPrompt } from "./commitSystem";
+export { buildProjectDescriptionSystemPrompt } from "./projectDescriptionSystem";

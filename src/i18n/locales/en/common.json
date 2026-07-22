@@ -3,5 +3,6 @@
   "loading": "Loading...",
   "error": "Something went wrong",
   "cancel": "Cancel",
-  "aiApiKeyRequired": "Configure and enable an API Key in Settings first"
+  "aiApiKeyRequired": "Configure and enable an API Key in Settings first",
+  "gitNotFound": "Git was not found. Install Git and make sure it is on your PATH"
 }

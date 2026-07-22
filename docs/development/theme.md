@@ -1,6 +1,6 @@
 # 主题与 Design Tokens
 
-> **相关文档：** [ui-guidelines](ui-guidelines.md) · [AGENTS.md](../../AGENTS.md)
+> **相关文档：** [ui-guidelines](ui-guidelines.md) · [app-icon](app-icon.md) · [AGENTS.md](../../AGENTS.md)
 
 颜色、圆角、阴影、间距的**唯一数值源**是 CSS Variables。组件禁止写死 `#rrggbb` / `rgb()` 业务色。
 

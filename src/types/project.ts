@@ -2,6 +2,8 @@ export interface Project {
   id: string;
   workspaceId: string | null;
   name: string;
+  /** 项目简介，可空 */
+  description: string | null;
   path: string;
   lastOpenedAt: string | null;
   pinned: boolean;
@@ -53,4 +55,5 @@ export interface AddProjectInput {
   path: string;
   name?: string;
   workspaceId?: string;
+  description?: string;
 }

@@ -324,7 +324,7 @@ fn git_bytes(cwd: &Path, args: &[&str]) -> Result<(i32, Vec<u8>, String), AppErr
         .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .map_err(|error| {
-            AppError::new("GIT_NOT_FOUND", "无法执行 git").with_details(error.to_string())
+            AppError::git_not_found(error.to_string())
         })?;
 
     Ok((

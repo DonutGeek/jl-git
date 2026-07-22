@@ -22,7 +22,6 @@ import {
   ChevronDown,
   Circle,
   GitCommitHorizontal,
-  Loader2,
   MoreHorizontal,
   Search,
   SearchX,
@@ -31,6 +30,7 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1351,10 +1351,7 @@ export function HistoryList() {
           >
             {loadingMore ? (
               <>
-                <Loader2
-                  className="text-muted-foreground size-3.5 shrink-0 animate-spin"
-                  aria-hidden="true"
-                />
+                <Spinner className="text-muted-foreground size-3.5 shrink-0" />
                 <span className="text-muted-foreground text-xs">{t("repo.historyLoadingMore")}</span>
               </>
             ) : loadMoreFailed ? (

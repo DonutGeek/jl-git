@@ -40,9 +40,7 @@ pub fn run_git_with_stdin(cwd: &Path, args: &[&str], stdin: &[u8]) -> Result<Git
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| {
-            AppError::new("GIT_NOT_FOUND", "无法执行 git").with_details(error.to_string())
-        })?;
+        .map_err(|error| AppError::git_not_found(error.to_string()))?;
 
     let mut stdin_pipe = child.stdin.take().ok_or_else(|| {
         AppError::new("GIT_FAILED", "无法打开 git stdin")
@@ -114,9 +112,7 @@ pub fn run_git_stdout_capped(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| {
-            AppError::new("GIT_NOT_FOUND", "无法执行 git").with_details(error.to_string())
-        })?;
+        .map_err(|error| AppError::git_not_found(error.to_string()))?;
 
     let mut stdout_pipe = child.stdout.take().ok_or_else(|| {
         AppError::new("GIT_FAILED", "无法打开 git stdout")
@@ -374,9 +370,9 @@ fn run_git_allow_nonzero_timeout(
 
     if timeout.is_none() {
         oplog::begin_command(args);
-        let output = git_command(cwd, args).output().map_err(|error| {
-            AppError::new("GIT_NOT_FOUND", "无法执行 git").with_details(error.to_string())
-        })?;
+        let output = git_command(cwd, args)
+            .output()
+            .map_err(|error| AppError::git_not_found(error.to_string()))?;
 
         let git_output = GitOutput {
             stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
@@ -394,9 +390,7 @@ fn run_git_allow_nonzero_timeout(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| {
-            AppError::new("GIT_NOT_FOUND", "无法执行 git").with_details(error.to_string())
-        })?;
+        .map_err(|error| AppError::git_not_found(error.to_string()))?;
 
     let stdout_pipe = child.stdout.take();
     let stderr_pipe = child.stderr.take();

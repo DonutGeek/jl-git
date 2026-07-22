@@ -23,6 +23,7 @@ export async function add(input: AddProjectInput): Promise<Project> {
     path: input.path,
     name: input.name,
     workspaceId: input.workspaceId,
+    description: input.description,
   });
 
   return result.project;
@@ -40,11 +41,14 @@ export async function update(input: {
   id: string;
   name?: string;
   workspaceId?: string | null;
+  /** 传 `null` 清空简介；`undefined` 表示不改 */
+  description?: string | null;
 }): Promise<Project> {
   const result = await invokeCommand<ProjectResult>("project_update", {
     id: input.id,
     name: input.name,
     workspaceId: input.workspaceId,
+    description: input.description,
   });
 
   return result.project;

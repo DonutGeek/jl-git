@@ -13,6 +13,7 @@ export {
 } from "./ai.settings";
 export type { AiApiKey, AiInstructions } from "./ai.settings";
 export { generateCommitMessage } from "./ai.commit";
+export { generateProjectDescription } from "./ai.projectDescription";
 export {
   AI_AUTH_FAILED_CODE,
   AI_BAD_REQUEST_CODE,

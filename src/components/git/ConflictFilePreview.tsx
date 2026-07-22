@@ -40,6 +40,7 @@ import {
   TextDiffPreview,
   type TextDiffPreviewHandle,
 } from "@/components/git/TextDiffPreview";
+import { Spinner } from "@/components/ui/spinner";
 import {
   applyJlGitMonacoTheme,
   forceMonacoThemeRepaint,
@@ -676,7 +677,8 @@ export const ConflictFilePreview = forwardRef<
 
       {mode === "diff" ? (
         diffLoading ? (
-          <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
+          <div className="text-muted-foreground flex flex-1 items-center justify-center gap-2 text-sm">
+            <Spinner className="size-4" />
             {t("common.loading")}
           </div>
         ) : diffError ? (
@@ -707,7 +709,8 @@ export const ConflictFilePreview = forwardRef<
       ) : null}
 
       {mode === "file" && loading ? (
-        <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
+        <div className="text-muted-foreground flex flex-1 items-center justify-center gap-2 text-sm">
+          <Spinner className="size-4" />
           {t("common.loading")}
         </div>
       ) : null}

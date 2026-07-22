@@ -67,7 +67,7 @@ interface AppError {
 | | |
 |--|--|
 | **目的** | 登记本地仓库路径 |
-| **输入** | `{ path: string; workspaceId?: string; name?: string }` |
+| **输入** | `{ path: string; workspaceId?: string; name?: string; description?: string }` |
 | **输出** | `{ project: ProjectRow }` |
 | **错误** | `INVALID_PATH` `NOT_A_REPO` `DB_ERROR` `VALIDATION` |
 
@@ -84,8 +84,8 @@ interface AppError {
 
 | | |
 |--|--|
-| **目的** | 更新显示名 / 工作区 / 置顶 |
-| **输入** | `{ id: string; name?: string; workspaceId?: string | null; pinned?: boolean }` |
+| **目的** | 更新显示名 / 工作区 / 简介 |
+| **输入** | `{ id: string; name?: string; workspaceId?: string | null; description?: string | null }`（`description: null` 清空；省略则不改） |
 | **输出** | `{ project: ProjectRow }` |
 | **错误** | `NOT_FOUND` `DB_ERROR` `VALIDATION` |
 
@@ -106,6 +106,15 @@ interface AppError {
 | **输入** | `{}` |
 | **输出** | `{ path: string | null }` |
 | **错误** | `CANCELLED`（可映射为 path null）`INTERNAL` |
+
+### `project_profile_snapshot`
+
+| | |
+|--|--|
+| **目的** | 读取仓库根 README* 与常见清单（`package.json` / `Cargo.toml` / `pyproject.toml` / `go.mod` / `composer.json`）文本快照，供 AI 生成项目简介 |
+| **输入** | `{ path: string }` |
+| **输出** | `{ folderName: string; files: { name: string; content: string; truncated: boolean }[] }` |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `IO_ERROR` |
 
 ### `workspace_list` / `workspace_create` / `workspace_update` / `workspace_delete`
 

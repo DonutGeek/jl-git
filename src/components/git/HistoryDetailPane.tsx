@@ -11,7 +11,6 @@ import {
   GitCommitHorizontal,
   List,
   ListTree,
-  Loader2,
   Search,
   User,
 } from "lucide-react";
@@ -22,6 +21,7 @@ import { DiffLineStats } from "@/components/git/DiffLineStats";
 import { CopyableGitRefTag } from "@/components/git/GitRefTag";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
   DialogContent,
@@ -283,7 +283,7 @@ function CommitFilesToolbar({
               onClick={onToggleShowAllFiles}
             >
               {allFilesLoading ? (
-                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                <Spinner className="size-3.5" />
               ) : (
                 <Camera className="size-3.5" aria-hidden="true" />
               )}
@@ -548,7 +548,7 @@ function ParentDiffSection({
             ) : null}
             {allFilesLoading ? (
               <div className="text-muted-foreground flex items-center gap-2 px-0.5 py-3 text-xs">
-                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                <Spinner className="size-3.5" />
                 {t("common.loading")}
               </div>
             ) : visible.length === 0 ? (
@@ -741,8 +741,9 @@ export function HistoryDetailPane() {
 
   if (detailLoading && !detail) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-muted-foreground text-sm">{t("common.loading")}</p>
+      <div className="text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
+        <Spinner className="size-4" />
+        {t("common.loading")}
       </div>
     );
   }
@@ -965,9 +966,7 @@ export function HistoryDetailPane() {
                 disabled={branchesLoading || !repoPath}
                 onClick={() => void loadContainingBranches()}
               >
-                {branchesLoading ? (
-                  <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />
-                ) : null}
+                {branchesLoading ? <Spinner className="mr-1 size-3" /> : null}
                 {t("repo.commitShowBranches")}
               </Button>
             ) : null}
@@ -980,9 +979,7 @@ export function HistoryDetailPane() {
                 disabled={sizeLoading || !repoPath}
                 onClick={() => void loadChangeSize()}
               >
-                {sizeLoading ? (
-                  <Loader2 className="mr-1 size-3 animate-spin" aria-hidden="true" />
-                ) : null}
+                {sizeLoading ? <Spinner className="mr-1 size-3" /> : null}
                 {t("repo.commitShowSize")}
               </Button>
             ) : null}

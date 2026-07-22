@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
-  Loader2,
   ScrollText,
   X,
   XCircle,
@@ -17,6 +16,7 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { cn } from "@/lib/utils";
 
@@ -66,8 +66,8 @@ function StatusIcon({ status, className }: { status: OpLogEntry["status"]; class
     return <XCircle className={cn("text-destructive size-4", className)} aria-hidden />;
   }
   return (
-    <Loader2
-      className={cn("text-muted-foreground size-4 animate-spin", className)}
+    <Spinner
+      className={cn("text-muted-foreground size-4", className)}
       aria-hidden
     />
   );
@@ -302,11 +302,7 @@ export function OpLogPanel() {
                 compact
                 className="h-full min-h-[10rem]"
                 icon={
-                  pendingReveal ? (
-                    <Loader2 className="animate-spin" />
-                  ) : (
-                    <ScrollText />
-                  )
+                  pendingReveal ? <Spinner /> : <ScrollText />
                 }
                 title={
                   pendingReveal ? t("opLog.preparingTitle") : t("opLog.emptyTitle")

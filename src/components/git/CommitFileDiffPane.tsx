@@ -4,6 +4,7 @@ import { ArrowLeft, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CopyablePathLabel } from "@/components/git/CopyablePathLabel";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
@@ -209,7 +210,8 @@ export function CommitFileDiffPane() {
       </div>
 
       {loading ? (
-        <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
+        <div className="text-muted-foreground flex flex-1 items-center justify-center gap-2 text-sm">
+          <Spinner className="size-4" />
           {t("common.loading")}
         </div>
       ) : null}

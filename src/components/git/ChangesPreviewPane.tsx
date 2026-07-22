@@ -4,6 +4,7 @@ import { Eye, EyeOff, FileText, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
   TooltipContent,
@@ -254,7 +255,8 @@ export function ChangesPreviewPane() {
       ) : (
         <>
           {loading ? (
-            <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
+            <div className="text-muted-foreground flex flex-1 items-center justify-center gap-2 text-sm">
+              <Spinner className="size-4" />
               {t("common.loading")}
             </div>
           ) : null}

@@ -15,6 +15,7 @@ interface Project {
   id: string;
   workspaceId: string | null;
   name: string;
+  description: string | null;
   path: string;
   lastOpenedAt: string | null;
   pinned: boolean;
@@ -47,7 +48,7 @@ interface RecentItem {
 - **Command：** `project_list`
 - **错误：** `DB_ERROR` → 抛出/返回领域错误
 
-### `add(input: { path: string; workspaceId?: string; name?: string }): Promise<Project>`
+### `add(input: { path: string; workspaceId?: string; name?: string; description?: string }): Promise<Project>`
 
 - **Command：** `project_add`
 - **前置：** 路径存在且为 Git 仓库
@@ -58,9 +59,10 @@ interface RecentItem {
 - **Command：** `project_remove`
 - **语义：** 仅取消登记，不删除磁盘文件
 
-### `update(input: { id: string; name?: string; workspaceId?: string | null; pinned?: boolean }): Promise<Project>`
+### `update(input: { id: string; name?: string; workspaceId?: string | null; description?: string | null }): Promise<Project>`
 
 - **Command：** `project_update`
+- **语义：** `description: null` 清空简介；省略则不改
 
 ### `touchOpened(id: string): Promise<void>`
 
@@ -71,6 +73,12 @@ interface RecentItem {
 
 - **Command：** `project_pick_directory`
 - **语义：** 只选路径；入库需再调 `add`
+
+### `getProjectProfileSnapshot(path: string): Promise<ProjectProfileSnapshot>`
+
+- **Command：** `project_profile_snapshot`
+- **语义：** 收集 README / 清单文本，供 `generateProjectDescription` 使用
+- **错误：** `INVALID_PATH` `NOT_A_REPO` `IO_ERROR`
 
 ### `listRecent(limit?: number): Promise<RecentItem[]>`
 

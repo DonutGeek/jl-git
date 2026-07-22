@@ -11,6 +11,7 @@ pub mod media;
 pub mod merge;
 pub mod oplog;
 pub mod path;
+pub mod project_profile;
 pub mod remote;
 pub mod repo_state;
 pub mod reset;

@@ -20,6 +20,8 @@ pub struct ProjectRow {
     pub id: String,
     pub workspace_id: Option<String>,
     pub name: String,
+    /// 项目简介（可空）
+    pub description: Option<String>,
     pub path: String,
     pub last_opened_at: Option<String>,
     pub pinned: bool,
@@ -90,6 +92,7 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
           id TEXT PRIMARY KEY,
           workspace_id TEXT NULL,
           name TEXT NOT NULL,
+          description TEXT NULL,
           icon TEXT NOT NULL DEFAULT 'code',
           color TEXT NOT NULL DEFAULT 'blue',
           path TEXT NOT NULL UNIQUE,
@@ -138,6 +141,31 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
             .execute(pool)
             .await
             .map_err(to_db_error)?;
+    }
+    let has_project_description = project_columns.iter().any(|column| {
+        column
+            .try_get::<String, _>("name")
+            .map(|name| name == "description")
+            .unwrap_or(false)
+    });
+    // 旧库可能在 CREATE 之后才补 description；再查一次以防刚加过 sort_order 的同一批 columns 不含新列
+    if !has_project_description {
+        let project_columns_again = sqlx::query("PRAGMA table_info(projects)")
+            .fetch_all(pool)
+            .await
+            .map_err(to_db_error)?;
+        let exists = project_columns_again.iter().any(|column| {
+            column
+                .try_get::<String, _>("name")
+                .map(|name| name == "description")
+                .unwrap_or(false)
+        });
+        if !exists {
+            sqlx::query("ALTER TABLE projects ADD COLUMN description TEXT NULL")
+                .execute(pool)
+                .await
+                .map_err(to_db_error)?;
+        }
     }
 
     let workspace_columns = sqlx::query("PRAGMA table_info(workspaces)")
@@ -193,25 +221,29 @@ pub async fn add_project(
     path: String,
     name: Option<String>,
     workspace_id: Option<String>,
+    description: Option<String>,
 ) -> Result<ProjectRow, AppError> {
     let repo_path = resolve_repo_path(&path)?;
     let display_name = resolve_project_name(&repo_path, name)?;
+    let description = normalize_description(description);
     let timestamp = now();
     let id = uuid::Uuid::new_v4().to_string();
 
     sqlx::query(
         r#"
-        INSERT INTO projects (id, workspace_id, name, path, pinned, sort_order, created_at, updated_at)
-        VALUES (?1, ?2, ?3, ?4, 0, COALESCE((SELECT MAX(sort_order) + 1 FROM projects WHERE workspace_id IS ?2), 0), ?5, ?5)
+        INSERT INTO projects (id, workspace_id, name, description, path, pinned, sort_order, created_at, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, 0, COALESCE((SELECT MAX(sort_order) + 1 FROM projects WHERE workspace_id IS ?2), 0), ?6, ?6)
         ON CONFLICT(path) DO UPDATE SET
           workspace_id = excluded.workspace_id,
           name = excluded.name,
+          description = excluded.description,
           updated_at = excluded.updated_at
         "#,
     )
     .bind(id)
     .bind(workspace_id)
     .bind(display_name)
+    .bind(&description)
     .bind(path_to_string(&repo_path))
     .bind(timestamp)
     .execute(pool)
@@ -228,7 +260,7 @@ pub async fn list_projects(
     let rows = if let Some(workspace_id) = workspace_id {
         sqlx::query(
             r#"
-            SELECT id, workspace_id, name, path, last_opened_at, pinned, sort_order, created_at, updated_at
+            SELECT id, workspace_id, name, description, path, last_opened_at, pinned, sort_order, created_at, updated_at
             FROM projects
             WHERE workspace_id = ?1
             ORDER BY pinned DESC, sort_order ASC, name COLLATE NOCASE ASC
@@ -241,7 +273,7 @@ pub async fn list_projects(
     } else {
         sqlx::query(
             r#"
-            SELECT id, workspace_id, name, path, last_opened_at, pinned, sort_order, created_at, updated_at
+            SELECT id, workspace_id, name, description, path, last_opened_at, pinned, sort_order, created_at, updated_at
             FROM projects
             ORDER BY pinned DESC, sort_order ASC, name COLLATE NOCASE ASC
             "#,
@@ -275,24 +307,40 @@ pub async fn remove_project(pool: &SqlitePool, id: &str) -> Result<(), AppError>
 pub async fn update_project(
     pool: &SqlitePool,
     id: &str,
-    name: Option<String>, workspace_id: Option<Option<String>>,
+    name: Option<String>,
+    workspace_id: Option<Option<String>>,
+    description: Option<Option<String>>,
 ) -> Result<ProjectRow, AppError> {
     if id.trim().is_empty() {
         return Err(AppError::new("VALIDATION", "项目 ID 不能为空"));
     }
 
-    let name = name.map(|value| value.trim().to_string()).filter(|value| !value.is_empty());
-    if name.is_none() && workspace_id.is_none() { return Err(AppError::new("VALIDATION", "没有可更新的项目字段")); }
+    let name = name
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let description = description.map(normalize_description);
+    if name.is_none() && workspace_id.is_none() && description.is_none() {
+        return Err(AppError::new("VALIDATION", "没有可更新的项目字段"));
+    }
 
     let timestamp = now();
     let result = sqlx::query(
         r#"
         UPDATE projects
-        SET name = COALESCE(?1, name), workspace_id = CASE WHEN ?2 THEN ?3 ELSE workspace_id END, updated_at = ?4
-        WHERE id = ?5
+        SET name = COALESCE(?1, name),
+            workspace_id = CASE WHEN ?2 THEN ?3 ELSE workspace_id END,
+            description = CASE WHEN ?4 THEN ?5 ELSE description END,
+            updated_at = ?6
+        WHERE id = ?7
         "#,
     )
-    .bind(&name).bind(workspace_id.is_some()).bind(workspace_id.flatten()).bind(&timestamp).bind(id)
+    .bind(&name)
+    .bind(workspace_id.is_some())
+    .bind(workspace_id.flatten())
+    .bind(description.is_some())
+    .bind(description.flatten())
+    .bind(&timestamp)
+    .bind(id)
     .execute(pool)
     .await
     .map_err(to_db_error)?;
@@ -629,7 +677,7 @@ pub async fn list_recent(
 async fn get_project_by_path(pool: &SqlitePool, path: &str) -> Result<ProjectRow, AppError> {
     let row = sqlx::query(
         r#"
-        SELECT id, workspace_id, name, path, last_opened_at, pinned, sort_order, created_at, updated_at
+        SELECT id, workspace_id, name, description, path, last_opened_at, pinned, sort_order, created_at, updated_at
         FROM projects
         WHERE path = ?1
         "#,
@@ -646,7 +694,7 @@ async fn get_project_by_path(pool: &SqlitePool, path: &str) -> Result<ProjectRow
 async fn get_project_by_id(pool: &SqlitePool, id: &str) -> Result<ProjectRow, AppError> {
     let row = sqlx::query(
         r#"
-        SELECT id, workspace_id, name, path, last_opened_at, pinned, sort_order, created_at, updated_at
+        SELECT id, workspace_id, name, description, path, last_opened_at, pinned, sort_order, created_at, updated_at
         FROM projects
         WHERE id = ?1
         "#,
@@ -667,6 +715,7 @@ fn row_to_project(row: sqlx::sqlite::SqliteRow) -> Result<ProjectRow, AppError> 
         id: row.try_get("id").map_err(to_db_error)?,
         workspace_id: row.try_get("workspace_id").map_err(to_db_error)?,
         name: row.try_get("name").map_err(to_db_error)?,
+        description: row.try_get("description").map_err(to_db_error)?,
         path: row.try_get("path").map_err(to_db_error)?,
         last_opened_at: row.try_get("last_opened_at").map_err(to_db_error)?,
         pinned: pinned != 0,
@@ -674,6 +723,12 @@ fn row_to_project(row: sqlx::sqlite::SqliteRow) -> Result<ProjectRow, AppError> 
         created_at: row.try_get("created_at").map_err(to_db_error)?,
         updated_at: row.try_get("updated_at").map_err(to_db_error)?,
     })
+}
+
+fn normalize_description(value: Option<String>) -> Option<String> {
+    value
+        .map(|text| text.trim().to_string())
+        .filter(|text| !text.is_empty())
 }
 
 fn resolve_repo_path(path: &str) -> Result<PathBuf, AppError> {
@@ -815,13 +870,14 @@ mod tests {
             migrate(&pool).await.expect("迁移应成功");
             let repo = create_git_repo();
 
-            let first = add_project(&pool, repo.to_string_lossy().into_owned(), None, None)
+            let first = add_project(&pool, repo.to_string_lossy().into_owned(), None, None, None)
                 .await
                 .expect("Git 仓库应可登记");
             let second = add_project(
                 &pool,
                 repo.to_string_lossy().into_owned(),
                 Some("Renamed".to_string()),
+                None,
                 None,
             )
             .await
@@ -845,6 +901,7 @@ mod tests {
                     &pool,
                     repo.to_string_lossy().into_owned(),
                     Some(format!("repo-{index}")),
+                    None,
                     None,
                 )
                 .await

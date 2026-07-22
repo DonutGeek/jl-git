@@ -33,6 +33,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 
 import { SelectMenu } from "@/components/common/SelectMenu";
+import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
 import { RecentProjectList } from "@/components/project/RecentProjectList";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -211,10 +212,11 @@ export function ProjectManager({
   const [path, setPath] = useState("");
   const [alias, setAlias] = useState("");
   const [aliasEdited, setAliasEdited] = useState(false);
+  const [description, setDescription] = useState("");
+  const [descriptionGenerating, setDescriptionGenerating] = useState(false);
   const [workspaceId, setWorkspaceId] = useState("");
   const [opening, setOpening] = useState(false);
   const [picking, setPicking] = useState(false);
-  const [openError, setOpenError] = useState<string | null>(null);
   const [groupDialog, setGroupDialog] = useState<{
     mode: "create" | "edit";
     workspaceId?: string;
@@ -497,7 +499,6 @@ export function ProjectManager({
     if (picking || opening) {
       return;
     }
-    setOpenError(null);
     // 先发起选目录 IPC，再改按钮态，避免重渲染抢主线程导致面板晚弹出
     const pickPromise = projectService.pickDirectory();
     setPicking(true);
@@ -508,7 +509,7 @@ export function ProjectManager({
         handlePathChange(selected);
       }
     } catch (error) {
-      setOpenError(toUserMessage(error));
+      toast.error(toUserMessage(error));
     } finally {
       setPicking(false);
     }
@@ -518,30 +519,31 @@ export function ProjectManager({
     setPath("");
     setAlias("");
     setAliasEdited(false);
+    setDescription("");
+    setDescriptionGenerating(false);
     setWorkspaceId("");
-    setOpenError(null);
   }
 
   async function submitOpen(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const repositoryPath = path.trim();
-    if (!repositoryPath || opening) {
+    if (!repositoryPath || opening || descriptionGenerating) {
       return;
     }
 
     setOpening(true);
-    setOpenError(null);
 
     try {
       const project = await addAndOpen({
         path: repositoryPath,
         name: alias.trim() || undefined,
         workspaceId: workspaceId || undefined,
+        description: description.trim() || undefined,
       });
       resetOpenForm();
       onOpenProject(project.id);
     } catch (error) {
-      setOpenError(toUserMessage(error));
+      toast.error(toUserMessage(error));
     } finally {
       setOpening(false);
     }
@@ -843,12 +845,12 @@ export function ProjectManager({
                   onChange={(event) => handlePathChange(event.target.value)}
                   placeholder={t("openRepo.pathPlaceholder")}
                   autoComplete="off"
-                  disabled={opening}
+                  disabled={opening || descriptionGenerating}
                 />
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={picking || opening}
+                  disabled={picking || opening || descriptionGenerating}
                   onClick={() => void pickPath()}
                 >
                   <FolderOpen className="size-4" aria-hidden="true" />
@@ -867,7 +869,7 @@ export function ProjectManager({
                 onChange={(event) => handleAliasChange(event.target.value)}
                 placeholder={t("openRepo.aliasPlaceholder")}
                 autoComplete="off"
-                disabled={opening}
+                disabled={opening || descriptionGenerating}
               />
             </div>
 
@@ -880,18 +882,25 @@ export function ProjectManager({
                 options={workspaceOptions}
                 onChange={setWorkspaceId}
                 ariaLabel={t("projectManager.workspaceLabel")}
-                disabled={opening}
+                disabled={opening || descriptionGenerating}
                 triggerClassName="h-9"
               />
             </div>
 
-            {openError ? (
-              <p className="text-destructive text-sm" role="alert">
-                {openError}
-              </p>
-            ) : null}
+            <ProjectDescriptionField
+              value={description}
+              onChange={setDescription}
+              repoPath={path}
+              disabled={opening}
+              generating={descriptionGenerating}
+              onGeneratingChange={setDescriptionGenerating}
+              fieldId="project-manager-description"
+            />
 
-            <Button type="submit" disabled={!path.trim() || opening}>
+            <Button
+              type="submit"
+              disabled={!path.trim() || opening || descriptionGenerating}
+            >
               {opening ? t("common.loading") : t("openRepo.submitButton")}
             </Button>
           </form>

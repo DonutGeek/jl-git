@@ -27,10 +27,17 @@ interface ProjectStoreActions {
     color?: WorkspaceColor;
   }) => Promise<Workspace>;
   removeWorkspace: (id: string) => Promise<void>;
-  updateProject: (input: { id: string; name?: string; workspaceId?: string | null }) => Promise<Project>;
+  updateProject: (input: {
+    id: string;
+    name?: string;
+    workspaceId?: string | null;
+    description?: string | null;
+  }) => Promise<Project>;
   reorderGroupedItems: (input: { workspaces: WorkspaceOrderItem[]; projects: ProjectOrderItem[] }) => Promise<void>;
   setCurrent: (project: Project | null) => void;
-  addAndOpen: (input: Pick<AddProjectInput, "path" | "name" | "workspaceId">) => Promise<Project>;
+  addAndOpen: (
+    input: Pick<AddProjectInput, "path" | "name" | "workspaceId" | "description">,
+  ) => Promise<Project>;
   openExisting: (id: string) => Promise<Project>;
   removeProject: (id: string) => Promise<void>;
   updateAlias: (id: string, name: string) => Promise<Project>;

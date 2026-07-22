@@ -1,6 +1,13 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 
-import { AppError, isAppError, isRecord } from "@/types/error";
+import i18n from "@/i18n";
+
+import {
+  AppError,
+  isAppError,
+  isGitNotFoundError,
+  isRecord,
+} from "@/types/error";
 
 type InvokeArgs = Record<string, unknown>;
 
@@ -18,28 +25,40 @@ export async function invokeCommand<TResult>(
 export function normalizeInvokeError(error: unknown): AppError {
   const appError = parseAppError(error);
   if (appError) {
-    return appError;
+    return refineKnownErrors(appError);
   }
 
   if (error instanceof Error) {
-    return {
+    return refineKnownErrors({
       code: "INTERNAL",
       message: error.message || "操作失败，请稍后重试",
       details: error.stack,
-    };
+    });
   }
 
   if (typeof error === "string" && error.trim()) {
-    return {
+    return refineKnownErrors({
       code: "INTERNAL",
       message: error,
-    };
+    });
   }
 
   return {
     code: "INTERNAL",
     message: "操作失败，请稍后重试",
   };
+}
+
+/** 将找不到 Git 等原始错误收成稳定 code + 用户可读文案 */
+function refineKnownErrors(error: AppError): AppError {
+  if (isGitNotFoundError(error)) {
+    return {
+      code: "GIT_NOT_FOUND",
+      message: i18n.t("common.gitNotFound"),
+      details: error.details ?? error.message,
+    };
+  }
+  return error;
 }
 
 function parseAppError(value: unknown): AppError | null {

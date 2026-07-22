@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
   TooltipContent,
@@ -552,10 +553,11 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
               disabled={syncBusy}
               onClick={() => void handleCheckUpdate()}
             >
-              <RotateCw
-                className={cn("size-3.5", fetching && "animate-spin")}
-                aria-hidden="true"
-              />
+              {fetching ? (
+                <Spinner className="size-3.5" />
+              ) : (
+                <RotateCw className="size-3.5" aria-hidden="true" />
+              )}
               <span>{t("repo.checkUpdate")}</span>
             </Button>
           </TooltipTrigger>

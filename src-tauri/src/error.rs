@@ -23,4 +23,13 @@ impl AppError {
         self.details = Some(details.into());
         self
     }
+
+    /// 本机找不到或无法启动 git
+    pub fn git_not_found(details: impl Into<String>) -> Self {
+        Self::new(
+            "GIT_NOT_FOUND",
+            "未检测到本机 Git，请先安装并确保已加入系统 PATH",
+        )
+        .with_details(details)
+    }
 }

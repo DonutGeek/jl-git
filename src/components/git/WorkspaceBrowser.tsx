@@ -7,6 +7,7 @@ import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
   TooltipContent,
@@ -320,7 +321,10 @@ export function WorkspaceBrowser({ repoPath, repoName }: WorkspaceBrowserProps) 
         ) : null}
 
         {loading ? (
-          <p className="text-muted-foreground text-sm">{t("common.loading")}</p>
+          <p className="text-muted-foreground flex items-center gap-2 text-sm">
+            <Spinner className="size-4" />
+            {t("common.loading")}
+          </p>
         ) : entries.length === 0 ? (
           <p className="text-muted-foreground text-sm">{t("repo.fileTreeEmpty")}</p>
         ) : viewMode === "grid" ? (

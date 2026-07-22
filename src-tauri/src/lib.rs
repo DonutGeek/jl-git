@@ -60,6 +60,7 @@ pub fn run() {
             commands::project::project_touch_opened,
             commands::project::project_remove,
             commands::project::project_update,
+            commands::project::project_profile_snapshot,
             commands::project::project_pick_directory,
             commands::project::recent_list,
             commands::project::workspace_list,

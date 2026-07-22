@@ -14,6 +14,7 @@ import { toast } from "sonner";
 
 import { SettingsFieldHeading } from "@/components/settings/SettingsFieldHeading";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
   DialogContent,
@@ -281,7 +282,8 @@ export function SettingsSshPanel() {
             <span>{t("settings.apiKeyActions")}</span>
           </div>
           {loading ? (
-            <p className="text-muted-foreground px-3 py-6 text-center text-xs">
+            <p className="text-muted-foreground flex items-center justify-center gap-2 px-3 py-6 text-xs">
+              <Spinner className="size-3.5" />
               {t("common.loading")}
             </p>
           ) : keys.length === 0 ? (

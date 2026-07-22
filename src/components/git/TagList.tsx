@@ -18,6 +18,7 @@ import { CreateTagDialog } from "@/components/git/CreateTagDialog";
 import { TagListFilterMenu } from "@/components/git/TagListFilterMenu";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -204,10 +205,11 @@ export function TagList({ onSelectTag }: TagListProps) {
                 disabled={loading}
                 onClick={() => void refresh()}
               >
-                <RefreshCw
-                  className={cn(loading && "animate-spin")}
-                  aria-hidden="true"
-                />
+                {loading ? (
+                  <Spinner className="size-3.5" />
+                ) : (
+                  <RefreshCw aria-hidden="true" />
+                )}
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t("repo.refresh")}</TooltipContent>

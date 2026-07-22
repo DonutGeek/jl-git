@@ -2,7 +2,9 @@ import { FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FolderOpen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
+import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,7 +28,7 @@ interface OpenRepoDialogProps {
   replaceNewTabId?: string;
 }
 
-/** 打开本地仓库对话框：路径可输入/选择，别名可选 */
+/** 打开本地仓库对话框：路径可输入/选择，别名与项目详情可选 */
 export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepoDialogProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -38,17 +40,20 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
 
   const [path, setPath] = useState("");
   const [alias, setAlias] = useState("");
+  const [description, setDescription] = useState("");
+  const [descriptionGenerating, setDescriptionGenerating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [picking, setPicking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const trimmedPath = path.trim();
-  const canSubmit = !loading && trimmedPath.length > 0;
+  const canSubmit =
+    !loading && !descriptionGenerating && trimmedPath.length > 0;
 
   function resetForm(): void {
     setPath("");
     setAlias("");
-    setError(null);
+    setDescription("");
+    setDescriptionGenerating(false);
     setLoading(false);
     setPicking(false);
   }
@@ -61,10 +66,9 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
   }
 
   async function handlePickDirectory(): Promise<void> {
-    if (picking || loading) {
+    if (picking || loading || descriptionGenerating) {
       return;
     }
-    setError(null);
     // 先发起选目录，再更新按钮态，避免重渲染拖慢系统对话框
     const pickPromise = projectService.pickDirectory();
     setPicking(true);
@@ -75,7 +79,7 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
         setPath(selectedPath);
       }
     } catch (pickError) {
-      setError(toUserMessage(pickError));
+      toast.error(toUserMessage(pickError));
     } finally {
       setPicking(false);
     }
@@ -88,12 +92,12 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
     }
 
     setLoading(true);
-    setError(null);
 
     try {
       const project = await addAndOpen({
         path: trimmedPath,
         name: alias.trim() || undefined,
+        description: description.trim() || undefined,
       });
       if (replaceNewTabId) {
         replaceNewTabWithRepository(replaceNewTabId, project.id);
@@ -103,7 +107,7 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
       handleOpenChange(false);
       navigate(`/repo/${project.id}`);
     } catch (submitError) {
-      setError(toUserMessage(submitError));
+      toast.error(toUserMessage(submitError));
       setLoading(false);
     }
   }
@@ -128,13 +132,13 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
                 onChange={(event) => setPath(event.target.value)}
                 placeholder={t("openRepo.pathPlaceholder")}
                 autoComplete="off"
-                aria-invalid={Boolean(error)}
+                disabled={loading || descriptionGenerating}
               />
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => void handlePickDirectory()}
-                disabled={loading || picking}
+                disabled={loading || picking || descriptionGenerating}
               >
                 <FolderOpen aria-hidden="true" />
                 {t("openRepo.pickButton")}
@@ -152,14 +156,19 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
               onChange={(event) => setAlias(event.target.value)}
               placeholder={t("openRepo.aliasPlaceholder")}
               autoComplete="off"
+              disabled={loading || descriptionGenerating}
             />
           </div>
 
-          {error ? (
-            <p className="text-destructive text-sm" role="alert">
-              {error}
-            </p>
-          ) : null}
+          <ProjectDescriptionField
+            value={description}
+            onChange={setDescription}
+            repoPath={path}
+            disabled={loading}
+            generating={descriptionGenerating}
+            onGeneratingChange={setDescriptionGenerating}
+            fieldId="open-repo-description"
+          />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>

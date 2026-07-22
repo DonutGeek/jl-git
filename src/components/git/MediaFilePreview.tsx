@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { gitService } from "@/services/git";
 import { toUserMessage } from "@/types/error";
@@ -151,7 +152,8 @@ export function MediaFilePreview({
 
   if (loading) {
     return (
-      <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
+      <div className="text-muted-foreground flex flex-1 items-center justify-center gap-2 text-sm">
+        <Spinner className="size-4" />
         {t("common.loading")}
       </div>
     );

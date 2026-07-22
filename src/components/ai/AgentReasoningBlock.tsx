@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight, LoaderCircle } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
+
+import { Spinner } from "@/components/ui/spinner";
 
 import { cn } from "@/lib/utils";
 
@@ -65,7 +67,7 @@ export function AgentReasoningBlock({
         />
         {thinking ? (
           <span className="inline-flex items-center gap-1.5">
-            <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
+            <Spinner className="size-3" />
             {t("agent.deepThinking")}
           </span>
         ) : (

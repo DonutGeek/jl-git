@@ -62,9 +62,11 @@ erDiagram
 | `id` | TEXT PK | UUID |
 | `workspace_id` | TEXT NULL | FK → workspaces.id |
 | `name` | TEXT NOT NULL | 默认取文件夹名，可改 |
+| `description` | TEXT NULL | 项目简介（可选；打开时可手填或 AI 生成） |
 | `path` | TEXT NOT NULL UNIQUE | 规范化绝对路径 |
 | `last_opened_at` | TEXT NULL | 上次打开 |
 | `pinned` | INTEGER NOT NULL DEFAULT 0 | 1=置顶 |
+| `sort_order` | INTEGER NOT NULL DEFAULT 0 | 分组内排序 |
 | `created_at` | TEXT NOT NULL | |
 | `updated_at` | TEXT NOT NULL | |
 

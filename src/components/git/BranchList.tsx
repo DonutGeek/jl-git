@@ -24,6 +24,7 @@ import { BranchListFilterMenu } from "@/components/git/BranchListFilterMenu";
 import { CreateBranchDialog } from "@/components/git/CreateBranchDialog";
 import { MergeBranchDialog } from "@/components/git/MergeBranchDialog";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +41,6 @@ import {
 } from "@/components/ui/tooltip";
 import { useConflictOperationGuard } from "@/hooks/useConflictOperationGuard";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
-import { cn } from "@/lib/utils";
 
 import { useRepoStore } from "@/store/useRepoStore";
 import { useProjectStore } from "@/store/useProjectStore";
@@ -541,10 +541,11 @@ export function BranchList() {
                   disabled={refreshing || loading}
                   onClick={() => void handleRefresh()}
                 >
-                  <RefreshCw
-                    className={cn(refreshing && "animate-spin")}
-                    aria-hidden="true"
-                  />
+                  {refreshing ? (
+                    <Spinner className="size-3.5" />
+                  ) : (
+                    <RefreshCw aria-hidden="true" />
+                  )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{t("repo.refresh")}</TooltipContent>

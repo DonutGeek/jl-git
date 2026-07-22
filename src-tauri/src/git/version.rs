@@ -21,13 +21,11 @@ pub fn probe(executable: Option<&str>) -> Result<GitVersionResult, AppError> {
     let output = Command::new(exe)
         .arg("--version")
         .output()
-        .map_err(|error| {
-            AppError::new("GIT_NOT_FOUND", "未找到 Git").with_details(error.to_string())
-        })?;
+        .map_err(|error| AppError::git_not_found(error.to_string()))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(AppError::new("GIT_NOT_FOUND", "无法执行 Git").with_details(stderr));
+        return Err(AppError::git_not_found(stderr));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -38,7 +36,7 @@ pub fn probe(executable: Option<&str>) -> Result<GitVersionResult, AppError> {
         .trim()
         .to_string();
     if version.is_empty() {
-        return Err(AppError::new("GIT_NOT_FOUND", "Git 版本输出为空"));
+        return Err(AppError::git_not_found("Git 版本输出为空"));
     }
 
     let path = resolve_git_path(exe).unwrap_or_else(|| exe.to_string());

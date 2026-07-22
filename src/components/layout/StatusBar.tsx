@@ -6,7 +6,6 @@ import {
   Download,
   Sparkles,
   HardDrive,
-  Loader2,
   Moon,
   ScrollText,
   Settings,
@@ -18,6 +17,7 @@ import { toast } from "sonner";
 import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
   TooltipContent,
@@ -296,7 +296,7 @@ export function StatusBar() {
                 >
                   <Badge className="group h-5 cursor-pointer gap-0 px-1.5 py-0 text-[10px] font-semibold transition-all duration-150 group-hover:gap-1">
                     {updating ? (
-                      <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+                      <Spinner className="size-3" />
                     ) : (
                       <Download
                         className="size-3 transition-all duration-150 group-hover:w-0 group-hover:opacity-0"
@@ -434,7 +434,7 @@ export function StatusBar() {
               onClick={togglePanel}
             >
               {latestOp?.status === "running" ? (
-                <Loader2 className="text-primary animate-spin" aria-hidden />
+                <Spinner className="text-primary size-3.5" />
               ) : latestOp?.status === "success" ? (
                 <CheckCircle2 className="text-primary" aria-hidden />
               ) : latestOp?.status === "error" ? (

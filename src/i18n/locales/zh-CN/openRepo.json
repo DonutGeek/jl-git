@@ -6,5 +6,12 @@
   "pickButton": "选择",
   "aliasLabel": "仓库别名",
   "aliasPlaceholder": "例如：JLGit",
+  "detailLabel": "项目详情",
+  "detailPlaceholder": "项目简介（可选）。可手动填写，或点右下角 AI 根据 README / 清单生成",
+  "descriptionGenerate": "AI 生成简介",
+  "descriptionGenerating": "正在生成简介…",
+  "descriptionGenerateSuccess": "已生成项目简介",
+  "descriptionGenerateFailed": "生成项目简介失败",
+  "descriptionNeedPath": "请先填写仓库路径",
   "submitButton": "打开"
 }

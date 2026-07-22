@@ -1,6 +1,6 @@
 # UI 指南
 
-> **相关文档：** [theme](theme.md) · [frontend](../architecture/frontend.md) · [AGENTS.md](../../AGENTS.md)
+> **相关文档：** [theme](theme.md) · [app-icon](app-icon.md) · [frontend](../architecture/frontend.md) · [AGENTS.md](../../AGENTS.md)
 
 灵感来源：**GitHub Desktop、VS Code、Linear、SourceGit**。  
 关键词：Minimal · Professional · Developer-first · Fast · Clean · Consistent。
@@ -14,7 +14,7 @@
 3. 用排版与留白分层，而不是重阴影与渐变
 4. 所有颜色来自 Tokens（[theme](theme.md)）
 5. UI 图标仅 `lucide-react`；工作区文件/目录类型图标用 `material-icon-theme`（VS Code Material Icon Theme），禁止用 lucide 冒充文件类型
-6. 基础控件优先用 **shadcn/ui 官方组件**，按需引入，不手写第二套 Button/Dialog/Input
+6. 基础控件 **必须**用 **shadcn/ui 官方 CLI** 引入（`pnpm dlx shadcn@latest add <name>`）；禁止手写 / 私改 `src/components/ui/`
 7. 宽高 / 间距 / 圆角等尺寸**尽量使用 Tailwind 内置尺度**（见下节），避免随意 `w-[140px]` 一类任意值
 
 ---
@@ -62,20 +62,28 @@ JLGit 以 [shadcn/ui](https://ui.shadcn.com/) 作为基础组件来源（代码�
 
 本仓库已配置 `components.json`（style: `new-york`，输出目录 `@/components/ui`，图标 `lucide`）。
 
-### 按需引入
+### 按需引入（硬性）
 
-需要 Dialog、Dropdown、Tabs、Tooltip、Command 等时，用官方 CLI **按需添加**，不要从零实现等价基础件：
+需要 Dialog、Dropdown、Tabs、Tooltip、Command、Spinner 等时，**必须**用官方 CLI **按需添加**。与 [AGENTS.md §15 / Never Rules §14](../../AGENTS.md) 一致：
+
+| 要求 | 说明 |
+|------|------|
+| 必须 | `pnpm dlx shadcn@latest add <component>`（更新/恢复加 `--overwrite`） |
+| 禁止手写 | 不得在 `src/components/ui/` 手写、粘贴 registry、或用 Agent 工具仿造官方文件 |
+| 禁止私改 | 不得改 `ui/` 内样式/结构/导出；业务只组合引用 |
+| CLI 失败 | 修环境后重试官方命令，**禁止**退化为手写落地 |
 
 ```bash
 pnpm dlx shadcn@latest add button
 pnpm dlx shadcn@latest add dialog
 pnpm dlx shadcn@latest add dropdown-menu
+pnpm dlx shadcn@latest add spinner
 # 其余组件名见官方组件目录
 ```
 
-规则：
+其它规则：
 
-1. `src/components/ui/` **只**存放 shadcn CLI 官方生成件；**禁止**人工修改、打补丁或手写第二套视觉实现（与 [AGENTS.md §15 / Never Rules §14](../../AGENTS.md) 一致）。新增：`pnpm dlx shadcn@latest add <component>`；更新/恢复：`pnpm dlx shadcn@latest add <component> --overwrite`
+1. `src/components/ui/` **只**存放官方 CLI 生成件
 2. 业务组件（`components/git` 等）**组合** ui 层，不复制、不改写 ui 源码
 3. 只添加当前功能用到的组件，避免一次性 `add` 全量目录
 4. 新增官方组件若引入额外 Radix / 依赖，在 PR 中说明用途；仍遵守「不引入第二套 UI 体系」
@@ -291,6 +299,7 @@ pnpm dlx shadcn@latest add dropdown-menu
 - [ ] 异步操作有防重复与错误提示
 - [ ] 分隔线悬停有视觉反馈且**不挤动布局**
 - [ ] 面板主滚动使用 shadcn `ScrollArea`（无裸 `overflow-*-auto` 交付）
+- [ ] 新增/更新 `src/components/ui/` 仅经官方 `pnpm dlx shadcn@latest add …`（无手写、无私改）
 - [ ] 无硬编码产品文案（除品牌名）
 
 ---

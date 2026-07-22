@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import { SelectMenu } from "@/components/common/SelectMenu";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -846,7 +847,8 @@ export function SettingsDrawer() {
                 <span>{t("settings.apiKeyActions")}</span>
               </div>
               {gitAccountsLoading ? (
-                <p className="text-muted-foreground px-3 py-6 text-center text-xs">
+                <p className="text-muted-foreground flex items-center justify-center gap-2 px-3 py-6 text-xs">
+                  <Spinner className="size-3.5" />
                   {t("common.loading")}
                 </p>
               ) : gitAccounts.length === 0 ? (
@@ -1209,7 +1211,8 @@ export function SettingsDrawer() {
                 <span>{t("settings.apiKeyActions")}</span>
               </div>
               {apiKeysLoading ? (
-                <p className="text-muted-foreground px-3 py-6 text-center text-xs">
+                <p className="text-muted-foreground flex items-center justify-center gap-2 px-3 py-6 text-xs">
+                  <Spinner className="size-3.5" />
                   {t("common.loading")}
                 </p>
               ) : apiKeys.length === 0 ? (

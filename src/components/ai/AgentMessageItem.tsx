@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import dayjs from "dayjs";
-import { LoaderCircle, Pencil, RefreshCw } from "lucide-react";
+import { Pencil, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
+
+import { Spinner } from "@/components/ui/spinner";
 
 import { AgentMessageCopyButton } from "@/components/ai/AgentMessageCopyButton";
 import { AgentReasoningBlock } from "@/components/ai/AgentReasoningBlock";
@@ -181,7 +183,7 @@ export function AgentMessageItem({
           ) : null}
           {message.isStreaming && !message.content && !message.reasoningContent ? (
             <span className="inline-flex items-center gap-1.5">
-              <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
+              <Spinner className="size-3" />
               <span>{t("agent.thinking")}</span>
             </span>
           ) : null}

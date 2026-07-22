@@ -2,9 +2,10 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FolderGit2, Search } from "lucide-react";
 
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import { RemoteRepositoryLabel } from "@/components/project/RemoteRepositoryLabel";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 import { gitService, pickPrimaryRemoteUrl } from "@/services/git";
@@ -103,8 +104,15 @@ export function RecentProjectList({
           <FolderGit2 className="text-muted-foreground size-7" aria-hidden="true" />
         </div>
         <h2 className="mt-5 text-lg font-semibold">{t("dashboard.recentEmptyTitle")}</h2>
-        <p className="text-muted-foreground mt-2 max-w-sm text-sm">
-          {loading ? t("common.loading") : t("dashboard.recentEmptyDescription")}
+        <p className="text-muted-foreground mt-2 flex max-w-sm items-center justify-center gap-2 text-sm">
+          {loading ? (
+            <>
+              <Spinner className="size-3.5" />
+              {t("common.loading")}
+            </>
+          ) : (
+            t("dashboard.recentEmptyDescription")
+          )}
         </p>
       </div>
     );

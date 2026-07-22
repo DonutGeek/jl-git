@@ -4,11 +4,12 @@ import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import "dayjs/locale/zh-cn";
 import "dayjs/locale/en";
-import { Loader2, Sparkles, X } from "lucide-react";
+import { Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
@@ -468,7 +469,7 @@ export function CommitBox() {
                 onClick={() => void handleGenerateCommitMessage()}
               >
                 {isGenerating ? (
-                  <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />
+                  <Spinner className="size-3.5" />
                 ) : (
                   <Sparkles className="size-3.5" aria-hidden="true" />
                 )}

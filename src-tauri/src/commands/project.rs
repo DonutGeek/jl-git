@@ -5,6 +5,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::db::{self, ProjectRow, RecentProjectItem, WorkspaceRow};
 use crate::error::AppError;
+use crate::git::project_profile::{self, ProjectProfileSnapshot};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -62,8 +63,9 @@ pub async fn project_add(
     path: String,
     name: Option<String>,
     workspace_id: Option<String>,
+    description: Option<String>,
 ) -> Result<ProjectResult, AppError> {
-    let project = db::add_project(&pool, path, name, workspace_id).await?;
+    let project = db::add_project(&pool, path, name, workspace_id, description).await?;
 
     Ok(ProjectResult { project })
 }
@@ -94,10 +96,17 @@ pub async fn project_update(
     id: String,
     name: Option<String>,
     workspace_id: Option<Option<String>>,
+    description: Option<Option<String>>,
 ) -> Result<ProjectResult, AppError> {
-    let project = db::update_project(&pool, &id, name, workspace_id).await?;
+    let project = db::update_project(&pool, &id, name, workspace_id, description).await?;
 
     Ok(ProjectResult { project })
+}
+
+/// 收集仓库根 README / 清单文件，供 AI 生成项目简介
+#[tauri::command]
+pub fn project_profile_snapshot(path: String) -> Result<ProjectProfileSnapshot, AppError> {
+    project_profile::collect_snapshot(&path)
 }
 #[tauri::command] pub async fn workspace_list(pool: State<'_, SqlitePool>) -> Result<WorkspaceListResult, AppError> { Ok(WorkspaceListResult { workspaces: db::list_workspaces(&pool).await? }) }
 #[tauri::command] pub async fn workspace_create(pool: State<'_, SqlitePool>, name: String, parent_id: Option<String>, icon: Option<String>, color: Option<String>) -> Result<WorkspaceResult, AppError> { Ok(WorkspaceResult { workspace: db::create_workspace(&pool, name, parent_id, icon, color).await? }) }

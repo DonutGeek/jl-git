@@ -9,6 +9,7 @@ import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 import { gitService } from "@/services/git";
@@ -253,7 +254,10 @@ export function FileTree({ repoPath }: FileTreeProps) {
           ) : null}
 
           {loadingRoot ? (
-            <p className="text-muted-foreground px-2 py-4 text-sm">{t("common.loading")}</p>
+            <p className="text-muted-foreground flex items-center gap-2 px-2 py-4 text-sm">
+              <Spinner className="size-4" />
+              {t("common.loading")}
+            </p>
           ) : visibleRoot.length === 0 ? (
             <p className="text-muted-foreground px-2 py-4 text-sm">{t("repo.fileTreeEmpty")}</p>
           ) : (

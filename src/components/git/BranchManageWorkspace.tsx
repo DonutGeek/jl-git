@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { deleteBranch, listBranches } from "@/services/git/git.branch";
 import { toUserMessage } from "@/types/error";
@@ -285,16 +286,18 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
             disabled={loading || refreshing}
             onClick={() => void handleRefresh()}
           >
-            <RefreshCw
-              className={cn(refreshing && "animate-spin")}
-              aria-hidden="true"
-            />
+            {refreshing ? (
+              <Spinner className="size-3.5" />
+            ) : (
+              <RefreshCw aria-hidden="true" />
+            )}
           </Button>
         </div>
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
+        <p className="text-muted-foreground flex flex-1 items-center justify-center gap-2 text-sm">
+          <Spinner className="size-4" />
           {t("branchManage.loading")}
         </p>
       ) : null}

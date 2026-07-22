@@ -2,9 +2,10 @@
   "errors": {
     "missingApiKey": "Configure a DeepSeek API Key in Settings first",
     "emptyStagedDiff": "There are no staged changes to generate a message from",
-    "requestFailed": "Failed to generate the commit message",
-    "invalidResponse": "DeepSeek did not return a valid commit message",
-    "timeout": "Generating the commit message timed out. Try again.",
+    "emptyProjectProfile": "No README or manifest found — cannot generate a project summary",
+    "requestFailed": "Generation failed. Try again shortly.",
+    "invalidResponse": "The model did not return valid content",
+    "timeout": "Generation timed out. Try again.",
     "badRequest": "The request format was invalid. Try again, or report it if it keeps happening.",
     "authFailed": "DeepSeek API Key is invalid or expired — check and reconfigure it",
     "createApiKeyAction": "Create key",

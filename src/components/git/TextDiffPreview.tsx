@@ -27,6 +27,7 @@ import {
   type DiffPreviewLayout,
   type DiffPreviewMode,
 } from "@/components/git/DiffPreviewToolbar";
+import { Spinner } from "@/components/ui/spinner";
 import {
   bindDiffScrollSync,
   detectLineEnding,
@@ -598,7 +599,8 @@ function TextDiffPreview(
                           } as ComponentProps<typeof DiffEditor>["options"]
                         }
                         loading={
-                          <div className="bg-background text-muted-foreground flex h-full items-center justify-center text-sm">
+                          <div className="bg-background text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
+                            <Spinner className="size-4" />
                             {t("common.loading")}
                           </div>
                         }
@@ -634,7 +636,8 @@ function TextDiffPreview(
                       minimap: monacoFileMinimapOptions,
                     }}
                     loading={
-                      <div className="bg-background text-muted-foreground flex h-full items-center justify-center text-sm">
+                      <div className="bg-background text-muted-foreground flex h-full items-center justify-center gap-2 text-sm">
+                        <Spinner className="size-4" />
                         {t("common.loading")}
                       </div>
                     }

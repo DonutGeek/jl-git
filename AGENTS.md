@@ -40,7 +40,7 @@ JLGit 是基于 **Tauri 2 + React + TypeScript** 的现代 Git 桌面客户端�
 | UI | React 19 + TypeScript（strict） | 函数组件 + Hooks |
 | 构建 | Vite | 前端打包 |
 | 样式 | Tailwind CSS 4 + CSS Variables | 禁止硬编码颜色 |
-| 组件 | [shadcn/ui](https://ui.shadcn.com/) + lucide-react | **仅**经官方 CLI `pnpm dlx shadcn@latest add <name>`（更新用 `--overwrite`）写入 `src/components/ui/`；**禁止**人工修改该目录任何文件。业务只组合引用。**UI 图标**仅 lucide；工作区文件类型图标例外：`material-icon-theme`。**面板主滚动**必须用 `@/components/ui/scroll-area`（见 §15）。细则见 [ui-guidelines](docs/development/ui-guidelines.md) |
+| 组件 | [shadcn/ui](https://ui.shadcn.com/) + lucide-react | **硬性**：shadcn **必须**用官方 CLI `pnpm dlx shadcn@latest add <name>` 引入（更新 `--overwrite`）；**禁止手写**、**禁止私自改** `src/components/ui/`。业务只组合引用。**UI 图标**仅 lucide；工作区文件类型图标例外：`material-icon-theme`。**面板主滚动**必须用 `@/components/ui/scroll-area`（见 §15）。细则见 [ui-guidelines](docs/development/ui-guidelines.md) |
 | 状态 | Zustand | 唯一全局状态方案 |
 | 路由 | React Router | 见 routing 文档 |
 | 表单 | React Hook Form + Zod | 校验与提交 |
@@ -227,7 +227,11 @@ Local State → Zustand → SQLite
 - 颜色 / 圆角 / 阴影只用 Design Tokens（CSS Variables）
 - 必须支持 Light / Dark
 - 图标：UI 仅 `lucide-react`；工作区文件类型图标用 `material-icon-theme`（禁止再用 lucide 冒充文件类型）
-- **`src/components/ui/`（硬性）**：只允许 shadcn **官方 CLI** 引入或覆盖生成；**永远不要**手工编辑、局部打补丁或在该目录新增非官方文件。业务组件放 `components/common` / 各域目录，**组合** `@/components/ui/*`，不复制、不改写 ui 源码
+- **shadcn / `src/components/ui/`（硬性，AI 与人类同等）**：
+  1. **必须**用官方命令引入或覆盖：`pnpm dlx shadcn@latest add <name>`（更新/恢复加 `--overwrite`）
+  2. **禁止手写**：不得用编辑器 / Agent Write 工具 / 从 registry JSON 粘贴等方式「仿造」官方组件写入 `ui/`
+  3. **禁止私自更改**：不得改样式、结构、依赖、导出名；业务需求只在业务层**组合** `@/components/ui/*`，或把领域控件放 `components/common` / 各域目录
+  4. CLI 失败时修环境/换官方推荐调用方式后重试，**不得**退化为手写落地
 - **滚动区域（硬性）**：面板 / 列表 / 侧栏等**主滚动容器**必须使用 shadcn `@/components/ui/scroll-area`；**禁止**以裸 `overflow-auto` / `overflow-x-auto` / `overflow-y-auto` 作为交付用的主滚动方案（调试对照除外）。滚动条默认悬停/滚动时显示（不设 `type="always"`）。大列表另须虚拟滚动，见 §16 与 [performance](docs/development/performance.md)。细则见 [ui-guidelines](docs/development/ui-guidelines.md)
 
 详见：[docs/development/theme.md](docs/development/theme.md)、[docs/development/ui-guidelines.md](docs/development/ui-guidelines.md)
@@ -325,7 +329,7 @@ AI 修改代码时必须：
 10. 涉及 Git/FS/安全时先读 security 与 git 架构文档
 11. **写完必须自检**（见 [quality](docs/development/quality.md)）：至少 `tsc` + 相关冒烟；不得把 S0/S1 留给用户发现
 12. 向用户声称完成前，按 quality 文档的 Bug 级别自查；已知未修问题须标明级别
-13. **禁止**编辑 `src/components/ui/`；缺组件时只走官方 `pnpm dlx shadcn@latest add <name>`（见 §15 / Never Rules）
+13. **shadcn 硬性**：缺组件只跑官方 `pnpm dlx shadcn@latest add <name>`；**禁止**手写 / 粘贴 registry / 私改 `src/components/ui/`（见 §15 / Never Rules）
 
 ---
 
@@ -362,7 +366,7 @@ AI 修改代码时必须：
 11. 带着 **S0/S1**（崩溃、无限重渲染、核心路径不可用）声称完成或请用户验收
 12. 只跑类型检查、不跑与改动相关的运行时冒烟就交付
 13. 用裸 `overflow-*-auto` 替代 shadcn `ScrollArea` 作为面板主滚动交付方案
-14. **手工修改** `src/components/ui/` 下任何文件（含「顺手修样式」）；该目录只允许官方 `pnpm dlx shadcn@latest add …` 引入/覆盖
+14. **手写、粘贴或私自修改** `src/components/ui/` 下任何文件（含「顺手修样式」、从 registry 抄文件冒充官方引入）；该目录**只允许**官方 `pnpm dlx shadcn@latest add …` 引入/覆盖
 
 ---
 
@@ -384,6 +388,7 @@ AI 修改代码时必须：
 | [development/routing](docs/development/routing.md) | 路由 |
 | [development/theme](docs/development/theme.md) | 主题与 Tokens（实现目录：`src/design/`） |
 | [development/ui-guidelines](docs/development/ui-guidelines.md) | UI 规范 |
+| [development/app-icon](docs/development/app-icon.md) | App 图标规格、品牌色与出图 Prompt |
 | [development/project-structure](docs/development/project-structure.md) | 目录结构 |
 | [development/performance](docs/development/performance.md) | 性能 |
 | [development/security](docs/development/security.md) | 安全 |

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { SettingsFieldHeading } from "@/components/settings/SettingsFieldHeading";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   fetchDeepSeekBalance,
   getDeepSeekBalanceDocsUrl,
@@ -109,7 +110,10 @@ export function SettingsAiBalance({
           {!hasEnabledKey ? (
             <p className="text-muted-foreground text-xs">{t("settings.balanceNeedKey")}</p>
           ) : loading && !result ? (
-            <p className="text-muted-foreground text-xs">{t("common.loading")}</p>
+            <p className="text-muted-foreground flex items-center gap-2 text-xs">
+              <Spinner className="size-3.5" />
+              {t("common.loading")}
+            </p>
           ) : error ? (
             <p className="text-destructive text-xs">{error}</p>
           ) : preferred ? (
