@@ -10,6 +10,7 @@ import {
   BranchManageTable,
   type BranchManageSortDirection,
 } from "@/components/git/BranchManageTable";
+import { AppWindowHeader } from "@/components/layout/AppWindowHeader";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -224,12 +225,9 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
 
   return (
     <main className="bg-background text-foreground flex h-screen min-h-0 w-full flex-col overflow-hidden">
-      <header
-        data-tauri-drag-region
-        className="border-border bg-muted/40 flex h-11 shrink-0 items-center border-b px-4 pl-[88px]"
-      >
+      <AppWindowHeader heightClassName="h-11">
         <span className="truncate text-sm font-semibold">{t("branchManage.windowTitle")}</span>
-      </header>
+      </AppWindowHeader>
 
       <div className="border-border flex shrink-0 flex-wrap items-center gap-2 border-b px-3 py-2">
         <SegmentedControl

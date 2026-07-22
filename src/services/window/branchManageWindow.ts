@@ -1,5 +1,7 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
+import { LogicalSize } from "@tauri-apps/api/dpi";
+
+import { createAppWindowChromeOptions } from "@/services/window/windowChrome";
 
 export interface OpenBranchManageWindowOptions {
   projectId: string;
@@ -45,9 +47,7 @@ export async function openBranchManageWindow(
     height: BRANCH_MANAGE_WINDOW_SIZE.height,
     minWidth: 760,
     minHeight: 480,
-    titleBarStyle: "overlay",
-    hiddenTitle: true,
-    trafficLightPosition: new LogicalPosition(16, 26),
+    ...createAppWindowChromeOptions(),
   });
   await new Promise<void>((resolve, reject) => {
     void window.once("tauri://created", () => resolve());

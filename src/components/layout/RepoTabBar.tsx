@@ -24,6 +24,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { FolderPlus, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  toggleCurrentWindowMaximize,
+  WindowChromeControls,
+} from "@/components/layout/WindowChromeControls";
 import { OpenRepoDialog } from "@/components/project/OpenRepoDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +40,7 @@ import {
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 import { cn } from "@/lib/utils";
 
 import { useOpenTabsStore, type OpenTab } from "@/store/useOpenTabsStore";
@@ -153,6 +158,7 @@ function SortableRepoTab(props: SortableRepoTabProps) {
 
 export function RepoTabBar() {
   const { t } = useTranslation();
+  const { headerPaddingClass, showWinControls } = useWindowChromeLayout();
   const navigate = useNavigate();
   const location = useLocation();
   const tabEntries = useOpenTabsStore((state) => state.tabs);
@@ -377,12 +383,20 @@ export function RepoTabBar() {
         <header
           data-tauri-drag-region
           className={cn(
-            "border-border bg-muted/40 relative flex h-12 shrink-0 items-center border-b pr-2 pl-[88px]",
+            "border-border bg-muted/40 relative flex h-12 shrink-0 items-center border-b pr-0",
+            headerPaddingClass,
             draggingId ? "z-[60]" : "z-40",
           )}
+          onDoubleClick={(event) => {
+            if (!showWinControls) return;
+            // 仅空白拖拽区双击；点在标签/按钮上不最大化
+            const target = event.target as HTMLElement;
+            if (target.closest("button, a, [role='button'], [data-no-maximize]")) return;
+            void toggleCurrentWindowMaximize();
+          }}
         >
           {/* 交互控件 no-drag；拖拽留白必须是兄弟节点，不能包在 no-drag 里（否则加载页无工具栏时窗口无法拖动） */}
-          <div className="flex h-7 shrink-0 items-center gap-1.5" style={noDragStyle}>
+          <div className="flex h-7 shrink-0 items-center gap-1.5" style={noDragStyle} data-no-maximize>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <Button
@@ -403,6 +417,7 @@ export function RepoTabBar() {
           <div
             className="flex h-7 min-w-0 items-center gap-1 overflow-x-auto"
             style={noDragStyle}
+            data-no-maximize
           >
             <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
               <div className="flex h-7 items-center gap-1">
@@ -461,6 +476,7 @@ export function RepoTabBar() {
             </Tooltip>
           </div>
           <div data-tauri-drag-region className="h-full min-w-8 flex-1" />
+          {showWinControls ? <WindowChromeControls /> : null}
         </header>
         <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
           {draggingTab ? (

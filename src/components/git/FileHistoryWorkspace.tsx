@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { CommitAuthorAvatars } from "@/components/git/CommitAuthorAvatars";
 import { TextDiffPreview } from "@/components/git/TextDiffPreview";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AppWindowHeader } from "@/components/layout/AppWindowHeader";
 import { SplitPane } from "@/components/layout/SplitPane";
 import { cn } from "@/lib/utils";
 
@@ -107,10 +108,7 @@ export function FileHistoryWorkspace({
 
   return (
     <main className="bg-background text-foreground flex h-screen min-h-0 w-full flex-col overflow-hidden">
-      <header
-        data-tauri-drag-region
-        className="border-border bg-muted/40 flex h-12 shrink-0 items-center border-b px-4 pl-[88px]"
-      >
+      <AppWindowHeader>
         <span
           className="truncate text-sm font-semibold"
           title={t("fileHistory.windowTitle", { path: filePath })}
@@ -120,7 +118,7 @@ export function FileHistoryWorkspace({
         <span className="text-muted-foreground ml-2 truncate text-xs" title={project.path}>
           ({project.path})
         </span>
-      </header>
+      </AppWindowHeader>
 
       <div className="min-h-0 flex-1">
         <SplitPane

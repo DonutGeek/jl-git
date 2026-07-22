@@ -117,6 +117,19 @@ Command::new("git")
 
 ---
 
+## 窗口装饰（平台分支）
+
+| 平台 | 配置 | UI |
+|------|------|-----|
+| macOS | 主 conf：`titleBarStyle: Overlay`、`hiddenTitle`、`trafficLightPosition (16,26)` | 顶栏 `pl-[88px]`；系统交通灯 |
+| Windows | `src-tauri/tauri.windows.conf.json`：主窗 `decorations: false`（merge 会替换 `app.windows` 数组，故需带完整窗口字段）；子窗 `createAppWindowChromeOptions()` | 右侧 `WindowChromeControls` |
+
+Capabilities 需含：`allow-minimize` / `allow-maximize` / `allow-unmaximize` / `allow-toggle-maximize` / `allow-close` / `allow-is-maximized`（主窗与各子窗）。
+
+设计：[windows-window-chrome-design](../superpowers/specs/2026-07-22-windows-window-chrome-design.md)
+
+---
+
 ## Shell / Opener
 
 - `opener`：打开外部链接或在访达/资源管理器中显示路径

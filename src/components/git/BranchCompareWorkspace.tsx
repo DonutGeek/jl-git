@@ -8,6 +8,7 @@ import { DiffLineStats } from "@/components/git/DiffLineStats";
 import { EmptyState } from "@/components/common/EmptyState";
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import { SplitPane } from "@/components/layout/SplitPane";
+import { AppWindowHeader } from "@/components/layout/AppWindowHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -114,11 +115,11 @@ export function BranchCompareWorkspace({ project, branches, initialMode, initial
   }
 
   return <main className="bg-background text-foreground flex h-screen min-h-0 w-full min-w-0 max-w-full flex-col overflow-hidden">
-    <header data-tauri-drag-region className="border-border bg-muted/40 flex h-12 shrink-0 items-center border-b px-4 pl-[88px]">
+    <AppWindowHeader>
       <span className="truncate text-sm font-semibold" title={t("branchCompare.windowTitle", { path: project.path })}>
         {t("branchCompare.windowTitle", { path: project.path })}
       </span>
-    </header>
+    </AppWindowHeader>
     <section className="border-border grid h-14 shrink-0 grid-cols-[auto_11rem_auto_minmax(0,1fr)_auto_auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-4" style={noDragStyle}>
       <GitCompareArrows className="size-5 shrink-0" aria-hidden="true" />
       <SelectMenu value={mode} ariaLabel={t("branchCompare.title")} onChange={(value) => setMode(value as BranchCompareMode)} options={[{ value: "branch", label: t("branchCompare.modeBranch") }, { value: "localUpstream", label: t("branchCompare.modeLocalUpstream") }]} triggerClassName="w-44" />

@@ -5,5 +5,9 @@
   "cancel": "Cancel",
   "pleaseSelect": "Please select",
   "aiApiKeyRequired": "Configure and enable an API Key in Settings first",
-  "gitNotFound": "Git was not found. Install Git and make sure it is on your PATH"
+  "gitNotFound": "Git was not found. Install Git and make sure it is on your PATH",
+  "windowMinimize": "Minimize",
+  "windowMaximize": "Maximize",
+  "windowRestore": "Restore",
+  "windowClose": "Close"
 }

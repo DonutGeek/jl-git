@@ -15,6 +15,7 @@ import { AgentComposer, type AgentMentionOption } from "@/components/ai/AgentCom
 import { AgentMessageList } from "@/components/ai/AgentMessageList";
 import { AgentCatalogPanel } from "@/components/ai/AgentCatalogPanel";
 import { MultiAgentSidebar } from "@/components/agent/MultiAgentSidebar";
+import { AppWindowHeader } from "@/components/layout/AppWindowHeader";
 import { useAgentModel } from "@/hooks/useAgentModel";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import {
@@ -1044,13 +1045,10 @@ export function MultiAgentWorkspace() {
 
   return (
     <main className="bg-background text-foreground flex h-screen min-h-0 w-full flex-col overflow-hidden">
-      <header
-        data-tauri-drag-region
-        className="border-border bg-muted/40 flex h-11 shrink-0 items-center gap-2 border-b px-4 pl-[88px]"
-      >
+      <AppWindowHeader heightClassName="h-11" className="gap-2">
         <Sparkles className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
         <span className="truncate text-sm font-semibold">{t("multiAgent.windowTitle")}</span>
-      </header>
+      </AppWindowHeader>
 
       {profilesError ? (
         <p className="text-destructive px-4 py-3 text-center text-sm">{profilesError}</p>

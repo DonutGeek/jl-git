@@ -264,6 +264,17 @@ pnpm dlx shadcn@latest add spinner
 | 仅展示、暂不可点的列表行 | `cursor-default` | 可有轻悬停底，但不要假 pointer |
 | 顶栏仓库标签 | 整标签拖拽排序（无独立手柄，Chrome/VS Code 惯例）；关闭按钮在右侧且不参与拖拽；间距紧凑统一 `gap-1` |
 
+### 2.2 窗口顶栏 / 平台分支（必须）
+
+| 平台 | 行为 |
+|------|------|
+| macOS | Overlay 标题栏 + 系统交通灯；顶栏左侧 `pl-[88px]` 为灯位留白；**禁止**去掉该留白或改用 `decorations: false` |
+| Windows | `tauri.windows.conf.json` / 子窗 `decorations: false`；无系统标题栏；右侧自绘最小化 / 最大化·还原 / 关闭（`WindowChromeControls`）；左侧用紧凑 `pl-3` |
+| 拖拽 | 空白区 `data-tauri-drag-region`；可点控件 `WebkitAppRegion: no-drag`；Win 可双击空白区最大化/还原 |
+| 复用 | 子窗顶栏用 `AppWindowHeader`；布局判断用 `useWindowChromeLayout` |
+
+设计见 [windows-window-chrome-design](../superpowers/specs/2026-07-22-windows-window-chrome-design.md)。
+
 **禁止**：可点区域悬停仍是箭头；可拖分隔线悬停仍是箭头；用改布局宽度制造「加粗」反馈。
 
 ### 3. 加载与异步

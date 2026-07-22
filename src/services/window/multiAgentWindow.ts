@@ -1,5 +1,7 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
+import { LogicalSize } from "@tauri-apps/api/dpi";
+
+import { createAppWindowChromeOptions } from "@/services/window/windowChrome";
 
 const AGENT_GLOBAL_WINDOW_LABEL = "agent-global";
 /** 旧窗口 label，本会话内若仍存活则复用（聚焦兼容） */
@@ -24,9 +26,7 @@ export async function openMultiAgentWindow(): Promise<void> {
     height: AGENT_GLOBAL_WINDOW_SIZE.height,
     minWidth: 720,
     minHeight: 480,
-    titleBarStyle: "overlay",
-    hiddenTitle: true,
-    trafficLightPosition: new LogicalPosition(16, 26),
+    ...createAppWindowChromeOptions(),
   });
   await new Promise<void>((resolve, reject) => {
     void window.once("tauri://created", () => resolve());

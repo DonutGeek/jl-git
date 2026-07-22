@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { HistoryWorkspace } from "@/components/git/HistoryWorkspace";
+import { AppWindowHeader } from "@/components/layout/AppWindowHeader";
 
 import { beginRepoSwitch, useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
@@ -60,14 +61,11 @@ export function BranchHistoryWorkspace({
 
   return (
     <main className="bg-background text-foreground flex h-screen min-h-0 w-full flex-col overflow-hidden">
-      <header
-        data-tauri-drag-region
-        className="border-border bg-muted/40 flex h-12 shrink-0 items-center border-b px-4 pl-[88px]"
-      >
+      <AppWindowHeader>
         <span className="truncate text-sm font-semibold" title={title}>
           {title}
         </span>
-      </header>
+      </AppWindowHeader>
 
       {!ready && !error ? (
         <p className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
