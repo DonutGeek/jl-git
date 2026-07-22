@@ -18,6 +18,7 @@
   "localeZh": "中",
   "localeEn": "EN",
   "update": "Update",
+  "updateInProgress": "Updating…",
   "updateChecking": "Checking for app updates…",
   "updateUpToDate": "You're up to date",
   "updateAvailable": "Update available: {{version}} (current {{current}})",

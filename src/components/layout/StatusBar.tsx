@@ -259,45 +259,65 @@ export function StatusBar() {
           {versionLabel}
         </span>
         {availableUpdate ? (
-          <span className="relative flex h-5 w-14 shrink-0 items-center justify-center">
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="absolute left-1/2 -translate-x-1/2 rounded-md focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none disabled:opacity-60"
-                  aria-label={t("statusBar.updateAvailable", {
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="rounded-md focus-visible:ring-ring shrink-0 focus-visible:ring-1 focus-visible:outline-none disabled:opacity-60"
+                aria-label={
+                  updating
+                    ? t("statusBar.updateInProgress")
+                    : t("statusBar.updateAvailable", {
+                        version: availableUpdate.version,
+                        current: availableUpdate.currentVersion,
+                      })
+                }
+                aria-busy={updating}
+                disabled={updating}
+                onClick={() => {
+                  void handleAppUpdate();
+                }}
+              >
+                <Badge
+                  className={cn(
+                    "group h-5 gap-0 px-1.5 py-0 text-[10px] font-semibold transition-all duration-150",
+                    updating
+                      ? "cursor-wait gap-1"
+                      : "cursor-pointer group-hover:gap-1",
+                  )}
+                >
+                  {updating ? (
+                    <Spinner className="size-3" />
+                  ) : (
+                    <Download
+                      className="size-3 transition-all duration-150 group-hover:w-0 group-hover:opacity-0"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span
+                    className={cn(
+                      "overflow-hidden whitespace-nowrap transition-all duration-150",
+                      updating
+                        ? "max-w-24 opacity-100"
+                        : "max-w-0 opacity-0 group-hover:max-w-10 group-hover:opacity-100",
+                    )}
+                  >
+                    {updating
+                      ? t("statusBar.updateInProgress")
+                      : t("statusBar.update")}
+                  </span>
+                </Badge>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {updating
+                ? t("statusBar.updateInProgress")
+                : t("statusBar.updateAvailable", {
                     version: availableUpdate.version,
                     current: availableUpdate.currentVersion,
                   })}
-                  aria-busy={updating}
-                  disabled={updating}
-                  onClick={() => {
-                    void handleAppUpdate();
-                  }}
-                >
-                  <Badge className="group h-5 cursor-pointer gap-0 px-1.5 py-0 text-[10px] font-semibold transition-all duration-150 group-hover:gap-1">
-                    {updating ? (
-                      <Spinner className="size-3" />
-                    ) : (
-                      <Download
-                        className="size-3 transition-all duration-150 group-hover:w-0 group-hover:opacity-0"
-                        aria-hidden="true"
-                      />
-                    )}
-                    <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-150 group-hover:max-w-10 group-hover:opacity-100">
-                      {t("statusBar.update")}
-                    </span>
-                  </Badge>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {t("statusBar.updateAvailable", {
-                  version: availableUpdate.version,
-                  current: availableUpdate.currentVersion,
-                })}
-              </TooltipContent>
-            </Tooltip>
-          </span>
+            </TooltipContent>
+          </Tooltip>
         ) : null}
       </div>
 
