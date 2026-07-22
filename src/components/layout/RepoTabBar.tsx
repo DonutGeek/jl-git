@@ -217,13 +217,18 @@ export function RepoTabBar() {
     }
   }, [activeId, location.pathname, openRepositoryTab, tabEntries]);
 
-  // 同步上次激活标签，供冷启动「恢复上次」使用
+  // 同步上次激活标签，供冷启动「恢复上次」使用。
+  // 根路径 `/` 只是冷启动占位：resolveActiveTabId 会把「新标签」当成高亮，
+  // 若此时写入 lastActive，会覆盖已持久化的仓库标签，导致下次总进新标签页。
   useEffect(() => {
+    if (location.pathname === "/") {
+      return;
+    }
     if (!activeId || !tabEntries.some((tab) => tab.id === activeId)) {
       return;
     }
     setLastActiveTabId(activeId);
-  }, [activeId, setLastActiveTabId, tabEntries]);
+  }, [activeId, location.pathname, setLastActiveTabId, tabEntries]);
 
   const tabs = useMemo(() => {
     const byId = new Map(projects.map((project) => [project.id, project]));

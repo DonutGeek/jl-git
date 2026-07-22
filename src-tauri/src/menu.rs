@@ -2,9 +2,12 @@
 //! 默认中文标签；系统不会自动翻译 File/Edit，需自行设置。
 
 use tauri::{
-    menu::{Menu, MenuBuilder, SubmenuBuilder},
+    menu::{AboutMetadata, Menu, MenuBuilder, SubmenuBuilder},
     AppHandle, Runtime,
 };
+
+/// 与 LICENSE / README 一致；`bundle.copyright` 优先
+const DEFAULT_COPYRIGHT: &str = "Copyright © 2026 DonutGeek";
 
 /// 构建中文默认菜单并设为应用菜单
 pub fn install_zh_cn_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
@@ -14,9 +17,24 @@ pub fn install_zh_cn_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 }
 
 fn build_zh_cn_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
+    let pkg_info = app.package_info();
+    let config = app.config();
+    let about_metadata = AboutMetadata {
+        name: Some(pkg_info.name.clone()),
+        version: Some(pkg_info.version.to_string()),
+        copyright: Some(
+            config
+                .bundle
+                .copyright
+                .clone()
+                .unwrap_or_else(|| DEFAULT_COPYRIGHT.to_string()),
+        ),
+        ..Default::default()
+    };
+
     // macOS：第一项会成为应用菜单（鲸灵Git）
     let app_menu = SubmenuBuilder::new(app, "鲸灵Git")
-        .about_with_text("关于 鲸灵Git", None)
+        .about_with_text("关于 鲸灵Git", Some(about_metadata))
         .separator()
         .services_with_text("服务")
         .separator()

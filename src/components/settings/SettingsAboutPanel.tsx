@@ -413,6 +413,9 @@ export function SettingsAboutPanel() {
             <span className="text-muted-foreground/80"> · PID {runtime.pid}</span>
           ) : null}
         </p>
+        <p className="text-muted-foreground mt-2 text-[11px] leading-relaxed">
+          {t("settings.aboutCopyright")}
+        </p>
         {metaChips.length > 0 ? (
           <ul className="mt-4 flex max-w-md flex-wrap items-center justify-center gap-1.5">
             {metaChips.map((chip) => (
@@ -464,9 +467,6 @@ export function SettingsAboutPanel() {
               </Button>
             ) : null}
           </div>
-          <p className="text-muted-foreground max-w-sm text-center text-[11px] leading-relaxed">
-            {t("settings.aboutCheckUpdateHint")}
-          </p>
         </div>
       </section>
 

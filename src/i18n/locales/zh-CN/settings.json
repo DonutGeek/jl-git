@@ -26,6 +26,7 @@
   "aboutAppTipAria": "应用与环境说明",
   "aboutAppName": "应用名称",
   "aboutAppVersion": "应用版本",
+  "aboutCopyright": "Copyright © 2026 DonutGeek",
   "aboutArch": "架构",
   "aboutOs": "操作系统",
   "aboutTauri": "Tauri",
@@ -48,7 +49,6 @@
   "aboutUnavailable": "—",
   "aboutCheckUpdate": "检查更新",
   "aboutCheckUpdateAria": "手动检查是否有新版本",
-  "aboutCheckUpdateHint": "从 GitHub Releases 拉取 latest.json；需正式安装包且发布仓对 updater 可匿名访问",
   "aboutUpdateInstall": "下载并安装",
 
   "launchTitle": "启动",

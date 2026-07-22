@@ -12,5 +12,8 @@
 		<string>zh-Hans</string>
 		<string>en</string>
 	</array>
+	<!-- Finder「简介」与系统关于信息 -->
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 DonutGeek</string>
 </dict>
 </plist>

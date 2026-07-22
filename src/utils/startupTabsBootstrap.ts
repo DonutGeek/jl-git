@@ -84,25 +84,27 @@ export async function applyStartupTabsBootstrap(
     return;
   }
 
+  // 水合后立刻快照，避免与标签栏 effect 竞态读到被改写的 lastActive
   const mode = useAppPrefsStore.getState().startupTabsMode;
-  const tabsStore = useOpenTabsStore.getState();
+  const { tabs, lastActiveTabId, setLastActiveTabId, resetToFreshStartup } =
+    useOpenTabsStore.getState();
 
   if (mode === "fresh") {
-    const id = tabsStore.resetToFreshStartup();
+    const id = resetToFreshStartup();
     markStartupTabsApplied();
     navigate(`/tab/${id}`, { replace: true });
     return;
   }
 
-  const tab = resolveStartupTab(tabsStore.tabs, tabsStore.lastActiveTabId);
+  const tab = resolveStartupTab(tabs, lastActiveTabId);
   if (!tab) {
-    const id = tabsStore.resetToFreshStartup();
+    const id = resetToFreshStartup();
     markStartupTabsApplied();
     navigate(`/tab/${id}`, { replace: true });
     return;
   }
 
-  tabsStore.setLastActiveTabId(tab.id);
+  setLastActiveTabId(tab.id);
   markStartupTabsApplied();
   navigate(pathForOpenTab(tab), { replace: true });
 }
