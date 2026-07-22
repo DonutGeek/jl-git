@@ -18,6 +18,7 @@
   "thinking": "鲸灵 is thinking…",
   "deepThinking": "Deep thinking…",
   "deepThinkingToggle": "Deep think",
+  "modelPickerAria": "Select model",
   "deepThoughtDone": "Deep thought",
   "deepThoughtDoneWithDuration": "Deep thought ({{seconds}}s)",
   "regenerate": "Regenerate",

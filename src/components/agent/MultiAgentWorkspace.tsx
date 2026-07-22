@@ -15,6 +15,7 @@ import { AgentComposer, type AgentMentionOption } from "@/components/ai/AgentCom
 import { AgentMessageList } from "@/components/ai/AgentMessageList";
 import { AgentCatalogPanel } from "@/components/ai/AgentCatalogPanel";
 import { MultiAgentSidebar } from "@/components/agent/MultiAgentSidebar";
+import { useAgentModel } from "@/hooks/useAgentModel";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import {
   appendAgentMentionMarkup,
@@ -28,8 +29,13 @@ import {
   reorderChatConversations,
   upsertChatConversation,
 } from "@/services/ai/ai.chatPersist";
-import { streamJinglingReply } from "@/services/ai";
+import {
+  formatDeepSeekModelLabel,
+  modelSupportsThinking,
+  streamJinglingReply,
+} from "@/services/ai";
 import { toastAiFailure } from "@/services/ai/ai.httpError";
+import { isResumeSkillTurn } from "@/services/ai/ai.skillMode";
 import { listAllGitAuthorsForMatching } from "@/services/git/git.accounts";
 import {
   disableAgentPlugin,
@@ -48,7 +54,7 @@ import { useLocaleStore } from "@/store/useLocaleStore";
 import { scheduleFocusInputCaretAtEnd } from "@/utils/focusInputCaretAtEnd";
 import {
   getActiveMultiAgentConversation,
-  getActiveMultiAgentMessages,
+  getMultiAgentMessages,
   useMultiAgentStore,
 } from "@/store/useMultiAgentStore";
 import { toUserMessage } from "@/types/error";
@@ -83,7 +89,11 @@ export function MultiAgentWorkspace() {
   const hasApiKey = useHasAgentApiKey();
   const composerRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
-  const replyAbortRef = useRef<AbortController | null>(null);
+  /** 当前流式请求所属会话；切换会话后仍按此 id 写回，避免串台 */
+  const replySessionRef = useRef<{
+    conversationId: string;
+    controller: AbortController;
+  } | null>(null);
   const messageSeq = useRef(0);
   /** 最近一次成稿目标仓，供「加强表述」复用 */
   const lastTargetProjectIdRef = useRef<string | null>(null);
@@ -93,7 +103,9 @@ export function MultiAgentWorkspace() {
   const [draftMentions, setDraftMentions] = useState<readonly AgentMention[]>(
     [],
   );
-  const [isReplying, setIsReplying] = useState(false);
+  const [replyingConversationId, setReplyingConversationId] = useState<
+    string | null
+  >(null);
   const [composerPadPx, setComposerPadPx] = useState(COMPOSER_PAD_FALLBACK_PX);
   const [gitAuthorsReady, setGitAuthorsReady] = useState(false);
   /** 与单仓一致：默认开启深度思考 */
@@ -102,6 +114,21 @@ export function MultiAgentWorkspace() {
   const [mainView, setMainView] = useState<"chat" | "plugins">("chat");
   /** 已卸载插件 id（软隐藏） */
   const [disabledPluginIds, setDisabledPluginIds] = useState<string[]>([]);
+  const {
+    models,
+    modelId,
+    setModelId,
+    loading: modelsLoading,
+  } = useAgentModel();
+  const modelOptions = useMemo(
+    () =>
+      models.map((model) => ({
+        value: model.id,
+        label: formatDeepSeekModelLabel(model.id),
+      })),
+    [models],
+  );
+  const thinkingSupported = modelSupportsThinking(modelId);
 
   const locale = useLocaleStore((state) => state.locale);
   const profiles = useMultiAgentStore((state) => state.profiles);
@@ -114,6 +141,10 @@ export function MultiAgentWorkspace() {
   const activeConversation =
     conversations.find((item) => item.id === activeConversationId) ?? null;
   const messages = activeConversation?.messages ?? [];
+  /** 仅当前查看的会话正在生成时，才显示停止/禁用发送 */
+  const isReplying =
+    replyingConversationId != null &&
+    replyingConversationId === activeConversationId;
   const gitAuthors = useMultiAgentStore((state) => state.gitAuthors);
   const setProfilesLoading = useMultiAgentStore((state) => state.setProfilesLoading);
   const setProfiles = useMultiAgentStore((state) => state.setProfiles);
@@ -152,13 +183,6 @@ export function MultiAgentWorkspace() {
     } catch (error) {
       console.error(error);
       toast.error(toUserMessage(error) || t("multiAgent.replyFailed"));
-    }
-  }
-
-  async function persistActiveConversation(): Promise<void> {
-    const conversation = getActiveMultiAgentConversation();
-    if (conversation) {
-      await persistConversation(conversation);
     }
   }
 
@@ -277,9 +301,13 @@ export function MultiAgentWorkspace() {
 
   useEffect(() => {
     return () => {
-      replyAbortRef.current?.abort();
+      replySessionRef.current?.controller.abort();
     };
   }, []);
+
+  function abortReplySession(): void {
+    replySessionRef.current?.controller.abort();
+  }
 
   // 清理旧版自动开场白（仅助手、无用户消息）
   useEffect(() => {
@@ -298,8 +326,8 @@ export function MultiAgentWorkspace() {
     if (!isStaleGreeting) {
       return;
     }
-    resetConversation();
-    void persistActiveConversation();
+    resetConversation(activeConversationId);
+    void persistConversationById(activeConversationId);
   }, [activeConversationId, messages, resetConversation]);
 
   useLayoutEffect(() => {
@@ -399,16 +427,12 @@ export function MultiAgentWorkspace() {
     );
     if (empty) {
       if (empty.id !== activeConversationId) {
-        replyAbortRef.current?.abort();
-        replyAbortRef.current = null;
-        setIsReplying(false);
+        abortReplySession();
         setActiveConversation(empty.id);
       }
       return;
     }
-    replyAbortRef.current?.abort();
-    replyAbortRef.current = null;
-    setIsReplying(false);
+    abortReplySession();
     const createdId = createConversation();
     void persistConversationById(createdId);
   }
@@ -464,14 +488,23 @@ export function MultiAgentWorkspace() {
   /**
    * 在已有 history（含最新用户消息、不含助手气泡）上继续流式回复。
    * 供发送 / 重生成 / 编辑共用。
+   * 写入始终绑定 conversationId，切换会话不会串台或卡死流式态。
    */
   async function continueResumeFromHistory(
+    conversationId: string,
     history: readonly AgentChatMessage[],
     options: SendResumeOptions = {},
   ): Promise<void> {
     const lastUser = [...history].reverse().find((message) => message.role === "user");
-    if (!lastUser || isReplying || profilesLoading) {
+    if (!lastUser || profilesLoading) {
       return;
+    }
+    // 同一会话正在生成则忽略；其它会话有生成时先中止再开新流
+    if (replySessionRef.current?.conversationId === conversationId) {
+      return;
+    }
+    if (replySessionRef.current) {
+      replySessionRef.current.controller.abort();
     }
     const trimmed = lastUser.content.trim();
     if (!trimmed) {
@@ -480,10 +513,11 @@ export function MultiAgentWorkspace() {
 
     const currentAuthors = useMultiAgentStore.getState().gitAuthors;
     const allProfiles = useMultiAgentStore.getState().profiles;
-    // 对话上下文：全部已登记仓（含无本人提交）；列举不再按「可写」截断
+    const resumeMode = isResumeSkillTurn(history);
+    // 普通对话不按作者收窄；仅简历技能才匹配「谁的提交」
     const contextProfiles = prepareProfilesForAgentContext(
       allProfiles,
-      currentAuthors,
+      resumeMode ? currentAuthors : [],
     );
     // 显式 @项目 / projectIds 在全部已登记仓中解析
     const explicitTargets = resolveTargetProfiles(
@@ -503,14 +537,14 @@ export function MultiAgentWorkspace() {
     const assistantId = nextMessageId();
 
     flushSync(() => {
-      appendMessage({
+      appendMessage(conversationId, {
         id: assistantId,
         role: "assistant",
         content: "",
         createdAt: askedAt,
         isStreaming: true,
       });
-      setIsReplying(true);
+      setReplyingConversationId(conversationId);
     });
 
     await new Promise<void>((resolve) => {
@@ -520,7 +554,7 @@ export function MultiAgentWorkspace() {
     });
 
     const controller = new AbortController();
-    replyAbortRef.current = controller;
+    replySessionRef.current = { conversationId, controller };
 
     let reasoningStartedAt: number | null = null;
     let reasoningDurationSettled = false;
@@ -529,7 +563,7 @@ export function MultiAgentWorkspace() {
         return;
       }
       reasoningDurationSettled = true;
-      updateMessage(assistantId, {
+      updateMessage(conversationId, assistantId, {
         reasoningDurationMs: Date.now() - reasoningStartedAt,
       });
     };
@@ -555,16 +589,17 @@ export function MultiAgentWorkspace() {
         gitAuthors: currentAuthors,
         locale,
         signal: controller.signal,
-        enableThinking: thinkingEnabled,
+        model: modelId,
+        enableThinking: thinkingSupported && thinkingEnabled,
         onReasoningDelta: (delta) => {
           if (reasoningStartedAt == null) {
             reasoningStartedAt = Date.now();
           }
           flushSync(() => {
-            const current = getActiveMultiAgentMessages().find(
+            const current = getMultiAgentMessages(conversationId).find(
               (message) => message.id === assistantId,
             );
-            updateMessage(assistantId, {
+            updateMessage(conversationId, assistantId, {
               reasoningContent: `${current?.reasoningContent ?? ""}${delta}`,
               isStreaming: true,
             });
@@ -573,10 +608,10 @@ export function MultiAgentWorkspace() {
         onDelta: (delta) => {
           settleReasoningDuration();
           flushSync(() => {
-            const current = getActiveMultiAgentMessages().find(
+            const current = getMultiAgentMessages(conversationId).find(
               (message) => message.id === assistantId,
             );
-            updateMessage(assistantId, {
+            updateMessage(conversationId, assistantId, {
               content: `${current?.content ?? ""}${delta}`,
               isStreaming: true,
             });
@@ -584,7 +619,7 @@ export function MultiAgentWorkspace() {
         },
       });
       settleReasoningDuration();
-      updateMessage(assistantId, {
+      updateMessage(conversationId, assistantId, {
         isStreaming: false,
         createdAt: new Date().toISOString(),
       });
@@ -596,7 +631,7 @@ export function MultiAgentWorkspace() {
           t,
         );
         if (followUp) {
-          appendMessage({
+          appendMessage(conversationId, {
             id: nextMessageId(),
             role: "assistant",
             content: followUp,
@@ -605,7 +640,7 @@ export function MultiAgentWorkspace() {
         }
       }
     } catch (error) {
-      const current = getActiveMultiAgentMessages().find(
+      const current = getMultiAgentMessages(conversationId).find(
         (message) => message.id === assistantId,
       );
       const hasPartial = Boolean(
@@ -614,24 +649,26 @@ export function MultiAgentWorkspace() {
       if (controller.signal.aborted) {
         if (hasPartial) {
           settleReasoningDuration();
-          updateMessage(assistantId, {
+          updateMessage(conversationId, assistantId, {
             isStreaming: false,
             createdAt: new Date().toISOString(),
           });
         } else {
-          removeMessage(assistantId);
+          removeMessage(conversationId, assistantId);
         }
       } else {
-        removeMessage(assistantId);
+        removeMessage(conversationId, assistantId);
         toastAiFailure(error, t("multiAgent.replyFailed"));
       }
     } finally {
-      if (replyAbortRef.current === controller) {
-        replyAbortRef.current = null;
+      if (replySessionRef.current?.controller === controller) {
+        replySessionRef.current = null;
+        setReplyingConversationId(null);
       }
-      setIsReplying(false);
-      void persistActiveConversation();
-      window.requestAnimationFrame(() => inputRef.current?.focus());
+      void persistConversationById(conversationId);
+      if (useMultiAgentStore.getState().activeConversationId === conversationId) {
+        window.requestAnimationFrame(() => inputRef.current?.focus());
+      }
     }
   }
 
@@ -639,8 +676,9 @@ export function MultiAgentWorkspace() {
     content: string,
     options: SendResumeOptions = {},
   ): Promise<void> {
+    const conversationId = useMultiAgentStore.getState().activeConversationId;
     const trimmed = content.trim();
-    if (!trimmed || isReplying || profilesLoading) {
+    if (!trimmed || !conversationId || isReplying || profilesLoading) {
       return;
     }
 
@@ -653,22 +691,26 @@ export function MultiAgentWorkspace() {
       createdAt: askedAt,
       ...(mentions.length > 0 ? { mentions } : {}),
     };
-    const history = [...getActiveMultiAgentMessages(), userMessage];
+    const history = [...getMultiAgentMessages(conversationId), userMessage];
 
     flushSync(() => {
       clearDraft();
-      appendMessage(userMessage);
+      appendMessage(conversationId, userMessage);
     });
-    void persistActiveConversation();
+    void persistConversationById(conversationId);
 
-    await continueResumeFromHistory(history, { ...options, mentions });
+    await continueResumeFromHistory(conversationId, history, {
+      ...options,
+      mentions,
+    });
   }
 
   async function handleRegenerateLast(): Promise<void> {
-    if (isReplying || profilesLoading) {
+    const conversationId = useMultiAgentStore.getState().activeConversationId;
+    if (!conversationId || isReplying || profilesLoading) {
       return;
     }
-    const current = getActiveMultiAgentMessages();
+    const current = getMultiAgentMessages(conversationId);
     const last = current[current.length - 1];
     if (!last || last.role !== "assistant" || last.isStreaming) {
       return;
@@ -680,14 +722,13 @@ export function MultiAgentWorkspace() {
     }
 
     flushSync(() => {
-      removeMessage(last.id);
+      removeMessage(conversationId, last.id);
     });
-    void persistActiveConversation();
+    void persistConversationById(conversationId);
 
-    replyAbortRef.current?.abort();
-    replyAbortRef.current = null;
+    abortReplySession();
 
-    await continueResumeFromHistory(history, {
+    await continueResumeFromHistory(conversationId, history, {
       projectIds:
         lastTargetProjectIdRef.current != null
           ? [lastTargetProjectIdRef.current]
@@ -701,7 +742,8 @@ export function MultiAgentWorkspace() {
     messageId: string,
     content: string,
   ): Promise<void> {
-    if (isReplying || profilesLoading) {
+    const conversationId = useMultiAgentStore.getState().activeConversationId;
+    if (!conversationId || isReplying || profilesLoading) {
       return;
     }
     const trimmed = content.trim();
@@ -711,17 +753,16 @@ export function MultiAgentWorkspace() {
 
     const history = useMultiAgentStore
       .getState()
-      .editUserMessageAndTruncate(messageId, trimmed);
+      .editUserMessageAndTruncate(conversationId, messageId, trimmed);
     if (!history) {
       toast.error(t("multiAgent.replyFailed"));
       return;
     }
-    void persistActiveConversation();
+    void persistConversationById(conversationId);
 
-    replyAbortRef.current?.abort();
-    replyAbortRef.current = null;
+    abortReplySession();
 
-    await continueResumeFromHistory(history, {
+    await continueResumeFromHistory(conversationId, history, {
       projectIds:
         lastTargetProjectIdRef.current != null
           ? [lastTargetProjectIdRef.current]
@@ -750,8 +791,12 @@ export function MultiAgentWorkspace() {
   async function draftAllProjectsSequentially(
     userContent?: string,
   ): Promise<void> {
-    if (isReplying || profilesLoading) {
+    const conversationId = useMultiAgentStore.getState().activeConversationId;
+    if (!conversationId || isReplying || profilesLoading) {
       return;
+    }
+    if (replySessionRef.current) {
+      replySessionRef.current.controller.abort();
     }
 
     const currentAuthors = useMultiAgentStore.getState().gitAuthors;
@@ -776,8 +821,8 @@ export function MultiAgentWorkspace() {
 
     flushSync(() => {
       clearDraft();
-      appendMessage(userMessage);
-      appendMessage({
+      appendMessage(conversationId, userMessage);
+      appendMessage(conversationId, {
         id: progressId,
         role: "assistant",
         content: t("multiAgent.sequentialProgress", {
@@ -788,7 +833,7 @@ export function MultiAgentWorkspace() {
         createdAt: askedAt,
         isStreaming: true,
       });
-      setIsReplying(true);
+      setReplyingConversationId(conversationId);
     });
 
     await new Promise<void>((resolve) => {
@@ -798,7 +843,7 @@ export function MultiAgentWorkspace() {
     });
 
     const controller = new AbortController();
-    replyAbortRef.current = controller;
+    replySessionRef.current = { conversationId, controller };
     let completed = 0;
 
     try {
@@ -809,7 +854,7 @@ export function MultiAgentWorkspace() {
         const profile = targets[index]!;
         lastTargetProjectIdRef.current = profile.projectId;
 
-        updateMessage(progressId, {
+        updateMessage(conversationId, progressId, {
           content: t("multiAgent.sequentialProgress", {
             current: index + 1,
             total: targets.length,
@@ -827,7 +872,7 @@ export function MultiAgentWorkspace() {
         const draftId = nextMessageId();
         const draftAskedAt = new Date().toISOString();
         flushSync(() => {
-          appendMessage({
+          appendMessage(conversationId, {
             id: draftId,
             role: "assistant",
             content: "",
@@ -854,7 +899,7 @@ export function MultiAgentWorkspace() {
             return;
           }
           reasoningDurationSettled = true;
-          updateMessage(draftId, {
+          updateMessage(conversationId, draftId, {
             reasoningDurationMs: Date.now() - reasoningStartedAt,
           });
         };
@@ -867,16 +912,17 @@ export function MultiAgentWorkspace() {
             gitAuthors: currentAuthors,
             locale,
             signal: controller.signal,
-            enableThinking: thinkingEnabled,
+            model: modelId,
+            enableThinking: thinkingSupported && thinkingEnabled,
             onReasoningDelta: (delta) => {
               if (reasoningStartedAt == null) {
                 reasoningStartedAt = Date.now();
               }
               flushSync(() => {
-                const current = getActiveMultiAgentMessages().find(
+                const current = getMultiAgentMessages(conversationId).find(
                   (message) => message.id === draftId,
                 );
-                updateMessage(draftId, {
+                updateMessage(conversationId, draftId, {
                   reasoningContent: `${current?.reasoningContent ?? ""}${delta}`,
                   isStreaming: true,
                 });
@@ -885,10 +931,10 @@ export function MultiAgentWorkspace() {
             onDelta: (delta) => {
               settleReasoningDuration();
               flushSync(() => {
-                const current = getActiveMultiAgentMessages().find(
+                const current = getMultiAgentMessages(conversationId).find(
                   (message) => message.id === draftId,
                 );
-                updateMessage(draftId, {
+                updateMessage(conversationId, draftId, {
                   content: `${current?.content ?? ""}${delta}`,
                   isStreaming: true,
                 });
@@ -896,16 +942,16 @@ export function MultiAgentWorkspace() {
             },
           });
           settleReasoningDuration();
-          updateMessage(draftId, {
+          updateMessage(conversationId, draftId, {
             isStreaming: false,
             createdAt: new Date().toISOString(),
           });
           completed += 1;
-          void persistActiveConversation();
+          void persistConversationById(conversationId);
         } catch (error) {
           if (controller.signal.aborted) {
             // 用户停止：保留已生成片段，不再继续后续仓库
-            const current = getActiveMultiAgentMessages().find(
+            const current = getMultiAgentMessages(conversationId).find(
               (message) => message.id === draftId,
             );
             const hasPartial = Boolean(
@@ -913,18 +959,18 @@ export function MultiAgentWorkspace() {
             );
             if (hasPartial) {
               settleReasoningDuration();
-              updateMessage(draftId, {
+              updateMessage(conversationId, draftId, {
                 isStreaming: false,
                 createdAt: new Date().toISOString(),
               });
             } else {
-              removeMessage(draftId);
+              removeMessage(conversationId, draftId);
             }
             throw error;
           }
-          removeMessage(draftId);
+          removeMessage(conversationId, draftId);
           // 单仓失败不中断后续，提示后继续
-          appendMessage({
+          appendMessage(conversationId, {
             id: nextMessageId(),
             role: "assistant",
             content: t("multiAgent.sequentialItemFailed", {
@@ -942,13 +988,13 @@ export function MultiAgentWorkspace() {
       }
 
       if (controller.signal.aborted) {
-        updateMessage(progressId, {
+        updateMessage(conversationId, progressId, {
           content: t("multiAgent.sequentialAborted", { count: completed }),
           isStreaming: false,
           createdAt: new Date().toISOString(),
         });
       } else {
-        updateMessage(progressId, {
+        updateMessage(conversationId, progressId, {
           content: t("multiAgent.sequentialDone", { count: completed }),
           isStreaming: false,
           createdAt: new Date().toISOString(),
@@ -960,7 +1006,7 @@ export function MultiAgentWorkspace() {
           t,
         );
         if (followUp) {
-          appendMessage({
+          appendMessage(conversationId, {
             id: nextMessageId(),
             role: "assistant",
             content: followUp,
@@ -969,7 +1015,7 @@ export function MultiAgentWorkspace() {
         }
       }
     } catch (error) {
-      updateMessage(progressId, {
+      updateMessage(conversationId, progressId, {
         content: t("multiAgent.sequentialAborted", { count: completed }),
         isStreaming: false,
         createdAt: new Date().toISOString(),
@@ -978,17 +1024,19 @@ export function MultiAgentWorkspace() {
         toastAiFailure(error, t("multiAgent.replyFailed"));
       }
     } finally {
-      if (replyAbortRef.current === controller) {
-        replyAbortRef.current = null;
+      if (replySessionRef.current?.controller === controller) {
+        replySessionRef.current = null;
+        setReplyingConversationId(null);
       }
-      setIsReplying(false);
-      void persistActiveConversation();
-      window.requestAnimationFrame(() => inputRef.current?.focus());
+      void persistConversationById(conversationId);
+      if (useMultiAgentStore.getState().activeConversationId === conversationId) {
+        window.requestAnimationFrame(() => inputRef.current?.focus());
+      }
     }
   }
 
   function handleStopReply(): void {
-    replyAbortRef.current?.abort();
+    abortReplySession();
   }
 
 
@@ -1016,17 +1064,12 @@ export function MultiAgentWorkspace() {
             if (conversationId === activeConversationId) {
               return;
             }
-            replyAbortRef.current?.abort();
-            replyAbortRef.current = null;
-            setIsReplying(false);
+            // 不中止原会话生成：后台继续写回该 conversationId；仅切 UI
             clearDraft();
             setActiveConversation(conversationId);
           }}
           onCreate={() => {
             setMainView("chat");
-            replyAbortRef.current?.abort();
-            replyAbortRef.current = null;
-            setIsReplying(false);
             clearDraft();
             // 已有空会话时只切过去，避免叠多个空会话
             const empty = conversations.find(
@@ -1044,10 +1087,9 @@ export function MultiAgentWorkspace() {
             if (before.length <= 1) {
               return;
             }
-            if (conversationId === activeConversationId) {
-              replyAbortRef.current?.abort();
-              replyAbortRef.current = null;
-              setIsReplying(false);
+            // 删掉正在生成的会话时才中止
+            if (replySessionRef.current?.conversationId === conversationId) {
+              abortReplySession();
             }
             deleteConversation(conversationId);
             void deleteChatConversation(conversationId).catch((error: unknown) => {
@@ -1117,9 +1159,14 @@ export function MultiAgentWorkspace() {
               isReplying={isReplying}
               canSubmit={!profilesLoading && draftPlainText.trim().length > 0}
               placeholder={t("multiAgent.inputPlaceholder")}
-              showThinkingToggle
+              showThinkingToggle={thinkingSupported}
               thinkingEnabled={thinkingEnabled}
               onThinkingEnabledChange={setThinkingEnabled}
+              showModelPicker
+              modelOptions={modelOptions}
+              modelId={modelId}
+              modelLoading={modelsLoading}
+              onModelIdChange={setModelId}
               onDraftChange={({ markup, plainText, mentions }) => {
                 setDraftMarkup(markup);
                 setDraftPlainText(plainText);

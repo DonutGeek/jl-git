@@ -37,12 +37,20 @@ pnpm tauri icon ./path/to/app-icon-1024.png
 
 ---
 
-## 占比（桌面 App 标准）
+## 占比（macOS App 图标网格）
 
-- 背景：**100%** 铺满画布（零白边）
-- 内容安全区：画布中心 **80% × 80%**（1024 上约每边留 102px）
-- 白鲸约占安全区的 **70–80%**（全画布约 **56–64%** 宽/高）
-- 圆角遮罩由系统裁切，**不要**画进母图
+macOS **不会**像 iOS 那样自动裁圆角；母图必须按系统模板自带透明边与 squircle，否则 Dock 会显示直角方块，或与微信等系统图标大小不一致。
+
+| 项 | 规格 |
+|----|------|
+| 画布 | **1024×1024** PNG（RGBA） |
+| 面板（plate） | 居中 **824×824**（四边各 **100px** 透明 gutter） |
+| 圆角 | 连续曲率 squircle（超椭圆 **n≈5**）；模板参考半径 **185.4** / 824 |
+| 投影 | 可选；对照主流 App（如微信）通常**不**预烘焙大投影 |
+| 出图稿 | AI/设计可先出满铺 1024 直角稿，入库前缩放到 824 面板并套 squircle 遮罩 |
+
+- 白鲸等主体仍放在面板内安全区（约面板中心 80%）
+- 生成全套：`pnpm tauri icon ./docs/assets/app-icon-1024.png`，再导出 256 覆盖 `src/assets/app-icon.png`
 
 ---
 
@@ -56,20 +64,18 @@ Design a brand-new app icon for “Jingling Git” (JLGit), a modern Git desktop
 CANVAS
 - Exactly 1024×1024 px, square, PNG, RGBA
 - Filename: app-icon-1024.png
-- Background must be full-bleed to all four edges (100% of canvas)
-- No white margin, no gray border, no floating card on blank canvas
-- Do NOT bake in OS rounded-corner mask, dock mockup, or device frame
-- No watermark; output only this one full-bleed square icon
+- For AI draft only: artwork may be full-bleed square
+- Final repo asset MUST follow macOS icon grid: centered ~824×824 squircle plate, ~100px transparent margin each side (corners alpha=0)
+- Do NOT bake dock mockup or device frame
+- No watermark; output only this one icon asset
 
-PROPORTION (standard app-icon scale — enforce strictly)
-- Centered safe area: 80% × 80% of canvas
-  (on 1024px: ~102px margin each side; art inside ~820×820)
-- Background still fills 1024×1024; only the graphic respects the safe area
-- The FULL mark (whale + arc + nodes) must fill the safe area boldly
-- Primary whale fills ~70–80% of the safe area (~56–64% of full canvas)
-- No tiny floating logo with large empty padding
-- No edge-touching art
-- Compose as one visually centered unit; optical center balanced, not drifting to a corner
+PROPORTION (macOS app-icon grid — enforce strictly)
+- Canvas 1024; plate ~824 centered (≈100px gutter)
+- Squircle / continuous-corner silhouette (not a sharp square; not a tiny circular-arc radius)
+- Mark (whale + arc + nodes) lives inside the plate safe area (~80% of plate)
+- Primary whale fills ~70–80% of the plate safe area
+- No tiny floating logo with large empty padding inside the plate
+- No edge-touching art relative to the plate
 
 WHALE FORM (enhance recognizability)
 - Abstract geometric whale silhouette, logo-like, NOT realistic
@@ -119,7 +125,7 @@ If a reference image is attached:
 
 ## 验收清单
 
-- [ ] 母图 1024×1024，背景铺满、无白边、无预烘焙圆角
+- [ ] 母图 1024×1024；居中约 824 面板 + 100px 透明 gutter；squircle 轮廓（与系统 App 一致），非直角满铺
 - [ ] 小尺寸（约 32×32）仍能认出是鲸，不是弯钩
 - [ ] 「灵」弧线 / 节点在深蓝底上可辨，无霓虹光晕
 - [ ] 已执行 `pnpm tauri icon …`，`src-tauri/icons/` 与 `bundle.icon` 一致

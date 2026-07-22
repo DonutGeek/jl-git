@@ -1,7 +1,10 @@
-import { getAgentKey } from "@/services/ai/ai.settings";
+import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
 import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
+import { DEFAULT_AGENT_MODEL } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
+import { isResumeSkillTurn } from "@/services/ai/ai.skillMode";
 import { buildAgentSystemPrompt } from "@/prompts/agent";
+import { buildResumeSystemPrompt } from "@/prompts/resume";
 import {
   getCommit,
   getCommitFileDiff,
@@ -23,8 +26,6 @@ import type {
 } from "@/types/git";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
-/** 与简历插件一致：V4 Pro + thinking，正文只消费 content */
-const DEEPSEEK_AGENT_MODEL = "deepseek-v4-pro";
 const AGENT_REQUEST_TIMEOUT_MS = 150_000;
 const AGENT_HISTORY_LIMIT = 20;
 const AGENT_LOG_LIMIT = 16;
@@ -43,6 +44,8 @@ interface StreamAgentReplyOptions {
   repoPath: string;
   locale: string;
   signal?: AbortSignal;
+  /** DeepSeek model id，如 deepseek-v4-pro / deepseek-v4-flash */
+  model?: string;
   /** 关闭时同模型禁用 thinking，无 reasoning 流 */
   enableThinking?: boolean;
   onDelta: (content: string) => void;
@@ -59,6 +62,7 @@ export async function streamAgentReply({
   repoPath,
   locale,
   signal,
+  model = DEFAULT_AGENT_MODEL,
   enableThinking = true,
   onDelta,
   onReasoningDelta,
@@ -68,11 +72,20 @@ export async function streamAgentReply({
     throw appError("VALIDATION", i18n.t("ai.errors.missingApiKey"));
   }
 
+  const resumeMode = isResumeSkillTurn(messages);
   const repositoryContext = await buildRepositoryContext(repoPath, messages);
+  const systemPrompt = resumeMode
+    ? buildResumeSystemPrompt(
+        locale,
+        repositoryContext,
+        (await getAiInstructions()).resume,
+      )
+    : buildAgentSystemPrompt(locale, repositoryContext);
   const controller = new AbortController();
   const abortFromCaller = (): void => controller.abort();
   signal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeoutId = window.setTimeout(() => controller.abort(), AGENT_REQUEST_TIMEOUT_MS);
+  const modelId = model.trim() || DEFAULT_AGENT_MODEL;
 
   try {
     const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
@@ -82,9 +95,10 @@ export async function streamAgentReply({
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: DEEPSEEK_AGENT_MODEL,
+        model: modelId,
         stream: true,
-        temperature: 0.3,
+        // 简历成稿略高；普通 Git 问答更克制
+        temperature: resumeMode ? 0.55 : 0.3,
         ...(enableThinking
           ? {
               thinking: { type: "enabled" },
@@ -96,7 +110,7 @@ export async function streamAgentReply({
         messages: [
           {
             role: "system",
-            content: buildAgentSystemPrompt(locale, repositoryContext),
+            content: systemPrompt,
           },
           // 只回传正文；reasoning 仅 UI 展示，不进入下一轮上下文
           ...messages.slice(-AGENT_HISTORY_LIMIT).map((message) => ({

@@ -1,6 +1,8 @@
 import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
 import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
+import { DEFAULT_AGENT_MODEL } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
+import { isResumeSkillTurn } from "@/services/ai/ai.skillMode";
 import { buildMultiAgentSystemPrompt } from "@/prompts/agent/multi";
 import { buildResumeSystemPrompt } from "@/prompts/resume";
 import i18n from "@/i18n";
@@ -9,8 +11,6 @@ import type { AgentChatMessage } from "@/types/ai";
 import type { AgentProjectProfile } from "@/types/agent";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
-/** 多仓通用与简历技能共用 V4 Pro；thinking 提升质量，正文只消费 content */
-const DEEPSEEK_MULTI_MODEL = "deepseek-v4-pro";
 const REQUEST_TIMEOUT_MS = 150_000;
 const HISTORY_LIMIT = 24;
 const CONTEXT_CHAR_BUDGET = 48_000;
@@ -28,6 +28,8 @@ interface StreamMultiAgentReplyOptions {
   gitAuthors: ReadonlyArray<{ name: string; email: string }>;
   locale: string;
   signal?: AbortSignal;
+  /** DeepSeek model id，如 deepseek-v4-pro / deepseek-v4-flash */
+  model?: string;
   /** 关闭时同模型禁用 thinking，无 reasoning 流（与单仓一致） */
   enableThinking?: boolean;
   onDelta: (content: string) => void;
@@ -42,6 +44,7 @@ export async function streamMultiAgentReply({
   gitAuthors,
   locale,
   signal,
+  model = DEFAULT_AGENT_MODEL,
   enableThinking = true,
   onDelta,
   onReasoningDelta,
@@ -67,6 +70,7 @@ export async function streamMultiAgentReply({
   const abortFromCaller = (): void => controller.abort();
   signal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const modelId = model.trim() || DEFAULT_AGENT_MODEL;
 
   try {
     const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
@@ -76,7 +80,7 @@ export async function streamMultiAgentReply({
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: DEEPSEEK_MULTI_MODEL,
+        model: modelId,
         stream: true,
         // 简历成稿略高；普通多仓问答更克制
         temperature: resumeMode ? 0.55 : 0.3,
@@ -126,28 +130,6 @@ export async function streamMultiAgentReply({
   }
 }
 
-/**
- * 是否进入简历技能：本轮用户消息显式 @简历，或明确要求生成简历/项目经历。
- * 普通多仓问答不得因此走简历 system prompt。
- */
-function isResumeSkillTurn(messages: readonly AgentChatMessage[]): boolean {
-  const lastUser = [...messages].reverse().find((message) => message.role === "user");
-  if (!lastUser) {
-    return false;
-  }
-  if (
-    lastUser.mentions?.some(
-      (mention) => mention.type === "plugin" && mention.id === "resume",
-    )
-  ) {
-    return true;
-  }
-  // 无 @ 时：仅明确成稿意图才切换，避免「简历」二字出现在普通叙述里误伤
-  return /(?:生成|撰写|写一?[下段份]|帮我写|出一?[下段份]).{0,12}(?:简历|项目经历)|(?:简历|项目经历).{0,12}(?:生成|成稿|模板)|write\s+(?:a\s+)?resume|\bgenerate\s+resume\b/i.test(
-    lastUser.content,
-  );
-}
-
 function formatProfilesContext(
   profiles: readonly AgentProjectProfile[],
   gitAuthors: ReadonlyArray<{ name: string; email: string }>,
@@ -166,6 +148,7 @@ function formatProfilesContext(
           .join("\n")
       : "- （未配置，请在设置 → Git 中添加）";
 
+  // 普通多仓问答不注入作者归属；仅简历技能需要「谁的提交」
   const header = resumeMode
     ? [
         `Registered projects: ${profiles.length}.`,
@@ -183,18 +166,13 @@ function formatProfilesContext(
         `Registered projects: ${profiles.length}.`,
         "Evidence policy: use jlgitMeta, README excerpts, subjectIndex, tech stack hints, and optional commit details to answer Git/project questions. All Git data below is from read-only queries.",
         "This turn is general multi-repo Q&A — not resume drafting. Do not output resume templates or solicit 生成简历.",
-        "Git 作者账号（来自设置 → Git；用于理解提交归属，与启用/停用无关）：",
-        authorLines,
-        "项目列表：下列为全部已登记仓库；列举时必须全部告知，不要因 matchedCommits=0 省略。",
-        authors.length > 0
-          ? "提交摘要：各仓 recentCommits 已按上述 Git 账号收窄；matchedCommits=0 表示暂无本人抽样提交。"
-          : "Git 作者未配置：可提醒用户去设置 → Git 添加账号；下列仍列出全部已登记仓库。",
-        "Time ranges are from matched sampled commits when present.",
+        "Do not discuss Git author accounts, matchedCommits, personal commit ownership, or who authored which commits.",
+        "项目列表：下列为全部已登记仓库；列举时必须全部告知。",
       ].join("\n");
 
   // 先拼「主题索引优先」的块，超预算时按仓公平缩短，避免整段截断导致后半仓库证据丢失
   const blocks = profiles
-    .map((profile) => formatProfileBlock(profile, "full"))
+    .map((profile) => formatProfileBlock(profile, "full", resumeMode))
     .filter((block): block is string => block !== null);
 
   let text = `${header}\n\n${blocks.join("\n\n")}`;
@@ -203,7 +181,7 @@ function formatProfilesContext(
   }
 
   const compactBlocks = profiles
-    .map((profile) => formatProfileBlock(profile, "compact"))
+    .map((profile) => formatProfileBlock(profile, "compact", resumeMode))
     .filter((block): block is string => block !== null);
   text = `${header}\n\n${compactBlocks.join("\n\n")}`;
   if (text.length <= CONTEXT_CHAR_BUDGET) {
@@ -216,10 +194,14 @@ function formatProfilesContext(
 function formatProfileBlock(
   profile: AgentProjectProfile,
   mode: "full" | "compact",
+  resumeMode: boolean,
 ): string | null {
   const title = profile.jlgitMeta.alias || profile.projectName;
   const jlgitMetaBlock = formatJlgitMetaBlock(profile);
   const folderName = repoFolderNameFromPath(profile.jlgitMeta.path);
+  const techStackLabel = resumeMode
+    ? "techStack (package.json ∩ author usage)"
+    : "techStackHints";
 
   if (profile.error) {
     return `### ${title}\n${jlgitMetaBlock}\nERROR: ${profile.error}`;
@@ -236,14 +218,18 @@ function formatProfileBlock(
       jlgitMetaBlock,
       `repoFolderName: ${folderName}`,
       `projectId: ${profile.projectId}`,
-      "matchedCommits=0",
-      "authorInvolvementRange: —",
-      `techStack (package.json ∩ author usage): ${profile.techStackHints.join(", ") || "—"}`,
+      resumeMode ? "matchedCommits=0" : null,
+      resumeMode ? "authorInvolvementRange: —" : null,
+      `${techStackLabel}: ${profile.techStackHints.join(", ") || "—"}`,
       readmeExcerpt
         ? `readmeExcerpt:\n${readmeExcerpt}`
         : "readmeExcerpt: (none)",
-      "(no author-matched commit samples; still list this project when enumerating; do not invent personal contributions)",
-    ].join("\n");
+      resumeMode
+        ? "(no author-matched commit samples; still list this project when enumerating; do not invent personal contributions)"
+        : "(no commit samples in snapshot; still list this project when enumerating)",
+    ]
+      .filter((line): line is string => line !== null)
+      .join("\n");
   }
 
   const subjectLimit =
@@ -264,7 +250,9 @@ function formatProfileBlock(
 
   const detailCommits = profile.recentCommits
     .slice(0, detailLimit)
-    .map((commit) => formatCommitEvidence(commit, mode === "compact"))
+    .map((commit) =>
+      formatCommitEvidence(commit, mode === "compact", resumeMode),
+    )
     .join("\n\n");
 
   const readmeRaw = profile.readmeExcerpt?.trim() ?? "";
@@ -291,12 +279,12 @@ function formatProfileBlock(
     `### ${title}`,
     jlgitMetaBlock,
     `repoFolderName: ${folderName}`,
-    // 作者参与周期（接手首提交 → 末次提交）；成稿必须写入 **项目周期**
-    `authorInvolvementRange: ${involvementRange}`,
-    `authorFirstCommitAt: ${profile.firstCommitAt ?? "—"}`,
-    `authorLastCommitAt: ${profile.lastCommitAt ?? "—"}`,
-    `matchedCommits=${profile.sampledCommitCount}`,
-    `techStack (package.json ∩ author usage): ${profile.techStackHints.join(", ") || "—"}`,
+    // 作者参与周期仅简历技能需要
+    resumeMode ? `authorInvolvementRange: ${involvementRange}` : null,
+    resumeMode ? `authorFirstCommitAt: ${profile.firstCommitAt ?? "—"}` : null,
+    resumeMode ? `authorLastCommitAt: ${profile.lastCommitAt ?? "—"}` : null,
+    resumeMode ? `matchedCommits=${profile.sampledCommitCount}` : null,
+    `${techStackLabel}: ${profile.techStackHints.join(", ") || "—"}`,
     profile.packageTechStack && profile.packageTechStack.length > 0
       ? `packageTechCandidates: ${profile.packageTechStack.join(", ")}`
       : null,
@@ -370,8 +358,12 @@ function formatCommitEvidence(
     }>;
   },
   pathsOnly = false,
+  /** 普通对话不带作者邮箱，避免模型讨论「谁的提交」 */
+  includeAuthorEmail = false,
 ): string {
-  const head = `- ${commit.authoredAt.slice(0, 10)} ${commit.shortId} <${commit.authorEmail}> ${commit.subject}`;
+  const head = includeAuthorEmail
+    ? `- ${commit.authoredAt.slice(0, 10)} ${commit.shortId} <${commit.authorEmail}> ${commit.subject}`
+    : `- ${commit.authoredAt.slice(0, 10)} ${commit.shortId} ${commit.subject}`;
   const files = commit.changedFiles ?? [];
   if (files.length === 0) {
     return `${head}\n  (paths not loaded; use subject for approach-level bullets)`;

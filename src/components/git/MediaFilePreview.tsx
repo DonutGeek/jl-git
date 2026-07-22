@@ -30,9 +30,9 @@ function mediaToDataUrl(media: GitFileMedia | null): string | null {
   return `data:${media.mime};base64,${media.base64}`;
 }
 
-/** 棋盘格背景，便于看透明图 */
+/** 棋盘格：底色 + muted 格，透明格露出底色，整窗铺满 */
 const checkerboardClass =
-  "bg-[length:16px_16px] bg-[linear-gradient(45deg,var(--muted)_25%,transparent_25%),linear-gradient(-45deg,var(--muted)_25%,transparent_25%),linear-gradient(45deg,transparent_75%,var(--muted)_75%),linear-gradient(-45deg,transparent_75%,var(--muted)_75%)] bg-[position:0_0,0_8px,8px_-8px,-8px_0]";
+  "bg-background bg-[length:16px_16px] bg-[linear-gradient(45deg,var(--muted)_25%,transparent_25%),linear-gradient(-45deg,var(--muted)_25%,transparent_25%),linear-gradient(45deg,transparent_75%,var(--muted)_75%),linear-gradient(-45deg,transparent_75%,var(--muted)_75%)] bg-[position:0_0,0_8px,8px_-8px,-8px_0]";
 
 interface ImagePaneProps {
   src: string | null;
@@ -51,12 +51,16 @@ function ImagePane({
   borderClassName,
 }: ImagePaneProps) {
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      {/* 背景打在 ScrollArea 根上，铺满视口；避免内容不够高时底部露出默认白底 */}
+    // 背景打在外层铺满整栏；ScrollArea 只负责滚动，避免内容不够高时底部露黑
+    <div
+      className={cn(
+        "flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+        showCheckerboard ? checkerboardClass : "bg-background",
+      )}
+    >
       <ScrollArea
         className={cn(
-          "min-h-0 w-full flex-1",
-          showCheckerboard ? checkerboardClass : "bg-background",
+          "min-h-0 w-full flex-1 bg-transparent",
           "[&_[data-slot=scroll-area-viewport]]:bg-transparent",
           "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-h-full [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
           "[&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden",
@@ -200,7 +204,8 @@ export function MediaFilePreview({
 
       {showSplit ? (
         <div className="flex min-h-0 flex-1">
-          <div className="border-border min-h-0 min-w-0 flex-1 border-r">
+          {/* 分栏外包必须是 flex 列，否则子级 flex-1/h-full 撑不满，棋盘格只跟图片高度 */}
+          <div className="border-border flex min-h-0 min-w-0 flex-1 flex-col border-r">
             <ImagePane
               src={oldUrl}
               alt={resolvedOldLabel}
@@ -209,7 +214,7 @@ export function MediaFilePreview({
               borderClassName={statusBorderClass}
             />
           </div>
-          <div className="min-h-0 min-w-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <ImagePane
               src={newUrl}
               alt={resolvedNewLabel}

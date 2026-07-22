@@ -1,6 +1,9 @@
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
+import i18n from "@/i18n";
+import { isAppError, type AppError } from "@/types/error";
+
 /** 检查到的应用更新摘要（不含下载句柄） */
 export interface AppUpdateInfo {
   version: string;
@@ -21,14 +24,32 @@ function toUpdateInfo(update: Update): AppUpdateInfo {
   };
 }
 
+function toAppError(error: unknown): AppError {
+  if (isAppError(error) && error.message.trim()) {
+    return error;
+  }
+  if (error instanceof Error && error.message.trim()) {
+    return { code: "INTERNAL", message: error.message };
+  }
+  return {
+    code: "INTERNAL",
+    message: i18n.t("statusBar.updateCheckFailed"),
+  };
+}
+
 /** 向 GitHub Releases 查询是否有比当前更新的版本 */
 export async function checkAppUpdate(): Promise<AppUpdateInfo | null> {
-  const update = await check();
-  pendingUpdate = update;
-  if (!update) {
-    return null;
+  try {
+    const update = await check();
+    pendingUpdate = update;
+    if (!update) {
+      return null;
+    }
+    return toUpdateInfo(update);
+  } catch (error) {
+    pendingUpdate = null;
+    throw toAppError(error);
   }
-  return toUpdateInfo(update);
 }
 
 /** 是否有待安装的更新（check 之后、install 之前） */

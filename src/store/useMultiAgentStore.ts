@@ -12,22 +12,13 @@ function createEmptyConversation(): AgentConversation {
   };
 }
 
-function mapActiveConversation(
-  state: {
-    conversations: readonly AgentConversation[];
-    activeConversationId: string | null;
-  },
+function mapConversationById(
+  conversations: readonly AgentConversation[],
+  conversationId: string,
   map: (conversation: AgentConversation) => AgentConversation,
-): {
-  conversations: AgentConversation[];
-  activeConversationId: string | null;
-} | null {
-  const { conversations, activeConversationId } = state;
-  if (!activeConversationId) {
-    return null;
-  }
+): AgentConversation[] | null {
   const index = conversations.findIndex(
-    (conversation) => conversation.id === activeConversationId,
+    (conversation) => conversation.id === conversationId,
   );
   if (index < 0) {
     return null;
@@ -38,7 +29,7 @@ function mapActiveConversation(
   }
   const next = [...conversations];
   next[index] = map(current);
-  return { conversations: next, activeConversationId };
+  return next;
 }
 
 interface MultiAgentState {
@@ -67,16 +58,21 @@ interface MultiAgentState {
   renameConversation: (conversationId: string, title: string) => void;
   setConversationPinned: (conversationId: string, pinned: boolean) => void;
   reorderConversations: (activeId: string, overId: string) => void;
-  appendMessage: (message: AgentChatMessage) => void;
-  updateMessage: (id: string, patch: Partial<AgentChatMessage>) => void;
-  removeMessage: (id: string) => void;
-  truncateMessagesAfter: (id: string) => void;
+  appendMessage: (conversationId: string, message: AgentChatMessage) => void;
+  updateMessage: (
+    conversationId: string,
+    messageId: string,
+    patch: Partial<AgentChatMessage>,
+  ) => void;
+  removeMessage: (conversationId: string, messageId: string) => void;
+  truncateMessagesAfter: (conversationId: string, messageId: string) => void;
   editUserMessageAndTruncate: (
-    id: string,
+    conversationId: string,
+    messageId: string,
     content: string,
   ) => readonly AgentChatMessage[] | null;
-  /** @deprecated 使用 delete / create；清空当前会话消息 */
-  resetConversation: () => void;
+  /** @deprecated 使用 delete / create；清空指定会话消息 */
+  resetConversation: (conversationId: string) => void;
 }
 
 export const useMultiAgentStore = create<MultiAgentState>((set) => ({
@@ -260,106 +256,146 @@ export const useMultiAgentStore = create<MultiAgentState>((set) => ({
     });
   },
 
-  appendMessage(message) {
+  appendMessage(conversationId, message) {
     set((state) => {
-      const mapped = mapActiveConversation(state, (conversation) => {
-        const nextTitle =
-          conversation.title || message.role !== "user"
-            ? conversation.title
-            : message.content.split(/\r?\n/, 1)[0]?.trim().slice(0, 24) ?? "";
-        return {
+      const conversations = mapConversationById(
+        state.conversations,
+        conversationId,
+        (conversation) => {
+          const nextTitle =
+            conversation.title || message.role !== "user"
+              ? conversation.title
+              : message.content.split(/\r?\n/, 1)[0]?.trim().slice(0, 24) ?? "";
+          return {
+            ...conversation,
+            title: nextTitle,
+            messages: [...conversation.messages, message],
+          };
+        },
+      );
+      return conversations ? { conversations } : state;
+    });
+  },
+
+  updateMessage(conversationId, messageId, patch) {
+    set((state) => {
+      const conversations = mapConversationById(
+        state.conversations,
+        conversationId,
+        (conversation) => ({
           ...conversation,
-          title: nextTitle,
-          messages: [...conversation.messages, message],
-        };
-      });
-      return mapped ?? state;
+          messages: conversation.messages.map((message) =>
+            message.id === messageId ? { ...message, ...patch } : message,
+          ),
+        }),
+      );
+      return conversations ? { conversations } : state;
     });
   },
 
-  updateMessage(id, patch) {
+  removeMessage(conversationId, messageId) {
     set((state) => {
-      const mapped = mapActiveConversation(state, (conversation) => ({
-        ...conversation,
-        messages: conversation.messages.map((message) =>
-          message.id === id ? { ...message, ...patch } : message,
-        ),
-      }));
-      return mapped ?? state;
-    });
-  },
-
-  removeMessage(id) {
-    set((state) => {
-      const mapped = mapActiveConversation(state, (conversation) => ({
-        ...conversation,
-        messages: conversation.messages.filter((message) => message.id !== id),
-      }));
-      return mapped ?? state;
-    });
-  },
-
-  truncateMessagesAfter(id) {
-    set((state) => {
-      const mapped = mapActiveConversation(state, (conversation) => {
-        const index = conversation.messages.findIndex((message) => message.id === id);
-        if (index < 0) {
-          return conversation;
-        }
-        return {
+      const conversations = mapConversationById(
+        state.conversations,
+        conversationId,
+        (conversation) => ({
           ...conversation,
-          messages: conversation.messages.slice(0, index + 1),
-        };
-      });
-      return mapped ?? state;
+          messages: conversation.messages.filter(
+            (message) => message.id !== messageId,
+          ),
+        }),
+      );
+      return conversations ? { conversations } : state;
     });
   },
 
-  editUserMessageAndTruncate(id, content) {
+  truncateMessagesAfter(conversationId, messageId) {
+    set((state) => {
+      const conversations = mapConversationById(
+        state.conversations,
+        conversationId,
+        (conversation) => {
+          const index = conversation.messages.findIndex(
+            (message) => message.id === messageId,
+          );
+          if (index < 0) {
+            return conversation;
+          }
+          return {
+            ...conversation,
+            messages: conversation.messages.slice(0, index + 1),
+          };
+        },
+      );
+      return conversations ? { conversations } : state;
+    });
+  },
+
+  editUserMessageAndTruncate(conversationId, messageId, content) {
     let nextMessages: AgentChatMessage[] | null = null;
     const createdAt = new Date().toISOString();
     set((state) => {
-      const mapped = mapActiveConversation(state, (conversation) => {
-        const index = conversation.messages.findIndex((message) => message.id === id);
-        if (index < 0 || conversation.messages[index]?.role !== "user") {
-          return conversation;
-        }
-        nextMessages = conversation.messages
-          .slice(0, index + 1)
-          .map((message, messageIndex) =>
-            messageIndex === index
-              ? { ...message, content, createdAt }
-              : message,
+      const conversations = mapConversationById(
+        state.conversations,
+        conversationId,
+        (conversation) => {
+          const index = conversation.messages.findIndex(
+            (message) => message.id === messageId,
           );
-        return {
-          ...conversation,
-          messages: nextMessages,
-        };
-      });
-      return mapped ?? state;
+          if (index < 0 || conversation.messages[index]?.role !== "user") {
+            return conversation;
+          }
+          nextMessages = conversation.messages
+            .slice(0, index + 1)
+            .map((message, messageIndex) =>
+              messageIndex === index
+                ? { ...message, content, createdAt }
+                : message,
+            );
+          return {
+            ...conversation,
+            messages: nextMessages,
+          };
+        },
+      );
+      return conversations ? { conversations } : state;
     });
     return nextMessages;
   },
 
-  resetConversation() {
+  resetConversation(conversationId) {
     set((state) => {
-      const mapped = mapActiveConversation(state, (conversation) => ({
-        ...conversation,
-        messages: [],
-        title: "",
-      }));
-      return mapped ?? state;
+      const conversations = mapConversationById(
+        state.conversations,
+        conversationId,
+        (conversation) => ({
+          ...conversation,
+          messages: [],
+          title: "",
+        }),
+      );
+      return conversations ? { conversations } : state;
     });
   },
 }));
 
-/** 读取当前会话消息（供非 React 路径使用） */
+/** 读取指定会话消息（供流式回调等非 React 路径；勿依赖「当前激活」） */
+export function getMultiAgentMessages(
+  conversationId: string,
+): readonly AgentChatMessage[] {
+  const conversation = useMultiAgentStore
+    .getState()
+    .conversations.find((item) => item.id === conversationId);
+  return conversation?.messages ?? [];
+}
+
+/** @deprecated 使用 getMultiAgentMessages(activeId) */
 export function getActiveMultiAgentMessages(): readonly AgentChatMessage[] {
   const state = useMultiAgentStore.getState();
-  const conversation = state.conversations.find(
-    (item) => item.id === state.activeConversationId,
-  );
-  return conversation?.messages ?? [];
+  if (!state.activeConversationId) {
+    return [];
+  }
+  return getMultiAgentMessages(state.activeConversationId);
 }
 
 export function getActiveMultiAgentConversation(): AgentConversation | null {

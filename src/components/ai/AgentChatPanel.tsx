@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useAgentModel } from "@/hooks/useAgentModel";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import {
   appendAgentMentionMarkup,
@@ -29,7 +30,9 @@ import {
 } from "@/plugins/agent/registry";
 import {
   deleteChatConversation,
+  formatDeepSeekModelLabel,
   listChatConversations,
+  modelSupportsThinking,
   reorderChatConversations,
   streamJinglingReply,
   toastAiFailure,
@@ -67,7 +70,11 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   const hasApiKey = useHasAgentApiKey();
   const composerRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
-  const replyAbortControllerRef = useRef<AbortController | null>(null);
+  /** 流式请求绑定会话，切换 Tab 后仍写回原 conversationId */
+  const replySessionRef = useRef<{
+    conversationId: string;
+    controller: AbortController;
+  } | null>(null);
   const messageSequence = useRef(0);
   const conversationSequence = useRef(0);
   const [draftMarkup, setDraftMarkup] = useState("");
@@ -76,10 +83,27 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     [],
   );
   const [pluginsOpen, setPluginsOpen] = useState(false);
-  const [isReplying, setIsReplying] = useState(false);
+  const [replyingConversationId, setReplyingConversationId] = useState<
+    string | null
+  >(null);
   const [thinkingEnabled, setThinkingEnabled] = useState(true);
   const [composerPadPx, setComposerPadPx] = useState(COMPOSER_PAD_FALLBACK_PX);
   const [disabledPluginIds, setDisabledPluginIds] = useState<string[]>([]);
+  const {
+    models,
+    modelId,
+    setModelId,
+    loading: modelsLoading,
+  } = useAgentModel();
+  const modelOptions = useMemo(
+    () =>
+      models.map((model) => ({
+        value: model.id,
+        label: formatDeepSeekModelLabel(model.id),
+      })),
+    [models],
+  );
+  const thinkingSupported = modelSupportsThinking(modelId);
 
   const enabledPlugins = useMemo(
     () => filterEnabledAgentPlugins(disabledPluginIds),
@@ -137,6 +161,14 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     conversations[0] ??
     null;
   const messages = activeConversation?.messages ?? EMPTY_MESSAGES;
+  const isReplying =
+    replyingConversationId != null &&
+    replyingConversationId === activeConversation?.id;
+
+  function abortReplySession(): void {
+    replySessionRef.current?.controller.abort();
+  }
+
   function handleCompareBranches(action: CompareBranchesAction): void {
     const branchNames = new Set(branches.map((branch) => branch.name));
     if (!branchNames.has(action.base) || !branchNames.has(action.target)) {
@@ -155,7 +187,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
 
   useEffect(() => {
     let cancelled = false;
-    replyAbortControllerRef.current?.abort();
+    abortReplySession();
 
     async function hydrate(): Promise<void> {
       try {
@@ -194,7 +226,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
 
   useEffect(() => {
     return () => {
-      replyAbortControllerRef.current?.abort();
+      abortReplySession();
     };
   }, []);
 
@@ -391,9 +423,10 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     conversationId: string,
     historyForRequest: readonly AgentChatMessage[],
   ): Promise<void> {
-    // 编辑/重生成前先中断上一轮，避免旧流写回错误气泡
-    replyAbortControllerRef.current?.abort();
-    replyAbortControllerRef.current = null;
+    // 编辑/重生成或其它会话开新流时中断上一轮
+    if (replySessionRef.current) {
+      replySessionRef.current.controller.abort();
+    }
 
     const askedAt = new Date().toISOString();
     const assistantMessage: AgentChatMessage = {
@@ -406,7 +439,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
 
     flushSync(() => {
       appendMessage(projectId, conversationId, assistantMessage);
-      setIsReplying(true);
+      setReplyingConversationId(conversationId);
     });
 
     await new Promise<void>((resolve) => {
@@ -416,7 +449,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     });
 
     const controller = new AbortController();
-    replyAbortControllerRef.current = controller;
+    replySessionRef.current = { conversationId, controller };
     let contentBuffer = "";
     let reasoningBuffer = "";
     let animationFrameId: number | null = null;
@@ -445,7 +478,8 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
         messages: historyForRequest,
         repoPath,
         locale,
-        enableThinking: thinkingEnabled,
+        model: modelId,
+        enableThinking: thinkingSupported && thinkingEnabled,
         signal: controller.signal,
         onReasoningDelta: (delta) => {
           if (reasoningStartedAt == null) {
@@ -495,10 +529,10 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
         toastAiFailure(error, t("agent.replyFailed"));
       }
     } finally {
-      if (replyAbortControllerRef.current === controller) {
-        replyAbortControllerRef.current = null;
+      if (replySessionRef.current?.controller === controller) {
+        replySessionRef.current = null;
+        setReplyingConversationId(null);
       }
-      setIsReplying(false);
     }
   }
 
@@ -594,6 +628,9 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     if (before.length <= 1) {
       return;
     }
+    if (replySessionRef.current?.conversationId === conversationId) {
+      abortReplySession();
+    }
     deleteConversation(projectId, conversationId);
     try {
       await deleteChatConversation(conversationId);
@@ -665,9 +702,14 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           enableMentions
           isReplying={isReplying}
           canSubmit={Boolean(activeConversation)}
-          showThinkingToggle
+          showThinkingToggle={thinkingSupported}
           thinkingEnabled={thinkingEnabled}
           onThinkingEnabledChange={setThinkingEnabled}
+          showModelPicker
+          modelOptions={modelOptions}
+          modelId={modelId}
+          modelLoading={modelsLoading}
+          onModelIdChange={setModelId}
           onDraftChange={({ markup, plainText, mentions }) => {
             setDraftMarkup(markup);
             setDraftPlainText(plainText);
@@ -677,7 +719,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
             void handleSubmit(event);
           }}
           onStop={() => {
-            replyAbortControllerRef.current?.abort();
+            abortReplySession();
           }}
         />
       </div>

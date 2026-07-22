@@ -20,7 +20,8 @@ jobs:
             args: "--bundles nsis"
           - name: macOS Apple Silicon
             platform: macos-latest
-            args: "--target aarch64-apple-darwin --bundles dmg"
+            # app：产出 .app.tar.gz(+.sig) 供线上升级；dmg：首次安装包
+            args: "--target aarch64-apple-darwin --bundles app,dmg"
     runs-on: ${{ matrix.platform }}
 
     steps:
@@ -46,22 +47,61 @@ jobs:
           corepack enable
           pnpm install --frozen-lockfile
 
-      - name: Build and publish installers
+      # ① 发到公开仓（updater 匿名可读）
+      # 需 Secrets：RELEASES_GITHUB_TOKEN（对 jl-git-releases 有 contents:write）
+      - name: Build and publish to jl-git-releases
         uses: tauri-apps/tauri-action@v1
         env:
           APPLE_SIGNING_IDENTITY: ${{ matrix.platform == 'macos-latest' && '-' || '' }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASES_GITHUB_TOKEN }}
           RUST_LOG: tauri_bundler=debug
-          # 线上升级签名：仓库 Secrets 配置私钥（勿提交 .secrets/）
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          owner: DonutGeek
+          repo: jl-git-releases
+          releaseCommitish: main
           tagName: ${{ github.ref_name }}
           releaseName: 鲸灵Git ${{ github.ref_name }}
-          generateReleaseNotes: true
+          releaseBody: |
+            鲸灵Git ${{ github.ref_name }}
+
+            本仓托管安装包与线上升级清单（`latest.json`），可供匿名下载。
+          generateReleaseNotes: false
           releaseDraft: false
           prerelease: false
-          # 合并各平台产物到 latest.json，供应用内 updater 拉取
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
+
+      # ② 同步同一 tag 的全部资产到源码仓 Release（构建只做一次）
+      - name: Mirror release to source repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          PUB_REPO: DonutGeek/jl-git-releases
+          SRC_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="$(mktemp -d)"
+          cleanup() { rm -rf "$DIR"; }
+          trap cleanup EXIT
+
+          gh release download "$TAG" --repo "$PUB_REPO" --dir "$DIR" --clobber
+
+          if ! gh release view "$TAG" --repo "$SRC_REPO" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --repo "$SRC_REPO" \
+              --title "鲸灵Git $TAG" \
+              --notes "鲸灵Git $TAG"$'\n\n'"与公开仓 DonutGeek/jl-git-releases 同步的安装包。" \
+              --verify-tag
+          fi
+
+          shopt -s nullglob
+          files=("$DIR"/*)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No assets to mirror"
+            exit 0
+          fi
+          gh release upload "$TAG" "${files[@]}" --repo "$SRC_REPO" --clobber

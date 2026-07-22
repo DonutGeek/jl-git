@@ -73,7 +73,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU1RjZBNkVFRDc2NTQ3RDYKUldUV1IyWFg3cWIyVlEycGpWbHA3REJJZE9lOCt0L2RSVFgwMFErNStadjZOWGNkRkFLVlhMcnUK",
       "endpoints": [
-        "https://github.com/DonutGeek/jl-git/releases/latest/download/latest.json"
+        "https://github.com/DonutGeek/jl-git-releases/releases/latest/download/latest.json"
       ]
     }
   }

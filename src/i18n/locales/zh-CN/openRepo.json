@@ -5,7 +5,7 @@
   "pathPlaceholder": "仓库路径",
   "pickButton": "选择",
   "aliasLabel": "仓库别名",
-  "aliasPlaceholder": "例如：JLGit",
+  "aliasPlaceholder": "例如：鲸灵Git",
   "detailLabel": "项目详情",
   "detailPlaceholder": "项目简介（可选）。可手动填写，或点右下角 AI 根据 README / 清单生成",
   "descriptionGenerate": "AI 生成简介",

@@ -9,6 +9,7 @@ interface StreamJinglingProjectOptions {
   repoPath: string;
   locale: string;
   signal?: AbortSignal;
+  model?: string;
   enableThinking?: boolean;
   onDelta: (content: string) => void;
   onReasoningDelta?: (content: string) => void;
@@ -21,6 +22,7 @@ interface StreamJinglingGlobalOptions {
   gitAuthors: ReadonlyArray<{ name: string; email: string }>;
   locale: string;
   signal?: AbortSignal;
+  model?: string;
   enableThinking?: boolean;
   onDelta: (content: string) => void;
   onReasoningDelta?: (content: string) => void;
@@ -44,6 +46,7 @@ export async function streamJinglingReply(
       gitAuthors: options.gitAuthors,
       locale: options.locale,
       signal: options.signal,
+      model: options.model,
       enableThinking: options.enableThinking,
       onDelta: options.onDelta,
       onReasoningDelta: options.onReasoningDelta,
@@ -56,6 +59,7 @@ export async function streamJinglingReply(
     repoPath: options.repoPath,
     locale: options.locale,
     signal: options.signal,
+    model: options.model,
     enableThinking: options.enableThinking,
     onDelta: options.onDelta,
     onReasoningDelta: options.onReasoningDelta,

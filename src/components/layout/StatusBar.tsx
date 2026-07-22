@@ -156,6 +156,7 @@ export function StatusBar() {
   }, []);
 
   // 启动后静默检查 GitHub Releases；无新版本不显示更新按钮
+  // 失败不弹 toast（避免打扰），可在设置 → 关于手动检查并查看错误
   useEffect(() => {
     if (import.meta.env.DEV) {
       return;
@@ -167,7 +168,8 @@ export function StatusBar() {
           setAvailableUpdate(info);
         }
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        console.warn("[updater] startup check failed", error);
         if (!cancelled) {
           setAvailableUpdate(null);
         }

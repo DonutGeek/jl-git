@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { Mention, MentionsInput } from "react-mentions-ts";
 
 import { MentionSuggestionVirtualList } from "@/components/ai/MentionSuggestionVirtualList";
+import { SelectMenu } from "@/components/common/SelectMenu";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -169,6 +170,12 @@ interface AgentComposerProps {
   showThinkingToggle?: boolean;
   thinkingEnabled?: boolean;
   onThinkingEnabledChange?: (enabled: boolean) => void;
+  /** 是否展示模型选择（鲸灵；选项来自官方 /models） */
+  showModelPicker?: boolean;
+  modelOptions?: readonly { value: string; label: string }[];
+  modelId?: string;
+  modelLoading?: boolean;
+  onModelIdChange?: (modelId: string) => void;
 }
 
 const COMPOSER_INPUT_CLASS = cn(
@@ -195,6 +202,11 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
       showThinkingToggle = false,
       thinkingEnabled = true,
       onThinkingEnabledChange,
+      showModelPicker = false,
+      modelOptions = [],
+      modelId = "",
+      modelLoading = false,
+      onModelIdChange,
     },
     ref,
   ) {
@@ -387,7 +399,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                 customSuggestionsContainer={(children) => (
                   <MentionSuggestionVirtualList>{children}</MentionSuggestionVirtualList>
                 )}
-                disabled={isReplying || inputLocked}
+                disabled={inputLocked}
               >
                 <Mention<AgentMentionOption>
                   trigger="@"
@@ -461,7 +473,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                 rows={1}
                 aria-label={inputPlaceholder}
                 placeholder={inputPlaceholder}
-                disabled={isReplying || inputLocked}
+                disabled={inputLocked}
                 className={COMPOSER_INPUT_CLASS}
               />
             )}
@@ -483,7 +495,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                   )}
                   aria-pressed={thinkingEnabled}
                   aria-label={t("agent.deepThinkingToggle")}
-                  disabled={inputLocked || isReplying}
+                  disabled={inputLocked}
                   onClick={() => {
                     onThinkingEnabledChange?.(!thinkingEnabled);
                   }}
@@ -491,6 +503,17 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                   <Atom className="size-3.5" aria-hidden="true" />
                   {t("agent.deepThinkingToggle")}
                 </Button>
+              ) : null}
+              {showModelPicker && modelOptions.length > 0 ? (
+                <SelectMenu
+                  value={modelId}
+                  options={modelOptions}
+                  onChange={(value) => onModelIdChange?.(value)}
+                  ariaLabel={t("agent.modelPickerAria")}
+                  disabled={inputLocked || modelLoading}
+                  size="sm"
+                  triggerClassName="h-6 w-auto max-w-[12.5rem] shrink-0"
+                />
               ) : null}
             </div>
             {isReplying ? (

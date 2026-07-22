@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { getTauriVersion } from "@tauri-apps/api/app";
 import { getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
-import { Activity, AppWindow, Layers } from "lucide-react";
+import { Activity, AppWindow, Layers, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 import appIconUrl from "@/assets/app-icon.png";
 import { SettingsTip } from "@/components/settings/SettingsTip";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { getGitVersion } from "@/services/git/git.version";
 import {
@@ -14,7 +17,13 @@ import {
   type SystemAppInfo,
   type SystemRuntimeStats,
 } from "@/services/system/system.info";
+import {
+  checkAppUpdate,
+  installPendingAppUpdate,
+  type AppUpdateInfo,
+} from "@/services/system/system.updater";
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
+import { toUserMessage } from "@/types/error";
 
 const RUNTIME_POLL_MS = 1000;
 /** CPU 迷你折线保留点数 */
@@ -233,6 +242,70 @@ export function SettingsAboutPanel() {
   const [runtime, setRuntime] = useState<SystemRuntimeStats | null>(null);
   const [webviewCount, setWebviewCount] = useState<number | null>(null);
   const [cpuHistory, setCpuHistory] = useState<number[]>([]);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [installingUpdate, setInstallingUpdate] = useState(false);
+  const [availableUpdate, setAvailableUpdate] = useState<AppUpdateInfo | null>(
+    null,
+  );
+
+  async function handleCheckUpdate(): Promise<void> {
+    if (checkingUpdate || installingUpdate) {
+      return;
+    }
+    if (import.meta.env.DEV) {
+      toast.message(t("statusBar.updateDevHint"));
+      return;
+    }
+    setCheckingUpdate(true);
+    const toastId = toast.loading(t("statusBar.updateChecking"));
+    try {
+      const info = await checkAppUpdate();
+      if (!info) {
+        setAvailableUpdate(null);
+        toast.success(t("statusBar.updateUpToDate"), { id: toastId });
+        return;
+      }
+      setAvailableUpdate(info);
+      toast.success(
+        t("statusBar.updateAvailable", {
+          version: info.version,
+          current: info.currentVersion,
+        }),
+        { id: toastId },
+      );
+    } catch (error) {
+      setAvailableUpdate(null);
+      toast.error(toUserMessage(error) || t("statusBar.updateCheckFailed"), {
+        id: toastId,
+      });
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }
+
+  async function handleInstallUpdate(): Promise<void> {
+    if (!availableUpdate || installingUpdate) {
+      return;
+    }
+    setInstallingUpdate(true);
+    const toastId = toast.loading(t("statusBar.updateDownloading"));
+    try {
+      const info = await checkAppUpdate();
+      if (!info) {
+        setAvailableUpdate(null);
+        toast.success(t("statusBar.updateUpToDate"), { id: toastId });
+        return;
+      }
+      setAvailableUpdate(info);
+      await installPendingAppUpdate();
+    } catch (error) {
+      toast.error(toUserMessage(error) || t("statusBar.updateFailed"), {
+        id: toastId,
+      });
+    } finally {
+      setInstallingUpdate(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -332,7 +405,7 @@ export function SettingsAboutPanel() {
           draggable={false}
         />
         <h2 className="text-foreground mt-4 text-lg font-semibold tracking-tight">
-          {appInfo?.name ?? "JLGit"}
+          {appInfo?.name ?? "鲸灵Git"}
         </h2>
         <p className="text-muted-foreground mt-1 font-mono text-xs tabular-nums">
           v{appInfo?.version ?? "—"}
@@ -352,6 +425,49 @@ export function SettingsAboutPanel() {
             ))}
           </ul>
         ) : null}
+        <div className="mt-5 flex flex-col items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={checkingUpdate || installingUpdate}
+              aria-label={t("settings.aboutCheckUpdateAria")}
+              onClick={() => {
+                void handleCheckUpdate();
+              }}
+            >
+              {checkingUpdate ? (
+                <Spinner className="size-3.5" />
+              ) : (
+                <RefreshCw className="size-3.5" aria-hidden="true" />
+              )}
+              {t("settings.aboutCheckUpdate")}
+            </Button>
+            {availableUpdate ? (
+              <Button
+                type="button"
+                size="sm"
+                disabled={installingUpdate || checkingUpdate}
+                onClick={() => {
+                  void handleInstallUpdate();
+                }}
+              >
+                {installingUpdate ? (
+                  <Spinner className="size-3.5" />
+                ) : null}
+                {t("settings.aboutUpdateInstall")}
+                <span className="font-mono tabular-nums">
+                  v{availableUpdate.version}
+                </span>
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-muted-foreground max-w-sm text-center text-[11px] leading-relaxed">
+            {t("settings.aboutCheckUpdateHint")}
+          </p>
+        </div>
       </section>
 
       {/* 可视化运行状态 */}

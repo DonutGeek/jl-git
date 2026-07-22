@@ -84,28 +84,49 @@ AI 生成 Release Notes 时，必须以 CHANGELOG 与提交记录为输入，并
 
 ## 更新通道（GitHub Releases 线上升级）
 
-应用通过 `tauri-plugin-updater` 读取：
+应用通过 `tauri-plugin-updater` 读取公开仓：
 
-`https://github.com/DonutGeek/jl-git/releases/latest/download/latest.json`
+`https://github.com/DonutGeek/jl-git-releases/releases/latest/download/latest.json`
+
+| 仓库 | 用途 |
+|------|------|
+| 源码仓（可私有，如 `jl-git`） | 开发、打 tag、跑 CI；Release **同步**一份安装包 |
+| [jl-git-releases](https://github.com/DonutGeek/jl-git-releases)（**必须 Public**） | 安装包 + `latest.json`；**客户端 updater 只读这里**（匿名） |
 
 流程：
 
-1. 打 tag `vX.Y.Z` 并 push → `publish-desktop` 构建 macOS DMG / Windows NSIS，并上传 updater 产物与 `latest.json`
-2. 用户点击状态栏「更新」→ 比对版本 → 确认后下载、验签、安装并重启
+1. 源码仓打 tag `vX.Y.Z` 并 push → `publish-desktop` **构建一次**  
+2. CI 先发到 **jl-git-releases**，再把同一 tag 的资产镜像到源码仓 Release  
+3. 客户端 updater endpoint 仍指向公开仓；两处 Releases 页面都能下载安装包
+
+### 线上升级排障（必看）
+
+| 现象 | 常见原因 |
+|------|----------|
+| 检测不到新版本 | Release **缺少** macOS `*.app.tar.gz` + `.sig`；或 `latest.json` 无 `darwin-aarch64` |
+| 检查更新 404 | 确认 endpoint 指向 **jl-git-releases**；浏览器未登录打开 `latest.json` 须 200 |
+| CI 发布失败 | 源码仓未配置 `RELEASES_GITHUB_TOKEN`；或公开仓尚无 `main`（先提交 README） |
+| 开发模式提示不可用 | 预期：仅正式安装包支持线上升级 |
+
+手动验收：未登录打开  
+`https://github.com/DonutGeek/jl-git-releases/releases/latest/download/latest.json`  
+须为 200，且 `platforms` 含当前系统键。
 
 ### 首次启用必做（维护者）
 
-1. 本地已生成密钥对（仓库外 / `.secrets/`，**私钥永不提交**）：
+1. 公开仓 [jl-git-releases](https://github.com/DonutGeek/jl-git-releases) 至少有一次提交（如 README），保证存在 `main`  
+2. 本地已生成密钥对（仓库外 / `.secrets/`，**私钥永不提交**）：
    ```bash
    pnpm tauri signer generate -w .secrets/jlgit-updater.key
    ```
-2. 公钥写入 `src-tauri/tauri.conf.json` → `plugins.updater.pubkey`（当前已配置）
-3. 在 GitHub 仓库 **Settings → Secrets** 添加：
-   - `TAURI_SIGNING_PRIVATE_KEY`：私钥文件**全文**（与 `.secrets/jlgit-updater.key` 内容一致）
-   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`：若生成时设了密码则填写，否则可留空
-4. 丢失私钥后无法为后续版本签名，已安装客户端将无法继续线上升级——务必备份私钥到安全位置
+3. 公钥写入 `src-tauri/tauri.conf.json` → `plugins.updater.pubkey`（当前已配置）  
+4. 在**源码仓** Settings → Secrets 添加：
+   - `TAURI_SIGNING_PRIVATE_KEY`：私钥全文  
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`：有密码则填，否则可留空  
+   - `RELEASES_GITHUB_TOKEN`：PAT（classic 或 fine-grained），对 `DonutGeek/jl-git-releases` 具备 **Contents: Read and write**，用于跨仓创建 Release  
+5. 丢失签名私钥后已装客户端无法继续验签升级——务必备份  
 
-- 稳定版：默认（`releases/latest`）
+- 稳定版：公开仓 `releases/latest`  
 - 可选后续：beta 通道（不同 endpoint）
 
 ---

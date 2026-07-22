@@ -16,5 +16,5 @@ export function buildAgentSystemPrompt(locale: string, repositoryContext: string
     ...AGENT_ACTIONS_PROMPT,
     "Current repository snapshot:",
     repositoryContext,
-  ].join(" ");
+  ].join("\n");
 }

@@ -40,6 +40,15 @@ export {
 } from "./ai.balance";
 export type { DeepSeekBalanceInfo, DeepSeekBalanceResult } from "./ai.balance";
 export {
+  DEFAULT_AGENT_MODEL,
+  fetchDeepSeekModels,
+  formatDeepSeekModelLabel,
+  modelSupportsThinking,
+  readAgentModelId,
+  writeAgentModelId,
+} from "./ai.models";
+export type { DeepSeekModelInfo } from "./ai.models";
+export {
   deleteChatConversation,
   listChatConversations,
   reorderChatConversations,

@@ -46,6 +46,11 @@
   "aboutOpenTabs": "打开标签",
   "aboutWebviews": "窗口数",
   "aboutUnavailable": "—",
+  "aboutCheckUpdate": "检查更新",
+  "aboutCheckUpdateAria": "手动检查是否有新版本",
+  "aboutCheckUpdateHint": "从 GitHub Releases 拉取 latest.json；需正式安装包且发布仓对 updater 可匿名访问",
+  "aboutUpdateInstall": "下载并安装",
+
   "launchTitle": "启动",
   "gitWorkflowTitle": "工作流",
   "sectionData": "数据",

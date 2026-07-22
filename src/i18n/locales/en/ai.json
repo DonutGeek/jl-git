@@ -14,6 +14,8 @@
     "invalidParams": "Request parameters were invalid. Try again, or report it if it keeps happening.",
     "rateLimited": "Too many requests — rate limit reached. Wait a moment and try again.",
     "serverError": "DeepSeek is temporarily unavailable. Try again shortly.",
-    "serverBusy": "DeepSeek is busy. Try again in a moment."
+    "serverBusy": "DeepSeek is busy. Try again in a moment.",
+    "modelsFetchFailed": "Failed to load models. Please try again later.",
+    "modelsTimeout": "Loading models timed out. Please try again."
   }
 }
