@@ -158,7 +158,7 @@ function SortableRepoTab(props: SortableRepoTabProps) {
 
 export function RepoTabBar() {
   const { t } = useTranslation();
-  const { headerPaddingClass, showWinControls } = useWindowChromeLayout();
+  const { headerPaddingClass, showCustomChromeControls } = useWindowChromeLayout();
   const navigate = useNavigate();
   const location = useLocation();
   const tabEntries = useOpenTabsStore((state) => state.tabs);
@@ -388,7 +388,7 @@ export function RepoTabBar() {
             draggingId ? "z-[60]" : "z-40",
           )}
           onDoubleClick={(event) => {
-            if (!showWinControls) return;
+            if (!showCustomChromeControls) return;
             // 仅空白拖拽区双击；点在标签/按钮上不最大化
             const target = event.target as HTMLElement;
             if (target.closest("button, a, [role='button'], [data-no-maximize]")) return;
@@ -476,7 +476,7 @@ export function RepoTabBar() {
             </Tooltip>
           </div>
           <div data-tauri-drag-region className="h-full min-w-8 flex-1" />
-          {showWinControls ? <WindowChromeControls /> : null}
+          {showCustomChromeControls ? <WindowChromeControls /> : null}
         </header>
         <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
           {draggingTab ? (

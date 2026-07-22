@@ -165,10 +165,21 @@ fn default_disk_path() -> PathBuf {
     if let Ok(home) = std::env::var("HOME") {
         return PathBuf::from(home);
     }
-    PathBuf::from("/")
+    #[cfg(target_os = "windows")]
+    if let Ok(profile) = std::env::var("USERPROFILE") {
+        return PathBuf::from(profile);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return PathBuf::from("C:\\");
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        PathBuf::from("/")
+    }
 }
 
-/// 查询路径所在卷的磁盘空间（macOS/Linux 用 df -kP）
+/// 查询路径所在卷的磁盘空间
 pub fn disk_space(path: Option<&str>) -> Result<SystemDiskSpace, AppError> {
     let target = match path {
         Some(raw) if !raw.trim().is_empty() => {
@@ -184,6 +195,7 @@ pub fn disk_space(path: Option<&str>) -> Result<SystemDiskSpace, AppError> {
     disk_space_for_path(&target)
 }
 
+#[cfg(not(target_os = "windows"))]
 fn disk_space_for_path(path: &Path) -> Result<SystemDiskSpace, AppError> {
     let path_str = path.to_string_lossy();
     let output = Command::new("df")
@@ -202,7 +214,52 @@ fn disk_space_for_path(path: &Path) -> Result<SystemDiskSpace, AppError> {
     parse_df_kp(&stdout)
 }
 
+#[cfg(target_os = "windows")]
+fn disk_space_for_path(path: &Path) -> Result<SystemDiskSpace, AppError> {
+    let path_str = path.to_string_lossy().replace('\'', "''");
+    let script = format!(
+        "$item = Get-Item -LiteralPath '{path_str}' -ErrorAction Stop; \
+         $drive = $item.PSDrive; \
+         if (-not $drive) {{ throw 'no drive' }}; \
+         $total = [int64]$drive.Used + [int64]$drive.Free; \
+         Write-Output \"$total $($drive.Free) $($drive.Name)\""
+    );
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-Command", &script])
+        .output()
+        .map_err(|error| {
+            AppError::new("INTERNAL", "无法读取磁盘空间").with_details(error.to_string())
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::new("INTERNAL", "读取磁盘空间失败").with_details(stderr));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let line = stdout
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .ok_or_else(|| AppError::new("INTERNAL", "磁盘空间输出为空"))?;
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    if parts.len() < 3 {
+        return Err(AppError::new("INTERNAL", "无法解析磁盘空间"));
+    }
+    let total_bytes: u64 = parts[0]
+        .parse()
+        .map_err(|_| AppError::new("INTERNAL", "无法解析磁盘总大小"))?;
+    let available_bytes: u64 = parts[1]
+        .parse()
+        .map_err(|_| AppError::new("INTERNAL", "无法解析可用空间"))?;
+    Ok(SystemDiskSpace {
+        path: format!("{}:", parts[2]),
+        total_bytes,
+        available_bytes,
+    })
+}
+
 /// 解析 `df -kP`：第二行起为数据；字段为 1024-blocks / Available / Mounted on
+#[cfg(not(target_os = "windows"))]
 fn parse_df_kp(stdout: &str) -> Result<SystemDiskSpace, AppError> {
     let line = stdout
         .lines()
@@ -235,6 +292,7 @@ fn parse_df_kp(stdout: &str) -> Result<SystemDiskSpace, AppError> {
 mod tests {
     use super::*;
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn parses_df_line() {
         let sample = "Filesystem 1024-blocks Used Available Capacity Mounted on\n\

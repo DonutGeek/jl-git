@@ -45,6 +45,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useConflictOperationGuard } from "@/hooks/useConflictOperationGuard";
+import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 import { cn } from "@/lib/utils";
 
 import { systemOpenService } from "@/services/system/system.open";
@@ -92,6 +93,13 @@ interface RepoToolbarProps {
 /** 顶栏标签下方的仓库工具条：仓库 / 视图 / 分支 / 同步 */
 export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbarProps) {
   const { t } = useTranslation();
+  const { os } = useWindowChromeLayout();
+  const revealInFileManagerLabel =
+    os === "windows"
+      ? t("repo.openInExplorer")
+      : os === "linux"
+        ? t("repo.openInFileManager")
+        : t("repo.openInFinder");
   const navigate = useNavigate();
 
   const projects = useProjectStore((state) => state.projects);
@@ -702,13 +710,13 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
               variant="ghost"
               size="icon"
               className="size-8"
-              aria-label={t("repo.openInFinder")}
+              aria-label={revealInFileManagerLabel}
               onClick={() => void handleRevealInFinder()}
             >
               <Folder className="size-3.5" aria-hidden="true" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{t("repo.openInFinder")}</TooltipContent>
+          <TooltipContent>{revealInFileManagerLabel}</TooltipContent>
         </Tooltip>
 
         <Tooltip delayDuration={300}>

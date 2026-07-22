@@ -259,6 +259,8 @@
   "openBranchCompare": "Compare branches",
   "openBranchCompareNoBranch": "No branch available to compare",
   "openInFinder": "Reveal in Finder",
+  "openInExplorer": "Reveal in File Explorer",
+  "openInFileManager": "Reveal in File Manager",
   "openInTerminal": "Open terminal",
   "openInEditorSoon": "External editor coming soon (install VS Code / Cursor first)",
   "openInTerminalSoon": "Open terminal coming soon",

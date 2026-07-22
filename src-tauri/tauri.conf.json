@@ -17,13 +17,8 @@
         "height": 800,
         "minWidth": 900,
         "minHeight": 600,
-        "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "acceptFirstMouse": true,
-        "trafficLightPosition": {
-          "x": 16,
-          "y": 26
-        }
+        "acceptFirstMouse": true
       }
     ],
     "security": {
@@ -38,7 +33,6 @@
       "app",
       "dmg",
       "nsis",
-      "deb",
       "appimage"
     ],
     "icon": [

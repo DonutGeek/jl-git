@@ -119,14 +119,23 @@ Command::new("git")
 
 ## 窗口装饰（平台分支）
 
-| 平台 | 配置 | UI |
-|------|------|-----|
-| macOS | 主 conf：`titleBarStyle: Overlay`、`hiddenTitle`、`trafficLightPosition (16,26)` | 顶栏 `pl-[88px]`；系统交通灯 |
-| Windows | `src-tauri/tauri.windows.conf.json`：主窗 `decorations: false`（merge 会替换 `app.windows` 数组，故需带完整窗口字段）；子窗 `createAppWindowChromeOptions()` | 右侧 `WindowChromeControls` |
+平台专用配置（与主 `tauri.conf.json` 按 JSON Merge Patch 合并；**`app.windows` 数组会被整段替换**，故各平台文件需带完整窗口字段）：
+
+| 文件 | 装饰 |
+|------|------|
+| `tauri.conf.json` | 公共：尺寸、`hiddenTitle`、bundle/plugins |
+| `tauri.macos.conf.json` | Overlay + `trafficLightPosition (16,26)` |
+| `tauri.windows.conf.json` | `decorations: false` |
+| `tauri.linux.conf.json` | `decorations: false` |
+
+| 平台 | UI |
+|------|-----|
+| macOS | 顶栏 `pl-[88px]`；系统交通灯 |
+| Windows / Linux | 右侧 `WindowChromeControls`；子窗 `createAppWindowChromeOptions()` |
 
 Capabilities 需含：`allow-minimize` / `allow-maximize` / `allow-unmaximize` / `allow-toggle-maximize` / `allow-close` / `allow-is-maximized`（主窗与各子窗）。
 
-设计：[windows-window-chrome-design](../superpowers/specs/2026-07-22-windows-window-chrome-design.md)
+设计：[windows-window-chrome](../superpowers/specs/2026-07-22-windows-window-chrome-design.md) · [official-three-platform](../superpowers/specs/2026-07-22-official-three-platform-design.md)
 
 ---
 

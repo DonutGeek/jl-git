@@ -1,18 +1,22 @@
 import { useEffect, useState } from "react";
 
 import { getAppInfo } from "@/services/system/system.info";
-import { detectAppOs, type AppOs } from "@/services/window/windowChrome";
+import {
+  detectAppOs,
+  needsCustomChromeControls,
+  type AppOs,
+} from "@/services/window/windowChrome";
 
 export interface WindowChromeLayout {
   os: AppOs;
   /** mac Overlay：左侧为交通灯留白 */
   isMacOverlay: boolean;
-  /** Windows：显示自绘最小化 / 最大化·还原 / 关闭 */
-  showWinControls: boolean;
+  /** Windows / Linux：显示自绘最小化 / 最大化·还原 / 关闭 */
+  showCustomChromeControls: boolean;
   headerPaddingClass: string;
 }
 
-/** 顶栏平台布局：mac 保持 pl-[88px]；Win / 其他用紧凑左内边距。 */
+/** 顶栏平台布局：mac 保持 pl-[88px]；Win / Linux 用紧凑左内边距 + 自绘三键。 */
 export function useWindowChromeLayout(): WindowChromeLayout {
   const [os, setOs] = useState<AppOs>(() => detectAppOs());
 
@@ -33,12 +37,12 @@ export function useWindowChromeLayout(): WindowChromeLayout {
   }, []);
 
   const isMacOverlay = os === "macos";
-  const showWinControls = os === "windows";
+  const showCustomChromeControls = needsCustomChromeControls(os);
 
   return {
     os,
     isMacOverlay,
-    showWinControls,
+    showCustomChromeControls,
     headerPaddingClass: isMacOverlay ? "pl-[88px]" : "pl-3",
   };
 }

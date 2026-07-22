@@ -99,14 +99,24 @@ AI 生成 Release Notes 时，必须以 CHANGELOG 与提交记录为输入，并
 2. CI 先发到 **jl-git-releases**，再把同一 tag 的资产镜像到源码仓 Release  
 3. 客户端 updater endpoint 仍指向公开仓；两处 Releases 页面都能下载安装包
 
+### 支持矩阵
+
+| 平台 | 架构 | 安装包 | updater `platforms` 键 |
+|------|------|--------|------------------------|
+| macOS | Apple Silicon | `.dmg` + `.app.tar.gz` | `darwin-aarch64` |
+| Windows | x64 | NSIS | `windows-x86_64` |
+| Linux | x64 | AppImage | `linux-x86_64` |
+
+Linux 参考环境：Ubuntu 22.04 / 24.04 + GNOME。平台窗口配置见 `tauri.{macos,windows,linux}.conf.json`。
+
 ### 线上升级排障（必看）
 
 | 现象 | 常见原因 |
 |------|----------|
-| 检测不到新版本 | Release **缺少** macOS `*.app.tar.gz` + `.sig`；或 `latest.json` 无 `darwin-aarch64` |
+| 检测不到新版本 | Release **缺少**对应平台资产 + `.sig`；或 `latest.json` 无当前键（`darwin-aarch64` / `windows-x86_64` / `linux-x86_64`） |
 | 检查更新失败（红 toast） | 会区分超时 / 网络 / 清单未找到（发包中）/ 服务器异常，并尽量带出细节。**不是**「已是最新」；已是最新为绿提示 |
 | 检查更新 404 | 确认 endpoint 指向 **jl-git-releases**；浏览器未登录打开 `latest.json` 须 200 |
-| CI 发布失败 | 源码仓未配置 `RELEASES_GITHUB_TOKEN`；或公开仓尚无 `main`（先提交 README） |
+| CI 发布失败 | 源码仓未配置 `RELEASES_GITHUB_TOKEN`；或公开仓尚无 `main`（先提交 README）；Linux job 缺 WebKitGTK 依赖 |
 | 开发模式提示不可用 | 预期：仅正式安装包支持线上升级 |
 
 手动验收：未登录打开  

@@ -19,13 +19,14 @@ export interface AppWindowChromeOptions {
 }
 
 /**
- * 子窗标题栏相关选项：mac Overlay + 交通灯；Windows 无系统装饰。
- * 勿在 mac 上传 `decorations: false`，否则会去掉交通灯。
+ * 子窗标题栏相关选项：
+ * - mac：Overlay + 交通灯
+ * - Windows / Linux：无系统装饰（与 tauri.{windows,linux}.conf.json 一致）
  */
 export function createAppWindowChromeOptions(
   os: AppOs = detectAppOs(),
 ): AppWindowChromeOptions {
-  if (os === "windows") {
+  if (os === "windows" || os === "linux") {
     return {
       decorations: false,
       hiddenTitle: true,
@@ -36,4 +37,9 @@ export function createAppWindowChromeOptions(
     hiddenTitle: true,
     trafficLightPosition: new LogicalPosition(16, 26),
   };
+}
+
+/** 是否需要自绘最小化 / 最大化·还原 / 关闭 */
+export function needsCustomChromeControls(os: AppOs): boolean {
+  return os === "windows" || os === "linux";
 }

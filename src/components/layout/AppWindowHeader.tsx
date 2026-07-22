@@ -15,7 +15,7 @@ interface AppWindowHeaderProps {
 }
 
 /**
- * 子窗统一顶栏：mac Overlay 左留白；Win 右侧自绘三键；空白区可拖、可双击最大化。
+ * 子窗统一顶栏：mac Overlay 左留白；Win/Linux 右侧自绘三键；空白区可拖、可双击最大化。
  * 标题文案留在 drag-region 内以便拖动；仅窗口控件 no-drag。
  */
 export function AppWindowHeader({
@@ -23,7 +23,7 @@ export function AppWindowHeader({
   className,
   heightClassName = "h-12",
 }: AppWindowHeaderProps) {
-  const { headerPaddingClass, showWinControls } = useWindowChromeLayout();
+  const { headerPaddingClass, showCustomChromeControls } = useWindowChromeLayout();
 
   return (
     <header
@@ -35,14 +35,14 @@ export function AppWindowHeader({
         className,
       )}
       onDoubleClick={() => {
-        if (showWinControls) {
+        if (showCustomChromeControls) {
           void toggleCurrentWindowMaximize();
         }
       }}
     >
       <div className="flex min-w-0 items-center gap-2">{children}</div>
       <div data-tauri-drag-region className="h-full min-w-2 flex-1" />
-      {showWinControls ? <WindowChromeControls /> : null}
+      {showCustomChromeControls ? <WindowChromeControls /> : null}
     </header>
   );
 }

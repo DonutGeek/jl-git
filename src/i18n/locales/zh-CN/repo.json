@@ -259,6 +259,8 @@
   "openBranchCompare": "分支比较",
   "openBranchCompareNoBranch": "当前没有可比较的分支",
   "openInFinder": "在 Finder 中显示",
+  "openInExplorer": "在资源管理器中显示",
+  "openInFileManager": "在文件管理器中显示",
   "openInTerminal": "打开命令行",
   "openInEditorSoon": "外部编辑器打开即将支持（可先安装 VS Code / Cursor）",
   "openInTerminalSoon": "打开命令行即将支持",

@@ -159,7 +159,7 @@
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| Tauri 窗口壳 | Done | mac Overlay；Windows 无边框顶栏 + 自绘三键（主窗与子窗） |
+| Tauri 窗口壳 | Done | 三端：mac Overlay；Win/Linux 无边框 + 自绘三键（`tauri.{macos,windows,linux}.conf.json`） |
 | 插件预置 | Done | SQL/Store/Dialog/FS/Notification/Updater/Clipboard/Log/Opener |
 | 底部状态栏 | Done | 版本 / 主题 / 磁盘 / Git 身份 / 操作日志入口 |
 | 应用线上升级 | Done | GitHub Releases + updater；状态栏「更新」检查/下载/重启；需 CI 配置签名私钥 |
