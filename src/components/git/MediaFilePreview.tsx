@@ -99,7 +99,7 @@ export function MediaFilePreview({
   conflict = false,
 }: MediaFilePreviewProps) {
   const { t } = useTranslation();
-  const [showBackground, setShowBackground] = useState(true);
+  const [showBackground, setShowBackground] = useState(false);
   const statusBorderClass = statusCode
     ? gitStatusBorderClass(statusCode, { conflict })
     : undefined;

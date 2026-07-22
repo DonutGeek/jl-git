@@ -44,10 +44,11 @@ macOS **不会**像 iOS 那样自动裁圆角；母图必须按系统模板自�
 | 项 | 规格 |
 |----|------|
 | 画布 | **1024×1024** PNG（RGBA） |
-| 面板（plate） | 居中 **824×824**（四边各 **100px** 透明 gutter） |
-| 圆角 | 连续曲率 squircle（超椭圆 **n≈5**）；模板参考半径 **185.4** / 824 |
+| 面板（plate） | 居中约 **856×856**（四边约 **84px** 透明 gutter；对齐 Chrome / App Store 可视占比，略大于微信 820） |
+| 圆角 | 连续曲率 squircle（超椭圆 **n≈5**）；模板参考半径约 **185–225** / 面板边长 |
 | 投影 | 可选；对照主流 App（如微信）通常**不**预烘焙大投影 |
-| 出图稿 | AI/设计可先出满铺 1024 直角稿，入库前缩放到 824 面板并套 squircle 遮罩 |
+| 边线质感 | 面板内沿加 **顶部偏亮、底部偏暗** 的细描边（约 2–4px），模拟 macOS 图标玻璃高光 |
+| 出图稿 | AI/设计可先出满铺 1024 直角稿，入库前缩放到约 856 面板并套 squircle 遮罩 + 边线 |
 
 - 白鲸等主体仍放在面板内安全区（约面板中心 80%）
 - 生成全套：`pnpm tauri icon ./docs/assets/app-icon-1024.png`，再导出 256 覆盖 `src/assets/app-icon.png`
@@ -65,12 +66,12 @@ CANVAS
 - Exactly 1024×1024 px, square, PNG, RGBA
 - Filename: app-icon-1024.png
 - For AI draft only: artwork may be full-bleed square
-- Final repo asset MUST follow macOS icon grid: centered ~824×824 squircle plate, ~100px transparent margin each side (corners alpha=0)
+- Final repo asset MUST follow macOS icon grid: centered ~856×856 squircle plate, ~84px transparent margin each side (corners alpha=0)
 - Do NOT bake dock mockup or device frame
 - No watermark; output only this one icon asset
 
 PROPORTION (macOS app-icon grid — enforce strictly)
-- Canvas 1024; plate ~824 centered (≈100px gutter)
+- Canvas 1024; plate ~856 centered (≈84px gutter)
 - Squircle / continuous-corner silhouette (not a sharp square; not a tiny circular-arc radius)
 - Mark (whale + arc + nodes) lives inside the plate safe area (~80% of plate)
 - Primary whale fills ~70–80% of the plate safe area
@@ -125,7 +126,7 @@ If a reference image is attached:
 
 ## 验收清单
 
-- [ ] 母图 1024×1024；居中约 824 面板 + 100px 透明 gutter；squircle 轮廓（与系统 App 一致），非直角满铺
+- [ ] 母图 1024×1024；居中约 856 面板 + 84px 透明 gutter；squircle 轮廓（与系统 App 一致），非直角满铺
 - [ ] 小尺寸（约 32×32）仍能认出是鲸，不是弯钩
 - [ ] 「灵」弧线 / 节点在深蓝底上可辨，无霓虹光晕
 - [ ] 已执行 `pnpm tauri icon …`，`src-tauri/icons/` 与 `bundle.icon` 一致
