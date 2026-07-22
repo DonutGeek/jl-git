@@ -356,6 +356,7 @@ export function TagList({ onSelectTag }: TagListProps) {
               disabled={deleteBusy}
               onClick={() => void confirmDelete()}
             >
+              {deleteBusy ? <Spinner className="size-3.5" /> : null}
               {t("repo.deleteTagAction")}
             </Button>
           </DialogFooter>

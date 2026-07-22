@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Spinner } from "@/components/ui/spinner";
 import { GitMergeMode, GitMergeOptions } from "@/types/git";
 
 interface MergeBranchDialogProps {
@@ -124,6 +125,7 @@ export function MergeBranchDialog({
             disabled={!source || !target || busy}
             onClick={() => onConfirm({ mode, autostash: squash ? false : autostash })}
           >
+            {busy ? <Spinner className="size-3.5" /> : null}
             {busy ? t("repo.mergeRunning") : t("repo.mergeAction", { source, target })}
           </Button>
         </DialogFooter>

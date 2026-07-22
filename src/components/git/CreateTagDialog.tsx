@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/store/useRepoStore";
 import { listRemotes } from "@/services/git";
@@ -147,8 +148,14 @@ export function CreateTagDialog({
   const canSubmit =
     !busy && name.trim().length > 0 && (lockedRef || ref.trim().length > 0);
 
+  function handleOpenChange(next: boolean): void {
+    // 执行中禁止关闭，避免重复提交
+    if (busy && !next) return;
+    onOpenChange(next);
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn("flex max-w-md flex-col gap-4 overflow-hidden p-5 sm:rounded-lg")}
       >
@@ -233,11 +240,12 @@ export function CreateTagDialog({
               type="button"
               variant="outline"
               disabled={busy}
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
             >
               {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={!canSubmit}>
+              {busy ? <Spinner className="size-3.5" /> : null}
               {t("repo.createTagAction")}
             </Button>
           </DialogFooter>

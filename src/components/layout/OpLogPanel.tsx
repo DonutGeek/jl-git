@@ -258,6 +258,7 @@ export function OpLogPanel() {
 
   return (
     <>
+      {/* 低于 Dialog/Sheet（z-50），避免与模态层叠时盖住遮罩 */}
       <button
         type="button"
         className="fixed inset-x-0 top-0 z-40 bg-black/20"
@@ -267,7 +268,7 @@ export function OpLogPanel() {
       />
 
       <div
-        className="border-border bg-background animate-in slide-in-from-bottom-2 fade-in-0 fixed inset-x-0 z-50 flex h-[min(40vh,20rem)] flex-col border-t duration-200"
+        className="border-border bg-background animate-in slide-in-from-bottom-2 fade-in-0 fixed inset-x-0 z-40 flex h-[min(40vh,20rem)] flex-col border-t duration-200"
         style={{ bottom: STATUS_BAR_OFFSET }}
         role="dialog"
         aria-modal="true"
