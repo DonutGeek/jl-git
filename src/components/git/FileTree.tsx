@@ -3,13 +3,20 @@ import { useTranslation } from "react-i18next";
 import {
   ChevronDown,
   ChevronRight,
+  RefreshCw,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { gitService } from "@/services/git";
@@ -142,41 +149,61 @@ export function FileTree({ repoPath }: FileTreeProps) {
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const [loadingRoot, setLoadingRoot] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const childrenCacheRef = useRef(childrenCache);
   childrenCacheRef.current = childrenCache;
+  const loadGenerationRef = useRef(0);
 
-  useEffect(() => {
-    let active = true;
+  const loadRoot = useCallback(async (): Promise<void> => {
+    const generation = loadGenerationRef.current + 1;
+    loadGenerationRef.current = generation;
+    setLoadingRoot(true);
+    setError(null);
+    setChildrenCache(new Map());
+    setExpanded(new Set());
+    setLoadingPaths(new Set());
 
-    async function loadRoot(): Promise<void> {
-      setLoadingRoot(true);
-      setError(null);
-      setChildrenCache(new Map());
-      setExpanded(new Set());
-
-      try {
-        const result = await gitService.listDir(repoPath, "");
-        if (active) {
-          setRootEntries(result.entries);
-        }
-      } catch (loadError) {
-        if (active) {
-          setError(toUserMessage(loadError));
-          setRootEntries([]);
-        }
-      } finally {
-        if (active) {
-          setLoadingRoot(false);
-        }
+    try {
+      const result = await gitService.listDir(repoPath, "");
+      if (loadGenerationRef.current !== generation) {
+        return;
+      }
+      setRootEntries(result.entries);
+    } catch (loadError) {
+      if (loadGenerationRef.current !== generation) {
+        return;
+      }
+      setError(toUserMessage(loadError));
+      setRootEntries([]);
+      throw loadError;
+    } finally {
+      if (loadGenerationRef.current === generation) {
+        setLoadingRoot(false);
       }
     }
-
-    void loadRoot();
-
-    return () => {
-      active = false;
-    };
   }, [repoPath]);
+
+  useEffect(() => {
+    void loadRoot().catch(() => {
+      // 首屏错误已写入 error 区，不再 toast
+    });
+  }, [loadRoot]);
+
+  async function handleRefresh(): Promise<void> {
+    if (refreshing || loadingRoot) {
+      return;
+    }
+    setRefreshing(true);
+    const toastId = toast.loading(t("repo.refreshStart"));
+    try {
+      await loadRoot();
+      toast.success(t("repo.refreshSuccess"), { id: toastId });
+    } catch (refreshError) {
+      toast.error(toUserMessage(refreshError), { id: toastId });
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const ensureChildren = useCallback(
     async (path: string): Promise<void> => {
@@ -230,8 +257,32 @@ export function FileTree({ repoPath }: FileTreeProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0">
-        <div className="flex h-10 items-center px-3">
-          <h2 className="text-muted-foreground text-xs font-semibold">{t("repo.fileTree")}</h2>
+        <div className="flex h-10 items-center gap-1 px-3">
+          <h2 className="text-muted-foreground min-w-0 flex-1 text-xs font-semibold">
+            {t("repo.fileTree")}
+          </h2>
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground size-7 shrink-0 [&_svg]:size-3.5"
+                aria-label={t("repo.refresh")}
+                disabled={refreshing || loadingRoot}
+                onClick={() => {
+                  void handleRefresh();
+                }}
+              >
+                {refreshing ? (
+                  <Spinner className="size-3.5" />
+                ) : (
+                  <RefreshCw aria-hidden="true" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("repo.refresh")}</TooltipContent>
+          </Tooltip>
         </div>
         <div className="px-3 pb-1">
           <Input
