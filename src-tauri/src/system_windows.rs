@@ -7,8 +7,7 @@ use std::time::Instant;
 
 use windows_sys::Win32::Foundation::{CloseHandle, FILETIME, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Storage::FileSystem::{
-    GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDriveStringsW, DRIVE_FIXED, DRIVE_RAMDISK,
-    DRIVE_REMOTE, DRIVE_REMOVABLE,
+    GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDriveStringsW,
 };
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Thread32First, Thread32Next, TH32CS_SNAPTHREAD, THREADENTRY32,
@@ -19,6 +18,9 @@ use windows_sys::Win32::System::ProcessStatus::{
 use windows_sys::Win32::System::Threading::{
     GetCurrentProcess, GetProcessTimes, OpenProcess, PROCESS_QUERY_INFORMATION,
     PROCESS_VM_READ,
+};
+use windows_sys::Win32::System::WindowsProgramming::{
+    DRIVE_FIXED, DRIVE_RAMDISK, DRIVE_REMOTE, DRIVE_REMOVABLE,
 };
 
 use crate::error::AppError;
