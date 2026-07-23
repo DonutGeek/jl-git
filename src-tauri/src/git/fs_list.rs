@@ -103,7 +103,9 @@ pub fn file_size(repo_root: &Path, relative: &str) -> Result<FsFileSizeResult, A
 }
 
 fn blob_size(repo_root: &Path, spec: &str) -> Result<Option<u64>, AppError> {
-    let output = Command::new("git")
+    let mut command = Command::new("git");
+    crate::process_cmd::configure_background_command(&mut command);
+    let output = command
         .args(["cat-file", "-s", spec])
         .current_dir(repo_root)
         .env("GIT_TERMINAL_PROMPT", "0")

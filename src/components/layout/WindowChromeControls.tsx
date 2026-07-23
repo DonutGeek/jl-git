@@ -8,7 +8,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
 
-/** Windows 自绘窗口控制：最小化 / 最大化·还原 / 关闭。 */
+/**
+ * 自绘窗口控制（最小化 / 最大化·还原 / 关闭）。
+ * 当前 Win/Linux 已用系统装饰，组件保留以备无边框场景复用。
+ */
 export function WindowChromeControls() {
   const { t } = useTranslation("common");
   const [maximized, setMaximized] = useState(false);

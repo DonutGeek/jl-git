@@ -21,15 +21,14 @@ export interface AppWindowChromeOptions {
 /**
  * 子窗标题栏相关选项：
  * - mac：Overlay + 交通灯
- * - Windows / Linux：无系统装饰（与 tauri.{windows,linux}.conf.json 一致）
+ * - Windows / Linux：系统原生边框与窗口按钮
  */
 export function createAppWindowChromeOptions(
   os: AppOs = detectAppOs(),
 ): AppWindowChromeOptions {
   if (os === "windows" || os === "linux") {
     return {
-      decorations: false,
-      hiddenTitle: true,
+      decorations: true,
     };
   }
   return {
@@ -39,7 +38,7 @@ export function createAppWindowChromeOptions(
   };
 }
 
-/** 是否需要自绘最小化 / 最大化·还原 / 关闭 */
-export function needsCustomChromeControls(os: AppOs): boolean {
-  return os === "windows" || os === "linux";
+/** 是否需要自绘最小化 / 最大化·还原 / 关闭（Win/Linux 已用系统装饰，恒为 false） */
+export function needsCustomChromeControls(_os: AppOs): boolean {
+  return false;
 }

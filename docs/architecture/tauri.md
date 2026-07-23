@@ -125,13 +125,13 @@ Command::new("git")
 |------|------|
 | `tauri.conf.json` | 公共：尺寸、`hiddenTitle`、bundle/plugins |
 | `tauri.macos.conf.json` | Overlay + `trafficLightPosition (16,26)` |
-| `tauri.windows.conf.json` | `decorations: false` |
-| `tauri.linux.conf.json` | `decorations: false` |
+| `tauri.windows.conf.json` | `decorations: true`（原生标题栏） |
+| `tauri.linux.conf.json` | `decorations: true`（原生标题栏） |
 
 | 平台 | UI |
 |------|-----|
 | macOS | 顶栏 `pl-[88px]`；系统交通灯 |
-| Windows / Linux | 右侧 `WindowChromeControls`；子窗 `createAppWindowChromeOptions()` |
+| Windows / Linux | 系统最小化/最大化/关闭；子窗同样 `decorations: true` |
 
 Capabilities 需含：`allow-minimize` / `allow-maximize` / `allow-unmaximize` / `allow-toggle-maximize` / `allow-close` / `allow-is-maximized`（主窗与各子窗）。
 

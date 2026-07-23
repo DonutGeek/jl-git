@@ -4,7 +4,10 @@ mod db;
 mod error;
 mod git;
 mod menu;
+mod process_cmd;
 mod system;
+#[cfg(windows)]
+mod system_windows;
 
 use tauri::Manager;
 

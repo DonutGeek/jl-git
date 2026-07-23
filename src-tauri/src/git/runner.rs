@@ -22,6 +22,8 @@ fn git_command(cwd: &Path, args: &[&str]) -> Command {
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("NO_COLOR", "1")
         .env("TERM", "dumb");
+    // Windows：隐藏控制台，否则每次 git 都会闪黑窗
+    crate::process_cmd::configure_background_command(&mut command);
     command
 }
 

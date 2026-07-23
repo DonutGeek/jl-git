@@ -18,7 +18,9 @@ pub fn probe(executable: Option<&str>) -> Result<GitVersionResult, AppError> {
         _ => "git",
     };
 
-    let output = Command::new(exe)
+    let mut command = Command::new(exe);
+    crate::process_cmd::configure_background_command(&mut command);
+    let output = command
         .arg("--version")
         .output()
         .map_err(|error| AppError::git_not_found(error.to_string()))?;
@@ -54,7 +56,9 @@ fn resolve_git_path(exe: &str) -> Option<String> {
     #[cfg(not(windows))]
     let which = "which";
 
-    let output = Command::new(which).arg(exe).output().ok()?;
+    let mut command = Command::new(which);
+    crate::process_cmd::configure_background_command(&mut command);
+    let output = command.arg(exe).output().ok()?;
     if !output.status.success() {
         return None;
     }

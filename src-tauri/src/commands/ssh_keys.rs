@@ -92,7 +92,9 @@ pub fn ssh_key_generate(
     let public_path = PathBuf::from(format!("{}.pub", private_path.display()));
 
     // 参数数组调用，禁止 shell；口令仅作 -N 入参，不写日志
-    let status = Command::new("ssh-keygen")
+    let mut command = Command::new("ssh-keygen");
+    crate::process_cmd::configure_background_command(&mut command);
+    let status = command
         .args([
             "-t",
             "ed25519",
@@ -139,7 +141,9 @@ pub fn ssh_key_change_passphrase(
     })?;
 
     // 参数数组调用，禁止 shell；口令仅作 -P/-N 入参
-    let output = Command::new("ssh-keygen")
+    let mut command = Command::new("ssh-keygen");
+    crate::process_cmd::configure_background_command(&mut command);
+    let output = command
         .args([
             "-p",
             "-f",

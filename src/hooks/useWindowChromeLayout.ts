@@ -11,12 +11,12 @@ export interface WindowChromeLayout {
   os: AppOs;
   /** mac Overlay：左侧为交通灯留白 */
   isMacOverlay: boolean;
-  /** Windows / Linux：显示自绘最小化 / 最大化·还原 / 关闭 */
+  /** 自绘三键：当前各平台均不需要（Win/Linux 系统装饰，mac 交通灯） */
   showCustomChromeControls: boolean;
   headerPaddingClass: string;
 }
 
-/** 顶栏平台布局：mac 保持 pl-[88px]；Win / Linux 用紧凑左内边距 + 自绘三键。 */
+/** 顶栏平台布局：mac Overlay 留白；Win / Linux 系统装饰。 */
 export function useWindowChromeLayout(): WindowChromeLayout {
   const [os, setOs] = useState<AppOs>(() => detectAppOs());
 

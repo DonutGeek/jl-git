@@ -2375,6 +2375,7 @@ dependencies = [
  "tauri-plugin-updater",
  "thiserror 2.0.18",
  "uuid",
+ "windows-sys 0.59.0",
  "zip 2.4.2",
 ]
 

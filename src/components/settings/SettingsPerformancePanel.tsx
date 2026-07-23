@@ -11,9 +11,7 @@ import {
 } from "@/components/settings/SettingsPerfCharts";
 import { getAppDataUsage } from "@/services/data/data.service";
 import {
-  getAppInfo,
   getRuntimeStats,
-  type SystemAppInfo,
   type SystemRuntimeStats,
 } from "@/services/system/system.info";
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
@@ -76,30 +74,11 @@ export function SettingsPerformancePanel() {
   const { t } = useTranslation();
   const openTabCount = useOpenTabsStore((state) => state.tabs.length);
 
-  const [appInfo, setAppInfo] = useState<SystemAppInfo | null>(null);
   const [runtime, setRuntime] = useState<SystemRuntimeStats | null>(null);
   const [webviewCount, setWebviewCount] = useState<number | null>(null);
   const [cpuHistory, setCpuHistory] = useState<number[]>([]);
   const [rssHistory, setRssHistory] = useState<number[]>([]);
   const [dataBytes, setDataBytes] = useState<number | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void getAppInfo()
-      .then((info) => {
-        if (!cancelled) {
-          setAppInfo(info);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAppInfo(null);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -169,21 +148,16 @@ export function SettingsPerformancePanel() {
   }, []);
 
   const dash = t("settings.perfUnavailable");
-  const cpuUnavailable =
-    appInfo?.os === "windows" && (runtime?.cpuPercent ?? 0) === 0;
-  const cpuLabel =
-    runtime == null || cpuUnavailable
-      ? dash
-      : `${runtime.cpuPercent.toFixed(1)}%`;
+  // 首帧采样前 CPU 可能为 0，不算不可用；整次 runtime 失败才显示 —
+  const cpuUnavailable = runtime == null;
+  const cpuLabel = runtime == null ? dash : `${runtime.cpuPercent.toFixed(1)}%`;
   const memoryLabel = runtime ? formatBytes(runtime.rssBytes) : dash;
   const uptimeLabel = runtime ? formatUptime(runtime.uptimeMs) : dash;
   const threadLabel =
     runtime?.threadCount != null ? String(runtime.threadCount) : null;
   const dataLabel = dataBytes != null ? formatBytes(dataBytes) : dash;
 
-  const cpuProgress = cpuUnavailable
-    ? 0
-    : clamp01((runtime?.cpuPercent ?? 0) / 100);
+  const cpuProgress = clamp01((runtime?.cpuPercent ?? 0) / 100);
   const memoryProgress = clamp01(
     (runtime?.rssBytes ?? 0) / MEMORY_GAUGE_CAP_BYTES,
   );

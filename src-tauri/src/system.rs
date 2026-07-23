@@ -43,6 +43,12 @@ pub struct SystemDiskSpace {
     pub available_bytes: u64,
 }
 
+pub(crate) struct ProcessMetrics {
+    pub(crate) rss_bytes: u64,
+    pub(crate) cpu_percent: f32,
+    pub(crate) thread_count: Option<u32>,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OkResult {
@@ -73,12 +79,6 @@ pub fn runtime_stats() -> Result<SystemRuntimeStats, AppError> {
     })
 }
 
-struct ProcessMetrics {
-    rss_bytes: u64,
-    cpu_percent: f32,
-    thread_count: Option<u32>,
-}
-
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 fn read_process_metrics(pid: u32) -> Result<ProcessMetrics, AppError> {
     // macOS 的 ps 无 thcount（带上会导致 exit 1，整次采样失败）；Linux 用 nlwp。
@@ -88,7 +88,9 @@ fn read_process_metrics(pid: u32) -> Result<ProcessMetrics, AppError> {
     #[cfg(target_os = "linux")]
     let args: [&str; 4] = ["-o", "rss=,pcpu=,nlwp=", "-p", &pid_arg];
 
-    let output = Command::new("ps").args(args).output().map_err(|error| {
+    let mut command = Command::new("ps");
+    crate::process_cmd::configure_background_command(&mut command);
+    let output = command.args(args).output().map_err(|error| {
         AppError::new("INTERNAL", "无法读取进程状态").with_details(error.to_string())
     })?;
 
@@ -128,38 +130,7 @@ fn parse_ps_metrics(stdout: &str) -> Result<ProcessMetrics, AppError> {
 
 #[cfg(target_os = "windows")]
 fn read_process_metrics(pid: u32) -> Result<ProcessMetrics, AppError> {
-    // WorkingSetSize 单位字节；CPU 百分比 Windows 侧不易瞬时取得，返回 0 由 UI 显示「—」
-    let output = Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-Command",
-            &format!(
-                "$p = Get-Process -Id {pid} -ErrorAction Stop; Write-Output \"$($p.WorkingSet64) $($p.Threads.Count)\""
-            ),
-        ])
-        .output()
-        .map_err(|error| {
-            AppError::new("INTERNAL", "无法读取进程状态").with_details(error.to_string())
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(AppError::new("INTERNAL", "读取进程状态失败").with_details(stderr));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let parts: Vec<&str> = stdout.split_whitespace().collect();
-    let rss_bytes: u64 = parts
-        .first()
-        .ok_or_else(|| AppError::new("INTERNAL", "无法解析进程内存"))?
-        .parse()
-        .map_err(|_| AppError::new("INTERNAL", "无法解析进程内存"))?;
-    let thread_count = parts.get(1).and_then(|raw| raw.parse::<u32>().ok());
-    Ok(ProcessMetrics {
-        rss_bytes,
-        cpu_percent: 0.0,
-        thread_count,
-    })
+    crate::system_windows::read_process_metrics(pid)
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
@@ -241,46 +212,7 @@ fn disk_space_for_path(path: &Path) -> Result<SystemDiskSpace, AppError> {
 
 #[cfg(target_os = "windows")]
 fn disk_space_for_path(path: &Path) -> Result<SystemDiskSpace, AppError> {
-    let path_str = path.to_string_lossy().replace('\'', "''");
-    let script = format!(
-        "$item = Get-Item -LiteralPath '{path_str}' -ErrorAction Stop; \
-         $drive = $item.PSDrive; \
-         if (-not $drive) {{ throw 'no drive' }}; \
-         $total = [int64]$drive.Used + [int64]$drive.Free; \
-         Write-Output \"$total $($drive.Free) $($drive.Name)\""
-    );
-    let output = Command::new("powershell")
-        .args(["-NoProfile", "-Command", &script])
-        .output()
-        .map_err(|error| {
-            AppError::new("INTERNAL", "无法读取磁盘空间").with_details(error.to_string())
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(AppError::new("INTERNAL", "读取磁盘空间失败").with_details(stderr));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let line = stdout
-        .lines()
-        .find(|line| !line.trim().is_empty())
-        .ok_or_else(|| AppError::new("INTERNAL", "磁盘空间输出为空"))?;
-    let parts: Vec<&str> = line.split_whitespace().collect();
-    if parts.len() < 3 {
-        return Err(AppError::new("INTERNAL", "无法解析磁盘空间"));
-    }
-    let total_bytes: u64 = parts[0]
-        .parse()
-        .map_err(|_| AppError::new("INTERNAL", "无法解析磁盘总大小"))?;
-    let available_bytes: u64 = parts[1]
-        .parse()
-        .map_err(|_| AppError::new("INTERNAL", "无法解析可用空间"))?;
-    Ok(SystemDiskSpace {
-        path: format!("{}:", parts[2]),
-        total_bytes,
-        available_bytes,
-    })
+    crate::system_windows::disk_space_for_path(path)
 }
 
 /// 解析 `df -kP`：第二行起为数据；字段为 1024-blocks / Available / Mounted on
@@ -482,12 +414,11 @@ fn open_custom_tool(custom: &str, dir: &Path) -> Result<(), AppError> {
         }
     }
 
-    Command::new(custom)
-        .arg(dir)
-        .spawn()
-        .map_err(|error| {
-            AppError::new("INTERNAL", "无法启动自定义程序").with_details(error.to_string())
-        })?;
+    let mut command = Command::new(custom);
+    crate::process_cmd::configure_background_command(&mut command);
+    command.arg(dir).spawn().map_err(|error| {
+        AppError::new("INTERNAL", "无法启动自定义程序").with_details(error.to_string())
+    })?;
     Ok(())
 }
 
@@ -544,7 +475,9 @@ fn open_in_editor_windows(dir: &Path, preference: &str) -> Result<(), AppError> 
         ],
     };
     for bin in bins {
-        if Command::new(bin).arg(dir).spawn().is_ok() {
+        let mut command = Command::new(bin);
+        crate::process_cmd::configure_background_command(&mut command);
+        if command.arg(dir).spawn().is_ok() {
             return Ok(());
         }
     }

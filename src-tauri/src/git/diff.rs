@@ -264,7 +264,9 @@ fn diff_untracked(repo_path: &Path, abs_file: &Path, limit: usize) -> Result<Pat
     // git diff --no-index 在有差异时退出码为 1
     let null_device = if cfg!(windows) { "NUL" } else { "/dev/null" };
     let abs_str = abs_file.to_string_lossy();
-    let output = Command::new("git")
+    let mut command = Command::new("git");
+    crate::process_cmd::configure_background_command(&mut command);
+    let output = command
         .args(["diff", "--no-index", "--", null_device, abs_str.as_ref()])
         .current_dir(repo_path)
         .env("GIT_TERMINAL_PROMPT", "0")
@@ -318,7 +320,9 @@ pub(crate) fn read_worktree_bytes(path: &Path) -> Result<Vec<u8>, AppError> {
 }
 
 fn git_bytes(cwd: &Path, args: &[&str]) -> Result<(i32, Vec<u8>, String), AppError> {
-    let output = Command::new("git")
+    let mut command = Command::new("git");
+    crate::process_cmd::configure_background_command(&mut command);
+    let output = command
         .args(args)
         .current_dir(cwd)
         .env("GIT_TERMINAL_PROMPT", "0")
