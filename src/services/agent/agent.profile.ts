@@ -74,8 +74,8 @@ export interface AgentAuthorFilter {
 
 /**
  * 并行汇总全部已登记仓库画像（限并发）。
- * 已配置作者时：`git log --author` 拉取后立刻时间分桶入库（≤ AUTHOR_COMMIT_LIMIT）。
- * 未配置时：近期窗口抽样后再分桶（兼容旧行为）。
+ * 简历技能传入用户声明作者时：`git log --author` 拉取后立刻时间分桶（≤ AUTHOR_COMMIT_LIMIT）。
+ * 通用 Agent 不传作者：按仓库整体近期窗口抽样，避免个人身份污染普通画像。
  */
 export async function buildAgentProfiles(
   projects: readonly Project[],
@@ -136,7 +136,7 @@ function normalizeAuthorFilters(
 
 /**
  * 按多个 Git 作者过滤各仓提交摘要（命中任一账号即保留）。
- * 已配置作者时：无匹配提交的仓库直接丢弃（用于串行成稿等需证据的路径）。
+ * 用户已声明作者时：无匹配提交的仓库直接丢弃（用于串行成稿等需证据的路径）。
  */
 export function filterProfilesByAuthor(
   profiles: readonly AgentProjectProfile[],
@@ -149,8 +149,8 @@ export function filterProfilesByAuthor(
 }
 
 /**
- * 多仓对话上下文：保留全部已登记仓库，不因「无本人提交」丢弃。
- * 提交摘要仍按 Git 作者收窄（可为空），供列举项目与按需成稿。
+ * 多仓上下文：保留全部已登记仓库。
+ * 传作者时按用户声明身份收窄；不传作者时保留仓库整体提交样本。
  */
 export function prepareProfilesForAgentContext(
   profiles: readonly AgentProjectProfile[],

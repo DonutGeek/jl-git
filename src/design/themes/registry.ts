@@ -1,5 +1,5 @@
-import { isDocumentDark } from "@/design/themes/color-utils";
 import {
+  isDocumentDark,
   normalizeContrast,
   normalizeHexColor,
 } from "@/design/themes/color-utils";
@@ -15,6 +15,28 @@ import {
 } from "@/design/themes/types";
 
 const THEME_IDS = new Set<string>(APP_THEME_PACKS.map((pack) => pack.id));
+
+const APP_THEME_CHROME_COLOR_KEYS = [
+  "accent",
+  "background",
+  "foreground",
+  "surface",
+  "muted",
+  "mutedForeground",
+  "border",
+  "sidebar",
+  "selection",
+  "destructive",
+  "diffAdded",
+  "diffDeleted",
+  "diffHunk",
+  "gitAdded",
+  "gitModified",
+  "gitDeleted",
+  "gitRenamed",
+  "gitUntracked",
+  "gitConflict",
+] as const satisfies readonly (keyof AppThemeChrome)[];
 
 /** 已下线主题 id → 现主题 */
 const LEGACY_THEME_ID: Record<string, AppThemeId> = {
@@ -57,9 +79,9 @@ export function isAppThemeChromeAtPreset(
 ): boolean {
   const preset = chromeFromPreset(themeId, dark);
   return (
-    chrome.accent.toUpperCase() === preset.accent.toUpperCase() &&
-    chrome.background.toUpperCase() === preset.background.toUpperCase() &&
-    chrome.foreground.toUpperCase() === preset.foreground.toUpperCase() &&
+    APP_THEME_CHROME_COLOR_KEYS.every(
+      (key) => chrome[key].toUpperCase() === preset[key].toUpperCase(),
+    ) &&
     chrome.contrast === preset.contrast
   );
 }
@@ -98,6 +120,25 @@ export function normalizeAppThemeChrome(
     accent: normalizeHexColor(value.accent, base.accent),
     background: normalizeHexColor(value.background, base.background),
     foreground: normalizeHexColor(value.foreground, base.foreground),
+    surface: normalizeHexColor(value.surface, base.surface),
+    muted: normalizeHexColor(value.muted, base.muted),
+    mutedForeground: normalizeHexColor(
+      value.mutedForeground,
+      base.mutedForeground,
+    ),
+    border: normalizeHexColor(value.border, base.border),
+    sidebar: normalizeHexColor(value.sidebar, base.sidebar),
+    selection: normalizeHexColor(value.selection, base.selection),
+    destructive: normalizeHexColor(value.destructive, base.destructive),
+    diffAdded: normalizeHexColor(value.diffAdded, base.diffAdded),
+    diffDeleted: normalizeHexColor(value.diffDeleted, base.diffDeleted),
+    diffHunk: normalizeHexColor(value.diffHunk, base.diffHunk),
+    gitAdded: normalizeHexColor(value.gitAdded, base.gitAdded),
+    gitModified: normalizeHexColor(value.gitModified, base.gitModified),
+    gitDeleted: normalizeHexColor(value.gitDeleted, base.gitDeleted),
+    gitRenamed: normalizeHexColor(value.gitRenamed, base.gitRenamed),
+    gitUntracked: normalizeHexColor(value.gitUntracked, base.gitUntracked),
+    gitConflict: normalizeHexColor(value.gitConflict, base.gitConflict),
     translucentSidebar: Boolean(value.translucentSidebar),
     contrast: normalizeContrast(value.contrast, base.contrast),
   };
@@ -109,6 +150,18 @@ export const APP_THEME_OPTIONS = APP_THEME_PACKS.map((pack) => ({
   id: pack.id,
   labelKey: pack.labelKey,
 }));
+
+/** 内置色板的建议色，供自定义颜色选择器复用。 */
+export const APP_THEME_COLOR_SUGGESTIONS = Array.from(
+  new Set([
+    ...APP_THEME_PACKS.map((pack) => pack.light.accent),
+    ...APP_THEME_PACKS.map((pack) => pack.dark.accent),
+    ...APP_THEME_PACKS.map((pack) => pack.light.background),
+    ...APP_THEME_PACKS.map((pack) => pack.light.foreground),
+    ...APP_THEME_PACKS.map((pack) => pack.dark.background),
+    ...APP_THEME_PACKS.map((pack) => pack.dark.foreground),
+  ]),
+);
 export const EDITOR_THEME_OPTIONS = APP_THEME_OPTIONS;
 /** @deprecated */
 export const APP_THEME_PRESETS = APP_THEME_PACKS;

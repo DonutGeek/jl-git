@@ -33,12 +33,15 @@ import {
 import {
   formatDeepSeekModelLabel,
   formatDeepSeekModelShortLabel,
+  getAgentSafetyRefusal,
   modelSupportsThinking,
   streamJinglingReply,
 } from "@/services/ai";
 import { toastAiFailure } from "@/services/ai/ai.httpError";
-import { isResumeSkillTurn } from "@/services/ai/ai.skillMode";
-import { listAllGitAuthorsForMatching } from "@/services/git/git.accounts";
+import {
+  isExplicitResumeSkillRequest,
+  isResumeSkillTurn,
+} from "@/services/ai/ai.skillMode";
 import {
   disableAgentPlugin,
   filterEnabledAgentPlugins,
@@ -51,6 +54,10 @@ import {
   filterProfilesByAuthor,
   prepareProfilesForAgentContext,
 } from "@/services/agent/agent.profile";
+import {
+  buildResumeIdentityRequest,
+  extractDeclaredResumeAuthors,
+} from "@/services/agent/agent.resumeIdentity";
 import { projectService, workspaceService } from "@/services/project";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { scheduleFocusInputCaretAtEnd } from "@/utils/focusInputCaretAtEnd";
@@ -66,6 +73,7 @@ import type {
   AgentMention,
 } from "@/types/ai";
 import type { AgentProjectProfile } from "@/types/agent";
+import type { Project, Workspace } from "@/types/project";
 
 interface SendResumeOptions {
   /** 仅这些仓库进入上下文（逐个写简历） */
@@ -99,6 +107,15 @@ export function MultiAgentWorkspace() {
   const messageSeq = useRef(0);
   /** 最近一次成稿目标仓，供「加强表述」复用 */
   const lastTargetProjectIdRef = useRef<string | null>(null);
+  /** 普通画像与技能画像分开；技能画像只按用户本轮声明的作者身份延迟构建。 */
+  const profileSourcesRef = useRef<{
+    projects: readonly Project[];
+    workspaces: readonly Workspace[];
+  } | null>(null);
+  const resumeProfilesCacheRef = useRef<{
+    authorsKey: string;
+    profiles: AgentProjectProfile[];
+  } | null>(null);
 
   const [draftMarkup, setDraftMarkup] = useState("");
   const [draftPlainText, setDraftPlainText] = useState("");
@@ -109,7 +126,6 @@ export function MultiAgentWorkspace() {
     string | null
   >(null);
   const [composerPadPx, setComposerPadPx] = useState(COMPOSER_PAD_FALLBACK_PX);
-  const [gitAuthorsReady, setGitAuthorsReady] = useState(false);
   /** 与单仓一致：默认开启深度思考 */
   const [thinkingEnabled, setThinkingEnabled] = useState(true);
   /** 右侧主区：会话对话 | 插件列表 */
@@ -148,10 +164,8 @@ export function MultiAgentWorkspace() {
   const isReplying =
     replyingConversationId != null &&
     replyingConversationId === activeConversationId;
-  const gitAuthors = useMultiAgentStore((state) => state.gitAuthors);
   const setProfilesLoading = useMultiAgentStore((state) => state.setProfilesLoading);
   const setProfiles = useMultiAgentStore((state) => state.setProfiles);
-  const setGitAuthors = useMultiAgentStore((state) => state.setGitAuthors);
   const hydrateConversations = useMultiAgentStore(
     (state) => state.hydrateConversations,
   );
@@ -252,43 +266,13 @@ export function MultiAgentWorkspace() {
 
   useEffect(() => {
     let active = true;
-    void listAllGitAuthorsForMatching()
-      .then((authors) => {
-        if (active) {
-          setGitAuthors(authors);
-          setGitAuthorsReady(true);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setGitAuthors([]);
-          setGitAuthorsReady(true);
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [setGitAuthors]);
-
-  // 作者账号就绪后再拉画像：有账号时走 --author 全量，避免他人提交占抽样预算
-  const authorsKey = gitAuthors
-    .map((author) => `${author.name.trim().toLowerCase()}<${author.email.trim().toLowerCase()}>`)
-    .join("|");
-
-  useEffect(() => {
-    if (!gitAuthorsReady) {
-      return;
-    }
-    let active = true;
     setProfilesLoading(true);
     void Promise.all([projectService.list(), workspaceService.list()])
-      .then(([projects, workspaces]) =>
-        buildAgentProfiles(
-          projects,
-          useMultiAgentStore.getState().gitAuthors,
-          workspaces,
-        ),
-      )
+      .then(([projects, workspaces]) => {
+        profileSourcesRef.current = { projects, workspaces };
+        // 通用多仓 Agent 始终读取仓库整体画像，不按任何个人身份收窄。
+        return buildAgentProfiles(projects, [], workspaces);
+      })
       .then((next) => {
         if (active) setProfiles(next);
       })
@@ -300,7 +284,7 @@ export function MultiAgentWorkspace() {
     return () => {
       active = false;
     };
-  }, [gitAuthorsReady, authorsKey, setProfiles, setProfilesLoading, t]);
+  }, [setProfiles, setProfilesLoading, t]);
 
   useEffect(() => {
     return () => {
@@ -355,11 +339,6 @@ export function MultiAgentWorkspace() {
     setDraftPlainText("");
     setDraftMentions([]);
   }
-
-  const matchedProfiles = useMemo(
-    () => filterProfilesByAuthor(profiles, gitAuthors),
-    [profiles, gitAuthors],
-  );
 
   const enabledPlugins = useMemo(
     () => filterEnabledAgentPlugins(disabledPluginIds),
@@ -488,6 +467,40 @@ export function MultiAgentWorkspace() {
     })();
   }
 
+  async function loadResumeProfiles(
+    authors: ReadonlyArray<{ name: string; email: string }>,
+  ): Promise<AgentProjectProfile[]> {
+    const authorsKey = authors
+      .map(
+        (author) =>
+          `${author.name.trim().toLowerCase()}<${author.email.trim().toLowerCase()}>`,
+      )
+      .sort()
+      .join("|");
+    const cached = resumeProfilesCacheRef.current;
+    if (cached?.authorsKey === authorsKey) {
+      return cached.profiles;
+    }
+
+    let sources = profileSourcesRef.current;
+    if (!sources) {
+      const [projects, workspaces] = await Promise.all([
+        projectService.list(),
+        workspaceService.list(),
+      ]);
+      sources = { projects, workspaces };
+      profileSourcesRef.current = sources;
+    }
+
+    const next = await buildAgentProfiles(
+      sources.projects,
+      authors,
+      sources.workspaces,
+    );
+    resumeProfilesCacheRef.current = { authorsKey, profiles: next };
+    return next;
+  }
+
   /**
    * 在已有 history（含最新用户消息、不含助手气泡）上继续流式回复。
    * 供发送 / 重生成 / 编辑共用。
@@ -513,28 +526,24 @@ export function MultiAgentWorkspace() {
     if (!trimmed) {
       return;
     }
+    const safetyRefusal = getAgentSafetyRefusal(history, locale);
 
-    const currentAuthors = useMultiAgentStore.getState().gitAuthors;
     const allProfiles = useMultiAgentStore.getState().profiles;
     const resumeMode = isResumeSkillTurn(history);
-    // 普通对话不按作者收窄；仅简历技能才匹配「谁的提交」
-    const contextProfiles = prepareProfilesForAgentContext(
-      allProfiles,
-      resumeMode ? currentAuthors : [],
-    );
-    // 显式 @项目 / projectIds 在全部已登记仓中解析
-    const explicitTargets = resolveTargetProfiles(
-      allProfiles,
-      trimmed,
-      options.projectIds,
-      options.mentions ?? lastUser.mentions,
-    );
-    // 未锁定单仓时禁止 enrich，避免闲聊/未点名时全量拉 diff
-    const shouldEnrich =
-      options.enrich !== false && explicitTargets.length > 0;
-    if (explicitTargets.length === 1) {
-      lastTargetProjectIdRef.current = explicitTargets[0]!.projectId;
-    }
+    const resumeAuthors = resumeMode
+      ? extractDeclaredResumeAuthors(history)
+      : [];
+    const resumeRequest = [...history]
+      .reverse()
+      .find(isExplicitResumeSkillRequest);
+    const targetContent =
+      resumeRequest && resumeRequest.id !== lastUser.id
+        ? `${resumeRequest.content}\n${trimmed}`
+        : trimmed;
+    const targetMentions = [
+      ...(resumeRequest?.mentions ?? []),
+      ...(options.mentions ?? lastUser.mentions ?? []),
+    ];
 
     const askedAt = new Date().toISOString();
     const assistantId = nextMessageId();
@@ -556,6 +565,30 @@ export function MultiAgentWorkspace() {
       });
     });
 
+    if (safetyRefusal) {
+      updateMessage(conversationId, assistantId, {
+        content: safetyRefusal,
+        isStreaming: false,
+        createdAt: new Date().toISOString(),
+      });
+      setReplyingConversationId(null);
+      void persistConversationById(conversationId);
+      window.requestAnimationFrame(() => inputRef.current?.focus());
+      return;
+    }
+
+    if (resumeMode && resumeAuthors.length === 0) {
+      updateMessage(conversationId, assistantId, {
+        content: buildResumeIdentityRequest(locale),
+        isStreaming: false,
+        createdAt: new Date().toISOString(),
+      });
+      setReplyingConversationId(null);
+      void persistConversationById(conversationId);
+      window.requestAnimationFrame(() => inputRef.current?.focus());
+      return;
+    }
+
     const controller = new AbortController();
     replySessionRef.current = { conversationId, controller };
 
@@ -571,7 +604,29 @@ export function MultiAgentWorkspace() {
       });
     };
 
+    let sourceProfiles = allProfiles;
     try {
+      if (resumeMode) {
+        sourceProfiles = await loadResumeProfiles(resumeAuthors);
+      }
+      const contextProfiles = prepareProfilesForAgentContext(
+        sourceProfiles,
+        resumeMode ? resumeAuthors : [],
+      );
+      // 显式 @项目 / projectIds 在全部已登记仓中解析。
+      const explicitTargets = resolveTargetProfiles(
+        sourceProfiles,
+        targetContent,
+        options.projectIds,
+        targetMentions,
+      );
+      // 未锁定单仓时禁止 enrich，避免普通问答或项目列表请求全量拉 diff。
+      const shouldEnrich =
+        options.enrich !== false && explicitTargets.length > 0;
+      if (explicitTargets.length === 1) {
+        lastTargetProjectIdRef.current = explicitTargets[0]!.projectId;
+      }
+
       let profilesForStream = contextProfiles;
       if (shouldEnrich) {
         const withCode = await enrichProfilesWithCodeEvidence(explicitTargets);
@@ -589,7 +644,7 @@ export function MultiAgentWorkspace() {
         host: "global",
         messages: history,
         profiles: profilesForStream,
-        gitAuthors: currentAuthors,
+        resumeAuthors,
         locale,
         signal: controller.signal,
         model: modelId,
@@ -629,8 +684,8 @@ export function MultiAgentWorkspace() {
 
       if (options.notifySkipped === true) {
         const followUp = buildSkippedProjectsFollowUp(
-          useMultiAgentStore.getState().profiles,
-          currentAuthors,
+          sourceProfiles,
+          resumeAuthors,
           t,
         );
         if (followUp) {
@@ -778,10 +833,36 @@ export function MultiAgentWorkspace() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const text = draftPlainText.trim();
+    const probeMessage: AgentChatMessage = {
+      id: "resume-submit-probe",
+      role: "user",
+      content: text,
+      createdAt: new Date().toISOString(),
+      ...(draftMentions.length > 0 ? { mentions: draftMentions } : {}),
+    };
+    const historyWithProbe = [...messages, probeMessage];
+    if (getAgentSafetyRefusal(historyWithProbe, locale)) {
+      await sendUserContent(text, { mentions: draftMentions });
+      return;
+    }
+    const resumeRequest = isResumeSkillTurn(historyWithProbe)
+      ? [...historyWithProbe].reverse().find(isExplicitResumeSkillRequest)
+      : undefined;
+    const allProjectsIntent = resumeRequest
+      ? `${resumeRequest.content}\n${text}`
+      : text;
+    const intentMentions = [
+      ...(resumeRequest?.mentions ?? []),
+      ...draftMentions,
+    ];
     if (
-      shouldDraftAllProjectsSequentially(text, draftMentions, matchedProfiles)
+      shouldDraftAllProjectsSequentially(
+        allProjectsIntent,
+        intentMentions,
+        profiles,
+      )
     ) {
-      await draftAllProjectsSequentially(text);
+      await draftAllProjectsSequentially(text, draftMentions);
       return;
     }
     await sendUserContent(text, { mentions: draftMentions });
@@ -793,6 +874,7 @@ export function MultiAgentWorkspace() {
    */
   async function draftAllProjectsSequentially(
     userContent?: string,
+    mentions: readonly AgentMention[] = [],
   ): Promise<void> {
     const conversationId = useMultiAgentStore.getState().activeConversationId;
     if (!conversationId || isReplying || profilesLoading) {
@@ -802,11 +884,36 @@ export function MultiAgentWorkspace() {
       replySessionRef.current.controller.abort();
     }
 
-    const currentAuthors = useMultiAgentStore.getState().gitAuthors;
-    const targets = filterProfilesByAuthor(
-      useMultiAgentStore.getState().profiles,
-      currentAuthors,
-    );
+    const content =
+      userContent?.trim() || t("multiAgent.quickDraftAllPrompt");
+    const resumeMention: AgentMention = {
+      type: "plugin",
+      id: "resume",
+      name: t("multiAgent.pluginResumeMention"),
+    };
+    const effectiveMentions = mentions.some(
+      (mention) => mention.type === "plugin" && mention.id === "resume",
+    )
+      ? mentions
+      : [...mentions, resumeMention];
+    const probeMessage: AgentChatMessage = {
+      id: "resume-sequential-probe",
+      role: "user",
+      content,
+      createdAt: new Date().toISOString(),
+      mentions: effectiveMentions,
+    };
+    const resumeAuthors = extractDeclaredResumeAuthors([
+      ...getMultiAgentMessages(conversationId),
+      probeMessage,
+    ]);
+    if (resumeAuthors.length === 0) {
+      await sendUserContent(content, { mentions: effectiveMentions });
+      return;
+    }
+
+    const resumeProfiles = await loadResumeProfiles(resumeAuthors);
+    const targets = filterProfilesByAuthor(resumeProfiles, resumeAuthors);
     if (targets.length === 0) {
       toast.message(t("multiAgent.pickProjectHint"));
       return;
@@ -816,9 +923,9 @@ export function MultiAgentWorkspace() {
     const userMessage: AgentChatMessage = {
       id: nextMessageId(),
       role: "user",
-      content: userContent?.trim() || t("multiAgent.quickDraftAllPrompt"),
+      content,
       createdAt: askedAt,
-      mentions: [{ type: "plugin", id: "resume", name: t("multiAgent.pluginResumeMention") }],
+      mentions: effectiveMentions,
     };
     const progressId = nextMessageId();
 
@@ -892,6 +999,7 @@ export function MultiAgentWorkspace() {
               name: profile.projectName,
             }),
             createdAt: draftAskedAt,
+            mentions: [resumeMention],
           },
         ];
 
@@ -912,7 +1020,7 @@ export function MultiAgentWorkspace() {
             host: "global",
             messages: turnMessages,
             profiles: withCode,
-            gitAuthors: currentAuthors,
+            resumeAuthors,
             locale,
             signal: controller.signal,
             model: modelId,
@@ -1004,8 +1112,8 @@ export function MultiAgentWorkspace() {
         });
 
         const followUp = buildSkippedProjectsFollowUp(
-          useMultiAgentStore.getState().profiles,
-          currentAuthors,
+          resumeProfiles,
+          resumeAuthors,
           t,
         );
         if (followUp) {
@@ -1228,15 +1336,15 @@ function resolveTargetProfiles(
 function shouldDraftAllProjectsSequentially(
   content: string,
   mentions: readonly AgentMention[],
-  matched: readonly AgentProjectProfile[],
+  availableProfiles: readonly AgentProjectProfile[],
 ): boolean {
-  if (matched.length <= 1) {
+  if (availableProfiles.length <= 1) {
     return false;
   }
   if (mentions.some((item) => item.type === "project")) {
     return false;
   }
-  const named = matched.filter((profile) => {
+  const named = availableProfiles.filter((profile) => {
     const name = profile.projectName.trim();
     return name.length > 0 && content.includes(name);
   });

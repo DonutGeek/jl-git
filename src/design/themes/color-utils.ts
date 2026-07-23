@@ -1,5 +1,18 @@
 /** 主题色运算（与主题包数据解耦） */
 
+export interface HsvColor {
+  /** 0–359 */
+  hue: number;
+  /** 0–100 */
+  saturation: number;
+  /** 0–100 */
+  value: number;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 export function normalizeHexColor(value: unknown, fallback: string): string {
   if (typeof value !== "string") {
     return fallback;
@@ -13,6 +26,77 @@ export function normalizeHexColor(value: unknown, fallback: string): string {
     return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
   }
   return fallback;
+}
+
+export function hexToHsv(hex: string): HsvColor {
+  const normalized = normalizeHexColor(hex, "#000000").slice(1);
+  const red = Number.parseInt(normalized.slice(0, 2), 16) / 255;
+  const green = Number.parseInt(normalized.slice(2, 4), 16) / 255;
+  const blue = Number.parseInt(normalized.slice(4, 6), 16) / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+
+  let hue = 0;
+  if (delta > 0) {
+    if (max === red) {
+      hue = 60 * (((green - blue) / delta) % 6);
+    } else if (max === green) {
+      hue = 60 * ((blue - red) / delta + 2);
+    } else {
+      hue = 60 * ((red - green) / delta + 4);
+    }
+  }
+  if (hue < 0) {
+    hue += 360;
+  }
+
+  return {
+    hue: hue % 360,
+    saturation: max === 0 ? 0 : (delta / max) * 100,
+    value: max * 100,
+  };
+}
+
+export function hsvToHex(
+  hue: number,
+  saturation: number,
+  value: number,
+): string {
+  const normalizedHue = ((Number.isFinite(hue) ? hue : 0) % 360 + 360) % 360;
+  const normalizedSaturation =
+    clamp(Number.isFinite(saturation) ? saturation : 0, 0, 100) / 100;
+  const normalizedValue =
+    clamp(Number.isFinite(value) ? value : 0, 0, 100) / 100;
+  const chroma = normalizedValue * normalizedSaturation;
+  const segment = normalizedHue / 60;
+  const secondary = chroma * (1 - Math.abs((segment % 2) - 1));
+  const offset = normalizedValue - chroma;
+
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+  if (segment < 1) {
+    [red, green] = [chroma, secondary];
+  } else if (segment < 2) {
+    [red, green] = [secondary, chroma];
+  } else if (segment < 3) {
+    [green, blue] = [chroma, secondary];
+  } else if (segment < 4) {
+    [green, blue] = [secondary, chroma];
+  } else if (segment < 5) {
+    [red, blue] = [secondary, chroma];
+  } else {
+    [red, blue] = [chroma, secondary];
+  }
+
+  const channel = (component: number): string =>
+    Math.round((component + offset) * 255)
+      .toString(16)
+      .padStart(2, "0")
+      .toUpperCase();
+
+  return `#${channel(red)}${channel(green)}${channel(blue)}`;
 }
 
 export function normalizeContrast(value: unknown, fallback = 60): number {

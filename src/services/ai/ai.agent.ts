@@ -1,10 +1,17 @@
-import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
+import { getAgentKey } from "@/services/ai/ai.settings";
 import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
 import { DEFAULT_AGENT_MODEL } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
-import { isResumeSkillTurn } from "@/services/ai/ai.skillMode";
+import { getAgentSafetyRefusal } from "@/services/ai/ai.safety";
+import { getAgentSkillMode } from "@/services/ai/ai.skillMode";
+import {
+  buildResumeIdentityRequest,
+  extractDeclaredResumeAuthors,
+} from "@/services/agent/agent.resumeIdentity";
+import { toGitAuthorPatterns } from "@/services/agent/agent.profile";
 import { buildAgentSystemPrompt } from "@/prompts/agent";
 import { buildResumeSystemPrompt } from "@/prompts/resume";
+import { buildSkillCreatorSystemPrompt } from "@/prompts/skillCreator";
 import {
   getCommit,
   getCommitFileDiff,
@@ -29,6 +36,7 @@ const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions
 const AGENT_REQUEST_TIMEOUT_MS = 150_000;
 const AGENT_HISTORY_LIMIT = 20;
 const AGENT_LOG_LIMIT = 16;
+const RESUME_LOG_LIMIT = 200;
 const AGENT_FILE_LIMIT = 120;
 const AGENT_STATUS_ENTRY_LIMIT = 50;
 const AGENT_COMPARISON_LIMIT = 12;
@@ -67,20 +75,39 @@ export async function streamAgentReply({
   onDelta,
   onReasoningDelta,
 }: StreamAgentReplyOptions): Promise<void> {
+  const safetyRefusal = getAgentSafetyRefusal(messages, locale);
+  if (safetyRefusal) {
+    onDelta(safetyRefusal);
+    return;
+  }
+
+  const skillMode = getAgentSkillMode(messages);
+  const resumeMode = skillMode === "resume";
+  const resumeAuthors = resumeMode
+    ? extractDeclaredResumeAuthors(messages)
+    : [];
+  if (resumeMode && resumeAuthors.length === 0) {
+    onDelta(buildResumeIdentityRequest(locale));
+    return;
+  }
+
   const apiKey = await getAgentKey();
   if (!apiKey) {
     throw appError("VALIDATION", i18n.t("ai.errors.missingApiKey"));
   }
 
-  const resumeMode = isResumeSkillTurn(messages);
-  const repositoryContext = await buildRepositoryContext(repoPath, messages);
-  const systemPrompt = resumeMode
-    ? buildResumeSystemPrompt(
-        locale,
-        repositoryContext,
-        (await getAiInstructions()).resume,
-      )
-    : buildAgentSystemPrompt(locale, repositoryContext);
+  const repositoryContext = await buildRepositoryContext(
+    repoPath,
+    messages,
+    resumeMode ? resumeAuthors : [],
+    skillMode === "skill-creator",
+  );
+  const systemPrompt =
+    skillMode === "resume"
+      ? buildResumeSystemPrompt(locale, repositoryContext)
+      : skillMode === "skill-creator"
+        ? buildSkillCreatorSystemPrompt(locale, repositoryContext)
+        : buildAgentSystemPrompt(locale, repositoryContext);
   const controller = new AbortController();
   const abortFromCaller = (): void => controller.abort();
   signal?.addEventListener("abort", abortFromCaller, { once: true });
@@ -97,8 +124,13 @@ export async function streamAgentReply({
       body: JSON.stringify({
         model: modelId,
         stream: true,
-        // 简历成稿略高；普通 Git 问答更克制
-        temperature: resumeMode ? 0.55 : 0.3,
+        // 成稿类技能略高；通用 Git 问答更克制
+        temperature:
+          skillMode === "resume"
+            ? 0.55
+            : skillMode === "skill-creator"
+              ? 0.45
+              : 0.3,
         ...(enableThinking
           ? {
               thinking: { type: "enabled" },
@@ -115,7 +147,7 @@ export async function streamAgentReply({
           // 只回传正文；reasoning 仅 UI 展示，不进入下一轮上下文
           ...messages.slice(-AGENT_HISTORY_LIMIT).map((message) => ({
             role: message.role,
-            content: message.content,
+            content: redactSecrets(message.content),
           })),
         ],
       }),
@@ -149,27 +181,73 @@ export async function streamAgentReply({
 async function buildRepositoryContext(
   repoPath: string,
   messages: readonly AgentChatMessage[],
+  resumeAuthors: ReadonlyArray<{ name: string; email: string }> = [],
+  forceFileTree = false,
 ): Promise<string> {
   const question = messages[messages.length - 1]?.content ?? "";
   const selectedBranches = messages[messages.length - 1]?.mentions
     ?.filter((mention) => mention.type === "branch")
     .map((mention) => mention.name) ?? [];
-  const needFileTree = needsFileTreeContext(question);
+  const resumeAuthorPatterns = toGitAuthorPatterns(resumeAuthors);
+  const resumeMode = resumeAuthorPatterns.length > 0;
+  const needFileTree =
+    resumeMode || forceFileTree || needsFileTreeContext(question);
   const needWorkingTreePatches = needsWorkingTreePatchContext(question);
 
-  const [statusResult, branchesResult, logResult, treeResult] = await Promise.allSettled([
+  const [
+    statusResult,
+    branchesResult,
+    logResult,
+    oldestAuthorCommitResult,
+    treeResult,
+  ] = await Promise.allSettled([
     getStatus(repoPath),
     listBranches(repoPath, true),
-    getLog(repoPath, { limit: AGENT_LOG_LIMIT }),
+    getLog(
+      repoPath,
+      resumeMode
+        ? {
+            limit: RESUME_LOG_LIMIT,
+            all: true,
+            authors: resumeAuthorPatterns,
+          }
+        : { limit: AGENT_LOG_LIMIT },
+    ),
+    resumeMode
+      ? getLog(repoPath, {
+          limit: 1,
+          all: true,
+          reverse: true,
+          authors: resumeAuthorPatterns,
+        })
+      : Promise.resolve({ commits: [] as GitCommitSummary[], hasMore: false }),
     needFileTree
       ? listTree(repoPath, "HEAD")
       : Promise.resolve({ paths: [] as string[], truncated: false }),
   ]);
 
   const sections = [
+    resumeMode
+      ? [
+          "userDeclaredGitAuthors:",
+          ...resumeAuthors.map(
+            (author) =>
+              `- ${author.name.trim() || "—"} <${author.email.trim() || "—"}>`,
+          ),
+          "Only commits matched by these user-declared filters are personal contribution evidence.",
+        ].join("\n")
+      : null,
     formatStatusContext(statusResult),
     formatBranchesContext(branchesResult),
-    formatLogContext(logResult, "Recent commits on HEAD"),
+    formatLogContext(
+      logResult,
+      resumeMode
+        ? "Author-matched commits across all refs"
+        : "Recent commits on HEAD",
+    ),
+    resumeMode
+      ? formatResumeInvolvementContext(logResult, oldestAuthorCommitResult)
+      : null,
     needFileTree ? formatTreeContext(treeResult) : null,
     selectedBranches.length > 0
       ? `User-selected branch references: ${selectedBranches.join(", ")}.`
@@ -213,6 +291,41 @@ async function buildRepositoryContext(
   }
 
   return redactSecrets(sections.filter((section): section is string => section !== null).join("\n\n"));
+}
+
+function formatResumeInvolvementContext(
+  recent: PromiseSettledResult<{
+    commits: GitCommitSummary[];
+    hasMore: boolean;
+  }>,
+  oldest: PromiseSettledResult<{
+    commits: GitCommitSummary[];
+    hasMore: boolean;
+  }>,
+): string {
+  if (recent.status === "rejected" || recent.value.commits.length === 0) {
+    return "matchedCommits=0\nauthorInvolvementRange: —";
+  }
+  const latestAt = recent.value.commits[0]?.authoredAt ?? null;
+  const oldestAt =
+    oldest.status === "fulfilled"
+      ? oldest.value.commits[0]?.authoredAt ?? null
+      : recent.value.commits[recent.value.commits.length - 1]?.authoredAt ??
+        null;
+  const start = formatResumeMonth(oldestAt);
+  const end = formatResumeMonth(latestAt);
+  return [
+    `matchedCommits=${recent.value.commits.length}${recent.value.hasMore ? "+" : ""}`,
+    `authorInvolvementRange: ${start && end ? `${start} – ${end}` : "—"}`,
+  ].join("\n");
+}
+
+function formatResumeMonth(iso: string | null): string | null {
+  if (!iso) {
+    return null;
+  }
+  const match = /^(\d{4})-(\d{2})/.exec(iso);
+  return match ? `${match[1]}.${match[2]}` : null;
 }
 
 function formatStatusContext(result: PromiseSettledResult<GitStatusResult>): string {

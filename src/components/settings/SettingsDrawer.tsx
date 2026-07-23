@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -104,9 +103,13 @@ import {
 import { listSystemFonts } from "@/services/system/system.info";
 import { setLaunchAtLoginEnabled } from "@/services/system/system.autostart";
 import { openExternalUrl } from "@/services/system/open-url";
-import type { ThemeMode } from "@/services/theme/theme.service";
+import {
+  resolveEffective,
+  type ThemeMode,
+} from "@/services/theme/theme.service";
 import {
   APP_THEME_OPTIONS,
+  chromeFromPreset,
   normalizeAppThemeId,
 } from "@/design/editor-themes";
 import {
@@ -290,12 +293,13 @@ export function SettingsDrawer() {
   const patchThemeChrome = useAppPrefsStore((state) => state.patchThemeChrome);
   const setExternalEditor = useAppPrefsStore((state) => state.setExternalEditor);
 
-  /** 当前昼夜模式下正在编辑的主题色（切换主题包会重置为该包预设） */
-  const activeChrome = useMemo(() => {
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const dark = mode === "dark" || (mode === "system" && prefersDark);
-    return dark ? themeChromeDark : themeChromeLight;
-  }, [mode, themeChromeDark, themeChromeLight]);
+  const [systemPrefersDark, setSystemPrefersDark] = useState(
+    () => window.matchMedia("(prefers-color-scheme: dark)").matches,
+  );
+  const effectiveMode = resolveEffective(mode, systemPrefersDark);
+  const editingDarkTheme = effectiveMode === "dark";
+  const activeChrome = editingDarkTheme ? themeChromeDark : themeChromeLight;
+  const presetChrome = chromeFromPreset(appThemeId, editingDarkTheme);
   const setExternalEditorPath = useAppPrefsStore((state) => state.setExternalEditorPath);
   const setShell = useAppPrefsStore((state) => state.setShell);
   const setShellPath = useAppPrefsStore((state) => state.setShellPath);
@@ -339,6 +343,18 @@ export function SettingsDrawer() {
 
   const savedInstructionsRef = useRef({ commit: "", pullRequest: "" });
   const instructionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const syncSystemTheme = (): void => {
+      setSystemPrefersDark(media.matches);
+    };
+    syncSystemTheme();
+    media.addEventListener("change", syncSystemTheme);
+    return () => {
+      media.removeEventListener("change", syncSystemTheme);
+    };
+  }, []);
 
   // 外部 openDrawer("git") 时落到对应分区
   useEffect(() => {
@@ -789,7 +805,7 @@ export function SettingsDrawer() {
                   onChange={(value) => {
                     setAppThemeId(normalizeAppThemeId(value));
                   }}
-                  triggerClassName="h-8 w-[12rem] max-w-[40vw]"
+                  triggerClassName="h-8 w-48 max-w-[40vw]"
                   options={APP_THEME_OPTIONS.map((option) => ({
                     value: option.id,
                     label: t(option.labelKey),
@@ -802,6 +818,7 @@ export function SettingsDrawer() {
                 <SettingsColorSwatch
                   solid
                   value={activeChrome.accent}
+                  presetValue={presetChrome.accent}
                   ariaLabel={t("settings.themeAccent")}
                   onChange={(hex) => patchThemeChrome({ accent: hex })}
                 />
@@ -809,6 +826,7 @@ export function SettingsDrawer() {
               <SettingsPreferenceRow label={t("settings.themeBackground")}>
                 <SettingsColorSwatch
                   value={activeChrome.background}
+                  presetValue={presetChrome.background}
                   ariaLabel={t("settings.themeBackground")}
                   onChange={(hex) => patchThemeChrome({ background: hex })}
                 />
@@ -816,8 +834,69 @@ export function SettingsDrawer() {
               <SettingsPreferenceRow label={t("settings.themeForeground")}>
                 <SettingsColorSwatch
                   value={activeChrome.foreground}
+                  presetValue={presetChrome.foreground}
                   ariaLabel={t("settings.themeForeground")}
                   onChange={(hex) => patchThemeChrome({ foreground: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeSurface")}>
+                <SettingsColorSwatch
+                  value={activeChrome.surface}
+                  presetValue={presetChrome.surface}
+                  ariaLabel={t("settings.themeSurface")}
+                  onChange={(hex) => patchThemeChrome({ surface: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeMuted")}>
+                <SettingsColorSwatch
+                  value={activeChrome.muted}
+                  presetValue={presetChrome.muted}
+                  ariaLabel={t("settings.themeMuted")}
+                  onChange={(hex) => patchThemeChrome({ muted: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow
+                label={t("settings.themeMutedForeground")}
+              >
+                <SettingsColorSwatch
+                  value={activeChrome.mutedForeground}
+                  presetValue={presetChrome.mutedForeground}
+                  ariaLabel={t("settings.themeMutedForeground")}
+                  onChange={(hex) =>
+                    patchThemeChrome({ mutedForeground: hex })
+                  }
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeBorder")}>
+                <SettingsColorSwatch
+                  value={activeChrome.border}
+                  presetValue={presetChrome.border}
+                  ariaLabel={t("settings.themeBorder")}
+                  onChange={(hex) => patchThemeChrome({ border: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeSidebar")}>
+                <SettingsColorSwatch
+                  value={activeChrome.sidebar}
+                  presetValue={presetChrome.sidebar}
+                  ariaLabel={t("settings.themeSidebar")}
+                  onChange={(hex) => patchThemeChrome({ sidebar: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeSelection")}>
+                <SettingsColorSwatch
+                  value={activeChrome.selection}
+                  presetValue={presetChrome.selection}
+                  ariaLabel={t("settings.themeSelection")}
+                  onChange={(hex) => patchThemeChrome({ selection: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeDestructive")}>
+                <SettingsColorSwatch
+                  value={activeChrome.destructive}
+                  presetValue={presetChrome.destructive}
+                  ariaLabel={t("settings.themeDestructive")}
+                  onChange={(hex) => patchThemeChrome({ destructive: hex })}
                 />
               </SettingsPreferenceRow>
               <SettingsPreferenceRow
@@ -836,7 +915,7 @@ export function SettingsDrawer() {
                 label={t("settings.themeContrast")}
                 description={t("settings.themeContrastHint")}
               >
-                <div className="flex w-[11rem] max-w-[40vw] items-center gap-2">
+                <div className="flex w-44 max-w-[40vw] items-center gap-2">
                   <Slider
                     value={[activeChrome.contrast]}
                     min={0}
@@ -856,6 +935,84 @@ export function SettingsDrawer() {
                   </span>
                 </div>
               </SettingsPreferenceRow>
+            </SettingsPreferenceGroup>
+            <SettingsPreferenceGroup>
+              <SettingsPreferenceRow label={t("settings.themeDiffAdded")}>
+                <SettingsColorSwatch
+                  value={activeChrome.diffAdded}
+                  presetValue={presetChrome.diffAdded}
+                  ariaLabel={t("settings.themeDiffAdded")}
+                  onChange={(hex) => patchThemeChrome({ diffAdded: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeDiffDeleted")}>
+                <SettingsColorSwatch
+                  value={activeChrome.diffDeleted}
+                  presetValue={presetChrome.diffDeleted}
+                  ariaLabel={t("settings.themeDiffDeleted")}
+                  onChange={(hex) => patchThemeChrome({ diffDeleted: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeDiffHunk")}>
+                <SettingsColorSwatch
+                  value={activeChrome.diffHunk}
+                  presetValue={presetChrome.diffHunk}
+                  ariaLabel={t("settings.themeDiffHunk")}
+                  onChange={(hex) => patchThemeChrome({ diffHunk: hex })}
+                />
+              </SettingsPreferenceRow>
+            </SettingsPreferenceGroup>
+            <SettingsPreferenceGroup>
+              <SettingsPreferenceRow label={t("settings.themeGitAdded")}>
+                <SettingsColorSwatch
+                  value={activeChrome.gitAdded}
+                  presetValue={presetChrome.gitAdded}
+                  ariaLabel={t("settings.themeGitAdded")}
+                  onChange={(hex) => patchThemeChrome({ gitAdded: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeGitModified")}>
+                <SettingsColorSwatch
+                  value={activeChrome.gitModified}
+                  presetValue={presetChrome.gitModified}
+                  ariaLabel={t("settings.themeGitModified")}
+                  onChange={(hex) => patchThemeChrome({ gitModified: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeGitDeleted")}>
+                <SettingsColorSwatch
+                  value={activeChrome.gitDeleted}
+                  presetValue={presetChrome.gitDeleted}
+                  ariaLabel={t("settings.themeGitDeleted")}
+                  onChange={(hex) => patchThemeChrome({ gitDeleted: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeGitRenamed")}>
+                <SettingsColorSwatch
+                  value={activeChrome.gitRenamed}
+                  presetValue={presetChrome.gitRenamed}
+                  ariaLabel={t("settings.themeGitRenamed")}
+                  onChange={(hex) => patchThemeChrome({ gitRenamed: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeGitUntracked")}>
+                <SettingsColorSwatch
+                  value={activeChrome.gitUntracked}
+                  presetValue={presetChrome.gitUntracked}
+                  ariaLabel={t("settings.themeGitUntracked")}
+                  onChange={(hex) => patchThemeChrome({ gitUntracked: hex })}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow label={t("settings.themeGitConflict")}>
+                <SettingsColorSwatch
+                  value={activeChrome.gitConflict}
+                  presetValue={presetChrome.gitConflict}
+                  ariaLabel={t("settings.themeGitConflict")}
+                  onChange={(hex) => patchThemeChrome({ gitConflict: hex })}
+                />
+              </SettingsPreferenceRow>
+            </SettingsPreferenceGroup>
+            <SettingsPreferenceGroup>
               <SettingsPreferenceRow
                 label={t("settings.clientFont")}
                 description={
@@ -867,7 +1024,7 @@ export function SettingsDrawer() {
                   disabled={fontsLoading}
                   ariaLabel={t("settings.clientFont")}
                   onChange={setClientFont}
-                  triggerClassName="h-8 w-[12rem] max-w-[40vw]"
+                  triggerClassName="h-8 w-48 max-w-[40vw]"
                   options={[
                     { value: CLIENT_FONT_SYSTEM, label: t("settings.fontSystem") },
                     ...(clientFont !== CLIENT_FONT_SYSTEM &&
@@ -898,7 +1055,7 @@ export function SettingsDrawer() {
                   disabled={fontsLoading}
                   ariaLabel={t("settings.editorFont")}
                   onChange={setEditorFont}
-                  triggerClassName="h-8 w-[12rem] max-w-[40vw]"
+                  triggerClassName="h-8 w-48 max-w-[40vw]"
                   options={[
                     {
                       value: EDITOR_FONT_SYSTEM,

@@ -50,7 +50,7 @@ async function migrateLegacyStoreIfNeeded(store: LazyStore): Promise<void> {
   }
 }
 
-/** 读取简历插件联系信息（Git 账号见 settings → Git）。 */
+/** 读取历史版本的简历联系信息；Git 作者身份只接受用户在对话中主动声明。 */
 export async function getAgentIdentity(): Promise<AgentIdentity> {
   const store = await getStore();
   await migrateLegacyStoreIfNeeded(store);

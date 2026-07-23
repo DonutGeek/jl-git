@@ -246,7 +246,9 @@ interface GitBranch {
 
 默认 `limit=50`，硬上限建议 200。`all=true` 时等价 `git log --all`（所有引用可达历史，与 UI「所有分支」对齐）；`ref` 指定单分支/标签；二者互斥。未传 `all` 且无 `ref` 时仍为当前 HEAD。`order`：`topo` → `--topo-order`，`date` → `--date-order`，省略/`default` 为 git 默认序。`authors` 为可选作者匹配模式（多条对应多个 `--author`，OR；最多 16 条；调用方转义正则特殊字符）。`reverse=true` 时加 `--reverse`（从旧到新）。`parentIds` 来自 `%P`，用于历史图谱的分叉与合并连线。`refs` 来自 `git log --decorate` 的 `%D`（远端分支展示为 `origin&name`）。`coAuthors` 来自 `Co-authored-by` trailer（`%(trailers:key=Co-authored-by)`）。
 
-**消费方补充：**「简历插件」（多仓鲸灵）通过前端循环调用只读 Command 汇总画像：`git_log`（有 Git 账号时带 `authors` 分页，单次 ≤200、累计约 500，**入库前**时间分桶至约 48；并用 `reverse+limit=1` 取作者最早接手时间；无账号时近期窗口约 400 后同样分桶）+ `git_ls_tree`（定位 `package.json` / README；路径硬顶）+ `git_read_worktree_file`（解析依赖主技术栈与 README 摘录）+ `git_show` / `git_commit_file_diff`（**按用户点选的单仓**拉取 diff 摘录，避免全量并发）。成稿须含 **项目周期**（作者首提交→末次提交）。项目名/简介由模型判断 README 是否可用后再写入。**禁止**对简历插件路径开放任何写操作；**不新增**专用 `git_resume_*` Command。
+**消费方补充：**「简历技能」只在用户主动声明 Git 作者名或提交邮箱后，通过前端循环调用只读 Command 汇总画像：`git_log`（将声明值转义后作为 `authors` 分页，单次 ≤200、累计约 500，**入库前**时间分桶至约 48；并用 `reverse+limit=1` 取作者最早参与时间）+ `git_ls_tree`（定位 `package.json` / README；路径硬顶）+ `git_read_worktree_file`（解析依赖主技术栈与 README 摘录）+ `git_show` / `git_commit_file_diff`（**按用户点选的单仓**拉取 diff 摘录，避免全量并发）。技能不得读取当前/全局 Git 身份或设置中的 Git 账号；身份缺失时不执行作者扫描。通用多仓 Agent 使用不带 `authors` 的仓库整体画像，与简历画像隔离。成稿须含 **项目周期**（匹配作者首提交→末次提交）。**禁止**对简历技能路径开放任何写操作；**不新增**专用 `git_resume_*` Command。
+
+「技能创建」复用通用 Agent 已有的只读仓库画像；单仓额外读取限长 HEAD 文件树，帮助用户按当前项目约定设计 Skill。该技能只在对话中生成 `SKILL.md`、`agents/openai.yaml` 与必要资源的完整文本，**不新增**文件写入、安装、脚本执行或专用 `skill_*` Command。通用 Agent、简历、技能创建分别组装 Prompt，不跨模式注入工作流或个人作者上下文。
 
 ### `git_blame`
 

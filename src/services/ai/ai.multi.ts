@@ -1,10 +1,12 @@
-import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
+import { getAgentKey } from "@/services/ai/ai.settings";
 import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
 import { DEFAULT_AGENT_MODEL } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
-import { isResumeSkillTurn } from "@/services/ai/ai.skillMode";
+import { getAgentSafetyRefusal } from "@/services/ai/ai.safety";
+import { getAgentSkillMode } from "@/services/ai/ai.skillMode";
 import { buildMultiAgentSystemPrompt } from "@/prompts/agent/multi";
 import { buildResumeSystemPrompt } from "@/prompts/resume";
+import { buildSkillCreatorSystemPrompt } from "@/prompts/skillCreator";
 import i18n from "@/i18n";
 import { isRecord, type AppError } from "@/types/error";
 import type { AgentChatMessage } from "@/types/ai";
@@ -25,7 +27,8 @@ const CONTEXT_README_CHARS = 1_800;
 interface StreamMultiAgentReplyOptions {
   messages: readonly AgentChatMessage[];
   profiles: readonly AgentProjectProfile[];
-  gitAuthors: ReadonlyArray<{ name: string; email: string }>;
+  /** 仅来自本次简历对话中用户主动声明的 Git 作者身份 */
+  resumeAuthors: ReadonlyArray<{ name: string; email: string }>;
   locale: string;
   signal?: AbortSignal;
   /** DeepSeek model id，如 deepseek-v4-pro / deepseek-v4-flash */
@@ -37,11 +40,11 @@ interface StreamMultiAgentReplyOptions {
   onReasoningDelta?: (content: string) => void;
 }
 
-/** 多仓鲸灵流式对话：默认多仓 Git Agent；仅本轮启用简历技能时走简历 prompt。 */
+/** 多仓鲸灵流式对话：默认多仓 Git Agent；技能 Prompt 仅在本轮显式启用。 */
 export async function streamMultiAgentReply({
   messages,
   profiles,
-  gitAuthors,
+  resumeAuthors,
   locale,
   signal,
   model = DEFAULT_AGENT_MODEL,
@@ -49,22 +52,28 @@ export async function streamMultiAgentReply({
   onDelta,
   onReasoningDelta,
 }: StreamMultiAgentReplyOptions): Promise<void> {
+  const safetyRefusal = getAgentSafetyRefusal(messages, locale);
+  if (safetyRefusal) {
+    onDelta(safetyRefusal);
+    return;
+  }
+
   const apiKey = await getAgentKey();
   if (!apiKey) {
     throw appError("VALIDATION", i18n.t("ai.errors.missingApiKey"));
   }
 
-  const resumeMode = isResumeSkillTurn(messages);
+  const skillMode = getAgentSkillMode(messages);
+  const resumeMode = skillMode === "resume";
   const projectContext = redactSecrets(
-    formatProfilesContext(profiles, gitAuthors, resumeMode),
+    formatProfilesContext(profiles, resumeAuthors, resumeMode),
   );
-  const systemPrompt = resumeMode
-    ? buildResumeSystemPrompt(
-        locale,
-        projectContext,
-        (await getAiInstructions()).resume,
-      )
-    : buildMultiAgentSystemPrompt(locale, projectContext);
+  const systemPrompt =
+    skillMode === "resume"
+      ? buildResumeSystemPrompt(locale, projectContext)
+      : skillMode === "skill-creator"
+        ? buildSkillCreatorSystemPrompt(locale, projectContext)
+        : buildMultiAgentSystemPrompt(locale, projectContext);
 
   const controller = new AbortController();
   const abortFromCaller = (): void => controller.abort();
@@ -82,8 +91,13 @@ export async function streamMultiAgentReply({
       body: JSON.stringify({
         model: modelId,
         stream: true,
-        // 简历成稿略高；普通多仓问答更克制
-        temperature: resumeMode ? 0.55 : 0.3,
+        // 成稿类技能略高；通用多仓问答更克制
+        temperature:
+          skillMode === "resume"
+            ? 0.55
+            : skillMode === "skill-creator"
+              ? 0.45
+              : 0.3,
         ...(enableThinking
           ? {
               thinking: { type: "enabled" },
@@ -132,10 +146,10 @@ export async function streamMultiAgentReply({
 
 function formatProfilesContext(
   profiles: readonly AgentProjectProfile[],
-  gitAuthors: ReadonlyArray<{ name: string; email: string }>,
+  resumeAuthors: ReadonlyArray<{ name: string; email: string }>,
   resumeMode: boolean,
 ): string {
-  const authors = gitAuthors.filter(
+  const authors = resumeAuthors.filter(
     (author) => author.name.trim() || author.email.trim(),
   );
   const authorLines =
@@ -146,7 +160,7 @@ function formatProfilesContext(
               `- 账号${index + 1}: ${author.name.trim() || "—"} <${author.email.trim() || "—"}>`,
           )
           .join("\n")
-      : "- （未配置，请在设置 → Git 中添加）";
+      : "- （用户尚未声明）";
 
   // 普通多仓问答不注入作者归属；仅简历技能需要「谁的提交」
   const header = resumeMode
@@ -154,19 +168,17 @@ function formatProfilesContext(
         `Registered projects: ${profiles.length}.`,
         "Evidence policy: subjectIndex + changed paths are enough to write approach bullets; diff excerpts are optional boosts. Never refuse or ask user for more evidence because excerpts are truncated. All Git data below is from read-only queries.",
         "Output only project-experience blocks; never write contact/basics sections (name/phone/email).",
-        "Git 作者账号（来自设置 → Git 的全部配置项，与启用/停用无关；提交命中任一即计入）：",
+        "userDeclaredGitAuthors（仅来自用户在当前简历对话中主动声明；提交命中任一即计入）：",
         authorLines,
         "项目列表：下列为全部已登记仓库，列举时必须全部告知用户，不要因 matchedCommits=0 而省略或替用户筛选「没改过」的仓。",
         authors.length > 0
-          ? "提交摘要：各仓 recentCommits 已按上述 Git 账号收窄；matchedCommits=0 表示暂无本人抽样提交，仍须出现在项目清单里；成稿时无证据则不要编造项目经历。"
-          : "Git 作者未配置：请引导用户去设置 → Git 添加账号；下列仍列出全部已登记仓库。",
-        "Time ranges are from matched sampled commits (not necessarily the absolute first commit of huge repos).",
+          ? "提交摘要：各仓 recentCommits 已按上述用户声明身份收窄；matchedCommits=0 表示暂无本人提交，仍须出现在项目清单里；成稿时不得编造。"
+          : "用户尚未声明 Git 作者身份：只询问作者名或提交邮箱，不得生成项目经历。",
+        "Time ranges use the first and latest commits matched by the user-declared author filters.",
       ].join("\n")
     : [
         `Registered projects: ${profiles.length}.`,
-        "Evidence policy: use jlgitMeta, README excerpts, subjectIndex, tech stack hints, and optional commit details to answer Git/project questions. All Git data below is from read-only queries.",
-        "This turn is general multi-repo Q&A — not resume drafting. Do not output resume templates or solicit 生成简历.",
-        "Do not discuss Git author accounts, matchedCommits, personal commit ownership, or who authored which commits.",
+        "Evidence policy: use jlgitMeta, README excerpts, subjectIndex, tech stack hints, and optional commit details to answer Git/project questions. All data below is from read-only repository queries.",
         "项目列表：下列为全部已登记仓库；列举时必须全部告知。",
       ].join("\n");
 

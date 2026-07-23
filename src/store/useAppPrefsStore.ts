@@ -66,6 +66,7 @@ interface AppPrefsState {
   setAppThemeId: (themeId: AppThemeId) => void;
   /** @deprecated */
   setEditorThemeId: (themeId: AppThemeId) => void;
+  /** 修改当前有效明暗模式；persist 中间件会立即保存 */
   patchThemeChrome: (patch: Partial<AppThemeChrome>) => void;
   setExternalEditor: (value: string) => void;
   setExternalEditorPath: (value: string) => void;
@@ -240,7 +241,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
     }),
     {
       name: APP_PREFS_STORAGE_KEY,
-      version: 7,
+      version: 9,
       migrate: (persisted, version) => {
         const state = persisted as Partial<AppPrefsState> & {
           editorChromeLight?: AppThemeChrome;
@@ -305,6 +306,18 @@ export const useAppPrefsStore = create<AppPrefsState>()(
           // 按官网/公开设计系统校准色板后，重套当前主题预设
           const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
           Object.assign(state, applyThemePack(id));
+        }
+        if (version < 8) {
+          // 主题包从三种主色扩展为完整语义色板，避免旧派生色残留在卡片、侧栏与 Diff
+          const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
+          Object.assign(state, applyThemePack(id));
+        }
+        if (version < 9) {
+          const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
+          if (id === DEFAULT_APP_THEME_ID) {
+            // 修复旧派生 HEX 整套覆盖原生 OKLCH：恢复鲸灵 Git 浅/深默认配置
+            Object.assign(state, applyThemePack(id));
+          }
         }
         return state as AppPrefsState;
       },

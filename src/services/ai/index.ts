@@ -32,6 +32,11 @@ export { streamMultiAgentReply } from "./ai.multi";
 export { streamJinglingReply } from "./ai.stream";
 export type { StreamJinglingReplyOptions } from "./ai.stream";
 export {
+  detectAgentSafetyRisk,
+  getAgentSafetyRefusal,
+} from "./ai.safety";
+export type { AgentSafetyRisk } from "./ai.safety";
+export {
   fetchDeepSeekBalance,
   getDeepSeekApiKeysUrl,
   getDeepSeekBalanceDocsUrl,

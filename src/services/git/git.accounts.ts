@@ -177,17 +177,6 @@ export async function deleteGitIdentityAccount(
 }
 
 /**
- * 供多仓鲸灵简历插件等只读消费：返回设置中配置的全部 Git 账号。
- * 故意忽略 enabled——启用/停用只同步 git config --global，不限制简历匹配。
- */
-export async function listAllGitAuthorsForMatching(): Promise<
-  Array<{ name: string; email: string }>
-> {
-  const accounts = await listGitIdentityAccounts();
-  return accounts.map((item) => ({ name: item.name, email: item.email }));
-}
-
-/**
  * 列表为空且尚未播种时：读取全局 git identity，完整则写入一条启用账号。
  * 不写回 git config（只读导入）。本机尚无身份时不打播种标记，下次再试。
  */

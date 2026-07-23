@@ -1,4 +1,4 @@
-/** 简历插件联系信息（Git 账号复用设置 → Git 公共列表） */
+/** 历史版本的简历联系信息；不参与 Git 作者识别。 */
 export interface AgentIdentity {
   /** 简历展示姓名 */
   displayName: string;

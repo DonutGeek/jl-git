@@ -40,13 +40,10 @@ interface MultiAgentState {
   activeConversationId: string | null;
   identity: AgentIdentity;
   identityReady: boolean;
-  /** 来自设置 → Git 的公共账号，用于匹配提交 */
-  gitAuthors: Array<{ name: string; email: string }>;
   setProfilesLoading: (loading: boolean) => void;
   setProfiles: (profiles: AgentProjectProfile[], error?: string | null) => void;
   setIdentity: (identity: AgentIdentity) => void;
   patchIdentity: (patch: Partial<AgentIdentity>) => void;
-  setGitAuthors: (authors: Array<{ name: string; email: string }>) => void;
   /** 从 SQLite 灌入会话列表（覆盖内存） */
   hydrateConversations: (conversations: readonly AgentConversation[]) => void;
   /** 清空全部多仓鲸灵会话（设置清理） */
@@ -83,7 +80,6 @@ export const useMultiAgentStore = create<MultiAgentState>((set) => ({
   activeConversationId: null,
   identity: emptyAgentIdentity(),
   identityReady: false,
-  gitAuthors: [],
 
   setProfilesLoading(loading) {
     set({ profilesLoading: loading });
@@ -105,10 +101,6 @@ export const useMultiAgentStore = create<MultiAgentState>((set) => ({
         email: patch.email?.trim() ?? state.identity.email,
       },
     }));
-  },
-
-  setGitAuthors(authors) {
-    set({ gitAuthors: authors });
   },
 
   hydrateConversations(conversations) {

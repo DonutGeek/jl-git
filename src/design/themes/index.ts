@@ -14,6 +14,7 @@ export type {
   AppThemeId,
   AppThemePack,
   AppThemePalette,
+  AppThemeSyntaxPalette,
   EditorThemeChrome,
   EditorThemeId,
   EditorThemePalette,
@@ -33,6 +34,7 @@ export {
 export { APP_THEME_PACKS } from "@/design/themes/packs";
 
 export {
+  APP_THEME_COLOR_SUGGESTIONS,
   APP_THEME_OPTIONS,
   APP_THEME_PRESETS,
   chromeFromPreset,
@@ -53,9 +55,12 @@ export {
 } from "@/design/themes/registry";
 
 export {
+  contrastingForeground,
+  hexToHsv,
+  hsvToHex,
+  isDocumentDark,
   normalizeContrast,
   normalizeHexColor,
-  isDocumentDark,
 } from "@/design/themes/color-utils";
 
 export {
@@ -68,6 +73,7 @@ export {
   applyAppMonacoTheme,
   applyEditorMonacoTheme,
   forceMonacoThemeRepaint,
+  getAppMonacoSyntaxRules,
   getAppMonacoThemeName,
   getEditorMonacoThemeName,
 } from "@/design/themes/apply-monaco";

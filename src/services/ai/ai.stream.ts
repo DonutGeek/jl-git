@@ -19,7 +19,8 @@ interface StreamJinglingGlobalOptions {
   host: "global";
   messages: readonly AgentChatMessage[];
   profiles: readonly AgentProjectProfile[];
-  gitAuthors: ReadonlyArray<{ name: string; email: string }>;
+  /** 仅简历技能使用：用户在对话中主动声明的 Git 作者身份 */
+  resumeAuthors: ReadonlyArray<{ name: string; email: string }>;
   locale: string;
   signal?: AbortSignal;
   model?: string;
@@ -43,7 +44,7 @@ export async function streamJinglingReply(
     await streamMultiAgentReply({
       messages: options.messages,
       profiles: options.profiles,
-      gitAuthors: options.gitAuthors,
+      resumeAuthors: options.resumeAuthors,
       locale: options.locale,
       signal: options.signal,
       model: options.model,

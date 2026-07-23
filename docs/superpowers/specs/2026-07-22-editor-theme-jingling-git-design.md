@@ -6,17 +6,17 @@
 
 ## 目标
 
-设置 → 外观提供 **应用主题**（整站 Design Tokens + Monaco Diff/文件视图）。编辑器只是主题的一部分。首期主题包：**鲸灵 Git**、**高对比**、**柔和**。
+设置 → 外观提供 **应用主题**（整站 Design Tokens + Monaco Diff/文件视图）。编辑器只是主题的一部分。当前内置 **鲸灵 Git、GitHub、Codex、Claude Code、VS Code**。
 
 ## 约定
 
 | 项 | 内容 |
 |----|------|
 | 偏好键 | `appThemeId`（兼容旧 `editorThemeId`），默认 `jingling-git` |
-| 色板 | `themeChromeLight` / `themeChromeDark`：accent / background / foreground / translucentSidebar / contrast |
+| 色板 | `themeChromeLight` / `themeChromeDark`：背景、卡片/弹层、次要区、侧栏、选中态、Diff、Git 状态色、侧栏透明度与对比度 |
 | 切换主题包 | `setAppThemeId` **自动套用**该包明暗预设色（覆盖当前自定义） |
 | 昼夜 | 仍跟 `html.dark`；切换昼夜时应用对应 chrome 到 document |
-| UI | 主题下拉 + 强调/背景/前景色块 + 半透明侧栏 + 对比度滑条 |
+| UI | 纯文字主题下拉 + 应用内 HEX 色板 + 完整语义色 + 半透明侧栏 + 对比度滑条；修改自动保存 |
 | 代码 | `src/design/editor-themes.ts` → `applyAppThemeToDocument` / `applyAppMonacoTheme` |
 
 ## 不做

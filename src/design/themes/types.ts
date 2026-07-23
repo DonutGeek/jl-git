@@ -27,15 +27,43 @@ export interface AppThemePalette {
   accent: string;
   background: string;
   foreground: string;
+  surface: string;
+  muted: string;
+  mutedForeground: string;
+  border: string;
+  sidebar: string;
+  selection: string;
+  destructive: string;
+  diffAdded: string;
+  diffDeleted: string;
+  diffHunk: string;
+  gitAdded: string;
+  gitModified: string;
+  gitDeleted: string;
+  gitRenamed: string;
+  gitUntracked: string;
+  gitConflict: string;
 }
 
-export interface AppThemeChrome {
-  accent: string;
-  background: string;
-  foreground: string;
+export interface AppThemeChrome extends AppThemePalette {
   translucentSidebar: boolean;
   /** 0–100 */
   contrast: number;
+}
+
+/** Monaco 语法高亮色；Diff 行背景仍由 AppThemePalette 控制。 */
+export interface AppThemeSyntaxPalette {
+  comment: string;
+  keyword: string;
+  string: string;
+  number: string;
+  type: string;
+  function: string;
+  variable: string;
+  tag: string;
+  attribute: string;
+  regexp: string;
+  operator: string;
 }
 
 /** @deprecated */
@@ -53,5 +81,10 @@ export interface AppThemePack {
   nativeTokens: boolean;
   light: AppThemePalette;
   dark: AppThemePalette;
+  /** nativeTokens 主题省略时继续使用项目原生 Monaco 规则。 */
+  syntax?: {
+    light: AppThemeSyntaxPalette;
+    dark: AppThemeSyntaxPalette;
+  };
   defaultContrast: number;
 }

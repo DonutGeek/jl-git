@@ -1,6 +1,5 @@
 import { getDefaultCommitInstructions } from "@/prompts/git/commitInstructions";
 import { getDefaultPullRequestInstructions } from "@/prompts/git/pullRequestInstructions";
-import { getDefaultResumeInstructions } from "@/prompts/resume/instructions";
 import type { AiInstructions } from "@/services/ai/ai.settings";
 
 /**
@@ -11,6 +10,5 @@ export function getDefaultAiInstructions(): AiInstructions {
   return {
     commit: getDefaultCommitInstructions(),
     pullRequest: getDefaultPullRequestInstructions(),
-    resume: getDefaultResumeInstructions(),
   };
 }

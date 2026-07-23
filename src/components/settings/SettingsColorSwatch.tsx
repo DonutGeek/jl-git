@@ -1,48 +1,367 @@
+import {
+  useEffect,
+  useId,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
+import { Check, RotateCcw } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Slider } from "@/components/ui/slider";
+import {
+  APP_THEME_COLOR_SUGGESTIONS,
+  contrastingForeground,
+  hexToHsv,
+  hsvToHex,
+  normalizeHexColor,
+} from "@/design/editor-themes";
 import { cn } from "@/lib/utils";
 
-/** 主题色选择：色块 + hex；原生 color input 铺满按钮，保证弹出锚点正确 */
+/** 应用内主题色板：避免原生 color input 的系统浮层无法参与碰撞定位。 */
 export function SettingsColorSwatch({
   value,
   onChange,
   ariaLabel,
+  presetValue,
   solid = false,
 }: {
   value: string;
   onChange: (hex: string) => void;
   ariaLabel: string;
+  presetValue: string;
   /** 强调色用实心块；背景/前景用描边圆点样式 */
   solid?: boolean;
 }) {
-  const hex = value.toUpperCase();
-  const safeHex = /^#[0-9A-Fa-f]{6}$/.test(hex) ? hex : "#000000";
+  const { t } = useTranslation();
+  const fallbackHex = APP_THEME_COLOR_SUGGESTIONS[0] ?? presetValue;
+  const presetHex = normalizeHexColor(presetValue, fallbackHex);
+  const hex = normalizeHexColor(value, presetHex);
+  const inputId = useId();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(hex);
+  const [hue, setHue] = useState(() => hexToHsv(hex).hue);
+  const [saturation, setSaturation] = useState(
+    () => hexToHsv(hex).saturation,
+  );
+  const [brightness, setBrightness] = useState(() => hexToHsv(hex).value);
+
+  useEffect(() => {
+    const hsv = hexToHsv(hex);
+    setDraft(hex);
+    setHue(hsv.hue);
+    setSaturation(hsv.saturation);
+    setBrightness(hsv.value);
+  }, [hex]);
+
+  const applyHex = (next: string): void => {
+    setDraft(next);
+    if (next !== hex) {
+      onChange(next);
+    }
+  };
+
+  const applyHsv = (
+    nextHue: number,
+    nextSaturation: number,
+    nextBrightness: number,
+  ): void => {
+    setHue(nextHue);
+    setSaturation(nextSaturation);
+    setBrightness(nextBrightness);
+    applyHex(hsvToHex(nextHue, nextSaturation, nextBrightness));
+  };
+
+  const applyDraft = (nextDraft: string): boolean => {
+    const next = normalizeHexColor(nextDraft, "");
+    if (!next) {
+      return false;
+    }
+    applyHex(next);
+    return true;
+  };
+
+  const updateColorField = (
+    event: PointerEvent<HTMLDivElement>,
+  ): void => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const nextSaturation = Math.round(
+      Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * 100,
+    );
+    const nextBrightness = Math.round(
+      (1 -
+        Math.min(
+          1,
+          Math.max(0, (event.clientY - rect.top) / rect.height),
+        )) *
+        100,
+    );
+    applyHsv(hue, nextSaturation, nextBrightness);
+  };
+
+  const handleColorFieldKeyDown = (
+    event: KeyboardEvent<HTMLDivElement>,
+  ): void => {
+    const step = event.shiftKey ? 5 : 1;
+    let nextSaturation = saturation;
+    let nextBrightness = brightness;
+    if (event.key === "ArrowLeft") {
+      nextSaturation = Math.max(0, saturation - step);
+    } else if (event.key === "ArrowRight") {
+      nextSaturation = Math.min(100, saturation + step);
+    } else if (event.key === "ArrowDown") {
+      nextBrightness = Math.max(0, brightness - step);
+    } else if (event.key === "ArrowUp") {
+      nextBrightness = Math.min(100, brightness + step);
+    } else {
+      return;
+    }
+    event.preventDefault();
+    applyHsv(hue, nextSaturation, nextBrightness);
+  };
+
+  const handleDraftKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key !== "Enter") {
+      return;
+    }
+    if (applyDraft(draft)) {
+      setOpen(false);
+    }
+  };
 
   return (
-    <label
-      className={cn(
-        "border-border bg-background hover:bg-muted/40 relative inline-flex h-8 max-w-[11rem] cursor-pointer items-center gap-2 overflow-hidden rounded-md border px-2 text-left shadow-none transition-colors",
-      )}
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (nextOpen) {
+          setDraft(hex);
+        }
+      }}
     >
-      <span
-        className={cn(
-          "pointer-events-none size-4 shrink-0 rounded-full border border-black/10 dark:border-white/15",
-          solid && "rounded-sm",
-        )}
-        style={{ backgroundColor: hex }}
-        aria-hidden
-      />
-      <span className="text-muted-foreground pointer-events-none truncate font-mono text-[11px] tabular-nums">
-        {hex}
-      </span>
-      {/* 铺满控件：系统色板相对此元素定位，避免 sr-only 导致弹到窗口角落 */}
-      <input
-        type="color"
-        value={safeHex}
-        aria-label={ariaLabel}
-        className="absolute inset-0 cursor-pointer opacity-0"
-        onChange={(event) => {
-          onChange(event.target.value.toUpperCase());
-        }}
-      />
-    </label>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          aria-label={ariaLabel}
+          className="border-input bg-background hover:bg-accent h-8 w-44 max-w-[40vw] cursor-pointer justify-start gap-2 px-2 shadow-none"
+        >
+          <span
+            className={cn(
+              "border-border size-4 shrink-0 rounded-full border",
+              solid && "rounded-sm",
+            )}
+            style={{ backgroundColor: hex }}
+            aria-hidden
+          />
+          <span className="text-muted-foreground truncate font-mono text-[11px] tabular-nums">
+            {hex}
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="left"
+        sideOffset={8}
+        collisionPadding={12}
+        className="max-h-[calc(100vh-1.5rem)] w-72 overflow-y-auto p-3"
+      >
+        <PopoverHeader className="gap-0.5">
+          <PopoverTitle className="text-xs">
+            {t("settings.themeColorPickerTitle", { name: ariaLabel })}
+          </PopoverTitle>
+          <PopoverDescription className="text-[11px]">
+            {t("settings.themeColorPickerHint")}
+          </PopoverDescription>
+        </PopoverHeader>
+
+        <div
+          role="slider"
+          tabIndex={0}
+          aria-label={t("settings.themeColorField")}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(brightness)}
+          aria-valuetext={t("settings.themeColorCoordinates", {
+            saturation: Math.round(saturation),
+            brightness: Math.round(brightness),
+          })}
+          className="border-border focus-visible:ring-ring relative mt-3 h-32 touch-none cursor-crosshair overflow-hidden rounded-md border outline-none focus-visible:ring-2"
+          style={{
+            backgroundColor: `hsl(${hue} 100% 50%)`,
+            backgroundImage:
+              "linear-gradient(to top, var(--color-picker-black), transparent), linear-gradient(to right, var(--color-picker-white), transparent)",
+          }}
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            updateColorField(event);
+          }}
+          onPointerMove={(event) => {
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+              updateColorField(event);
+            }
+          }}
+          onPointerUp={(event) => {
+            updateColorField(event);
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }}
+          onKeyDown={handleColorFieldKeyDown}
+        >
+          <span
+            className="pointer-events-none absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--color-picker-white)] shadow-[0_0_0_1px_var(--color-picker-outline)]"
+            style={{
+              left: `${saturation}%`,
+              top: `${100 - brightness}%`,
+            }}
+            aria-hidden
+          />
+        </div>
+
+        <div className="mt-3 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground text-[11px]">
+              {t("settings.themeHue")}
+            </span>
+            <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
+              {Math.round(hue)}°
+            </span>
+          </div>
+          <Slider
+            value={[hue]}
+            min={0}
+            max={359}
+            step={1}
+            aria-label={t("settings.themeHue")}
+            className="[&_[data-slot=slider-range]]:hidden [&_[data-slot=slider-thumb]]:border-[var(--color-picker-white)] [&_[data-slot=slider-thumb]]:bg-transparent [&_[data-slot=slider-thumb]]:shadow-[0_0_0_1px_var(--color-picker-outline)] [&_[data-slot=slider-track]]:h-3 [&_[data-slot=slider-track]]:bg-[image:var(--color-picker-spectrum)]"
+            onValueChange={(nextValue) => {
+              const nextHue = nextValue[0];
+              if (typeof nextHue === "number") {
+                applyHsv(nextHue, saturation, brightness);
+              }
+            }}
+          />
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="border-border bg-muted/40 rounded-md border p-2">
+            <div className="text-muted-foreground text-[10px]">
+              {t("settings.themeCurrentColor")}
+            </div>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span
+                className="border-border size-4 rounded-sm border"
+                style={{ backgroundColor: hex }}
+                aria-hidden
+              />
+              <span className="font-mono text-[10px] tabular-nums">{hex}</span>
+            </div>
+          </div>
+          <div className="border-border bg-muted/40 rounded-md border p-2">
+            <div className="text-muted-foreground text-[10px]">
+              {t("settings.themeDefaultColor")}
+            </div>
+            <div className="mt-1 flex items-center gap-1.5">
+              <span
+                className="border-border size-4 rounded-sm border"
+                style={{ backgroundColor: presetHex }}
+                aria-hidden
+              />
+              <span className="font-mono text-[10px] tabular-nums">
+                {presetHex}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-muted-foreground mt-3 text-[11px]">
+          {t("settings.themeSuggestedColors")}
+        </div>
+        <div className="mt-1.5 grid grid-cols-8 gap-1">
+          {APP_THEME_COLOR_SUGGESTIONS.map((color) => {
+            const selected = color === hex;
+            return (
+              <Button
+                key={color}
+                type="button"
+                variant="outline"
+                size="icon-xs"
+                title={color}
+                aria-label={`${ariaLabel} ${color}`}
+                aria-pressed={selected}
+                className="border-border relative cursor-pointer rounded-sm p-0 shadow-none"
+                style={{
+                  backgroundColor: color,
+                  color: contrastingForeground(color),
+                }}
+                onClick={() => {
+                  applyHex(color);
+                }}
+              >
+                {selected ? (
+                  <Check className="absolute inset-1 size-4" aria-hidden />
+                ) : null}
+              </Button>
+            );
+          })}
+        </div>
+
+        <div className="mt-3 space-y-1.5">
+          <label
+            htmlFor={inputId}
+            className="text-muted-foreground text-[11px]"
+          >
+            {t("settings.themeHexValue")}
+          </label>
+          <Input
+            id={inputId}
+            value={draft}
+            maxLength={7}
+            spellCheck={false}
+            aria-invalid={normalizeHexColor(draft, "") ? undefined : true}
+            className="h-8 font-mono text-xs uppercase"
+            onChange={(event) => {
+              const nextDraft = event.target.value.toUpperCase();
+              setDraft(nextDraft);
+              const next = normalizeHexColor(nextDraft, "");
+              if (next && next !== hex) {
+                onChange(next);
+              }
+            }}
+            onBlur={() => {
+              if (!applyDraft(draft)) {
+                setDraft(hex);
+              }
+            }}
+            onKeyDown={handleDraftKeyDown}
+          />
+        </div>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          disabled={hex === presetHex}
+          className="mt-2 cursor-pointer px-1.5 disabled:cursor-default"
+          onClick={() => {
+            setDraft(presetHex);
+            if (presetHex !== hex) {
+              onChange(presetHex);
+            }
+          }}
+        >
+          <RotateCcw aria-hidden />
+          {t("settings.themeResetColor")}
+        </Button>
+      </PopoverContent>
+    </Popover>
   );
 }

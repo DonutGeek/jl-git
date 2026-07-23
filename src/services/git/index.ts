@@ -38,7 +38,6 @@ import { getFileSize, listDir } from "./git.fs";
 import {
   createGitIdentityAccount,
   deleteGitIdentityAccount,
-  listAllGitAuthorsForMatching,
   listGitIdentityAccounts,
   setGitIdentityAccountEnabled,
   updateGitIdentityAccount,
@@ -64,7 +63,6 @@ export const gitService = {
   getGlobalIdentity,
   setGlobalIdentity,
   listGitIdentityAccounts,
-  listAllGitAuthorsForMatching,
   createGitIdentityAccount,
   setGitIdentityAccountEnabled,
   updateGitIdentityAccount,

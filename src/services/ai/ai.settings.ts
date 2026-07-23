@@ -3,7 +3,6 @@ import { LazyStore } from "@tauri-apps/plugin-store";
 import { getDefaultAiInstructions } from "@/prompts/aiInstructions";
 import { LEGACY_EN_COMMIT_INSTRUCTIONS } from "@/prompts/git/commitInstructions";
 import { LEGACY_EN_PULL_REQUEST_INSTRUCTIONS } from "@/prompts/git/pullRequestInstructions";
-import { LEGACY_EN_RESUME_INSTRUCTIONS } from "@/prompts/resume/instructions";
 import { isRecord } from "@/types/error";
 
 const STORE_FILE = "ai-secrets.json";
@@ -11,12 +10,6 @@ const API_KEYS = "apiKeys";
 const LEGACY_AGENT_KEY = "agentKey";
 const COMMIT_INSTRUCTIONS = "commitInstructions";
 const PULL_REQUEST_INSTRUCTIONS = "pullRequestInstructions";
-const RESUME_INSTRUCTIONS = "resumeInstructions";
-/** 旧键名，按顺序读取后迁移到 resumeInstructions */
-const LEGACY_RESUME_INSTRUCTIONS_KEYS = [
-  "jinglvInstructions",
-  "resumeHelperInstructions",
-];
 
 /** 本机 API Key 变更后派发，供 UI 刷新「是否已配置」状态 */
 export const AI_API_KEYS_CHANGED_EVENT = "jlgit:ai-api-keys-changed";
@@ -31,8 +24,6 @@ function notifyAiApiKeysChanged(): void {
 export interface AiInstructions {
   commit: string;
   pullRequest: string;
-  /** 简历插件默认指令（代码内置；设置页不再提供编辑入口） */
-  resume: string;
 }
 
 export interface AiApiKey {
@@ -189,24 +180,11 @@ export function invalidateAiSettingsStore(): void {
   storePromise = null;
 }
 
-/** 读取 AI 文案约束；未配置或仍为旧版英文默认稿时，回退固定中文默认。 */
+/** 读取提交 / PR 文案约束；简历技能规则不进入全局 AI 设置。 */
 export async function getAiInstructions(): Promise<AiInstructions> {
   const store = await getStore();
   const commit = await store.get<string>(COMMIT_INSTRUCTIONS);
   const pullRequest = await store.get<string>(PULL_REQUEST_INSTRUCTIONS);
-  let resume = await store.get<string>(RESUME_INSTRUCTIONS);
-  if (typeof resume !== "string") {
-    for (const legacyKey of LEGACY_RESUME_INSTRUCTIONS_KEYS) {
-      const legacy = await store.get<string>(legacyKey);
-      if (typeof legacy === "string" && legacy.trim()) {
-        resume = legacy;
-        await store.set(RESUME_INSTRUCTIONS, legacy);
-        await store.delete(legacyKey);
-        await store.save();
-        break;
-      }
-    }
-  }
   const defaults = getDefaultAiInstructions();
   return {
     commit: resolveInstruction(commit, defaults.commit, LEGACY_EN_COMMIT_INSTRUCTIONS),
@@ -215,7 +193,6 @@ export async function getAiInstructions(): Promise<AiInstructions> {
       defaults.pullRequest,
       LEGACY_EN_PULL_REQUEST_INSTRUCTIONS,
     ),
-    resume: resolveInstruction(resume, defaults.resume, LEGACY_EN_RESUME_INSTRUCTIONS),
   };
 }
 
@@ -243,7 +220,6 @@ export async function setAiInstructions(
   const entries: Array<[key: string, value: string | undefined]> = [
     [COMMIT_INSTRUCTIONS, instructions.commit],
     [PULL_REQUEST_INSTRUCTIONS, instructions.pullRequest],
-    [RESUME_INSTRUCTIONS, instructions.resume],
   ];
 
   for (const [key, value] of entries) {

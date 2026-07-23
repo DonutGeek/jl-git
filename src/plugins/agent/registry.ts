@@ -1,5 +1,4 @@
-import type { LucideIcon } from "lucide-react";
-import { FileUser } from "lucide-react";
+import { FileUser, Sparkles, type LucideIcon } from "lucide-react";
 
 /** 鲸灵扩展（插件 / 技能共用结构；单仓/多仓共用壳） */
 export interface AgentPluginDefinition {
@@ -29,12 +28,24 @@ export const AGENT_RESUME_SKILL: AgentPluginDefinition = {
 /** @deprecated 使用 AGENT_RESUME_SKILL */
 export const AGENT_RESUME_PLUGIN = AGENT_RESUME_SKILL;
 
+/** Skill Creator：通过对话生成或优化可落盘的鲸灵 Skill 包 */
+export const AGENT_SKILL_CREATOR_SKILL: AgentPluginDefinition = {
+  id: "skill-creator",
+  mentionId: "plugin:skill-creator",
+  mentionDisplayKey: "agent.pluginSkillCreatorMention",
+  titleKey: "agent.pluginSkillCreatorTitle",
+  descriptionKey: "agent.pluginSkillCreatorDescription",
+  tryExampleKey: "agent.pluginSkillCreatorTryExample",
+  icon: Sparkles,
+};
+
 /** 已注册内置插件（顺序即插件列表展示顺序） */
 export const AGENT_PLUGINS: readonly AgentPluginDefinition[] = [];
 
 /** 已注册内置技能（顺序即技能列表展示顺序） */
 export const AGENT_SKILLS: readonly AgentPluginDefinition[] = [
   AGENT_RESUME_SKILL,
+  AGENT_SKILL_CREATOR_SKILL,
 ];
 
 /** 插件 + 技能（查找 / 卸载偏好用） */

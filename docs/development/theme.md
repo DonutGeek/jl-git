@@ -133,9 +133,10 @@ settings theme.mode
 |----|------|
 | 入口 | 设置 → 外观 →「应用主题」 |
 | 主题包 | **鲸灵 Git**（默认 tokens 原色，可微调）/ GitHub / Codex / Claude Code / VS Code |
-| 作用 | 非 native 包写入 Design Tokens；Monaco Diff/文件视图共用 |
+| 作用 | 非 native 包完整写入背景、卡片、弹层、次要区、侧栏、选中态、图表、仓库分组、Git/Diff Tokens，并同步关键字、字符串、注释、数字、类型、函数等 Monaco 语法色；鲸灵 Git 始终保留 `tokens.css` 与原生 Monaco 风格，只增量覆盖用户实际修改项 |
 | 昼夜 | 仍跟 `html.dark`；切换主题包会重置自定义色 |
 | 偏好 | `appThemeId` + `themeChromeLight` / `themeChromeDark` |
+| 自定义 | 强调、背景、前景、卡片/弹层、次要背景/文字、边框、侧栏、选中态、危险操作、Diff 与 Git 状态色；应用内 Popover 提供 HSV 连续色域、色相、主题建议色与任意 HEX，浅/深模式分别实时预览并自动保存 |
 | 代码 | 模块化目录 `src/design/themes/`（见 [应用主题模块](../superpowers/specs/2026-07-22-app-themes-modular-design.md)） |
 | 首屏 | `applyAppThemeToDocument` 写入 `localStorage` 键 `jlgit-app-theme-boot`；`index.html` 内联脚本在 paint 前同步 `data-app-theme` / Token 快照，避免冷启动闪「原色」 |
 | 启动壳 | `#app-loading` 仅同色底 + 小转圈（无文案）；`background`/`color`/`--primary` 跟 boot Token，无快照时按 `.dark` 回退 |
