@@ -46,6 +46,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CommitAuthorAvatars } from "@/components/git/CommitAuthorAvatars";
+import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
 import { TRUNCATE_BUDGET_ATTR } from "@/components/common/TruncateStartPath";
 import { GitRefTag } from "@/components/git/GitRefTag";
 import { HistoryGraph } from "@/components/git/HistoryGraph";
@@ -914,7 +915,15 @@ export function HistoryList() {
                 />
               </div>
             </div>
-            <ScrollArea className="max-h-72 [&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+            <DropdownMenuScrollArea
+              itemCount={
+                Number(showCurrentBranchItem) +
+                Number(showAllBranchesItem) +
+                filteredScopeBranches.length
+              }
+              maxHeight={288}
+              availableHeightOffset={41}
+            >
               <div className="min-w-0 p-1">
                 {showCurrentBranchItem ? (
                   <DropdownMenuItem
@@ -974,7 +983,7 @@ export function HistoryList() {
                   </p>
                 ) : null}
               </div>
-            </ScrollArea>
+            </DropdownMenuScrollArea>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -1048,7 +1057,11 @@ export function HistoryList() {
                 />
               </div>
             </div>
-            <ScrollArea className="max-h-72">
+            <DropdownMenuScrollArea
+              itemCount={Number(showAllAuthorsItem) + filteredAuthors.length}
+              maxHeight={288}
+              availableHeightOffset={41}
+            >
               <div className="p-1">
                 {showAllAuthorsItem ? (
                   <DropdownMenuItem onSelect={() => setAuthor(null)}>
@@ -1068,7 +1081,7 @@ export function HistoryList() {
                   </p>
                 ) : null}
               </div>
-            </ScrollArea>
+            </DropdownMenuScrollArea>
           </DropdownMenuContent>
         </DropdownMenu>
 

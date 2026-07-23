@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageSquare, MoreHorizontal, Trash2 } from "lucide-react";
+import { MoreHorizontal, Play, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -48,10 +48,52 @@ interface AgentPluginListProps {
 interface PluginMoreMenuProps {
   onTry: () => void;
   onUninstall: () => void;
+  compact?: boolean;
+}
+
+function OverflowDescription({
+  children,
+  className,
+}: {
+  children: string;
+  className: string;
+}) {
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Tooltip
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
+          setOpen(false);
+          return;
+        }
+        const element = textRef.current;
+        setOpen(Boolean(element && element.scrollWidth > element.clientWidth + 1));
+      }}
+    >
+      <TooltipTrigger asChild>
+        <span ref={textRef} className={className}>
+          {children}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent
+        side="bottom"
+        className="w-max max-w-64 text-left text-wrap break-words"
+      >
+        {children}
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 /** 三点菜单：点击或悬停打开；含立即试用 / 卸载 */
-function PluginMoreMenu({ onTry, onUninstall }: PluginMoreMenuProps) {
+function PluginMoreMenu({
+  onTry,
+  onUninstall,
+  compact = false,
+}: PluginMoreMenuProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
@@ -88,7 +130,10 @@ function PluginMoreMenu({ onTry, onUninstall }: PluginMoreMenuProps) {
               type="button"
               variant="ghost"
               size="icon"
-              className="text-muted-foreground size-8 shrink-0 rounded-full"
+              className={cn(
+                "text-muted-foreground shrink-0 rounded-full",
+                compact ? "size-7" : "size-8",
+              )}
               aria-label={t("agent.pluginMore")}
               onClick={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
@@ -98,7 +143,10 @@ function PluginMoreMenu({ onTry, onUninstall }: PluginMoreMenuProps) {
               }}
               onPointerLeave={scheduleClose}
             >
-              <MoreHorizontal className="size-4" aria-hidden="true" />
+              <MoreHorizontal
+                className={compact ? "size-3.5" : "size-4"}
+                aria-hidden="true"
+              />
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
@@ -116,7 +164,7 @@ function PluginMoreMenu({ onTry, onUninstall }: PluginMoreMenuProps) {
             onTry();
           }}
         >
-          <MessageSquare className="size-3.5" aria-hidden="true" />
+          <Play className="size-3.5" aria-hidden="true" />
           {t("agent.pluginTryNow")}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -203,16 +251,11 @@ export function AgentPluginList({
                       <span className="block truncate text-sm font-medium">
                         {t(plugin.titleKey)}
                       </span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="text-muted-foreground block truncate text-xs leading-relaxed">
-                            {description}
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" className="max-w-xs">
-                          {description}
-                        </TooltipContent>
-                      </Tooltip>
+                      <OverflowDescription
+                        className="text-muted-foreground block truncate text-xs leading-relaxed"
+                      >
+                        {description}
+                      </OverflowDescription>
                     </span>
                   </button>
                   {showMenu ? (
@@ -228,43 +271,52 @@ export function AgentPluginList({
         </ul>
       ) : (
         <ul
-          className={cn("flex flex-col gap-0.5", className)}
+          className={cn(
+            "grid w-full min-w-0 grid-cols-2 gap-2 pr-2",
+            className,
+          )}
           aria-label={t("agent.pluginsAria")}
         >
           {plugins.map((plugin) => {
             const Icon = plugin.icon;
+            const description = t(plugin.descriptionKey);
             return (
-              <li key={plugin.id}>
-                <div className="group/row flex items-center gap-0.5">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className={cn(
-                          "hover:bg-accent/70 flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs",
-                          "outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        )}
-                        aria-label={t(plugin.titleKey)}
-                        onClick={() => onSelect(plugin)}
+              <li key={plugin.id} className="min-w-0">
+                <div className="border-border bg-card hover:bg-accent/40 group/row flex w-full min-w-0 items-center gap-0.5 rounded-md border px-1.5 py-1 transition-colors">
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-0.5 py-0.5 text-left",
+                      "outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    )}
+                    aria-label={t(plugin.titleKey)}
+                    onClick={() => onSelect(plugin)}
+                  >
+                    <span
+                      className="bg-muted text-foreground flex size-8 shrink-0 items-center justify-center rounded-md"
+                      aria-hidden="true"
+                    >
+                      <Icon className="size-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="text-foreground block truncate text-xs font-medium leading-4">
+                        {t(plugin.titleKey)}
+                      </span>
+                      <OverflowDescription
+                        className="text-muted-foreground block truncate text-[11px] leading-4"
                       >
-                        <Icon
-                          className="text-muted-foreground size-3.5 shrink-0"
-                          aria-hidden="true"
-                        />
-                        <span className="min-w-0 flex-1 truncate font-medium">
-                          {t(plugin.titleKey)}
-                        </span>
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-xs">
-                      {t(plugin.descriptionKey)}
-                    </TooltipContent>
-                  </Tooltip>
+                        {description}
+                      </OverflowDescription>
+                    </span>
+                  </button>
                   {showMenu ? (
-                    <PluginMoreMenu
-                      onTry={() => handleTry(plugin)}
-                      onUninstall={() => setUninstallTarget(plugin)}
-                    />
+                    <div className="shrink-0">
+                      <PluginMoreMenu
+                        compact
+                        onTry={() => handleTry(plugin)}
+                        onUninstall={() => setUninstallTarget(plugin)}
+                      />
+                    </div>
                   ) : null}
                 </div>
               </li>

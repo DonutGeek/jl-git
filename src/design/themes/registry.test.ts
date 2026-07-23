@@ -88,14 +88,30 @@ describe("应用主题注册表", () => {
     expect(
       chromeFromPreset(normalizeAppThemeId("claude-code"), false),
     ).toMatchObject({
-      background: "#FAF9F5",
-      muted: "#F0EEE6",
-      accent: "#D97757",
+      background: "#F9F9F7",
+      surface: "#FFFFFF",
+      sidebar: "#FCFCFB",
+      accent: "#0B0B0B",
+    });
+    expect(
+      chromeFromPreset(normalizeAppThemeId("claude-code"), true),
+    ).toMatchObject({
+      background: "#0D0D0D",
+      surface: "#2C2C2A",
+      sidebar: "#1A1A19",
+      accent: "#FFFFFF",
+    });
+    expect(chromeFromPreset(normalizeAppThemeId("codex"), false)).toMatchObject({
+      background: "#FCFCFC",
+      surface: "#FFFFFF",
+      sidebar: "#FCFCFC",
+      accent: "#0D0D0D",
     });
     expect(chromeFromPreset(normalizeAppThemeId("codex"), true)).toMatchObject({
-      background: "#0D0D0D",
-      surface: "#171717",
-      accent: "#F2F2F2",
+      background: "#000000",
+      surface: "#212121",
+      selection: "#303030",
+      accent: "#FFFFFF",
     });
   });
 

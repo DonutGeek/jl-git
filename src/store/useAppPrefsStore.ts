@@ -3,6 +3,8 @@ import { persist } from "zustand/middleware";
 
 import {
   applyAppThemeToDocument,
+  APP_THEME_CLAUDE_CODE,
+  APP_THEME_CODEX,
   chromeFromPreset,
   DEFAULT_APP_THEME_ID,
   normalizeAppThemeChrome,
@@ -14,6 +16,11 @@ import {
   listenGlobalPreferenceChange,
   notifyGlobalPreferenceChange,
 } from "@/services/window/globalPreferences";
+import {
+  DEFAULT_ACTIVITY_BAR_ORDER,
+  normalizeActivityBarOrder,
+  type ActivityBarItemId,
+} from "@/utils/activityBarOrder";
 
 /** 客户端字体：`system` 表示系统默认无衬线栈，其它为字体族名 */
 export const CLIENT_FONT_SYSTEM = "system";
@@ -60,6 +67,8 @@ interface AppPrefsState {
   launchAtLogin: boolean;
   startupTabsMode: StartupTabsMode;
   pushAfterCommit: boolean;
+  /** 仓库页左侧活动栏入口顺序 */
+  activityBarOrder: ActivityBarItemId[];
   setClientFont: (font: string) => void;
   setEditorFont: (font: string) => void;
   /** 切换主题包：自动套用该主题明暗预设色 */
@@ -75,6 +84,7 @@ interface AppPrefsState {
   setLaunchAtLogin: (value: boolean) => void;
   setStartupTabsMode: (mode: StartupTabsMode) => void;
   setPushAfterCommit: (value: boolean) => void;
+  setActivityBarOrder: (order: readonly ActivityBarItemId[]) => void;
 }
 
 function normalizeStartupTabsMode(value: unknown): StartupTabsMode {
@@ -174,6 +184,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
       launchAtLogin: false,
       startupTabsMode: "restore",
       pushAfterCommit: false,
+      activityBarOrder: [...DEFAULT_ACTIVITY_BAR_ORDER],
 
       setClientFont(font) {
         applyAppFonts(font, get().editorFont);
@@ -238,10 +249,21 @@ export const useAppPrefsStore = create<AppPrefsState>()(
         set({ pushAfterCommit: value });
         notifyGlobalPreferenceChange("app-prefs");
       },
+      setActivityBarOrder(order) {
+        const next = normalizeActivityBarOrder(order);
+        if (
+          next.length === get().activityBarOrder.length &&
+          next.every((item, index) => item === get().activityBarOrder[index])
+        ) {
+          return;
+        }
+        set({ activityBarOrder: next });
+        notifyGlobalPreferenceChange("app-prefs");
+      },
     }),
     {
       name: APP_PREFS_STORAGE_KEY,
-      version: 9,
+      version: 11,
       migrate: (persisted, version) => {
         const state = persisted as Partial<AppPrefsState> & {
           editorChromeLight?: AppThemeChrome;
@@ -319,6 +341,18 @@ export const useAppPrefsStore = create<AppPrefsState>()(
             Object.assign(state, applyThemePack(id));
           }
         }
+        if (version < 10) {
+          state.activityBarOrder = normalizeActivityBarOrder(
+            state.activityBarOrder,
+          );
+        }
+        if (version < 11) {
+          const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
+          if (id === APP_THEME_CODEX || id === APP_THEME_CLAUDE_CODE) {
+            // ChatGPT / Claude 主题改用实测网站色板，重套旧版持久化预设。
+            Object.assign(state, applyThemePack(id));
+          }
+        }
         return state as AppPrefsState;
       },
       onRehydrateStorage: () => (state) => {
@@ -349,6 +383,9 @@ export const useAppPrefsStore = create<AppPrefsState>()(
           true,
         );
         state.startupTabsMode = normalizeStartupTabsMode(state.startupTabsMode);
+        state.activityBarOrder = normalizeActivityBarOrder(
+          state.activityBarOrder,
+        );
         applyAppFonts(state.clientFont, state.editorFont);
         applyActiveTheme(state);
       },

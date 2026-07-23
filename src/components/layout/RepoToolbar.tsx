@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
 import { LocalBranchMenuList } from "@/components/git/LocalBranchMenuList";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +38,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
@@ -432,7 +432,12 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
               />
             </div>
           </div>
-          <ScrollArea className="max-h-72 [&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+          <DropdownMenuScrollArea
+            itemCount={filteredProjects.length}
+            itemHeight={52}
+            maxHeight={288}
+            availableHeightOffset={41}
+          >
             <div className="min-w-0 p-1">
               {filteredProjects.length === 0 ? (
                 <p className="text-muted-foreground px-2 py-3 text-center text-xs">
@@ -468,7 +473,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
                 ))
               )}
             </div>
-          </ScrollArea>
+          </DropdownMenuScrollArea>
         </DropdownMenuContent>
       </DropdownMenu>
 

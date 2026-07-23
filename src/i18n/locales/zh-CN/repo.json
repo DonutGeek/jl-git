@@ -3,6 +3,8 @@
   "opening": "正在打开仓库…",
   "notFound": "未找到该项目",
   "detached": "分离头指针",
+  "search": "搜索",
+  "searchRepositories": "搜索仓库…",
   "switchProject": "切换仓库",
   "switchProjectFilter": "过滤仓库…",
   "switchProjectNoMatch": "无匹配仓库",

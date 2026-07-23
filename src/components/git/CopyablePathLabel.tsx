@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { TruncateStartPath } from "@/components/common/TruncateStartPath";
+import {
+  TruncateStartPath,
+  TRUNCATE_BUDGET_ATTR,
+} from "@/components/common/TruncateStartPath";
 import {
   Tooltip,
   TooltipContent,
@@ -49,24 +52,27 @@ export function CopyablePathLabel({ path, className }: CopyablePathLabelProps) {
   }
 
   return (
-    <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+    <div
+      className="flex min-w-0 flex-1 items-center overflow-hidden"
+      {...{ [TRUNCATE_BUDGET_ATTR]: true }}
+    >
       <Tooltip open={copied ? true : undefined} delayDuration={200}>
         <TooltipTrigger asChild>
           <button
             type="button"
             aria-label={t("repo.copy")}
             className={cn(
-              "text-foreground flex min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-left underline-offset-2 hover:underline",
+              "text-foreground inline-flex w-max max-w-full min-w-0 cursor-pointer border-0 bg-transparent p-0 text-left underline-offset-2 hover:underline",
               className,
             )}
             onClick={() => {
               void copyPath();
             }}
           >
-            <TruncateStartPath path={path} className="font-mono" />
+            <TruncateStartPath path={path} className="min-w-0 flex-1 font-mono" />
           </button>
         </TooltipTrigger>
-        {/* 勿 align=start：宽触发器下 Floating UI 会隐藏无法居中的箭头 */}
+        {/* 触发器跟随可见路径宽度，默认居中即可对齐文字中心线 */}
         <TooltipContent side="top">
           {copied ? t("repo.copySuccess") : t("repo.copy")}
         </TooltipContent>

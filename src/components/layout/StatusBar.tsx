@@ -4,7 +4,6 @@ import { useLocation } from "react-router-dom";
 import {
   CheckCircle2,
   Download,
-  Sparkles,
   HardDrive,
   Moon,
   ScrollText,
@@ -15,6 +14,7 @@ import {
 import { toast } from "sonner";
 
 import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
+import { MultiAgentWindowButton } from "@/components/agent/MultiAgentWindowButton";
 import { DiskSpaceTooltip } from "@/components/layout/DiskSpaceTooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import { useAppUpdateChecker } from "@/hooks/useAppUpdateChecker";
 import { gitService } from "@/services/git";
 import {
@@ -40,7 +39,6 @@ import {
   checkAppUpdate,
   installPendingAppUpdate,
 } from "@/services/system/system.updater";
-import { openMultiAgentWindow } from "@/services/window/multiAgentWindow";
 import {
   selectLatestEntry,
   selectRepoEntries,
@@ -76,19 +74,7 @@ export function StatusBar() {
   const toggleZhEn = useLocaleStore((state) => state.toggleZhEn);
   const openDrawer = useSettingsDrawerStore((state) => state.openDrawer);
   const settingsOpen = useSettingsDrawerStore((state) => state.open);
-  const hasApiKey = useHasAgentApiKey();
   useAppUpdateChecker();
-
-  async function handleOpenMultiAgent(): Promise<void> {
-    if (!hasApiKey) {
-      return;
-    }
-    try {
-      await openMultiAgentWindow();
-    } catch (error) {
-      toast.error(toUserMessage(error) || t("multiAgent.openFailed"));
-    }
-  }
 
   const repoPath = useRepoStore((state) => state.repoPath);
   const repoIdentity = useRepoStore((state) => state.identity);
@@ -426,30 +412,11 @@ export function StatusBar() {
         <TooltipContent>{identityLabel}</TooltipContent>
         </Tooltip></> : null}
 
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <span className="inline-flex">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground size-6 [&_svg]:size-3.5"
-                aria-label={
-                  hasApiKey ? t("statusBar.multiAgent") : t("common.aiApiKeyRequired")
-                }
-                disabled={!hasApiKey}
-                onClick={() => {
-                  void handleOpenMultiAgent();
-                }}
-              >
-                <Sparkles aria-hidden="true" />
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            {hasApiKey ? t("statusBar.multiAgent") : t("common.aiApiKeyRequired")}
-          </TooltipContent>
-        </Tooltip>
+        <MultiAgentWindowButton
+          label={t("statusBar.multiAgent")}
+          className="size-6"
+          iconClassName="size-3.5"
+        />
 
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>

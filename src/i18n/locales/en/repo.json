@@ -3,6 +3,8 @@
   "opening": "Opening repository…",
   "notFound": "Project not found",
   "detached": "Detached HEAD",
+  "search": "Search",
+  "searchRepositories": "Search repositories…",
   "switchProject": "Switch repository",
   "switchProjectFilter": "Filter repositories…",
   "switchProjectNoMatch": "No matching repositories",

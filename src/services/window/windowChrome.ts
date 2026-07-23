@@ -11,6 +11,14 @@ export function detectAppOs(): AppOs {
   return "unknown";
 }
 
+/** macOS 普通窗口为交通灯留位；全屏后交通灯隐藏，恢复标准边距。 */
+export function resolveWindowHeaderPaddingClass(
+  os: AppOs,
+  fullscreen: boolean,
+): string {
+  return os === "macos" && !fullscreen ? "pl-[88px]" : "pl-3";
+}
+
 export interface AppWindowChromeOptions {
   decorations?: boolean;
   hiddenTitle?: boolean;

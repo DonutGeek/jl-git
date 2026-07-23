@@ -1,14 +1,12 @@
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 export interface GitRefPickerOption {
@@ -29,10 +27,7 @@ interface GitRefPickerProps {
   className?: string;
 }
 
-/**
- * Dialog 内的 ref 选择器。
- * 不用 Radix Select：与 Dialog（radix-ui）叠用时 dismissable-layer 双版本会导致悬停高亮失效。
- */
+/** Dialog 内的 ref 选择器：使用与 Dialog 同源的 shadcn Select。 */
 export function GitRefPicker({
   id,
   value,
@@ -42,69 +37,34 @@ export function GitRefPicker({
   className,
 }: GitRefPickerProps) {
   const { t } = useTranslation();
-  const selected = options.find((option) => option.value === value);
-  const display = selected?.label ?? "";
-
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          id={id}
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          className={cn(
-            "border-input bg-background hover:bg-accent hover:text-accent-foreground",
-            "focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full justify-between gap-1.5 px-3 font-normal shadow-xs",
-            "focus-visible:ring-[3px]",
-            className,
-          )}
-        >
-          <span
-            className={cn(
-              "min-w-0 flex-1 truncate text-left font-mono text-sm",
-              !display && "text-muted-foreground font-sans",
-            )}
-          >
-            {display || t("common.pleaseSelect")}
-          </span>
-          <ChevronDown
-            className="text-muted-foreground size-4 shrink-0"
-            aria-hidden="true"
-          />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className="max-h-64 w-[var(--radix-dropdown-menu-trigger-width)] overflow-hidden p-0"
+    <Select value={value} disabled={disabled} onValueChange={onValueChange}>
+      <SelectTrigger
+        id={id}
+        className={cn(
+          "bg-background hover:bg-accent hover:text-accent-foreground w-full font-normal",
+          "[&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:flex-1 [&_[data-slot=select-value]]:truncate",
+          "[&_[data-slot=select-value]]:text-left [&_[data-slot=select-value]]:font-mono",
+          className,
+        )}
       >
-        <ScrollArea className="h-full max-h-64">
-          <div className="p-1">
-            {options.map((option) => {
-              const isSelected = option.value === value;
-              return (
-                <DropdownMenuItem
-                  key={option.key}
-                  className={cn(
-                    "gap-2 font-mono",
-                    isSelected && "bg-accent text-accent-foreground",
-                  )}
-                  onSelect={() => onValueChange(option.value)}
-                >
-                  <Check
-                    className={cn(
-                      "text-primary size-3.5 shrink-0",
-                      isSelected ? "opacity-100" : "opacity-0",
-                    )}
-                    aria-hidden="true"
-                  />
-                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                </DropdownMenuItem>
-              );
-            })}
-          </div>
-        </ScrollArea>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        <SelectValue placeholder={t("common.pleaseSelect")} />
+      </SelectTrigger>
+      <SelectContent
+        position="popper"
+        align="start"
+        className="max-h-64 w-[var(--radix-select-trigger-width)]"
+      >
+        {options.map((option) => (
+          <SelectItem
+            key={option.key}
+            value={option.value}
+            className="font-mono"
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

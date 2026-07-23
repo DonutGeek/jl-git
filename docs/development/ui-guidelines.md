@@ -85,6 +85,7 @@ JLGit 以 [shadcn/ui](https://ui.shadcn.com/) 作为基础组件来源（代码�
 | Button | `button.tsx` |
 | Card | `card.tsx` |
 | Checkbox | `checkbox.tsx` |
+| Command | `command.tsx` |
 | Context Menu | `context-menu.tsx` |
 | Dialog | `dialog.tsx` |
 | Dropdown Menu | `dropdown-menu.tsx` |
@@ -92,6 +93,7 @@ JLGit 以 [shadcn/ui](https://ui.shadcn.com/) 作为基础组件来源（代码�
 | Field | `field.tsx` |
 | Input | `input.tsx` |
 | Item | `item.tsx` |
+| Kbd | `kbd.tsx` |
 | Label | `label.tsx` |
 | Popover | `popover.tsx` |
 | Radio Group | `radio-group.tsx` |
@@ -124,8 +126,8 @@ Toast 统一使用 shadcn 官方 Sonner 方案：
 
 | 优先级 | 组件 | 典型用途 |
 |--------|------|----------|
-| 中 | `progress` / `collapsible` / `toggle` / `toggle-group` / `kbd` | 进度、折叠、工具条切换 |
-| 中 | `command` / `combobox` / `input-group` | 命令面板与增强输入 |
+| 中 | `progress` / `collapsible` / `toggle` / `toggle-group` | 进度、折叠、工具条切换 |
+| 中 | `combobox` / `input-group` | 命令面板与增强输入 |
 | 低 / 按需 | `calendar`、`chart`、`carousel`、`sidebar`、`menubar`、`navigation-menu`、`pagination`、`drawer`、会话类 `message` / `bubble` 等 | 有明确产品需求再引入 |
 
 完整未引入列表随时可用：

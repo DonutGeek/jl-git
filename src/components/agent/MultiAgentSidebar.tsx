@@ -16,9 +16,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  AtSign,
   MoreHorizontal,
   Pin,
-  Puzzle,
   SquarePen,
   Trash2,
 } from "lucide-react";
@@ -360,7 +360,7 @@ export function MultiAgentSidebar({
                   aria-pressed={pluginsActive}
                   onClick={onOpenPlugins}
                 >
-                  <Puzzle className="size-3.5" aria-hidden="true" />
+                  <AtSign className="size-3.5" aria-hidden="true" />
                   {t("multiAgent.openPlugins")}
                 </Button>
               </TooltipTrigger>

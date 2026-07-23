@@ -5,7 +5,7 @@
 
 ## 目标
 
-五套应用主题（鲸灵 Git / GitHub / Codex / Claude Code / VS Code），**模块化注册**，避免单文件膨胀；主题配色开放完整语义色调节。
+五套应用主题（鲸灵 Git / GitHub / ChatGPT / Claude / VS Code），**模块化注册**，避免单文件膨胀；主题配色开放完整语义色调节。
 
 ## 目录
 
@@ -39,5 +39,5 @@ src/design/editor-themes.ts  # 兼容再导出
 | 其它包 | 每包显式提供完整界面色板；公开 Token 优先，只有未公开部分允许注明视觉映射，见 `packs/SOURCES.md` |
 | 昼夜 | 跟 `html.dark`；每包 light/dark 各一套 |
 | 覆盖范围 | 背景、卡片/弹层、次要区、侧栏、选中态、边框、图表、仓库分组、Git/Diff 与 Monaco |
-| 旧 id | `high-contrast`→VS Code，`soft`→Claude Code |
+| 旧 id | `high-contrast`→VS Code，`soft`→Claude |
 | 自定义 | 应用内 Popover 色板；界面、Diff 与 Git 状态语义色按浅/深模式自动持久化 |

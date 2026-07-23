@@ -21,7 +21,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Pin, Puzzle, SquarePen, X } from "lucide-react";
+import { AtSign, Pin, SquarePen, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -379,7 +379,7 @@ export function AgentConversationTabs({
                 aria-label={t("agent.openPlugins")}
                 onClick={onOpenPlugins}
               >
-                <Puzzle aria-hidden="true" />
+                <AtSign aria-hidden="true" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t("agent.openPluginsHint")}</TooltipContent>

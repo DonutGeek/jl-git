@@ -5,16 +5,13 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { Check, ChevronDown } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 export interface SelectMenuOption {
@@ -121,73 +118,42 @@ export function SelectMenu({
     ));
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          aria-label={ariaLabel}
-          title={typeof displayLabel === "undefined" ? fullLabel : undefined}
-          className={cn(
-            "border-input bg-background hover:bg-accent hover:text-accent-foreground",
-            "focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-full justify-between gap-1.5 px-2.5 text-sm font-normal shadow-xs",
-            "focus-visible:ring-[3px]",
-            compact && "h-7 gap-1 px-2 text-xs",
-            triggerClassName,
-          )}
-          style={current?.style}
-        >
-          {triggerLabel}
-          <ChevronDown
-            className={cn(
-              "text-muted-foreground shrink-0",
-              compact ? "size-3" : "size-3.5",
-            )}
-            aria-hidden="true"
-          />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        // 禁止 Content 自身滚动，交由内部 ScrollArea，避免长列表撑满屏却无滚动条
+    <Select value={value} disabled={disabled} onValueChange={onChange}>
+      <SelectTrigger
+        size={compact ? "sm" : "default"}
+        aria-label={ariaLabel}
+        title={typeof displayLabel === "undefined" ? fullLabel : undefined}
         className={cn(
-          "max-h-[min(16rem,var(--radix-dropdown-menu-content-available-height))] min-w-[var(--radix-dropdown-menu-trigger-width)] overflow-hidden p-0",
+          "bg-background hover:bg-accent hover:text-accent-foreground h-8 w-full gap-1.5 px-2.5 text-sm font-normal",
+          compact && "h-7 gap-1 px-2 text-xs",
+          triggerClassName,
+        )}
+        style={current?.style}
+      >
+        {triggerLabel}
+      </SelectTrigger>
+      <SelectContent
+        position="popper"
+        align="start"
+        className={cn(
+          "max-h-[min(16rem,var(--radix-select-content-available-height))] min-w-[var(--radix-select-trigger-width)]",
           contentClassName,
         )}
       >
-        <ScrollArea className="h-full max-h-[min(16rem,var(--radix-dropdown-menu-content-available-height))]">
-          <div className="p-1">
-            {options.map((option) => {
-              const selected = option.value === value;
-              return (
-                <DropdownMenuItem
-                  key={option.value}
-                  className={cn(
-                    "gap-2",
-                    compact ? "text-xs" : "text-sm",
-                    selected && "bg-accent text-accent-foreground",
-                  )}
-                  style={option.style}
-                  onSelect={() => onChange(option.value)}
-                >
-                  {option.preview ? <span className="shrink-0">{option.preview}</span> : null}
-                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                  {selected ? (
-                    <Check
-                      className={cn(
-                        "text-primary shrink-0",
-                        compact ? "size-3" : "size-3.5",
-                      )}
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                </DropdownMenuItem>
-              );
-            })}
-          </div>
-        </ScrollArea>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            className={compact ? "text-xs" : "text-sm"}
+            style={option.style}
+          >
+            {option.preview ? (
+              <span className="shrink-0">{option.preview}</span>
+            ) : null}
+            <span className="min-w-0 flex-1 truncate">{option.label}</span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

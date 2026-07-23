@@ -24,6 +24,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { FolderPlus, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { MultiAgentWindowButton } from "@/components/agent/MultiAgentWindowButton";
 import { OpenRepoDialog } from "@/components/project/OpenRepoDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -466,6 +467,17 @@ export function RepoTabBar() {
             </Tooltip>
           </div>
           <div data-tauri-drag-region className="h-full min-w-8 flex-1" />
+          <div
+            className="flex h-7 shrink-0 items-center pr-3"
+            style={noDragStyle}
+          >
+            <MultiAgentWindowButton
+              label={t("multiAgent.openButton")}
+              className="size-7 shrink-0"
+              iconClassName="size-4"
+              tooltipSide="bottom"
+            />
+          </div>
         </header>
         <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
           {draggingTab ? (

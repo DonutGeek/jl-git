@@ -6,7 +6,7 @@
 
 ## 目标
 
-设置 → 外观提供 **应用主题**（整站 Design Tokens + Monaco Diff/文件视图）。编辑器只是主题的一部分。当前内置 **鲸灵 Git、GitHub、Codex、Claude Code、VS Code**。
+设置 → 外观提供 **应用主题**（整站 Design Tokens + Monaco Diff/文件视图）。编辑器只是主题的一部分。当前内置 **鲸灵 Git、GitHub、ChatGPT、Claude、VS Code**。
 
 ## 约定
 

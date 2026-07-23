@@ -87,6 +87,7 @@ export function HistoryWorkspace({
           minFirstPx={420}
           minSecondPx={280}
           storageKey={HISTORY_DETAIL_SPLIT_KEY}
+          separatorSizePx={HISTORY_SPLIT_SEPARATOR_PX}
           separatorClassName={showCommitFileDiff ? "z-40" : undefined}
           first={
             <aside

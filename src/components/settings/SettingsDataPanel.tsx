@@ -236,7 +236,7 @@ export function SettingsDataPanel() {
             </SettingsTip>
           </div>
         </div>
-        <div className="min-w-0 space-y-3 pl-6">
+        <div className="min-w-0 space-y-3 px-6">
           {pathsError ? (
             <p className="text-destructive text-xs">{pathsError}</p>
           ) : null}
@@ -275,7 +275,7 @@ export function SettingsDataPanel() {
             </SettingsTip>
           </div>
         </div>
-        <div className="pl-6">
+        <div className="px-6">
           <SettingsPreferenceGroup>
             {clearTargets.map((target) => (
               <Item key={target.id} size="sm" className="rounded-none">
@@ -318,7 +318,7 @@ export function SettingsDataPanel() {
             </SettingsTip>
           </div>
         </div>
-        <div className="pl-6">
+        <div className="px-6">
           <SettingsPreferenceGroup>
             <SettingsPreferenceRow
               label={t("settings.dataExport")}
@@ -368,7 +368,7 @@ export function SettingsDataPanel() {
             </SettingsTip>
           </div>
         </div>
-        <div className="pl-6">
+        <div className="px-6">
           <SettingsPreferenceGroup>
             <Item size="sm" className="rounded-none">
               <ItemMedia variant="icon">

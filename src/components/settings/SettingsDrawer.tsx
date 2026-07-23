@@ -14,6 +14,7 @@ import {
   Activity,
   Info,
   KeyRound,
+  Keyboard,
   Palette,
   Pencil,
   Plus,
@@ -37,6 +38,7 @@ import { SettingsPerformancePanel } from "@/components/settings/SettingsPerforma
 import { SettingsPreferenceGroup } from "@/components/settings/SettingsPreferenceGroup";
 import { SettingsPreferenceRow } from "@/components/settings/SettingsPreferenceRow";
 import { SettingsSshPanel } from "@/components/settings/SettingsSshPanel";
+import { SettingsShortcutsPanel } from "@/components/settings/SettingsShortcutsPanel";
 import { SettingsTip } from "@/components/settings/SettingsTip";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -165,7 +167,7 @@ function SettingsSection({
           </div>
         </div>
       </div>
-      <div className="space-y-3 pl-6">{children}</div>
+      <div className="space-y-3 px-6">{children}</div>
     </section>
   );
 }
@@ -637,6 +639,7 @@ export function SettingsDrawer() {
     { id: "tools", label: t("settings.sectionTools"), icon: <Terminal /> },
     { id: "data", label: t("settings.sectionData"), icon: <Database /> },
     { id: "general", label: t("settings.sectionGeneral"), icon: <Settings2 /> },
+    { id: "shortcuts", label: t("settings.sectionShortcuts"), icon: <Keyboard /> },
     { id: "performance", label: t("settings.sectionPerformance"), icon: <Activity /> },
     { id: "about", label: t("settings.sectionAbout"), icon: <Info /> },
   ];
@@ -1933,6 +1936,22 @@ export function SettingsDrawer() {
           </SettingsSection> : null}
 
           {activeCategory === "data" ? <SettingsDataPanel /> : null}
+
+          {activeCategory === "shortcuts" ? (
+            <SettingsSection
+              icon={<Keyboard />}
+              title={t("settings.sectionShortcuts")}
+              tip={t("settings.sectionShortcutsHint")}
+              tipAria={t("settings.sectionShortcutsTipAria")}
+              action={
+                <Badge variant="secondary" className="text-[10px]">
+                  {t("settings.shortcutsPreviewBadge")}
+                </Badge>
+              }
+            >
+              <SettingsShortcutsPanel />
+            </SettingsSection>
+          ) : null}
 
           {activeCategory === "performance" ? (
             <SettingsSection

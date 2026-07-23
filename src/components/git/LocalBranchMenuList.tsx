@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Search } from "lucide-react";
 
+import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import type { GitBranch } from "@/types/git";
 
 interface LocalBranchMenuListProps {
@@ -72,7 +72,11 @@ export function LocalBranchMenuList({
         </div>
       </div>
 
-      <ScrollArea className="max-h-72 [&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+      <DropdownMenuScrollArea
+        itemCount={filteredBranches.length}
+        maxHeight={288}
+        availableHeightOffset={41}
+      >
         <div className="p-1">
           {filteredBranches.length === 0 ? (
             <p className="text-muted-foreground px-2 py-3 text-center text-xs">
@@ -99,7 +103,7 @@ export function LocalBranchMenuList({
             ))
           )}
         </div>
-      </ScrollArea>
+      </DropdownMenuScrollArea>
     </div>
   );
 }
