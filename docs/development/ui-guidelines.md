@@ -351,7 +351,7 @@ pnpm dlx shadcn@latest add sonner
 | 平台 | 行为 |
 |------|------|
 | macOS | `tauri.macos.conf.json`：Overlay + 交通灯；顶栏 `pl-[88px]`；**禁止**去掉留白或 `decorations: false` |
-| Windows / Linux | `decorations: true`（系统标题栏与窗口按钮）；顶栏左侧 `pl-3`，不挂自绘三键 |
+| Windows / Linux | `decorations: true`（系统标题栏与窗口按钮）；顶栏左侧 `pl-3`，不挂自绘三键，不显示 Tauri 应用菜单行 |
 | 拖拽 | 空白区 `data-tauri-drag-region`；可点控件 `WebkitAppRegion: no-drag` |
 | 复用 | 子窗顶栏用 `AppWindowHeader`；布局判断用 `useWindowChromeLayout` |
 

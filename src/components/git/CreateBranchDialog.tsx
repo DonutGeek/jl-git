@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
@@ -150,64 +151,65 @@ export function CreateBranchDialog({
           className="flex min-h-0 flex-1 flex-col gap-4"
           onSubmit={(event) => void handleSubmit(event)}
         >
-          {lockedStart ? (
-            <div className="space-y-1.5">
-              <p className="text-muted-foreground text-sm">
-                {t("repo.createBranchBasedOn")}
-              </p>
-              <div className="border-border bg-muted/30 flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                {fixedStartIsTag ? (
-                  <Tag className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
-                ) : (
-                  <GitBranchIcon
-                    className="text-muted-foreground size-3.5 shrink-0"
-                    aria-hidden="true"
-                  />
-                )}
-                <span className="min-w-0 truncate font-mono">{startPoint}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              <label htmlFor="create-branch-base" className="text-sm font-medium">
-                {t("repo.createBranchBasedOn")}
-              </label>
-              <GitRefPicker
-                id="create-branch-base"
-                value={startPoint}
-                options={startOptions}
-                disabled={submitting}
-                onValueChange={setStartPoint}
-              />
-            </div>
-          )}
+          <FieldGroup className="gap-4">
+            {lockedStart ? (
+              <Field>
+                <FieldLabel>{t("repo.createBranchBasedOn")}</FieldLabel>
+                <div className="border-border bg-muted/30 flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                  {fixedStartIsTag ? (
+                    <Tag className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <GitBranchIcon
+                      className="text-muted-foreground size-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span className="min-w-0 truncate font-mono">{startPoint}</span>
+                </div>
+              </Field>
+            ) : (
+              <Field>
+                <FieldLabel htmlFor="create-branch-base">
+                  {t("repo.createBranchBasedOn")}
+                </FieldLabel>
+                <GitRefPicker
+                  id="create-branch-base"
+                  value={startPoint}
+                  options={startOptions}
+                  disabled={submitting}
+                  onValueChange={setStartPoint}
+                />
+              </Field>
+            )}
 
-          <div className="space-y-1.5">
-            <label htmlFor="branch-name" className="text-sm font-medium">
-              {t("repo.branchName")}
-            </label>
-            <Input
-              id="branch-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={t("repo.branchNamePlaceholder")}
-              autoFocus
-              disabled={submitting}
-            />
-          </div>
-
-          {lockedStart ? (
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={checkoutAfterCreate}
-                onCheckedChange={(checked) =>
-                  setCheckoutAfterCreate(checked === true)
-                }
+            <Field>
+              <FieldLabel htmlFor="branch-name">{t("repo.branchName")}</FieldLabel>
+              <Input
+                id="branch-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder={t("repo.branchNamePlaceholder")}
+                autoFocus
                 disabled={submitting}
               />
-              <span>{t("repo.createBranchCheckoutAfter")}</span>
-            </label>
-          ) : null}
+            </Field>
+
+            {lockedStart ? (
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="create-branch-checkout"
+                  checked={checkoutAfterCreate}
+                  onCheckedChange={(checked) =>
+                    setCheckoutAfterCreate(checked === true)
+                  }
+                  disabled={submitting}
+                />
+                <FieldLabel htmlFor="create-branch-checkout">
+                  {t("repo.createBranchCheckoutAfter")}
+                </FieldLabel>
+              </Field>
+            ) : null}
+          </FieldGroup>
 
           <DialogFooter>
             <Button

@@ -130,10 +130,10 @@ Command::new("git")
 
 | 平台 | UI |
 |------|-----|
-| macOS | 顶栏 `pl-[88px]`；系统交通灯 |
-| Windows / Linux | 系统最小化/最大化/关闭；子窗同样 `decorations: true` |
+| macOS | 顶栏 `pl-[88px]`；系统交通灯；保留系统应用菜单 |
+| Windows / Linux | 系统最小化/最大化/关闭；子窗同样 `decorations: true`；不挂载 Tauri 应用菜单 |
 
-窗口按钮由系统装饰提供；前端不再自绘三键。若业务仍需程序化改窗口状态，再按需声明对应 capabilities。
+窗口按钮由系统装饰提供；前端不再自绘三键。Windows / Linux 在 `setup` 中清空应用级菜单，因此主窗及之后创建的所有子窗均不显示「文件 / 编辑 / 显示 / 窗口」菜单行；输入框的复制、粘贴、剪切、全选与撤销仍由 WebView 处理。若业务仍需程序化改窗口状态，再按需声明对应 capabilities。
 
 设计：[windows-window-chrome](../superpowers/specs/2026-07-22-windows-window-chrome-design.md) · [official-three-platform](../superpowers/specs/2026-07-22-official-three-platform-design.md)
 

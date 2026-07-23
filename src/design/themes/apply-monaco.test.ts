@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { getAppMonacoSyntaxRules } from "@/design/themes/apply-monaco";
 import {
+  APP_THEME_CHATGPT,
   APP_THEME_CLAUDE_CODE,
   APP_THEME_CODEX,
   APP_THEME_GITHUB,
@@ -36,6 +37,7 @@ describe("应用主题 Monaco 语法色", () => {
 
   it.each([
     APP_THEME_GITHUB,
+    APP_THEME_CHATGPT,
     APP_THEME_CODEX,
     APP_THEME_CLAUDE_CODE,
     APP_THEME_VSCODE,

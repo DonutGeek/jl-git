@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -63,10 +64,10 @@ export function ProjectDescriptionField({
   }
 
   return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium" htmlFor={fieldId}>
+    <Field>
+      <FieldLabel htmlFor={fieldId}>
         {t("openRepo.detailLabel")}
-      </label>
+      </FieldLabel>
       <div className="relative">
         <Textarea
           id={fieldId}
@@ -115,6 +116,6 @@ export function ProjectDescriptionField({
           </Tooltip>
         </div>
       </div>
-    </div>
+    </Field>
   );
 }

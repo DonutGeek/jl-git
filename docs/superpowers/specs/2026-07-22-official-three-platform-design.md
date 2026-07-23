@@ -75,7 +75,7 @@ sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev 
 | 磁盘空间 | Unix：`df -kP`；Windows：PowerShell / 卷 API（修复状态栏空白） |
 | 打开目录 | 已有 Finder / explorer / xdg-open |
 | 文案 | 「在 Finder 中显示」→ 按 OS：访达 / 资源管理器 / 文件管理器 |
-| 原生菜单 | mac 完整应用菜单；Win/Linux 精简（无 Services/Hide 等 mac 项）或不安装多余项 |
+| 原生菜单 | mac 保留完整系统应用菜单；Windows/Linux 不安装应用菜单，主窗与子窗均只保留原生标题栏 |
 
 ---
 

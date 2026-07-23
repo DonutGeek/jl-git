@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FolderGit2, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
+import { ProjectContextMenu } from "@/components/project/ProjectContextMenu";
+import { ProjectIcon } from "@/components/project/ProjectIcon";
 import { RemoteRepositoryLabel } from "@/components/project/RemoteRepositoryLabel";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -16,12 +18,7 @@ import { useProjectStore } from "@/store/useProjectStore";
 import { Project, RecentItem } from "@/types/project";
 import { parseRemoteRepository } from "@/utils/remoteRepository";
 
-interface RecentProjectRow {
-  id: string;
-  name: string;
-  path: string;
-  lastOpenedAt: string | null;
-}
+type RecentProjectRow = Project;
 
 function mergeRecentProjects(recent: RecentItem[], projects: Project[]): RecentProjectRow[] {
   const projectById = new Map(projects.map((project) => [project.id, project]));
@@ -34,9 +31,7 @@ function mergeRecentProjects(recent: RecentItem[], projects: Project[]): RecentP
 
     return [
       {
-        id: project.id,
-        name: project.name,
-        path: project.path,
+        ...project,
         lastOpenedAt: item.openedAt || project.lastOpenedAt,
       },
     ];
@@ -102,7 +97,7 @@ export function RecentProjectList({
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
         <div className="bg-muted flex size-14 items-center justify-center rounded-2xl">
-          <FolderGit2 className="text-muted-foreground size-7" aria-hidden="true" />
+          <ProjectIcon className="text-muted-foreground size-7" />
         </div>
         <h2 className="mt-5 text-lg font-semibold">{t("dashboard.recentEmptyTitle")}</h2>
         <p className="text-muted-foreground mt-2 flex max-w-sm items-center justify-center gap-2 text-sm">
@@ -153,7 +148,11 @@ export function RecentProjectList({
 
               return (
                 <li key={project.id} role="option" aria-selected={isSelected}>
-                  <button
+                  <ProjectContextMenu
+                    project={project}
+                    onOpenProject={handleOpenProject}
+                  >
+                    <button
                         type="button"
                         className={cn(
                           // 勿加 overflow-hidden，否则会裁掉右侧圆角（看起来左右不一致）
@@ -191,7 +190,7 @@ export function RecentProjectList({
                           : "bg-muted group-hover:bg-muted-foreground/10 group-focus-visible:bg-muted-foreground/10",
                       )}
                     >
-                      <FolderGit2 className="size-4" aria-hidden="true" />
+                      <ProjectIcon name={project.icon} />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex min-w-0 items-center gap-2">
@@ -207,7 +206,8 @@ export function RecentProjectList({
                         {project.path}
                       </span>
                     </span>
-                  </button>
+                    </button>
+                  </ProjectContextMenu>
                 </li>
               );
             })}

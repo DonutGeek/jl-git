@@ -11,6 +11,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { GitMergeMode, GitMergeOptions } from "@/types/git";
 
@@ -82,9 +89,9 @@ export function MergeBranchDialog({
           <DialogTitle className="pr-6 text-base">{title}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="grid gap-1.5 text-sm">
-            <span className="text-foreground">{t("repo.mergeMode")}</span>
+        <FieldGroup className="gap-4">
+          <Field>
+            <FieldLabel>{t("repo.mergeMode")}</FieldLabel>
             <SelectMenu
               value={mode}
               options={modeOptions}
@@ -92,24 +99,27 @@ export function MergeBranchDialog({
               ariaLabel={t("repo.mergeMode")}
               onChange={(next) => setMode(next as GitMergeMode)}
             />
-          </div>
+          </Field>
 
-          <div className="space-y-1.5">
-            <label className="text-foreground flex cursor-pointer items-center gap-2 text-sm select-none">
-              <Checkbox
-                checked={autostash}
-                disabled={busy || squash}
-                onCheckedChange={(checked) => setAutostash(checked === true)}
-              />
-              <span>{t("repo.mergeAutostash")}</span>
-            </label>
-            {squash ? (
-              <p className="text-muted-foreground pl-6 text-xs">
-                {t("repo.mergeAutostashUnavailable")}
-              </p>
-            ) : null}
-          </div>
-        </div>
+          <Field orientation="horizontal" data-disabled={busy || squash || undefined}>
+            <Checkbox
+              id="merge-autostash"
+              checked={autostash}
+              disabled={busy || squash}
+              onCheckedChange={(checked) => setAutostash(checked === true)}
+            />
+            <FieldContent>
+              <FieldLabel htmlFor="merge-autostash">
+                {t("repo.mergeAutostash")}
+              </FieldLabel>
+              {squash ? (
+                <FieldDescription>
+                  {t("repo.mergeAutostashUnavailable")}
+                </FieldDescription>
+              ) : null}
+            </FieldContent>
+          </Field>
+        </FieldGroup>
 
         <DialogFooter>
           <Button

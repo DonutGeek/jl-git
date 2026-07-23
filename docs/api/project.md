@@ -16,12 +16,35 @@ interface Project {
   workspaceId: string | null;
   name: string;
   description: string | null;
+  icon: ProjectIcon;
   path: string;
   lastOpenedAt: string | null;
   pinned: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+type ProjectIcon =
+  | "folder-git-2"
+  | "folder"
+  | "code-2"
+  | "terminal"
+  | "braces"
+  | "box"
+  | "package"
+  | "layers-3"
+  | "database"
+  | "server"
+  | "globe-2"
+  | "cloud"
+  | "cpu"
+  | "app-window"
+  | "smartphone"
+  | "gamepad-2"
+  | "bot"
+  | "sparkles"
+  | "briefcase-business"
+  | "book-open";
 
 interface Workspace {
   id: string;
@@ -48,7 +71,7 @@ interface RecentItem {
 - **Command：** `project_list`
 - **错误：** `DB_ERROR` → 抛出/返回领域错误
 
-### `add(input: { path: string; workspaceId?: string; name?: string; description?: string }): Promise<Project>`
+### `add(input: { path: string; workspaceId?: string; name?: string; description?: string; icon?: ProjectIcon }): Promise<Project>`
 
 - **Command：** `project_add`
 - **前置：** 路径存在且为 Git 仓库
@@ -59,10 +82,11 @@ interface RecentItem {
 - **Command：** `project_remove`
 - **语义：** 仅取消登记，不删除磁盘文件
 
-### `update(input: { id: string; name?: string; workspaceId?: string | null; description?: string | null }): Promise<Project>`
+### `update(input: { id: string; name?: string; workspaceId?: string | null; description?: string | null; icon?: ProjectIcon }): Promise<Project>`
 
 - **Command：** `project_update`
 - **语义：** `description: null` 清空简介；省略则不改
+- **图标：** 仅接受受控 Lucide 图标键；默认 `folder-git-2`
 
 ### `touchOpened(id: string): Promise<void>`
 

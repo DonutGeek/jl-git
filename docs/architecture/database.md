@@ -63,6 +63,7 @@ erDiagram
 | `workspace_id` | TEXT NULL | FK → workspaces.id |
 | `name` | TEXT NOT NULL | 默认取文件夹名，可改 |
 | `description` | TEXT NULL | 项目简介（可选；打开时可手填或 AI 生成） |
+| `icon` | TEXT NOT NULL DEFAULT `folder-git-2` | 受控 Lucide 图标键；默认沿用当前仓库图标 |
 | `path` | TEXT NOT NULL UNIQUE | 规范化绝对路径 |
 | `last_opened_at` | TEXT NULL | 上次打开 |
 | `pinned` | INTEGER NOT NULL DEFAULT 0 | 1=置顶 |

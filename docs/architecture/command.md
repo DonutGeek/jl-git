@@ -67,7 +67,7 @@ interface AppError {
 | | |
 |--|--|
 | **目的** | 登记本地仓库路径 |
-| **输入** | `{ path: string; workspaceId?: string; name?: string; description?: string }` |
+| **输入** | `{ path: string; workspaceId?: string; name?: string; description?: string; icon?: ProjectIcon }` |
 | **输出** | `{ project: ProjectRow }` |
 | **错误** | `INVALID_PATH` `NOT_A_REPO` `DB_ERROR` `VALIDATION` |
 
@@ -85,7 +85,7 @@ interface AppError {
 | | |
 |--|--|
 | **目的** | 更新显示名 / 工作区 / 简介 |
-| **输入** | `{ id: string; name?: string; workspaceId?: string | null; description?: string | null }`（`description: null` 清空；省略则不改） |
+| **输入** | `{ id: string; name?: string; workspaceId?: string | null; description?: string | null; icon?: ProjectIcon }`（`description: null` 清空；省略则不改） |
 | **输出** | `{ project: ProjectRow }` |
 | **错误** | `NOT_FOUND` `DB_ERROR` `VALIDATION` |
 

@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -440,15 +441,18 @@ export function CommitBox() {
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 p-3">
       <div className="flex shrink-0 items-center justify-between gap-2">
-        <label className="text-foreground flex cursor-pointer items-center gap-2 text-xs select-none">
+        <Field orientation="horizontal" className="w-auto gap-2">
           <Checkbox
+            id="commit-push-remote"
             className="size-3.5"
             checked={pushAfterCommit}
             onCheckedChange={(checked) => setPushAfterCommit(checked === true)}
             disabled={working}
           />
-          <span>{t("repo.pushToRemote")}</span>
-        </label>
+          <FieldLabel htmlFor="commit-push-remote" className="text-xs">
+            {t("repo.pushToRemote")}
+          </FieldLabel>
+        </Field>
         <Tooltip>
           <TooltipTrigger asChild>
             {/* disabled 按钮需包一层，否则无法悬停展示原因 */}

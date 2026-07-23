@@ -11,15 +11,16 @@ import {
 } from "@/design/editor-themes";
 
 describe("应用主题注册表", () => {
-  it("保留既有五套主题，且全部进入设置选项", () => {
+  it("保留六套独立主题，且全部进入设置选项", () => {
     const ids = APP_THEME_PACKS.map((pack) => pack.id);
 
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toEqual([
       "jingling-git",
       "github",
-      "codex",
+      "chatgpt",
       "claude-code",
+      "codex",
       "vscode",
     ]);
     expect(APP_THEME_OPTIONS.map((option) => option.id)).toEqual(ids);
@@ -101,17 +102,33 @@ describe("应用主题注册表", () => {
       sidebar: "#1A1A19",
       accent: "#FFFFFF",
     });
-    expect(chromeFromPreset(normalizeAppThemeId("codex"), false)).toMatchObject({
+    expect(
+      chromeFromPreset(normalizeAppThemeId("chatgpt"), false),
+    ).toMatchObject({
       background: "#FCFCFC",
       surface: "#FFFFFF",
       sidebar: "#FCFCFC",
       accent: "#0D0D0D",
     });
-    expect(chromeFromPreset(normalizeAppThemeId("codex"), true)).toMatchObject({
+    expect(
+      chromeFromPreset(normalizeAppThemeId("chatgpt"), true),
+    ).toMatchObject({
       background: "#000000",
       surface: "#212121",
       selection: "#303030",
       accent: "#FFFFFF",
+    });
+    expect(chromeFromPreset(normalizeAppThemeId("codex"), false)).toMatchObject({
+      background: "#FFFFFF",
+      surface: "#FFFFFF",
+      sidebar: "#F7F7F7",
+      accent: "#0D0D0D",
+    });
+    expect(chromeFromPreset(normalizeAppThemeId("codex"), true)).toMatchObject({
+      background: "#0D0D0D",
+      surface: "#171717",
+      sidebar: "#121212",
+      selection: "#2A2A2A",
     });
   });
 

@@ -132,7 +132,7 @@ settings theme.mode
 | 项 | 说明 |
 |----|------|
 | 入口 | 设置 → 外观 →「应用主题」 |
-| 主题包 | **鲸灵 Git**（默认 tokens 原色，可微调）/ GitHub / ChatGPT / Claude / VS Code |
+| 主题包 | **鲸灵 Git**（默认 tokens 原色，可微调）/ GitHub / ChatGPT / Claude / Codex / VS Code |
 | 作用 | 非 native 包完整写入背景、卡片、弹层、次要区、侧栏、选中态、图表、仓库分组、Git/Diff Tokens，并同步关键字、字符串、注释、数字、类型、函数等 Monaco 语法色；鲸灵 Git 始终保留 `tokens.css` 与原生 Monaco 风格，只增量覆盖用户实际修改项 |
 | 昼夜 | 仍跟 `html.dark`；切换主题包会重置自定义色 |
 | 偏好 | `appThemeId` + `themeChromeLight` / `themeChromeDark` |

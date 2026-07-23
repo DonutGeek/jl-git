@@ -64,8 +64,9 @@ pub async fn project_add(
     name: Option<String>,
     workspace_id: Option<String>,
     description: Option<String>,
+    icon: Option<String>,
 ) -> Result<ProjectResult, AppError> {
-    let project = db::add_project(&pool, path, name, workspace_id, description).await?;
+    let project = db::add_project(&pool, path, name, workspace_id, description, icon).await?;
 
     Ok(ProjectResult { project })
 }
@@ -97,8 +98,9 @@ pub async fn project_update(
     name: Option<String>,
     workspace_id: Option<Option<String>>,
     description: Option<Option<String>>,
+    icon: Option<String>,
 ) -> Result<ProjectResult, AppError> {
-    let project = db::update_project(&pool, &id, name, workspace_id, description).await?;
+    let project = db::update_project(&pool, &id, name, workspace_id, description, icon).await?;
 
     Ok(ProjectResult { project })
 }

@@ -9,6 +9,7 @@ import { Check, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -314,13 +315,13 @@ export function SettingsColorSwatch({
           })}
         </div>
 
-        <div className="mt-3 space-y-1.5">
-          <label
-            htmlFor={inputId}
-            className="text-muted-foreground text-[11px]"
-          >
+        <Field
+          className="mt-3 gap-1.5"
+          data-invalid={!normalizeHexColor(draft, "") || undefined}
+        >
+          <FieldLabel htmlFor={inputId} className="text-muted-foreground text-[11px]">
             {t("settings.themeHexValue")}
-          </label>
+          </FieldLabel>
           <Input
             id={inputId}
             value={draft}
@@ -343,7 +344,7 @@ export function SettingsColorSwatch({
             }}
             onKeyDown={handleDraftKeyDown}
           />
-        </div>
+        </Field>
 
         <Button
           type="button"

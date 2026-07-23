@@ -10,7 +10,6 @@ import {
   CloudUpload,
   FileCode2,
   Folder,
-  FolderGit2,
   GitBranch as GitBranchIcon,
   GitCompareArrows,
   LayoutDashboard,
@@ -24,6 +23,7 @@ import { toast } from "sonner";
 
 import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
 import { LocalBranchMenuList } from "@/components/git/LocalBranchMenuList";
+import { ProjectIcon } from "@/components/project/ProjectIcon";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -404,7 +404,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
             style={noDragStyle}
             aria-label={t("repo.switchProject")}
           >
-            <FolderGit2 className="size-3.5 shrink-0" aria-hidden="true" />
+            <ProjectIcon name={project.icon} className="size-3.5 shrink-0" />
             <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">
               {project.name}
             </span>

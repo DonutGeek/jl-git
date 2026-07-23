@@ -22,6 +22,7 @@ pub struct ProjectRow {
     pub name: String,
     /// 项目简介（可空）
     pub description: Option<String>,
+    pub icon: String,
     pub path: String,
     pub last_opened_at: Option<String>,
     pub pinned: bool,
@@ -93,7 +94,7 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
           workspace_id TEXT NULL,
           name TEXT NOT NULL,
           description TEXT NULL,
-          icon TEXT NOT NULL DEFAULT 'code',
+          icon TEXT NOT NULL DEFAULT 'folder-git-2',
           color TEXT NOT NULL DEFAULT 'blue',
           path TEXT NOT NULL UNIQUE,
           last_opened_at TEXT NULL,
@@ -167,6 +168,31 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
                 .map_err(to_db_error)?;
         }
     }
+    let project_columns = sqlx::query("PRAGMA table_info(projects)")
+        .fetch_all(pool)
+        .await
+        .map_err(to_db_error)?;
+    let has_project_icon = project_columns.iter().any(|column| {
+        column
+            .try_get::<String, _>("name")
+            .map(|name| name == "icon")
+            .unwrap_or(false)
+    });
+    if !has_project_icon {
+        sqlx::query(
+            "ALTER TABLE projects ADD COLUMN icon TEXT NOT NULL DEFAULT 'folder-git-2'",
+        )
+        .execute(pool)
+        .await
+        .map_err(to_db_error)?;
+    }
+    // `code` 是旧版本未启用的占位默认值；统一映射到产品当前的 FolderGit2 图标。
+    sqlx::query(
+        "UPDATE projects SET icon = 'folder-git-2' WHERE icon IS NULL OR TRIM(icon) = '' OR icon = 'code'",
+    )
+    .execute(pool)
+    .await
+    .map_err(to_db_error)?;
 
     let workspace_columns = sqlx::query("PRAGMA table_info(workspaces)")
         .fetch_all(pool)
@@ -213,6 +239,17 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
 
     migrate_chat_tables(pool).await?;
 
+    sqlx::query(
+        r#"
+        INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+        VALUES (7, ?1)
+        "#,
+    )
+    .bind(now())
+    .execute(pool)
+    .await
+    .map_err(to_db_error)?;
+
     Ok(())
 }
 
@@ -222,21 +259,25 @@ pub async fn add_project(
     name: Option<String>,
     workspace_id: Option<String>,
     description: Option<String>,
+    icon: Option<String>,
 ) -> Result<ProjectRow, AppError> {
     let repo_path = resolve_repo_path(&path)?;
     let display_name = resolve_project_name(&repo_path, name)?;
     let description = normalize_description(description);
+    let has_explicit_icon = icon.is_some();
+    let icon = normalize_project_icon(icon)?;
     let timestamp = now();
     let id = uuid::Uuid::new_v4().to_string();
 
     sqlx::query(
         r#"
-        INSERT INTO projects (id, workspace_id, name, description, path, pinned, sort_order, created_at, updated_at)
-        VALUES (?1, ?2, ?3, ?4, ?5, 0, COALESCE((SELECT MAX(sort_order) + 1 FROM projects WHERE workspace_id IS ?2), 0), ?6, ?6)
+        INSERT INTO projects (id, workspace_id, name, description, icon, path, pinned, sort_order, created_at, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, COALESCE((SELECT MAX(sort_order) + 1 FROM projects WHERE workspace_id IS ?2), 0), ?7, ?7)
         ON CONFLICT(path) DO UPDATE SET
           workspace_id = excluded.workspace_id,
           name = excluded.name,
           description = excluded.description,
+          icon = CASE WHEN ?8 THEN excluded.icon ELSE projects.icon END,
           updated_at = excluded.updated_at
         "#,
     )
@@ -244,8 +285,10 @@ pub async fn add_project(
     .bind(workspace_id)
     .bind(display_name)
     .bind(&description)
+    .bind(icon)
     .bind(path_to_string(&repo_path))
     .bind(timestamp)
+    .bind(has_explicit_icon)
     .execute(pool)
     .await
     .map_err(to_db_error)?;
@@ -260,7 +303,7 @@ pub async fn list_projects(
     let rows = if let Some(workspace_id) = workspace_id {
         sqlx::query(
             r#"
-            SELECT id, workspace_id, name, description, path, last_opened_at, pinned, sort_order, created_at, updated_at
+            SELECT id, workspace_id, name, description, icon, path, last_opened_at, pinned, sort_order, created_at, updated_at
             FROM projects
             WHERE workspace_id = ?1
             ORDER BY pinned DESC, sort_order ASC, name COLLATE NOCASE ASC
@@ -273,7 +316,7 @@ pub async fn list_projects(
     } else {
         sqlx::query(
             r#"
-            SELECT id, workspace_id, name, description, path, last_opened_at, pinned, sort_order, created_at, updated_at
+            SELECT id, workspace_id, name, description, icon, path, last_opened_at, pinned, sort_order, created_at, updated_at
             FROM projects
             ORDER BY pinned DESC, sort_order ASC, name COLLATE NOCASE ASC
             "#,
@@ -310,6 +353,7 @@ pub async fn update_project(
     name: Option<String>,
     workspace_id: Option<Option<String>>,
     description: Option<Option<String>>,
+    icon: Option<String>,
 ) -> Result<ProjectRow, AppError> {
     if id.trim().is_empty() {
         return Err(AppError::new("VALIDATION", "项目 ID 不能为空"));
@@ -319,7 +363,8 @@ pub async fn update_project(
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
     let description = description.map(normalize_description);
-    if name.is_none() && workspace_id.is_none() && description.is_none() {
+    let icon = icon.map(|value| normalize_project_icon(Some(value))).transpose()?;
+    if name.is_none() && workspace_id.is_none() && description.is_none() && icon.is_none() {
         return Err(AppError::new("VALIDATION", "没有可更新的项目字段"));
     }
 
@@ -330,8 +375,9 @@ pub async fn update_project(
         SET name = COALESCE(?1, name),
             workspace_id = CASE WHEN ?2 THEN ?3 ELSE workspace_id END,
             description = CASE WHEN ?4 THEN ?5 ELSE description END,
-            updated_at = ?6
-        WHERE id = ?7
+            icon = COALESCE(?6, icon),
+            updated_at = ?7
+        WHERE id = ?8
         "#,
     )
     .bind(&name)
@@ -339,6 +385,7 @@ pub async fn update_project(
     .bind(workspace_id.flatten())
     .bind(description.is_some())
     .bind(description.flatten())
+    .bind(icon)
     .bind(&timestamp)
     .bind(id)
     .execute(pool)
@@ -677,7 +724,7 @@ pub async fn list_recent(
 async fn get_project_by_path(pool: &SqlitePool, path: &str) -> Result<ProjectRow, AppError> {
     let row = sqlx::query(
         r#"
-        SELECT id, workspace_id, name, description, path, last_opened_at, pinned, sort_order, created_at, updated_at
+        SELECT id, workspace_id, name, description, icon, path, last_opened_at, pinned, sort_order, created_at, updated_at
         FROM projects
         WHERE path = ?1
         "#,
@@ -694,7 +741,7 @@ async fn get_project_by_path(pool: &SqlitePool, path: &str) -> Result<ProjectRow
 async fn get_project_by_id(pool: &SqlitePool, id: &str) -> Result<ProjectRow, AppError> {
     let row = sqlx::query(
         r#"
-        SELECT id, workspace_id, name, description, path, last_opened_at, pinned, sort_order, created_at, updated_at
+        SELECT id, workspace_id, name, description, icon, path, last_opened_at, pinned, sort_order, created_at, updated_at
         FROM projects
         WHERE id = ?1
         "#,
@@ -716,6 +763,7 @@ fn row_to_project(row: sqlx::sqlite::SqliteRow) -> Result<ProjectRow, AppError> 
         workspace_id: row.try_get("workspace_id").map_err(to_db_error)?,
         name: row.try_get("name").map_err(to_db_error)?,
         description: row.try_get("description").map_err(to_db_error)?,
+        icon: row.try_get("icon").map_err(to_db_error)?,
         path: row.try_get("path").map_err(to_db_error)?,
         last_opened_at: row.try_get("last_opened_at").map_err(to_db_error)?,
         pinned: pinned != 0,
@@ -729,6 +777,41 @@ fn normalize_description(value: Option<String>) -> Option<String> {
     value
         .map(|text| text.trim().to_string())
         .filter(|text| !text.is_empty())
+}
+
+fn normalize_project_icon(value: Option<String>) -> Result<String, AppError> {
+    const DEFAULT_PROJECT_ICON: &str = "folder-git-2";
+    const PROJECT_ICONS: &[&str] = &[
+        DEFAULT_PROJECT_ICON,
+        "folder",
+        "code-2",
+        "terminal",
+        "braces",
+        "box",
+        "package",
+        "layers-3",
+        "database",
+        "server",
+        "globe-2",
+        "cloud",
+        "cpu",
+        "app-window",
+        "smartphone",
+        "gamepad-2",
+        "bot",
+        "sparkles",
+        "briefcase-business",
+        "book-open",
+    ];
+
+    let icon = value
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty())
+        .unwrap_or_else(|| DEFAULT_PROJECT_ICON.to_string());
+    if !PROJECT_ICONS.contains(&icon.as_str()) {
+        return Err(AppError::new("VALIDATION", "不支持的项目图标"));
+    }
+    Ok(icon)
 }
 
 fn resolve_repo_path(path: &str) -> Result<PathBuf, AppError> {
@@ -826,6 +909,44 @@ mod tests {
     }
 
     #[test]
+    fn migrate_adds_project_icon_to_legacy_database() {
+        run_async(async {
+            let pool = test_pool().await;
+            sqlx::query(
+                r#"
+                CREATE TABLE projects (
+                  id TEXT PRIMARY KEY,
+                  workspace_id TEXT NULL,
+                  name TEXT NOT NULL,
+                  description TEXT NULL,
+                  path TEXT NOT NULL UNIQUE,
+                  last_opened_at TEXT NULL,
+                  pinned INTEGER NOT NULL DEFAULT 0,
+                  sort_order INTEGER NOT NULL DEFAULT 0,
+                  created_at TEXT NOT NULL,
+                  updated_at TEXT NOT NULL
+                )
+                "#,
+            )
+            .execute(&pool)
+            .await
+            .expect("旧项目表应可创建");
+
+            migrate(&pool).await.expect("迁移应成功");
+            let columns = sqlx::query("PRAGMA table_info(projects)")
+                .fetch_all(&pool)
+                .await
+                .expect("应能读取项目表结构");
+            let column_names = columns
+                .iter()
+                .map(|column| column.try_get::<String, _>("name").expect("列名应存在"))
+                .collect::<Vec<_>>();
+
+            assert!(column_names.contains(&"icon".to_string()), "项目表应支持图标");
+        });
+    }
+
+    #[test]
     fn migrate_adds_workspace_parent_id_column() {
         run_async(async {
             let pool = test_pool().await;
@@ -870,21 +991,43 @@ mod tests {
             migrate(&pool).await.expect("迁移应成功");
             let repo = create_git_repo();
 
-            let first = add_project(&pool, repo.to_string_lossy().into_owned(), None, None, None)
+            let first = add_project(
+                &pool,
+                repo.to_string_lossy().into_owned(),
+                None,
+                None,
+                None,
+                None,
+            )
                 .await
                 .expect("Git 仓库应可登记");
+            assert_eq!(first.icon, "folder-git-2");
             let second = add_project(
                 &pool,
                 repo.to_string_lossy().into_owned(),
                 Some("Renamed".to_string()),
                 None,
                 None,
+                Some("rocket".to_string()),
+            )
+            .await
+            .expect_err("不支持的项目图标应被拒绝");
+            assert_eq!(second.code, "VALIDATION");
+
+            let second = add_project(
+                &pool,
+                repo.to_string_lossy().into_owned(),
+                Some("Renamed".to_string()),
+                None,
+                None,
+                Some("terminal".to_string()),
             )
             .await
             .expect("重复路径应更新现有项目");
 
             assert_eq!(first.id, second.id);
             assert_eq!(second.name, "Renamed");
+            assert_eq!(second.icon, "terminal");
             assert_eq!(second.path, repo.canonicalize().unwrap().to_string_lossy());
         });
     }
@@ -901,6 +1044,7 @@ mod tests {
                     &pool,
                     repo.to_string_lossy().into_owned(),
                     Some(format!("repo-{index}")),
+                    None,
                     None,
                     None,
                 )

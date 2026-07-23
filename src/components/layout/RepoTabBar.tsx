@@ -35,6 +35,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -499,13 +500,19 @@ export function RepoTabBar() {
             <DialogTitle>{t("repo.tabAliasTitle")}</DialogTitle>
           </DialogHeader>
           <form className="space-y-4" onSubmit={(event) => void submitAlias(event)}>
-            <Input
-              value={aliasValue}
-              onChange={(event) => setAliasValue(event.target.value)}
-              placeholder={t("openRepo.aliasPlaceholder")}
-              autoFocus
-              disabled={aliasBusy}
-            />
+            <Field>
+              <FieldLabel className="sr-only" htmlFor="repository-tab-alias">
+                {t("repo.tabAliasTitle")}
+              </FieldLabel>
+              <Input
+                id="repository-tab-alias"
+                value={aliasValue}
+                onChange={(event) => setAliasValue(event.target.value)}
+                placeholder={t("openRepo.aliasPlaceholder")}
+                autoFocus
+                disabled={aliasBusy}
+              />
+            </Field>
             <DialogFooter>
               <Button
                 type="button"

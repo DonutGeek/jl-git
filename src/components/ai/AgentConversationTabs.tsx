@@ -40,6 +40,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -399,19 +400,24 @@ export function AgentConversationTabs({
           <DialogHeader>
             <DialogTitle>{t("agent.tabRenameTitle")}</DialogTitle>
           </DialogHeader>
-          <form className="grid gap-3" onSubmit={submitRename}>
-            <Input
-              value={renameValue}
-              onChange={(event) => setRenameValue(event.target.value)}
-              placeholder={
-                renameTarget
-                  ? conversationLabel(renameTarget)
-                  : t("agent.newConversation")
-              }
-              maxLength={48}
-              autoFocus
-              aria-label={t("agent.tabRename")}
-            />
+          <form className="grid gap-4" onSubmit={submitRename}>
+            <Field>
+              <FieldLabel className="sr-only" htmlFor="agent-conversation-rename">
+                {t("agent.tabRename")}
+              </FieldLabel>
+              <Input
+                id="agent-conversation-rename"
+                value={renameValue}
+                onChange={(event) => setRenameValue(event.target.value)}
+                placeholder={
+                  renameTarget
+                    ? conversationLabel(renameTarget)
+                    : t("agent.newConversation")
+                }
+                maxLength={48}
+                autoFocus
+              />
+            </Field>
             <DialogFooter>
               <Button
                 type="button"

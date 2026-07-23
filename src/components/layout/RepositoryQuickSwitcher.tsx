@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { FolderGit2, Plus, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import { ProjectIcon } from "@/components/project/ProjectIcon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -136,7 +137,7 @@ export function RepositoryQuickSwitcher({
           />
           <CommandList>
             <CommandEmpty>{t("repo.switchProjectNoMatch")}</CommandEmpty>
-            <CommandGroup>
+            <CommandGroup className="py-2">
               {sortedProjects.map((project) => {
                 const workspaceName = project.workspaceId
                   ? workspaceNames.get(project.workspaceId)
@@ -152,7 +153,7 @@ export function RepositoryQuickSwitcher({
                     }
                     onSelect={() => handleProject(project.id)}
                   >
-                    <FolderGit2 className="shrink-0" aria-hidden="true" />
+                    <ProjectIcon name={project.icon} className="shrink-0" />
                     <span className="min-w-0 flex-1">
                       <span className="flex min-w-0 items-center gap-2">
                         <span className="truncate font-medium">

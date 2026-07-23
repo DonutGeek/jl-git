@@ -3,6 +3,7 @@ mod commands;
 mod db;
 mod error;
 mod git;
+#[cfg(target_os = "macos")]
 mod menu;
 mod process_cmd;
 mod system;
@@ -50,9 +51,12 @@ pub fn run() {
 
             app.manage(pool);
 
-            // 桌面端：中文原生菜单（macOS 菜单栏 File/Edit 等不会自动翻译）
-            #[cfg(desktop)]
+            // macOS 保留系统应用菜单；Windows / Linux 不挂应用菜单，
+            // 仅保留原生标题栏与系统窗口按钮。
+            #[cfg(target_os = "macos")]
             menu::install_zh_cn_menu(app.handle())?;
+            #[cfg(any(target_os = "windows", target_os = "linux"))]
+            app.remove_menu()?;
 
             Ok(())
         })

@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
+import { ProjectIconPicker } from "@/components/project/ProjectIconPicker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
 import { projectService } from "@/services/project";
@@ -21,6 +23,10 @@ import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { useProjectStore } from "@/store/useProjectStore";
 
 import { toUserMessage } from "@/types/error";
+import {
+  DEFAULT_PROJECT_ICON,
+  type ProjectIcon,
+} from "@/types/project";
 
 interface OpenRepoDialogProps {
   open: boolean;
@@ -42,6 +48,7 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
   const [alias, setAlias] = useState("");
   const [description, setDescription] = useState("");
   const [descriptionGenerating, setDescriptionGenerating] = useState(false);
+  const [icon, setIcon] = useState<ProjectIcon>(DEFAULT_PROJECT_ICON);
   const [loading, setLoading] = useState(false);
   const [picking, setPicking] = useState(false);
 
@@ -54,6 +61,7 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
     setAlias("");
     setDescription("");
     setDescriptionGenerating(false);
+    setIcon(DEFAULT_PROJECT_ICON);
     setLoading(false);
     setPicking(false);
   }
@@ -98,6 +106,7 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
         path: trimmedPath,
         name: alias.trim() || undefined,
         description: description.trim() || undefined,
+        icon,
       });
       if (replaceNewTabId) {
         replaceNewTabWithRepository(replaceNewTabId, project.id);
@@ -120,55 +129,69 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
           <DialogDescription>{t("openRepo.description")}</DialogDescription>
         </DialogHeader>
 
-        <form className="space-y-4" onSubmit={(event) => void handleSubmit(event)}>
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="repo-path">
+        <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
+          <FieldGroup className="gap-4">
+            <Field>
+              <FieldLabel htmlFor="repo-path">
               {t("openRepo.pathLabel")}
-            </label>
-            <div className="flex gap-2">
+              </FieldLabel>
+              <div className="flex gap-2">
+                <Input
+                  id="repo-path"
+                  value={path}
+                  onChange={(event) => setPath(event.target.value)}
+                  placeholder={t("openRepo.pathPlaceholder")}
+                  autoComplete="off"
+                  disabled={loading || descriptionGenerating}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handlePickDirectory()}
+                  disabled={loading || picking || descriptionGenerating}
+                >
+                  <FolderOpen aria-hidden="true" />
+                  {t("openRepo.pickButton")}
+                </Button>
+              </div>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="repo-alias">
+              {t("openRepo.aliasLabel")}
+              </FieldLabel>
               <Input
-                id="repo-path"
-                value={path}
-                onChange={(event) => setPath(event.target.value)}
-                placeholder={t("openRepo.pathPlaceholder")}
+                id="repo-alias"
+                value={alias}
+                onChange={(event) => setAlias(event.target.value)}
+                placeholder={t("openRepo.aliasPlaceholder")}
                 autoComplete="off"
                 disabled={loading || descriptionGenerating}
               />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void handlePickDirectory()}
-                disabled={loading || picking || descriptionGenerating}
-              >
-                <FolderOpen aria-hidden="true" />
-                {t("openRepo.pickButton")}
-              </Button>
-            </div>
-          </div>
+            </Field>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="repo-alias">
-              {t("openRepo.aliasLabel")}
-            </label>
-            <Input
-              id="repo-alias"
-              value={alias}
-              onChange={(event) => setAlias(event.target.value)}
-              placeholder={t("openRepo.aliasPlaceholder")}
-              autoComplete="off"
-              disabled={loading || descriptionGenerating}
+            <Field>
+              <FieldLabel htmlFor="open-repo-icon">
+                {t("projectManager.projectIcon")}
+              </FieldLabel>
+              <ProjectIconPicker
+                id="open-repo-icon"
+                value={icon}
+                onValueChange={setIcon}
+                disabled={loading || descriptionGenerating}
+              />
+            </Field>
+
+            <ProjectDescriptionField
+              value={description}
+              onChange={setDescription}
+              repoPath={path}
+              disabled={loading}
+              generating={descriptionGenerating}
+              onGeneratingChange={setDescriptionGenerating}
+              fieldId="open-repo-description"
             />
-          </div>
-
-          <ProjectDescriptionField
-            value={description}
-            onChange={setDescription}
-            repoPath={path}
-            disabled={loading}
-            generating={descriptionGenerating}
-            onGeneratingChange={setDescriptionGenerating}
-            fieldId="open-repo-description"
-          />
+          </FieldGroup>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>

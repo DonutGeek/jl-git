@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -192,14 +193,20 @@ export function MediaFilePreview({
             {t("repo.mediaTruncated")}
           </span>
         ) : null}
-        <label className="text-muted-foreground flex cursor-pointer items-center gap-1.5 text-[11px]">
+        <Field orientation="horizontal" className="w-auto gap-1.5">
           <Checkbox
+            id="media-preview-background"
             className="size-3.5"
             checked={showBackground}
             onCheckedChange={(checked) => setShowBackground(checked === true)}
           />
-          {t("repo.mediaShowBackground")}
-        </label>
+          <FieldLabel
+            htmlFor="media-preview-background"
+            className="text-muted-foreground text-[11px]"
+          >
+            {t("repo.mediaShowBackground")}
+          </FieldLabel>
+        </Field>
       </div>
 
       {showSplit ? (

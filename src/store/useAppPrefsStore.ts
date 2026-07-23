@@ -263,7 +263,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
     }),
     {
       name: APP_PREFS_STORAGE_KEY,
-      version: 11,
+      version: 12,
       migrate: (persisted, version) => {
         const state = persisted as Partial<AppPrefsState> & {
           editorChromeLight?: AppThemeChrome;
@@ -311,7 +311,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
           }
         }
         if (version < 6) {
-          // 模块化五套主题：按 id 重套预设；曾误把 Codex 色当「鲸灵」的，回到默认鲸灵 Git
+          // 模块化主题：按 id 重套预设；曾误把 Codex 色当「鲸灵」的，回到默认鲸灵 Git
           let id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
           const darkBg = String(state.themeChromeDark?.background ?? "")
             .trim()
@@ -349,7 +349,14 @@ export const useAppPrefsStore = create<AppPrefsState>()(
         if (version < 11) {
           const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
           if (id === APP_THEME_CODEX || id === APP_THEME_CLAUDE_CODE) {
-            // ChatGPT / Claude 主题改用实测网站色板，重套旧版持久化预设。
+            // Codex / Claude 主题完成来源校准后，重套旧版持久化预设。
+            Object.assign(state, applyThemePack(id));
+          }
+        }
+        if (version < 12) {
+          const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
+          if (id === APP_THEME_CODEX) {
+            // ChatGPT 拆为独立主题后，恢复既有 Codex 用户的 Codex 配色。
             Object.assign(state, applyThemePack(id));
           }
         }

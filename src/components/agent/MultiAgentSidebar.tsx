@@ -47,6 +47,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -444,19 +445,24 @@ export function MultiAgentSidebar({
           <DialogHeader>
             <DialogTitle>{t("multiAgent.tabRenameTitle")}</DialogTitle>
           </DialogHeader>
-          <form className="grid gap-3" onSubmit={submitRename}>
-            <Input
-              value={renameValue}
-              onChange={(event) => setRenameValue(event.target.value)}
-              placeholder={
-                renameTarget
-                  ? conversationLabel(renameTarget)
-                  : t("multiAgent.newConversation")
-              }
-              maxLength={48}
-              autoFocus
-              aria-label={t("multiAgent.tabRename")}
-            />
+          <form className="grid gap-4" onSubmit={submitRename}>
+            <Field>
+              <FieldLabel className="sr-only" htmlFor="multi-agent-rename">
+                {t("multiAgent.tabRename")}
+              </FieldLabel>
+              <Input
+                id="multi-agent-rename"
+                value={renameValue}
+                onChange={(event) => setRenameValue(event.target.value)}
+                placeholder={
+                  renameTarget
+                    ? conversationLabel(renameTarget)
+                    : t("multiAgent.newConversation")
+                }
+                maxLength={48}
+                autoFocus
+              />
+            </Field>
             <DialogFooter>
               <Button
                 type="button"

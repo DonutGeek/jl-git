@@ -19,6 +19,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -358,21 +364,24 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
               </div>
 
               {deleteHasRemote ? (
-                <div className="space-y-2">
-                  <p className="text-muted-foreground text-xs">
-                    {t("repo.deleteBranchRemoteHint")}
-                  </p>
-                  <label className="text-foreground flex cursor-pointer items-center gap-2 text-sm select-none">
-                    <Checkbox
-                      checked={deleteRemoteAlso}
-                      onCheckedChange={(checked) =>
-                        setDeleteRemoteAlso(checked === true)
-                      }
-                      disabled={deleteBusy}
-                    />
-                    <span>{t("repo.deleteBranchRemoteCheckbox")}</span>
-                  </label>
-                </div>
+                <Field orientation="horizontal">
+                  <Checkbox
+                    id="manage-delete-branch-remote"
+                    checked={deleteRemoteAlso}
+                    onCheckedChange={(checked) =>
+                      setDeleteRemoteAlso(checked === true)
+                    }
+                    disabled={deleteBusy}
+                  />
+                  <FieldContent>
+                    <FieldLabel htmlFor="manage-delete-branch-remote">
+                      {t("repo.deleteBranchRemoteCheckbox")}
+                    </FieldLabel>
+                    <FieldDescription>
+                      {t("repo.deleteBranchRemoteHint")}
+                    </FieldDescription>
+                  </FieldContent>
+                </Field>
               ) : null}
             </div>
           </div>

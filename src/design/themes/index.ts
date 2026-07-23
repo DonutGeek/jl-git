@@ -21,6 +21,7 @@ export type {
 } from "@/design/themes/types";
 
 export {
+  APP_THEME_CHATGPT,
   APP_THEME_CLAUDE_CODE,
   APP_THEME_CODEX,
   APP_THEME_GITHUB,

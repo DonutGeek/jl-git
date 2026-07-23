@@ -5,7 +5,6 @@ import {
   ChevronDown,
   Code2,
   Folder,
-  FolderGit2,
   FolderOpen,
   FolderTree,
   History,
@@ -33,11 +32,20 @@ import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 
 import { SelectMenu } from "@/components/common/SelectMenu";
+import { ProjectContextMenu } from "@/components/project/ProjectContextMenu";
 import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
+import { ProjectIcon } from "@/components/project/ProjectIcon";
+import { ProjectIconPicker } from "@/components/project/ProjectIconPicker";
 import { RecentProjectList } from "@/components/project/RecentProjectList";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -45,7 +53,14 @@ import { cn } from "@/lib/utils";
 import { projectService } from "@/services/project";
 import { useProjectStore } from "@/store/useProjectStore";
 import { toUserMessage } from "@/types/error";
-import { Project, Workspace, WorkspaceColor, WorkspaceIcon } from "@/types/project";
+import {
+  DEFAULT_PROJECT_ICON,
+  Project,
+  type ProjectIcon as ProjectIconName,
+  Workspace,
+  WorkspaceColor,
+  WorkspaceIcon,
+} from "@/types/project";
 import { buildProjectOrderItems } from "@/utils/projectGroupOrder";
 
 interface ProjectManagerProps {
@@ -68,6 +83,7 @@ interface DragEntry {
   workspaceId: string | null;
   parentId: string | null;
   label?: string;
+  icon?: ProjectIconName;
 }
 
 /** 同级混合列表项（分组与仓库共用 sortOrder 空间） */
@@ -214,6 +230,7 @@ export function ProjectManager({
   const [aliasEdited, setAliasEdited] = useState(false);
   const [description, setDescription] = useState("");
   const [descriptionGenerating, setDescriptionGenerating] = useState(false);
+  const [projectIcon, setProjectIcon] = useState<ProjectIconName>(DEFAULT_PROJECT_ICON);
   const [workspaceId, setWorkspaceId] = useState("");
   const [opening, setOpening] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -521,6 +538,7 @@ export function ProjectManager({
     setAliasEdited(false);
     setDescription("");
     setDescriptionGenerating(false);
+    setProjectIcon(DEFAULT_PROJECT_ICON);
     setWorkspaceId("");
   }
 
@@ -539,6 +557,7 @@ export function ProjectManager({
         name: alias.trim() || undefined,
         workspaceId: workspaceId || undefined,
         description: description.trim() || undefined,
+        icon: projectIcon,
       });
       resetOpenForm();
       onOpenProject(project.id);
@@ -653,45 +672,52 @@ export function ProjectManager({
             workspaceId: project.workspaceId,
             parentId: null,
             label: project.name,
+            icon: project.icon,
           }}
         >
-          <button
-            type="button"
+          <ProjectContextMenu
+            project={project}
+            onOpenProject={openGroupProject}
             disabled={opening || dragging}
-            className={cn(
-              "focus-visible:ring-ring group relative flex h-9 w-full min-w-0 cursor-grab items-center gap-2.5 rounded-md px-2 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing",
-              isSelected
-                ? "bg-accent hover:bg-accent"
-                : "hover:bg-accent/60",
-            )}
-            onClick={() => {
-              if (!opening && !dragging) {
-                // 再次点击已选项则取消选中
-                setSelectedProjectId((current) =>
-                  current === project.id ? null : project.id,
-                );
-              }
-            }}
-            onDoubleClick={() => openGroupProject(project.id)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && isSelected) {
-                event.preventDefault();
-                openGroupProject(project.id);
-              }
-            }}
           >
-            <span
+            <button
+              type="button"
+              disabled={opening || dragging}
               className={cn(
-                "text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                "focus-visible:ring-ring group relative flex h-9 w-full min-w-0 cursor-grab items-center gap-2.5 rounded-md px-2 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing",
                 isSelected
-                  ? "bg-muted-foreground/12 ring-border/60 ring-1 ring-inset"
-                  : "bg-muted group-hover:bg-muted-foreground/10 group-focus-visible:bg-muted-foreground/10",
+                  ? "bg-accent hover:bg-accent"
+                  : "hover:bg-accent/60",
               )}
+              onClick={() => {
+                if (!opening && !dragging) {
+                  // 再次点击已选项则取消选中
+                  setSelectedProjectId((current) =>
+                    current === project.id ? null : project.id,
+                  );
+                }
+              }}
+              onDoubleClick={() => openGroupProject(project.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && isSelected) {
+                  event.preventDefault();
+                  openGroupProject(project.id);
+                }
+              }}
             >
-              <FolderGit2 className="size-3.5" aria-hidden="true" />
-            </span>
-            <span className="min-w-0 flex-1 truncate text-sm font-medium">{project.name}</span>
-          </button>
+              <span
+                className={cn(
+                  "text-muted-foreground flex size-7 shrink-0 items-center justify-center rounded-md transition-colors",
+                  isSelected
+                    ? "bg-muted-foreground/12 ring-border/60 ring-1 ring-inset"
+                    : "bg-muted group-hover:bg-muted-foreground/10 group-focus-visible:bg-muted-foreground/10",
+                )}
+              >
+                <ProjectIcon name={project.icon} className="size-3.5" />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">{project.name}</span>
+            </button>
+          </ProjectContextMenu>
         </SortableGroupItem>
       </div>
     );
@@ -833,69 +859,84 @@ export function ProjectManager({
         ) : null}
 
         {view === "open" ? (
-          <form className="max-w-2xl space-y-4" onSubmit={(event) => void submitOpen(event)}>
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="project-manager-path">
-                {t("openRepo.pathLabel")}
-              </label>
-              <div className="flex gap-2">
+          <form className="max-w-2xl space-y-6" onSubmit={(event) => void submitOpen(event)}>
+            <FieldGroup className="gap-4">
+              <Field>
+                <FieldLabel htmlFor="project-manager-path">
+                  {t("openRepo.pathLabel")}
+                </FieldLabel>
+                <div className="flex gap-2">
+                  <Input
+                    id="project-manager-path"
+                    value={path}
+                    onChange={(event) => handlePathChange(event.target.value)}
+                    placeholder={t("openRepo.pathPlaceholder")}
+                    autoComplete="off"
+                    disabled={opening || descriptionGenerating}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={picking || opening || descriptionGenerating}
+                    onClick={() => void pickPath()}
+                  >
+                    <FolderOpen className="size-4" aria-hidden="true" />
+                    {t("openRepo.pickButton")}
+                  </Button>
+                </div>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="project-manager-alias">
+                  {t("openRepo.aliasLabel")}
+                </FieldLabel>
                 <Input
-                  id="project-manager-path"
-                  value={path}
-                  onChange={(event) => handlePathChange(event.target.value)}
-                  placeholder={t("openRepo.pathPlaceholder")}
+                  id="project-manager-alias"
+                  value={alias}
+                  onChange={(event) => handleAliasChange(event.target.value)}
+                  placeholder={t("openRepo.aliasPlaceholder")}
                   autoComplete="off"
                   disabled={opening || descriptionGenerating}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={picking || opening || descriptionGenerating}
-                  onClick={() => void pickPath()}
-                >
-                  <FolderOpen className="size-4" aria-hidden="true" />
-                  {t("openRepo.pickButton")}
-                </Button>
+              </Field>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="project-manager-icon">
+                    {t("projectManager.projectIcon")}
+                  </FieldLabel>
+                  <ProjectIconPicker
+                    id="project-manager-icon"
+                    value={projectIcon}
+                    onValueChange={setProjectIcon}
+                    disabled={opening || descriptionGenerating}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>
+                    {t("projectManager.workspaceLabel")}
+                  </FieldLabel>
+                  <SelectMenu
+                    value={workspaceId}
+                    options={workspaceOptions}
+                    onChange={setWorkspaceId}
+                    ariaLabel={t("projectManager.workspaceLabel")}
+                    disabled={opening || descriptionGenerating}
+                    triggerClassName="h-9"
+                  />
+                </Field>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="project-manager-alias">
-                {t("openRepo.aliasLabel")}
-              </label>
-              <Input
-                id="project-manager-alias"
-                value={alias}
-                onChange={(event) => handleAliasChange(event.target.value)}
-                placeholder={t("openRepo.aliasPlaceholder")}
-                autoComplete="off"
-                disabled={opening || descriptionGenerating}
+              <ProjectDescriptionField
+                value={description}
+                onChange={setDescription}
+                repoPath={path}
+                disabled={opening}
+                generating={descriptionGenerating}
+                onGeneratingChange={setDescriptionGenerating}
+                fieldId="project-manager-description"
               />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="project-manager-workspace">
-                {t("projectManager.workspaceLabel")}
-              </label>
-              <SelectMenu
-                value={workspaceId}
-                options={workspaceOptions}
-                onChange={setWorkspaceId}
-                ariaLabel={t("projectManager.workspaceLabel")}
-                disabled={opening || descriptionGenerating}
-                triggerClassName="h-9"
-              />
-            </div>
-
-            <ProjectDescriptionField
-              value={description}
-              onChange={setDescription}
-              repoPath={path}
-              disabled={opening}
-              generating={descriptionGenerating}
-              onGeneratingChange={setDescriptionGenerating}
-              fieldId="project-manager-description"
-            />
+            </FieldGroup>
 
             <Button
               type="submit"
@@ -1023,7 +1064,10 @@ export function ProjectManager({
               {activeDrag?.label ? (
                 <div className="bg-popover text-popover-foreground border-border flex h-9 min-w-[14rem] items-center gap-1.5 rounded-md border px-2 shadow-lg">
                   {activeDrag.type === "project" ? (
-                    <FolderGit2 className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+                    <ProjectIcon
+                      name={activeDrag.icon}
+                      className="text-muted-foreground size-3.5 shrink-0"
+                    />
                   ) : (
                     <>
                       <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
@@ -1060,118 +1104,135 @@ export function ProjectManager({
                         : t("projectManager.groupName")}
                   </DialogDescription>
                 </DialogHeader>
-                <form className="space-y-4" onSubmit={(event) => void submitGroup(event)}>
-                  <Input
-                    value={newGroupName}
-                    onChange={(event) => setNewGroupName(event.target.value)}
-                    placeholder={t("projectManager.groupNamePlaceholder")}
-                    autoFocus
-                    disabled={creatingGroup}
-                  />
-                  <SelectMenu
-                    value={groupDialog?.parentId ?? ""}
-                    displayLabel={
-                      <span className="flex items-center gap-2">
-                        <Folder className="size-4" />
-                        {groupDialog?.parentId
-                          ? buildWorkspaceOptions(workspaces).find((item) => item.value === groupDialog.parentId)
-                              ?.label
-                          : t("projectManager.rootGroup")}
-                      </span>
-                    }
-                    options={[
-                      { value: "", label: t("projectManager.rootGroup"), preview: <Folder className="size-4" /> },
-                      ...buildWorkspaceOptions(
-                        workspaces,
-                        groupDialog?.mode === "edit" && groupDialog.workspaceId
-                          ? collectWorkspaceSubtreeIds(workspaces, groupDialog.workspaceId)
-                          : new Set(),
-                      ).map((item) => ({ ...item, preview: <Folder className="size-4" /> })),
-                    ]}
-                    onChange={(value) =>
-                      setGroupDialog((current) =>
-                        current ? { ...current, parentId: value || null } : current,
-                      )
-                    }
-                    ariaLabel={t("projectManager.parentGroup")}
-                  />
-                  <div className="grid grid-cols-2 gap-3">
-                    <SelectMenu
-                      value={newGroupIcon}
-                      displayLabel={
-                        <span className="flex items-center gap-2">
-                          {newGroupIcon === "briefcase" ? (
-                            <BriefcaseBusiness className="size-4" />
-                          ) : newGroupIcon === "code" ? (
-                            <Code2 className="size-4" />
-                          ) : newGroupIcon === "layers" ? (
-                            <Layers3 className="size-4" />
-                          ) : newGroupIcon === "box" ? (
-                            <Box className="size-4" />
-                          ) : (
+                <form className="space-y-6" onSubmit={(event) => void submitGroup(event)}>
+                  <FieldGroup className="gap-4">
+                    <Field>
+                      <FieldLabel htmlFor="workspace-group-name">
+                        {t("projectManager.groupName")}
+                      </FieldLabel>
+                      <Input
+                        id="workspace-group-name"
+                        value={newGroupName}
+                        onChange={(event) => setNewGroupName(event.target.value)}
+                        placeholder={t("projectManager.groupNamePlaceholder")}
+                        autoFocus
+                        disabled={creatingGroup}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>{t("projectManager.parentGroup")}</FieldLabel>
+                      <SelectMenu
+                        value={groupDialog?.parentId ?? ""}
+                        displayLabel={
+                          <span className="flex items-center gap-2">
                             <Folder className="size-4" />
-                          )}
-                          {t(`projectManager.icon${newGroupIcon[0].toUpperCase()}${newGroupIcon.slice(1)}`)}
-                        </span>
-                      }
-                      options={[
-                        { value: "code", label: t("projectManager.iconCode"), preview: <Code2 className="size-4" /> },
-                        { value: "folder", label: t("projectManager.iconFolder"), preview: <Folder className="size-4" /> },
-                        {
-                          value: "briefcase",
-                          label: t("projectManager.iconBriefcase"),
-                          preview: <BriefcaseBusiness className="size-4" />,
-                        },
-                        { value: "layers", label: t("projectManager.iconLayers"), preview: <Layers3 className="size-4" /> },
-                        { value: "box", label: t("projectManager.iconBox"), preview: <Box className="size-4" /> },
-                      ]}
-                      onChange={(value) => setNewGroupIcon(value as WorkspaceIcon)}
-                      ariaLabel={t("projectManager.groupIcon")}
-                    />
-                    <SelectMenu
-                      value={newGroupColor}
-                      displayLabel={
-                        <span className="flex items-center gap-2">
-                          <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS[newGroupColor])} />
-                          {t(`projectManager.color${newGroupColor[0].toUpperCase()}${newGroupColor.slice(1)}`)}
-                        </span>
-                      }
-                      options={[
-                        {
-                          value: "blue",
-                          label: t("projectManager.colorBlue"),
-                          preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.blue)} />,
-                        },
-                        {
-                          value: "green",
-                          label: t("projectManager.colorGreen"),
-                          preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.green)} />,
-                        },
-                        {
-                          value: "orange",
-                          label: t("projectManager.colorOrange"),
-                          preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.orange)} />,
-                        },
-                        {
-                          value: "purple",
-                          label: t("projectManager.colorPurple"),
-                          preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.purple)} />,
-                        },
-                        {
-                          value: "red",
-                          label: t("projectManager.colorRed"),
-                          preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.red)} />,
-                        },
-                      ]}
-                      onChange={(value) => setNewGroupColor(value as WorkspaceColor)}
-                      ariaLabel={t("projectManager.groupColor")}
-                    />
-                  </div>
-                  {groupError ? (
-                    <p className="text-destructive text-sm" role="alert">
-                      {groupError}
-                    </p>
-                  ) : null}
+                            {groupDialog?.parentId
+                              ? buildWorkspaceOptions(workspaces).find((item) => item.value === groupDialog.parentId)
+                                  ?.label
+                              : t("projectManager.rootGroup")}
+                          </span>
+                        }
+                        options={[
+                          { value: "", label: t("projectManager.rootGroup"), preview: <Folder className="size-4" /> },
+                          ...buildWorkspaceOptions(
+                            workspaces,
+                            groupDialog?.mode === "edit" && groupDialog.workspaceId
+                              ? collectWorkspaceSubtreeIds(workspaces, groupDialog.workspaceId)
+                              : new Set(),
+                          ).map((item) => ({ ...item, preview: <Folder className="size-4" /> })),
+                        ]}
+                        onChange={(value) =>
+                          setGroupDialog((current) =>
+                            current ? { ...current, parentId: value || null } : current,
+                          )
+                        }
+                        ariaLabel={t("projectManager.parentGroup")}
+                      />
+                    </Field>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field>
+                        <FieldLabel>{t("projectManager.groupIcon")}</FieldLabel>
+                        <SelectMenu
+                          value={newGroupIcon}
+                          displayLabel={
+                            <span className="flex items-center gap-2">
+                              {newGroupIcon === "briefcase" ? (
+                                <BriefcaseBusiness className="size-4" />
+                              ) : newGroupIcon === "code" ? (
+                                <Code2 className="size-4" />
+                              ) : newGroupIcon === "layers" ? (
+                                <Layers3 className="size-4" />
+                              ) : newGroupIcon === "box" ? (
+                                <Box className="size-4" />
+                              ) : (
+                                <Folder className="size-4" />
+                              )}
+                              {t(`projectManager.icon${newGroupIcon[0].toUpperCase()}${newGroupIcon.slice(1)}`)}
+                            </span>
+                          }
+                          options={[
+                            { value: "code", label: t("projectManager.iconCode"), preview: <Code2 className="size-4" /> },
+                            { value: "folder", label: t("projectManager.iconFolder"), preview: <Folder className="size-4" /> },
+                            {
+                              value: "briefcase",
+                              label: t("projectManager.iconBriefcase"),
+                              preview: <BriefcaseBusiness className="size-4" />,
+                            },
+                            { value: "layers", label: t("projectManager.iconLayers"), preview: <Layers3 className="size-4" /> },
+                            { value: "box", label: t("projectManager.iconBox"), preview: <Box className="size-4" /> },
+                          ]}
+                          onChange={(value) => setNewGroupIcon(value as WorkspaceIcon)}
+                          ariaLabel={t("projectManager.groupIcon")}
+                        />
+                      </Field>
+                      <Field>
+                        <FieldLabel>{t("projectManager.groupColor")}</FieldLabel>
+                        <SelectMenu
+                          value={newGroupColor}
+                          displayLabel={
+                            <span className="flex items-center gap-2">
+                              <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS[newGroupColor])} />
+                              {t(`projectManager.color${newGroupColor[0].toUpperCase()}${newGroupColor.slice(1)}`)}
+                            </span>
+                          }
+                          options={[
+                            {
+                              value: "blue",
+                              label: t("projectManager.colorBlue"),
+                              preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.blue)} />,
+                            },
+                            {
+                              value: "green",
+                              label: t("projectManager.colorGreen"),
+                              preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.green)} />,
+                            },
+                            {
+                              value: "orange",
+                              label: t("projectManager.colorOrange"),
+                              preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.orange)} />,
+                            },
+                            {
+                              value: "purple",
+                              label: t("projectManager.colorPurple"),
+                              preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.purple)} />,
+                            },
+                            {
+                              value: "red",
+                              label: t("projectManager.colorRed"),
+                              preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.red)} />,
+                            },
+                          ]}
+                          onChange={(value) => setNewGroupColor(value as WorkspaceColor)}
+                          ariaLabel={t("projectManager.groupColor")}
+                        />
+                      </Field>
+                    </div>
+                    {groupError ? (
+                      <Field data-invalid>
+                        <FieldError>{groupError}</FieldError>
+                      </Field>
+                    ) : null}
+                  </FieldGroup>
                   <DialogFooter>
                     <Button type="button" variant="outline" onClick={closeGroupDialog}>
                       {t("common.cancel")}

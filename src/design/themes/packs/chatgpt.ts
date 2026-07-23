@@ -1,29 +1,30 @@
 import {
-  APP_THEME_CODEX,
+  APP_THEME_CHATGPT,
   type AppThemePack,
 } from "@/design/themes/types";
 
 /**
- * Codex
+ * ChatGPT
  * 来源：
- * - OpenAI Codex 官方产品页与桌面端界面
- * - 以 Codex App 的中性窗口层级映射整站；产品页渐变仅作品牌展示，不进入工作区背景
+ * - ChatGPT 设置页实测昼夜 CSS Variables 与组件计算样式
+ * - OpenAI 未公开完整 ChatGPT Design Tokens；以下为产品界面语义映射，不冒充官方色值表
+ * - 状态色保留开发工具语义，仅降低饱和度以融入中性界面
  */
-export const codexPack: AppThemePack = {
-  id: APP_THEME_CODEX,
-  labelKey: "settings.appThemeCodex",
+export const chatgptPack: AppThemePack = {
+  id: APP_THEME_CHATGPT,
+  labelKey: "settings.appThemeChatgpt",
   nativeTokens: false,
   light: {
     accent: "#0D0D0D",
-    background: "#FFFFFF",
+    background: "#FCFCFC",
     foreground: "#0D0D0D",
     surface: "#FFFFFF",
-    muted: "#F4F4F4",
+    muted: "#F9F9F9",
     mutedForeground: "#5D5D5D",
     border: "#E5E5E5",
-    sidebar: "#F7F7F7",
-    selection: "#ECECEC",
-    destructive: "#D92D20",
+    sidebar: "#FCFCFC",
+    selection: "#F5F5F5",
+    destructive: "#FF002A",
     diffAdded: "#E8F5EC",
     diffDeleted: "#FBE9E7",
     diffHunk: "#EEF2F6",
@@ -35,16 +36,16 @@ export const codexPack: AppThemePack = {
     gitConflict: "#B45309",
   },
   dark: {
-    accent: "#F2F2F2",
-    background: "#0D0D0D",
-    foreground: "#F2F2F2",
-    surface: "#171717",
-    muted: "#212121",
-    mutedForeground: "#A1A1A1",
+    accent: "#FFFFFF",
+    background: "#000000",
+    foreground: "#FFFFFF",
+    surface: "#212121",
+    muted: "#2F2F2F",
+    mutedForeground: "#CDCDCD",
     border: "#2B2B2B",
-    sidebar: "#121212",
-    selection: "#2A2A2A",
-    destructive: "#F97066",
+    sidebar: "#000000",
+    selection: "#303030",
+    destructive: "#FF6764",
     diffAdded: "#152D20",
     diffDeleted: "#321B1B",
     diffHunk: "#182434",

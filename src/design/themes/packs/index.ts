@@ -1,3 +1,4 @@
+import { chatgptPack } from "@/design/themes/packs/chatgpt";
 import { claudeCodePack } from "@/design/themes/packs/claude-code";
 import { codexPack } from "@/design/themes/packs/codex";
 import { githubPack } from "@/design/themes/packs/github";
@@ -12,7 +13,8 @@ import type { AppThemePack } from "@/design/themes/types";
 export const APP_THEME_PACKS: readonly AppThemePack[] = [
   jinglingGitPack,
   githubPack,
-  codexPack,
+  chatgptPack,
   claudeCodePack,
+  codexPack,
   vscodePack,
 ] as const;

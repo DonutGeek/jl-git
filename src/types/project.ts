@@ -1,9 +1,36 @@
+export const PROJECT_ICON_VALUES = [
+  "folder-git-2",
+  "folder",
+  "code-2",
+  "terminal",
+  "braces",
+  "box",
+  "package",
+  "layers-3",
+  "database",
+  "server",
+  "globe-2",
+  "cloud",
+  "cpu",
+  "app-window",
+  "smartphone",
+  "gamepad-2",
+  "bot",
+  "sparkles",
+  "briefcase-business",
+  "book-open",
+] as const;
+
+export type ProjectIcon = (typeof PROJECT_ICON_VALUES)[number];
+export const DEFAULT_PROJECT_ICON: ProjectIcon = "folder-git-2";
+
 export interface Project {
   id: string;
   workspaceId: string | null;
   name: string;
   /** 项目简介，可空 */
   description: string | null;
+  icon: ProjectIcon;
   path: string;
   lastOpenedAt: string | null;
   pinned: boolean;
@@ -56,4 +83,5 @@ export interface AddProjectInput {
   name?: string;
   workspaceId?: string;
   description?: string;
+  icon?: ProjectIcon;
 }

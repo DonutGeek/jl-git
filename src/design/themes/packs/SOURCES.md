@@ -9,6 +9,7 @@
 | **VS Code** | editor、widget、panel/sidebar、selection、border、gutter 状态色及 Light+ / Dark+ 核心语法色分别映射 | [Light Modern](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/light_modern.json) / [Dark Modern](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_modern.json) / [Light+](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/light_plus.json) / [Dark+](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_plus.json) |
 | **Claude** | Claude Web 当前页面、弹层、侧栏、选中层及 CDS 昼夜变量；品牌 Clay 仅保留在内容语法色中 | [Claude 设置页](https://claude.ai/new#settings/general) 实测 |
 | **ChatGPT** | ChatGPT 当前中性黑白层级：浅色 `#FCFCFC`、深色纯黑主底、`#212121` 弹层与 `#303030` 选中层 | [ChatGPT 设置页](https://chatgpt.com/#settings) 实测；OpenAI 未公开完整 ChatGPT 色值表 |
+| **Codex** | Codex App 中性窗口层级；官方产品页渐变只作为品牌展示，不进入工作区背景 | [OpenAI Codex](https://openai.com/codex/) 官方产品界面 |
 
 非 native 主题包必须显式提供背景、卡片/弹层、次要背景、文字、边框、侧栏、选中态、危险色、Diff、Git 状态色与 Monaco 语法色；不得再由一套通用公式替所有主题生成。鲸灵 Git 继续沿用项目原生 Monaco 规则。
 

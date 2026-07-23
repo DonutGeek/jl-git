@@ -32,6 +32,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -650,13 +656,19 @@ export function BranchList() {
             <DialogTitle>{t("repo.renameBranchTitle")}</DialogTitle>
           </DialogHeader>
           <form className="space-y-4" onSubmit={(event) => void submitRename(event)}>
-            <Input
-              value={renameValue}
-              onChange={(event) => setRenameValue(event.target.value)}
-              placeholder={t("repo.branchNamePlaceholder")}
-              autoFocus
-              disabled={renameBusy}
-            />
+            <Field>
+              <FieldLabel className="sr-only" htmlFor="rename-branch-name">
+                {t("repo.branchName")}
+              </FieldLabel>
+              <Input
+                id="rename-branch-name"
+                value={renameValue}
+                onChange={(event) => setRenameValue(event.target.value)}
+                placeholder={t("repo.branchNamePlaceholder")}
+                autoFocus
+                disabled={renameBusy}
+              />
+            </Field>
             <DialogFooter>
               <Button
                 type="button"
@@ -717,21 +729,24 @@ export function BranchList() {
               </div>
 
               {deleteHasRemote ? (
-                <div className="space-y-2">
-                  <p className="text-muted-foreground text-xs">
-                    {t("repo.deleteBranchRemoteHint")}
-                  </p>
-                  <label className="text-foreground flex cursor-pointer items-center gap-2 text-sm select-none">
-                    <Checkbox
-                      checked={deleteRemoteAlso}
-                      onCheckedChange={(checked) =>
-                        setDeleteRemoteAlso(checked === true)
-                      }
-                      disabled={deleteBusy}
-                    />
-                    <span>{t("repo.deleteBranchRemoteCheckbox")}</span>
-                  </label>
-                </div>
+                <Field orientation="horizontal">
+                  <Checkbox
+                    id="delete-branch-remote"
+                    checked={deleteRemoteAlso}
+                    onCheckedChange={(checked) =>
+                      setDeleteRemoteAlso(checked === true)
+                    }
+                    disabled={deleteBusy}
+                  />
+                  <FieldContent>
+                    <FieldLabel htmlFor="delete-branch-remote">
+                      {t("repo.deleteBranchRemoteCheckbox")}
+                    </FieldLabel>
+                    <FieldDescription>
+                      {t("repo.deleteBranchRemoteHint")}
+                    </FieldDescription>
+                  </FieldContent>
+                </Field>
               ) : null}
             </div>
           </div>

@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -546,23 +547,26 @@ export function SettingsSshPanel() {
         }}
       >
         <DialogContent className="sm:max-w-md">
-          <form className="space-y-4" onSubmit={(event) => void handleCreate(event)}>
+          <form className="space-y-6" onSubmit={(event) => void handleCreate(event)}>
             <DialogHeader>
               <DialogTitle>{t("settings.sshAddTitle")}</DialogTitle>
             </DialogHeader>
-            <div className="space-y-1.5">
-              <label className="text-muted-foreground text-[11px]">
+            <FieldGroup className="gap-4">
+              <Field>
+                <FieldLabel htmlFor="ssh-key-name">
                 {t("settings.sshKeyName")}
-              </label>
-              <Input
-                className={settingsFieldClassName}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder={t("settings.sshNamePlaceholder")}
-                disabled={busy}
-                autoFocus
-              />
-            </div>
+                </FieldLabel>
+                <Input
+                  id="ssh-key-name"
+                  className={settingsFieldClassName}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder={t("settings.sshNamePlaceholder")}
+                  disabled={busy}
+                  autoFocus
+                />
+              </Field>
+            </FieldGroup>
             <DialogFooter>
               <Button
                 type="button"
@@ -591,7 +595,7 @@ export function SettingsSshPanel() {
       >
         <DialogContent className="sm:max-w-md">
           <form
-            className="space-y-4"
+            className="space-y-6"
             onSubmit={(event) => void handleChangePassphrase(event)}
           >
             <DialogHeader>
@@ -602,38 +606,42 @@ export function SettingsSshPanel() {
                 })}
               </DialogDescription>
             </DialogHeader>
-            {editingKey?.hasPassphrase ? (
-              <div className="space-y-1.5">
-                <label className="text-muted-foreground text-[11px]">
-                  {t("settings.sshOldPassphrase")}
-                </label>
+            <FieldGroup className="gap-4">
+              {editingKey?.hasPassphrase ? (
+                <Field>
+                  <FieldLabel htmlFor="ssh-old-passphrase">
+                    {t("settings.sshOldPassphrase")}
+                  </FieldLabel>
+                  <Input
+                    id="ssh-old-passphrase"
+                    className={settingsFieldClassName}
+                    type="password"
+                    value={oldPassphrase}
+                    onChange={(event) => setOldPassphrase(event.target.value)}
+                    placeholder={t("settings.sshOldPassphrasePlaceholder")}
+                    disabled={busy}
+                    autoComplete="current-password"
+                    autoFocus
+                  />
+                </Field>
+              ) : null}
+              <Field>
+                <FieldLabel htmlFor="ssh-new-passphrase">
+                  {t("settings.sshNewPassphrase")}
+                </FieldLabel>
                 <Input
+                  id="ssh-new-passphrase"
                   className={settingsFieldClassName}
                   type="password"
-                  value={oldPassphrase}
-                  onChange={(event) => setOldPassphrase(event.target.value)}
-                  placeholder={t("settings.sshOldPassphrasePlaceholder")}
+                  value={newPassphrase}
+                  onChange={(event) => setNewPassphrase(event.target.value)}
+                  placeholder={t("settings.sshNewPassphrasePlaceholder")}
                   disabled={busy}
-                  autoComplete="current-password"
-                  autoFocus
+                  autoComplete="new-password"
+                  autoFocus={!editingKey?.hasPassphrase}
                 />
-              </div>
-            ) : null}
-            <div className="space-y-1.5">
-              <label className="text-muted-foreground text-[11px]">
-                {t("settings.sshNewPassphrase")}
-              </label>
-              <Input
-                className={settingsFieldClassName}
-                type="password"
-                value={newPassphrase}
-                onChange={(event) => setNewPassphrase(event.target.value)}
-                placeholder={t("settings.sshNewPassphrasePlaceholder")}
-                disabled={busy}
-                autoComplete="new-password"
-                autoFocus={!editingKey?.hasPassphrase}
-              />
-            </div>
+              </Field>
+            </FieldGroup>
             <DialogFooter>
               <Button
                 type="button"

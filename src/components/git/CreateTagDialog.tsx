@@ -12,6 +12,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
@@ -49,6 +57,7 @@ export function CreateTagDialog({
 }: CreateTagDialogProps) {
   const { t } = useTranslation();
   const repoPath = useRepoStore((state) => state.repoPath);
+  const status = useRepoStore((state) => state.status);
   const branches = useRepoStore((state) => state.branches);
   const tags = useRepoStore((state) => state.tags);
   const createTag = useRepoStore((state) => state.createTag);
@@ -61,6 +70,12 @@ export function CreateTagDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lockedRef = Boolean(fixedRef?.trim());
+  const currentBranch = status?.detached
+    ? null
+    : (status?.branch ??
+      branches.find((branch) => branch.isCurrent && !branch.isRemote)?.name ??
+      null);
+  const selectedRef = ref || currentBranch || "";
 
   // 与侧栏分支/标签列表共用排序偏好
   const refOptions = useMemo(() => {
@@ -115,13 +130,12 @@ export function CreateTagDialog({
     setBusy(false);
     setError(null);
     setPush(true);
-    // 无固定基点时不预选；须用户主动选择
     setRef("");
   }, [open, fixedRef]);
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    const baseRef = (lockedRef ? fixedRef : ref)?.trim();
+    const baseRef = (lockedRef ? fixedRef : selectedRef)?.trim();
     if (busy || !name.trim() || !baseRef) return;
     setBusy(true);
     setError(null);
@@ -147,7 +161,7 @@ export function CreateTagDialog({
   }
 
   const canSubmit =
-    !busy && name.trim().length > 0 && (lockedRef || ref.trim().length > 0);
+    !busy && name.trim().length > 0 && (lockedRef || selectedRef.trim().length > 0);
 
   function handleOpenChange(next: boolean): void {
     // 执行中禁止关闭，避免重复提交
@@ -167,74 +181,83 @@ export function CreateTagDialog({
           className="flex min-h-0 flex-1 flex-col gap-4"
           onSubmit={(event) => void submit(event)}
         >
-          {lockedRef ? (
-            <div className="space-y-1.5">
-              <p className="text-sm font-medium">{t("repo.tagBasedOn")}</p>
-              <div className="border-border bg-muted/30 flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                {fixedRefIsTag ? (
-                  <Tag
-                    className="text-muted-foreground size-3.5 shrink-0"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <GitBranchIcon
-                    className="text-muted-foreground size-3.5 shrink-0"
-                    aria-hidden="true"
-                  />
-                )}
-                <span className="min-w-0 truncate font-mono">{fixedRef}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              <label htmlFor="create-tag-base" className="text-sm font-medium">
-                {t("repo.tagBasedOn")}
-              </label>
-              <GitRefPicker
-                id="create-tag-base"
-                value={ref}
-                options={refOptions}
-                disabled={busy}
-                onValueChange={setRef}
-              />
-            </div>
-          )}
+          <FieldGroup className="gap-4">
+            {lockedRef ? (
+              <Field>
+                <FieldLabel>{t("repo.tagBasedOn")}</FieldLabel>
+                <div className="border-border bg-muted/30 flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                  {fixedRefIsTag ? (
+                    <Tag
+                      className="text-muted-foreground size-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <GitBranchIcon
+                      className="text-muted-foreground size-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span className="min-w-0 truncate font-mono">{fixedRef}</span>
+                </div>
+              </Field>
+            ) : (
+              <Field>
+                <FieldLabel htmlFor="create-tag-base">
+                  {t("repo.tagBasedOn")}
+                </FieldLabel>
+                <GitRefPicker
+                  id="create-tag-base"
+                  value={selectedRef}
+                  options={refOptions}
+                  disabled={busy}
+                  onValueChange={setRef}
+                />
+              </Field>
+            )}
 
-          <label className="block space-y-1.5 text-sm font-medium">
-            <span>{t("repo.tagName")}</span>
-            <Input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={t("repo.tagNamePlaceholder")}
-              autoFocus
-              disabled={busy}
-            />
-          </label>
-          <label className="block space-y-1.5 text-sm font-medium">
-            <span>{t("repo.tagMessage")}</span>
-            <Input
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              placeholder={t("repo.tagMessagePlaceholder")}
-              disabled={busy}
-            />
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={push && Boolean(remote)}
-              onCheckedChange={(checked) => setPush(checked === true)}
-              disabled={busy || !remote}
-            />
-            <span>{t("repo.pushTag")}</span>
-          </label>
-          {!remote ? (
-            <p className="text-muted-foreground text-xs">{t("repo.tagPushUnavailable")}</p>
-          ) : null}
-          {error ? (
-            <p className="text-destructive text-sm" role="alert">
-              {error}
-            </p>
-          ) : null}
+            <Field>
+              <FieldLabel htmlFor="create-tag-name">{t("repo.tagName")}</FieldLabel>
+              <Input
+                id="create-tag-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder={t("repo.tagNamePlaceholder")}
+                autoFocus
+                disabled={busy}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="create-tag-message">
+                {t("repo.tagMessage")}
+              </FieldLabel>
+              <Input
+                id="create-tag-message"
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder={t("repo.tagMessagePlaceholder")}
+                disabled={busy}
+              />
+            </Field>
+            <Field orientation="horizontal" data-disabled={!remote || undefined}>
+              <Checkbox
+                id="create-tag-push"
+                checked={push && Boolean(remote)}
+                onCheckedChange={(checked) => setPush(checked === true)}
+                disabled={busy || !remote}
+              />
+              <FieldContent>
+                <FieldLabel htmlFor="create-tag-push">{t("repo.pushTag")}</FieldLabel>
+                {!remote ? (
+                  <FieldDescription>{t("repo.tagPushUnavailable")}</FieldDescription>
+                ) : null}
+              </FieldContent>
+            </Field>
+            {error ? (
+              <Field data-invalid>
+                <FieldError>{error}</FieldError>
+              </Field>
+            ) : null}
+          </FieldGroup>
           <DialogFooter>
             <Button
               type="button"

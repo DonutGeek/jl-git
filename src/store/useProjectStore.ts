@@ -32,11 +32,12 @@ interface ProjectStoreActions {
     name?: string;
     workspaceId?: string | null;
     description?: string | null;
+    icon?: Project["icon"];
   }) => Promise<Project>;
   reorderGroupedItems: (input: { workspaces: WorkspaceOrderItem[]; projects: ProjectOrderItem[] }) => Promise<void>;
   setCurrent: (project: Project | null) => void;
   addAndOpen: (
-    input: Pick<AddProjectInput, "path" | "name" | "workspaceId" | "description">,
+    input: Pick<AddProjectInput, "path" | "name" | "workspaceId" | "description" | "icon">,
   ) => Promise<Project>;
   openExisting: (id: string) => Promise<Project>;
   removeProject: (id: string) => Promise<void>;

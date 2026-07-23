@@ -5,6 +5,7 @@
 
 export const APP_THEME_JINGLING_GIT = "jingling-git" as const;
 export const APP_THEME_GITHUB = "github" as const;
+export const APP_THEME_CHATGPT = "chatgpt" as const;
 export const APP_THEME_CODEX = "codex" as const;
 export const APP_THEME_CLAUDE_CODE = "claude-code" as const;
 export const APP_THEME_VSCODE = "vscode" as const;
@@ -12,6 +13,7 @@ export const APP_THEME_VSCODE = "vscode" as const;
 export type AppThemeId =
   | typeof APP_THEME_JINGLING_GIT
   | typeof APP_THEME_GITHUB
+  | typeof APP_THEME_CHATGPT
   | typeof APP_THEME_CODEX
   | typeof APP_THEME_CLAUDE_CODE
   | typeof APP_THEME_VSCODE;

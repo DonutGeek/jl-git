@@ -5,7 +5,7 @@
 
 ## 目标
 
-五套应用主题（鲸灵 Git / GitHub / ChatGPT / Claude / VS Code），**模块化注册**，避免单文件膨胀；主题配色开放完整语义色调节。
+六套应用主题（鲸灵 Git / GitHub / ChatGPT / Claude / Codex / VS Code），**模块化注册**，避免单文件膨胀；主题配色开放完整语义色调节。
 
 ## 目录
 

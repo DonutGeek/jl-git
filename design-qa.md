@@ -46,6 +46,32 @@ final result: passed
 
 ---
 
+# 仓库搜索弹层等距留白 Design QA
+
+- source visual truth path: `/var/folders/pm/06rbm7fd1hsgj04htld4v10c0000gp/T/codex-clipboard-b89acb31-b23b-4629-82b0-518ca5b5b122.png`
+- implementation screenshot path: `/private/tmp/jlgit-repository-search-spacing.jpeg`
+- focused implementation crop: `/private/tmp/jlgit-repository-search-spacing-crop.jpeg`
+- state: macOS 深色模式；真实 Tauri Debug 应用；仓库搜索弹层打开
+
+## Focused comparison evidence
+
+- 仓库列表组沿用 CommandDialog 的 `8px` 水平留白，并将原 `4px` 垂直留白统一为 `8px`。
+- 当前仓库选中背景与内容区的上、下、左、右边界形成一致的紧凑间距。
+- 搜索输入区、仓库项尺寸和置底的新标签页入口均保持原有项目样式。
+
+## Findings
+
+- 无待处理 P0 / P1 / P2 / P3。
+
+## Interaction verification
+
+- 搜索框保持自动聚焦和可输入状态。
+- 当前仓库项与新标签页入口完整显示，原有选择与关闭行为未受影响。
+
+final result: passed
+
+---
+
 # 仓库搜索与活动栏排序 Design QA
 
 - source visual truth path: `/var/folders/pm/06rbm7fd1hsgj04htld4v10c0000gp/T/codex-clipboard-a536bef1-aebb-4a55-88c8-c08b15ed8139.png`

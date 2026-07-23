@@ -67,6 +67,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
@@ -170,11 +171,6 @@ function SettingsSection({
       <div className="space-y-3 px-6">{children}</div>
     </section>
   );
-}
-
-/** 对话框表单小标签（非分区内容级） */
-function FieldLabel({ children }: { children: ReactNode }) {
-  return <label className="text-muted-foreground mb-1 block text-[11px]">{children}</label>;
 }
 
 /** 设置表单控件：与顶栏分支选择器同系（轻边框、无阴影） */
@@ -1316,35 +1312,43 @@ export function SettingsDrawer() {
             }}
           >
             <DialogContent>
-              <form className="space-y-4" onSubmit={(event) => void handleCreateGitAccount(event)}>
+              <form className="space-y-6" onSubmit={(event) => void handleCreateGitAccount(event)}>
                 <DialogHeader>
                   <DialogTitle>{t("settings.createGitAccount")}</DialogTitle>
                   <DialogDescription>
                     {t("settings.createGitAccountDescription")}
                   </DialogDescription>
                 </DialogHeader>
-                <div>
-                  <FieldLabel>{t("settings.gitUserName")}</FieldLabel>
-                  <Input
-                    className={settingsFieldClassName}
-                    value={newGitAccountName}
-                    onChange={(event) => setNewGitAccountName(event.target.value)}
-                    placeholder={t("settings.gitUserNamePlaceholder")}
-                    disabled={gitAccountCreating}
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <FieldLabel>{t("settings.gitEmail")}</FieldLabel>
-                  <Input
-                    className={settingsFieldClassName}
-                    type="email"
-                    value={newGitAccountEmail}
-                    onChange={(event) => setNewGitAccountEmail(event.target.value)}
-                    placeholder={t("settings.gitEmailPlaceholder")}
-                    disabled={gitAccountCreating}
-                  />
-                </div>
+                <FieldGroup className="gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="new-git-account-name">
+                      {t("settings.gitUserName")}
+                    </FieldLabel>
+                    <Input
+                      id="new-git-account-name"
+                      className={settingsFieldClassName}
+                      value={newGitAccountName}
+                      onChange={(event) => setNewGitAccountName(event.target.value)}
+                      placeholder={t("settings.gitUserNamePlaceholder")}
+                      disabled={gitAccountCreating}
+                      autoFocus
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="new-git-account-email">
+                      {t("settings.gitEmail")}
+                    </FieldLabel>
+                    <Input
+                      id="new-git-account-email"
+                      className={settingsFieldClassName}
+                      type="email"
+                      value={newGitAccountEmail}
+                      onChange={(event) => setNewGitAccountEmail(event.target.value)}
+                      placeholder={t("settings.gitEmailPlaceholder")}
+                      disabled={gitAccountCreating}
+                    />
+                  </Field>
+                </FieldGroup>
                 <DialogFooter>
                   <Button
                     type="button"
@@ -1371,33 +1375,41 @@ export function SettingsDrawer() {
             }}
           >
             <DialogContent>
-              <form className="space-y-4" onSubmit={(event) => void handleUpdateGitAccount(event)}>
+              <form className="space-y-6" onSubmit={(event) => void handleUpdateGitAccount(event)}>
                 <DialogHeader>
                   <DialogTitle>{t("settings.editGitAccountTitle")}</DialogTitle>
                   <DialogDescription>
                     {t("settings.editGitAccountDescription")}
                   </DialogDescription>
                 </DialogHeader>
-                <div>
-                  <FieldLabel>{t("settings.gitUserName")}</FieldLabel>
-                  <Input
-                    className={settingsFieldClassName}
-                    value={editedGitAccountName}
-                    onChange={(event) => setEditedGitAccountName(event.target.value)}
-                    disabled={gitAccountSaving}
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <FieldLabel>{t("settings.gitEmail")}</FieldLabel>
-                  <Input
-                    className={settingsFieldClassName}
-                    type="email"
-                    value={editedGitAccountEmail}
-                    onChange={(event) => setEditedGitAccountEmail(event.target.value)}
-                    disabled={gitAccountSaving}
-                  />
-                </div>
+                <FieldGroup className="gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="edit-git-account-name">
+                      {t("settings.gitUserName")}
+                    </FieldLabel>
+                    <Input
+                      id="edit-git-account-name"
+                      className={settingsFieldClassName}
+                      value={editedGitAccountName}
+                      onChange={(event) => setEditedGitAccountName(event.target.value)}
+                      disabled={gitAccountSaving}
+                      autoFocus
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="edit-git-account-email">
+                      {t("settings.gitEmail")}
+                    </FieldLabel>
+                    <Input
+                      id="edit-git-account-email"
+                      className={settingsFieldClassName}
+                      type="email"
+                      value={editedGitAccountEmail}
+                      onChange={(event) => setEditedGitAccountEmail(event.target.value)}
+                      disabled={gitAccountSaving}
+                    />
+                  </Field>
+                </FieldGroup>
                 <DialogFooter>
                   <Button
                     type="button"
@@ -1733,35 +1745,43 @@ export function SettingsDrawer() {
             }}
           >
             <DialogContent>
-              <form className="space-y-4" onSubmit={(event) => void handleCreateApiKey(event)}>
+              <form className="space-y-6" onSubmit={(event) => void handleCreateApiKey(event)}>
                 <DialogHeader>
                   <DialogTitle>{t("settings.createApiKey")}</DialogTitle>
                   <DialogDescription>{t("settings.createApiKeyDescription")}</DialogDescription>
                 </DialogHeader>
-                <div>
-                  <FieldLabel>{t("settings.apiKeyName")}</FieldLabel>
-                  <Input
-                    className={settingsFieldClassName}
-                    value={newApiKeyName}
-                    onChange={(event) => setNewApiKeyName(event.target.value)}
-                    placeholder={t("settings.apiKeyNamePlaceholder")}
-                    disabled={apiKeyCreating}
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <FieldLabel>{t("settings.apiKeyValue")}</FieldLabel>
-                  <Input
-                    className={settingsFieldClassName}
-                    type="password"
-                    value={newApiKeyValue}
-                    onChange={(event) => setNewApiKeyValue(event.target.value)}
-                    placeholder={t("settings.apiKeyValuePlaceholder")}
-                    disabled={apiKeyCreating}
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                </div>
+                <FieldGroup className="gap-4">
+                  <Field>
+                    <FieldLabel htmlFor="new-api-key-name">
+                      {t("settings.apiKeyName")}
+                    </FieldLabel>
+                    <Input
+                      id="new-api-key-name"
+                      className={settingsFieldClassName}
+                      value={newApiKeyName}
+                      onChange={(event) => setNewApiKeyName(event.target.value)}
+                      placeholder={t("settings.apiKeyNamePlaceholder")}
+                      disabled={apiKeyCreating}
+                      autoFocus
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="new-api-key-value">
+                      {t("settings.apiKeyValue")}
+                    </FieldLabel>
+                    <Input
+                      id="new-api-key-value"
+                      className={settingsFieldClassName}
+                      type="password"
+                      value={newApiKeyValue}
+                      onChange={(event) => setNewApiKeyValue(event.target.value)}
+                      placeholder={t("settings.apiKeyValuePlaceholder")}
+                      disabled={apiKeyCreating}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </Field>
+                </FieldGroup>
                 <DialogFooter>
                   <Button
                     type="button"
@@ -1794,21 +1814,24 @@ export function SettingsDrawer() {
             }}
           >
             <DialogContent>
-              <form className="space-y-4" onSubmit={(event) => void handleRenameApiKey(event)}>
+              <form className="space-y-6" onSubmit={(event) => void handleRenameApiKey(event)}>
                 <DialogHeader>
                   <DialogTitle>{t("settings.editApiKeyTitle")}</DialogTitle>
                   <DialogDescription>{t("settings.editApiKeyDescription")}</DialogDescription>
                 </DialogHeader>
-                <div>
-                  <FieldLabel>{t("settings.apiKeyName")}</FieldLabel>
+                <Field>
+                  <FieldLabel htmlFor="edit-api-key-name">
+                    {t("settings.apiKeyName")}
+                  </FieldLabel>
                   <Input
+                    id="edit-api-key-name"
                     className={settingsFieldClassName}
                     value={editedApiKeyName}
                     onChange={(event) => setEditedApiKeyName(event.target.value)}
                     disabled={apiKeyRenaming}
                     autoFocus
                   />
-                </div>
+                </Field>
                 <DialogFooter>
                   <Button
                     type="button"

@@ -16,6 +16,7 @@ function project(
     workspaceId: null,
     name: id,
     description: null,
+    icon: "folder-git-2",
     path: `/repos/${id}`,
     lastOpenedAt: null,
     pinned: false,
