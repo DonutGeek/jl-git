@@ -3,6 +3,7 @@
   "loading": "Loading...",
   "error": "Something went wrong",
   "cancel": "Cancel",
+  "notifications": "Notifications",
   "pleaseSelect": "Please select",
   "productName": "JL Git",
   "aiApiKeyRequired": "Configure and enable an API Key in Settings first",

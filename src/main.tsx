@@ -1,13 +1,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { Toaster } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import App from "./App";
+import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { startOpLogListener } from "@/store/useOpLogStore";
 import { initAppPrefs } from "@/store/useAppPrefsStore";
 import { initLocale } from "@/store/useLocaleStore";
-import { initTheme } from "@/store/useThemeStore";
+import { initTheme, useThemeStore } from "@/store/useThemeStore";
 import "./i18n";
 import "./index.css";
 
@@ -17,6 +18,9 @@ initAppPrefs();
 void startOpLogListener();
 
 function AppContent() {
+  const { t } = useTranslation();
+  const theme = useThemeStore((state) => state.mode);
+
   React.useEffect(() => {
     document.getElementById("app-loading")?.remove();
   }, []);
@@ -24,7 +28,12 @@ function AppContent() {
   return (
     <>
       <App />
-      <Toaster richColors position="top-right" />
+      <Toaster
+        containerAriaLabel={t("common.notifications")}
+        position="top-right"
+        richColors
+        theme={theme}
+      />
     </>
   );
 }

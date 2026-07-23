@@ -355,7 +355,7 @@ export function MultiAgentSidebar({
                   type="button"
                   variant={pluginsActive ? "secondary" : "outline"}
                   size="sm"
-                  className="border-border h-8 w-full justify-start gap-1.5 px-2 text-xs shadow-none"
+                  className="border-border h-8 w-full justify-start gap-1.5 border px-2 text-xs shadow-none"
                   aria-label={t("multiAgent.openPlugins")}
                   aria-pressed={pluginsActive}
                   onClick={onOpenPlugins}

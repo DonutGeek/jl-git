@@ -101,6 +101,7 @@ JLGit 以 [shadcn/ui](https://ui.shadcn.com/) 作为基础组件来源（代码�
 | Separator | `separator.tsx` |
 | Sheet | `sheet.tsx` |
 | Skeleton | `skeleton.tsx` |
+| Sonner | `sonner.tsx` |
 | Spinner | `spinner.tsx` |
 | Switch | `switch.tsx` |
 | Table | `table.tsx` |
@@ -108,9 +109,14 @@ JLGit 以 [shadcn/ui](https://ui.shadcn.com/) 作为基础组件来源（代码�
 | Textarea | `textarea.tsx` |
 | Tooltip | `tooltip.tsx` |
 
-Toast 使用依赖包 `sonner`（与官方 Sonner 方案一致），不单独放在 `ui/`。
+Toast 统一使用 shadcn 官方 Sonner 方案：
 
-> CLI 提示：若本机 `pnpm dlx shadcn@latest` 因 zod v4 / MCP SDK 报 `Package subpath './v4' is not defined`，可在临时目录安装 `shadcn@latest` + `zod@3` 后执行 `./node_modules/.bin/shadcn add <name> --yes --cwd <项目根>`。依赖组件若提示覆盖已有文件，加 `--overwrite`。
+- 通过 `pnpm dlx shadcn@latest add sonner` 引入 `src/components/ui/sonner.tsx`，禁止继续使用已弃用的 Toast / Toaster / `useToast`
+- 应用根节点从 `@/components/ui/sonner` 引入 `Toaster`；业务调用按官方用法从 `sonner` 引入 `toast`
+- `Toaster` 必须接入 JLGit 的 `light` / `dark` / `system` 主题模式，颜色继续使用生成组件映射的 Design Tokens
+- Toast 正文、操作按钮与可访问文本必须走 i18n，并同时维护 `zh-CN`、`en`
+
+> CLI 提示：若本机 `pnpm dlx shadcn@latest` 因 zod / MCP SDK 报 `Package subpath './v3' is not defined` 或 `Package subpath './v4' is not defined`，可在临时目录安装 `shadcn@latest` + `zod@3.25.76` 后执行 `./node_modules/.bin/shadcn add <name> --yes --cwd <项目根>`。依赖组件若提示覆盖已有文件，加 `--overwrite`。
 
 ### 官方有、本仓库尚未引入（摘录）
 
@@ -151,6 +157,7 @@ pnpm dlx shadcn@latest add dropdown-menu
 pnpm dlx shadcn@latest add spinner
 pnpm dlx shadcn@latest add badge
 pnpm dlx shadcn@latest add table
+pnpm dlx shadcn@latest add sonner
 # 其余组件名见官方组件目录
 ```
 
