@@ -84,7 +84,7 @@ Rust 侧：
 
 ### 操作日志
 
-`commit` / `fetch` / `pull` / `push` 经 `oplog::run_logged` 包裹；runner 在活动操作内每次 git 调用 emit `jlgit://git-op`（start / cmd / end）。前端按仓库聚合，状态栏展示最近结果。
+`commit` / `fetch` / `pull` / `push` 等经 `oplog::run_logged` 包裹；runner 在活动操作内每次 git 调用 emit `jlgit://git-op`（start / cmd / end）。前端按仓库聚合；**操作日志面板不自动弹出**，由用户点状态栏入口打开。进行中状态由各功能自身的 loading / 状态栏图标反馈。
 
 应用**默认不跳过 hooks**。若未来提供「跳过 hooks」选项，必须二次确认，并记入审计日志。
 

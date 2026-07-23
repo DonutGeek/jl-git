@@ -267,6 +267,7 @@
   "syncComingSoon": "{{action}} coming soon",
   "local": "Local",
   "remote": "Remote",
+  "checkoutStart": "Switching to {{branch}}…",
   "checkoutSuccess": "Switched to {{branch}}",
   "checkoutHint": "Double-click to switch to this branch",
   "checkoutBranch": "Check out",

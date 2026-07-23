@@ -1,5 +1,4 @@
 import { FormEvent, useMemo, useState, type ReactNode } from "react";
-import { flushSync } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Trans, useTranslation } from "react-i18next";
 import {
@@ -175,12 +174,13 @@ export function BranchList() {
     }
     setCheckingOutName(branch.name);
     setSelectedName(branch.name);
+    const toastId = toast.loading(t("repo.checkoutStart", { branch: branch.name }));
 
     try {
       await checkout(branch.name);
-      toast.success(t("repo.checkoutSuccess", { branch: branch.name }));
+      toast.success(t("repo.checkoutSuccess", { branch: branch.name }), { id: toastId });
     } catch (error) {
-      toast.error(toUserMessage(error));
+      toast.error(toUserMessage(error), { id: toastId });
     } finally {
       setCheckingOutName(null);
     }
@@ -272,17 +272,16 @@ export function BranchList() {
       return;
     }
 
-    flushSync(() => {
-      setRenameTarget(null);
-      setRenameBusy(false);
-    });
-
+    setRenameBusy(true);
     try {
       await renameBranch(from, next);
+      setRenameTarget(null);
       setSelectedName(next);
       toast.success(t("repo.renameBranchSuccess", { name: next }));
     } catch (error) {
       toast.error(toUserMessage(error));
+    } finally {
+      setRenameBusy(false);
     }
   }
 
@@ -347,24 +346,23 @@ export function BranchList() {
     const targetName = deleteTarget.name;
     const alsoRemote = deleteHasRemote && deleteRemoteAlso;
 
-    flushSync(() => {
-      setDeleteTarget(null);
-      setDeleteBusy(false);
-      setDeleteRemoteAlso(false);
-    });
-
+    setDeleteBusy(true);
     try {
       await deleteBranch(targetName, {
         force: true,
         deleteRemote: alsoRemote,
         remote: "origin",
       });
+      setDeleteTarget(null);
+      setDeleteRemoteAlso(false);
       if (selectedName === targetName) {
         setSelectedName(null);
       }
       toast.success(t("repo.deleteBranchSuccess", { name: targetName }));
     } catch (error) {
       toast.error(toUserMessage(error));
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -675,6 +673,7 @@ export function BranchList() {
                   renameValue.trim() === renameTarget?.name
                 }
               >
+                {renameBusy ? <Spinner className="size-3.5" /> : null}
                 {t("repo.renameBranchAction")}
               </Button>
             </DialogFooter>
@@ -751,6 +750,7 @@ export function BranchList() {
               disabled={deleteBusy}
               onClick={() => void confirmDelete()}
             >
+              {deleteBusy ? <Spinner className="size-3.5" /> : null}
               {t("repo.deleteBranchAction")}
             </Button>
           </DialogFooter>

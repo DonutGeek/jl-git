@@ -23,6 +23,11 @@ interface SplitPaneProps {
   className?: string;
   /** 分隔条额外 class（如弹层打开时抬高 z-index） */
   separatorClassName?: string;
+  /**
+   * 分隔槽占用像素（默认 1）。
+   * 大于 1 时槽内居中画 1px 线，两侧留缝（如变更 / 待提交）。
+   */
+  separatorSizePx?: number;
   first: ReactNode;
   second: ReactNode;
 }
@@ -58,6 +63,7 @@ export function SplitPane({
   storageKey,
   className,
   separatorClassName,
+  separatorSizePx = 1,
   first,
   second,
 }: SplitPaneProps) {
@@ -69,8 +75,9 @@ export function SplitPane({
 
   const isHorizontal = orientation === "horizontal";
   const [containerSize, setContainerSize] = useState(0);
-  /** 视觉仅 1px 线；拖拽热区靠 after 加宽，避免 6px 铺底在侧栏/主区间露成「缝」 */
-  const separatorPx = 1;
+  /** 默认 1px 线；可加大为带缝隙的槽（仍只画 1px 线） */
+  const separatorPx = Math.max(1, Math.round(separatorSizePx));
+  const hasGutter = separatorPx > 1;
 
   // storageKey / 默认比例变更时重新读取；用 layout 阶段同步，避免首帧错宽导致邻栏抖动
   useLayoutEffect(() => {
@@ -167,7 +174,7 @@ export function SplitPane({
       next = Math.min(Math.max(minFirstRatio, next), Math.max(minFirstRatio, maxFirstRatio));
       setRatio(next);
     },
-    [isHorizontal, minFirstPx, minSecondPx],
+    [isHorizontal, minFirstPx, minSecondPx, separatorPx],
   );
 
   const endDrag = useCallback(
@@ -268,17 +275,30 @@ export function SplitPane({
         aria-orientation={isHorizontal ? "vertical" : "horizontal"}
         tabIndex={0}
         className={cn(
-          // 固定 1px 线，热区靠 after；悬停只变色不加宽，避免挤动邻栏
-          "relative z-10 shrink-0 bg-border",
-          isHorizontal ? "w-px cursor-col-resize" : "h-px cursor-row-resize",
-          "hover:bg-primary",
-          dragging && "bg-primary",
+          // 默认整槽即 1px 线；加大槽时透明铺底 + before 居中 1px，热区靠 after
+          "relative z-10 shrink-0",
+          hasGutter ? "bg-transparent" : "bg-border",
+          isHorizontal ? "cursor-col-resize" : "cursor-row-resize",
+          !hasGutter && "hover:bg-primary",
+          !hasGutter && dragging && "bg-primary",
+          hasGutter && "before:absolute before:content-[''] before:bg-border",
+          hasGutter && "hover:before:bg-primary",
+          hasGutter && dragging && "before:bg-primary",
+          hasGutter &&
+            (isHorizontal
+              ? "before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2"
+              : "before:inset-x-0 before:top-1/2 before:h-px before:-translate-y-1/2"),
           "after:absolute after:content-['']",
           isHorizontal
             ? "after:inset-y-0 after:left-1/2 after:w-3 after:-translate-x-1/2"
             : "after:inset-x-0 after:top-1/2 after:h-3 after:-translate-y-1/2",
           separatorClassName,
         )}
+        style={
+          isHorizontal
+            ? { width: separatorPx }
+            : { height: separatorPx }
+        }
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}

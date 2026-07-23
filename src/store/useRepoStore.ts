@@ -3,8 +3,6 @@ import { create } from "zustand";
 import i18n from "@/i18n";
 import { gitService } from "@/services/git";
 import { buildHistoryLogOptions } from "@/services/git/git.log";
-import { useOpLogStore } from "@/store/useOpLogStore";
-
 import { AppError, toUserMessage } from "@/types/error";
 import {
   GitBranch,
@@ -34,14 +32,6 @@ import {
   hasUnresolvedConflicts,
   isWriteOpBlocked,
 } from "@/utils/repoOperationGuard";
-
-/** 先打开操作日志并让出一帧，保证按钮点击后立刻可见 */
-async function revealOpLogBeforeInvoke(): Promise<void> {
-  useOpLogStore.getState().openPanelNow();
-  await new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => resolve());
-  });
-}
 
 const LOG_PAGE_SIZE = 50;
 /** 历史列表常驻提交硬顶：超出后停止加载更多，避免无限追加占内存 */
@@ -1148,7 +1138,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         return removed;
       });
 
-      await revealOpLogBeforeInvoke();
       const commitId = await gitService.commit(repoPath, message, {
         paths,
         removePaths,
@@ -1198,7 +1187,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       // 回退到父提交；无父则交给后端（首提交会返回明确错误）
       const target = commits[1]?.id;
 
-      await revealOpLogBeforeInvoke();
       const result = await gitService.undoCommit(repoPath, target);
       const [status, log] = await Promise.all([
         gitService.getStatus(repoPath),
@@ -1242,7 +1230,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         throwValidationError(i18n.t("repo.errors.emptyBranchName"));
       }
 
-      await revealOpLogBeforeInvoke();
       const result = await gitService.merge(repoPath, ref, options);
       const [branches, log] = await Promise.all([
         gitService.listBranches(repoPath, true),
@@ -1280,7 +1267,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     try {
       assertWriteOpAllowed(get);
       const repoPath = requireRepoPath(get().repoPath);
-      await revealOpLogBeforeInvoke();
       await gitService.checkout(repoPath, ref);
       const [status, branches, log] = await Promise.all([
         gitService.getStatus(repoPath),
@@ -1319,7 +1305,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         throwValidationError(i18n.t("repo.errors.emptyBranchName"));
       }
 
-      await revealOpLogBeforeInvoke();
       await gitService.createBranch(repoPath, trimmed, {
         checkout: options?.checkout ?? true,
         startPoint: options?.startPoint,
@@ -1362,7 +1347,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         throwValidationError(i18n.t("repo.errors.emptyBranchName"));
       }
 
-      await revealOpLogBeforeInvoke();
       await gitService.deleteBranch(repoPath, trimmed, options);
       const [status, branches] = await Promise.all([
         gitService.getStatus(repoPath),
@@ -1391,7 +1375,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         throwValidationError(i18n.t("repo.errors.emptyBranchName"));
       }
 
-      await revealOpLogBeforeInvoke();
       await gitService.renameBranch(repoPath, from, to);
       const [status, branches, log] = await Promise.all([
         gitService.getStatus(repoPath),
@@ -1425,7 +1408,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
     try {
       const repoPath = requireRepoPath(get().repoPath);
-      await revealOpLogBeforeInvoke();
       const result = await gitService.fetch(repoPath, remote);
       const [status, branches] = await Promise.all([
         gitService.getStatus(repoPath),
@@ -1450,7 +1432,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     try {
       assertWriteOpAllowed(get);
       const repoPath = requireRepoPath(get().repoPath);
-      await revealOpLogBeforeInvoke();
       const result = await gitService.pull(repoPath, options);
       const [branches, log] = await Promise.all([
         gitService.listBranches(repoPath, true),
@@ -1497,7 +1478,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
     try {
       const repoPath = requireRepoPath(get().repoPath);
-      await revealOpLogBeforeInvoke();
       // 对齐 ugit：默认 origin + 当前分支 → push --progress origin main:main
       const status = get().status;
       const remote = options?.remote ?? "origin";

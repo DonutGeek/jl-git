@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { flushSync } from "react-dom";
 import dayjs from "dayjs";
 import { GitBranch as GitBranchIcon, RefreshCw, Search, TriangleAlert } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
@@ -200,11 +199,6 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
     const targetName = deleteTarget.name;
     const alsoRemote = deleteHasRemote && deleteRemoteAlso;
 
-    flushSync(() => {
-      setDeleteTarget(null);
-      setDeleteRemoteAlso(false);
-    });
-
     setDeleteBusy(true);
     setDeletingName(targetName);
     try {
@@ -213,6 +207,8 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
         deleteRemote: alsoRemote,
         remote: "origin",
       });
+      setDeleteTarget(null);
+      setDeleteRemoteAlso(false);
       await loadBranches();
       toast.success(t("repo.deleteBranchSuccess", { name: targetName }));
     } catch (reason: unknown) {
@@ -395,6 +391,7 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
               disabled={deleteBusy}
               onClick={() => void confirmDelete()}
             >
+              {deleteBusy ? <Spinner className="size-3.5" /> : null}
               {t("repo.deleteBranchAction")}
             </Button>
           </DialogFooter>

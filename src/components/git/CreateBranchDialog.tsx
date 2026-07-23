@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { GitBranch as GitBranchIcon, Tag } from "lucide-react";
 import { toast } from "sonner";
@@ -14,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 import { useRepoStore } from "@/store/useRepoStore";
@@ -101,6 +101,7 @@ export function CreateBranchDialog({
     startPoint.trim().length > 0;
 
   function handleOpenChange(next: boolean): void {
+    // 执行中禁止关闭，避免重复提交
     if (!next && submitting) {
       return;
     }
@@ -116,17 +117,13 @@ export function CreateBranchDialog({
     const branchName = name.trim();
     const start = startPoint.trim();
 
-    // 无论成败都先关弹窗，步骤与结果只看操作日志
-    flushSync(() => {
-      onOpenChange(false);
-    });
-
     setSubmitting(true);
     try {
       await createBranch(branchName, {
         startPoint: start,
         checkout: checkoutAfterCreate,
       });
+      onOpenChange(false);
       toast.success(
         checkoutAfterCreate
           ? t("repo.createBranchSuccess", { name: branchName })
@@ -220,6 +217,7 @@ export function CreateBranchDialog({
               {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={!canSubmit}>
+              {submitting ? <Spinner className="size-3.5" /> : null}
               {t("repo.createBranchAction")}
             </Button>
           </DialogFooter>

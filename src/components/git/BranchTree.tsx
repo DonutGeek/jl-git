@@ -26,6 +26,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
@@ -399,7 +400,9 @@ export function BranchLeaf({
             >
               <IndentGuides depth={depth} />
               <span className="size-3 shrink-0" aria-hidden="true" />
-              {isCurrent ? (
+              {isBusy ? (
+                <Spinner className="size-3 shrink-0" />
+              ) : isCurrent ? (
                 <Check className="shrink-0" aria-hidden="true" />
               ) : published ? (
                 <GitBranchIcon className="text-muted-foreground shrink-0" aria-hidden="true" />

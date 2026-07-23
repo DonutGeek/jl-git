@@ -198,7 +198,6 @@ function OpLogRow({ entry }: { entry: OpLogEntry }) {
 export function OpLogPanel() {
   const { t } = useTranslation();
   const panelOpen = useOpLogStore((state) => state.panelOpen);
-  const pendingReveal = useOpLogStore((state) => state.pendingReveal);
   const setPanelOpen = useOpLogStore((state) => state.setPanelOpen);
   const byRepo = useOpLogStore((state) => state.byRepo);
   const expandedIds = useOpLogStore((state) => state.expandedIds);
@@ -210,7 +209,7 @@ export function OpLogPanel() {
     [byRepo, repoPath],
   );
   const latest = selectLatestEntry(entries);
-  const isRunning = latest?.status === "running" || pendingReveal;
+  const isRunning = latest?.status === "running";
 
   const virtualizer = useVirtualizer({
     count: entries.length,
@@ -302,17 +301,9 @@ export function OpLogPanel() {
               <EmptyState
                 compact
                 className="h-full min-h-[10rem]"
-                icon={
-                  pendingReveal ? <Spinner /> : <ScrollText />
-                }
-                title={
-                  pendingReveal ? t("opLog.preparingTitle") : t("opLog.emptyTitle")
-                }
-                description={
-                  pendingReveal
-                    ? t("opLog.preparingDescription")
-                    : t("opLog.emptyDescription")
-                }
+                icon={<ScrollText />}
+                title={t("opLog.emptyTitle")}
+                description={t("opLog.emptyDescription")}
               />
             ) : (
               <div

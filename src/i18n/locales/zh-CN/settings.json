@@ -31,7 +31,7 @@
   "perfCpu": "CPU",
   "perfCpuTrend": "近约 30 秒趋势",
   "perfRss": "内存（RSS）",
-  "perfMemoryCapHint": "环图相对 2GB 参考上限；折线为 MB",
+  "perfMemoryCapHint": "环图相对 2GB 参考上限；曲线为 MB",
   "perfUptime": "运行时长",
   "perfThreads": "线程数",
   "perfOpenTabs": "打开标签",

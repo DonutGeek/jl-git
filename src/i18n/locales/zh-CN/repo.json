@@ -267,6 +267,7 @@
   "syncComingSoon": "{{action}}即将支持",
   "local": "本地",
   "remote": "远端",
+  "checkoutStart": "正在切换到 {{branch}}…",
   "checkoutSuccess": "已切换到 {{branch}}",
   "checkoutHint": "双击切换到该分支",
   "checkoutBranch": "检出",

@@ -745,45 +745,47 @@ function ChangeGroup({
 
   return (
     <section className="flex h-full min-h-0 flex-col overflow-hidden">
-      {/* 分区标题行保留；冲突时仅标题文案换成警告标签 */}
-      <div className="group/header hover:bg-accent/60 flex h-7 shrink-0 items-center justify-between gap-1 rounded-md px-2 transition-colors">
-        <div className="flex min-w-0 flex-1 items-center">
-          {titleSlot ? (
-            titleSlot
-          ) : (
-            <h3 className="text-muted-foreground min-w-0 truncate text-[11px] font-medium">
-              {title}
-            </h3>
-          )}
+      {/* 标题与列表同用 px-3，左右留缝（对齐侧栏分支列表） */}
+      <div className="shrink-0 px-3">
+        <div className="group/header hover:bg-accent/60 flex h-7 items-center justify-between gap-1 rounded-md px-2 transition-colors">
+          <div className="flex min-w-0 flex-1 items-center">
+            {titleSlot ? (
+              titleSlot
+            ) : (
+              <h3 className="text-muted-foreground min-w-0 truncate text-[11px] font-medium">
+                {title}
+              </h3>
+            )}
+          </div>
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "size-6 shrink-0 [&_svg]:size-3",
+                  "opacity-0 transition-opacity",
+                  "group-hover/header:opacity-100 focus-visible:opacity-100",
+                  "disabled:opacity-0 group-hover/header:disabled:opacity-40",
+                )}
+                onClick={onAction}
+                disabled={actionDisabled || isEmpty}
+                aria-label={actionLabel}
+              >
+                {actionIcon}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left">{actionLabel}</TooltipContent>
+          </Tooltip>
         </div>
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "size-6 shrink-0 [&_svg]:size-3",
-                "opacity-0 transition-opacity",
-                "group-hover/header:opacity-100 focus-visible:opacity-100",
-                "disabled:opacity-0 group-hover/header:disabled:opacity-40",
-              )}
-              onClick={onAction}
-              disabled={actionDisabled || isEmpty}
-              aria-label={actionLabel}
-            >
-              {actionIcon}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="left">{actionLabel}</TooltipContent>
-        </Tooltip>
       </div>
 
-      <div className="min-h-0 flex-1">
-        {/* 左右同宽内边距；滚动条贴右缘叠在右侧 padding 上，避免左右空隙不一致 */}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {/* 内边距在 ScrollArea：内容左右留缝，滚动条叠在右侧 padding */}
         <ScrollArea
           ref={bindScrollArea}
-          className="h-full px-2 pb-1 [&_[data-slot=scroll-area-viewport]>div]:!block"
+          className="h-full px-3 pb-1 [&_[data-slot=scroll-area-viewport]>div]:!block"
         >
           {showBareEmpty ? (
             <EmptyState
@@ -1209,12 +1211,14 @@ export function ChangesPanel() {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* 左右留白在各区 ScrollArea 上；此处只留上下与两区间细缝 */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-1 pb-1">
         <SplitPane
           orientation="vertical"
           defaultRatio={55}
           minFirstPx={120}
           minSecondPx={120}
+          separatorSizePx={7}
           storageKey="jlgit:split:changes-staged"
           first={
             <ChangeGroup

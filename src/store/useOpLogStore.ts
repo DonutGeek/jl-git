@@ -66,44 +66,10 @@ interface OpLogState {
   byRepo: Record<string, OpLogEntry[]>;
   panelOpen: boolean;
   expandedIds: Record<string, boolean>;
-  /** 成功自动关闭所绑定的 opId；新操作会取消 */
-  autoCloseOpId: string | null;
-  /** 已点开面板、等待首个 start 事件 */
-  pendingReveal: boolean;
   setPanelOpen: (open: boolean) => void;
-  /** 用户点击操作时立刻打开面板（不等 start 事件） */
-  openPanelNow: () => void;
   togglePanel: () => void;
   toggleExpanded: (id: string) => void;
   handleEvent: (event: GitOpEvent) => void;
-}
-
-let autoCloseTimer: number | null = null;
-
-function clearAutoCloseTimer(): void {
-  if (autoCloseTimer != null) {
-    window.clearTimeout(autoCloseTimer);
-    autoCloseTimer = null;
-  }
-}
-
-/** 操作成功后稍作停留再关面板，便于看清步骤与结果；若仍有 running 则不关 */
-function scheduleAutoClose(opId: string): void {
-  clearAutoCloseTimer();
-  useOpLogStore.setState({ autoCloseOpId: opId });
-  autoCloseTimer = window.setTimeout(() => {
-    const state = useOpLogStore.getState();
-    if (state.autoCloseOpId !== opId) {
-      return;
-    }
-    const hasRunning = Object.values(state.byRepo).some((list) =>
-      list.some((entry) => entry.status === "running"),
-    );
-    if (hasRunning) {
-      return;
-    }
-    useOpLogStore.setState({ panelOpen: false, autoCloseOpId: null });
-  }, 1200);
 }
 
 function formatGitCmd(args: string[]): string {
@@ -124,7 +90,12 @@ function formatCmdFinishLines(
   const seconds = (event.elapsedMs / 1000).toFixed(3);
   const lines: OpLogLine[] = [];
 
-  const output = stripAnsi([event.stdout, event.stderr].filter((part) => part.trim().length > 0).join("\n").trim());
+  const output = stripAnsi(
+    [event.stdout, event.stderr]
+      .filter((part) => part.trim().length > 0)
+      .join("\n")
+      .trim(),
+  );
   if (output) {
     for (const line of output.split("\n")) {
       lines.push({ text: `[${event.startedAt}]${line}` });
@@ -150,10 +121,7 @@ function stripAnsi(input: string): string {
     .replace(/\u001b./g, "");
 }
 
-function upsertEntry(
-  list: OpLogEntry[],
-  entry: OpLogEntry,
-): OpLogEntry[] {
+function upsertEntry(list: OpLogEntry[], entry: OpLogEntry): OpLogEntry[] {
   const index = list.findIndex((item) => item.id === entry.id);
   if (index === -1) {
     return [...list, entry].slice(-MAX_PER_REPO);
@@ -188,30 +156,14 @@ export const useOpLogStore = create<OpLogState>((set, get) => ({
   byRepo: {},
   panelOpen: false,
   expandedIds: {},
-  autoCloseOpId: null,
-  pendingReveal: false,
 
   setPanelOpen(open) {
     if (!open) {
-      clearAutoCloseTimer();
-      set({ panelOpen: false, autoCloseOpId: null, pendingReveal: false });
+      set({ panelOpen: false });
       return;
     }
     set((state) => ({
       panelOpen: true,
-      pendingReveal: false,
-      expandedIds: pickDefaultExpanded(state.byRepo),
-    }));
-  },
-
-  /** 点击提交/推送等时立刻打开，不等待首个后端事件 */
-  openPanelNow() {
-    clearAutoCloseTimer();
-    set((state) => ({
-      panelOpen: true,
-      autoCloseOpId: null,
-      pendingReveal: true,
-      // 先收起旧条目；新操作 start 后再只展开那一条
       expandedIds: pickDefaultExpanded(state.byRepo),
     }));
   },
@@ -219,13 +171,11 @@ export const useOpLogStore = create<OpLogState>((set, get) => ({
   togglePanel() {
     const next = !get().panelOpen;
     if (!next) {
-      clearAutoCloseTimer();
-      set({ panelOpen: false, autoCloseOpId: null, pendingReveal: false });
+      set({ panelOpen: false });
       return;
     }
     set((state) => ({
       panelOpen: true,
-      pendingReveal: false,
       expandedIds: pickDefaultExpanded(state.byRepo),
     }));
   },
@@ -245,7 +195,6 @@ export const useOpLogStore = create<OpLogState>((set, get) => ({
       const list = state.byRepo[repoPath] ?? [];
 
       if (event.kind === "start") {
-        clearAutoCloseTimer();
         const entry: OpLogEntry = {
           id: event.opId,
           repoPath,
@@ -255,14 +204,11 @@ export const useOpLogStore = create<OpLogState>((set, get) => ({
           lines: [{ text: `[${event.startedAt}]操作开始: ${event.label}` }],
         };
         return {
-          panelOpen: true,
-          autoCloseOpId: null,
-          pendingReveal: false,
           byRepo: {
             ...state.byRepo,
             [repoPath]: upsertEntry(list, entry),
           },
-          // 新操作开始：只展开当前这条
+          // 新操作开始：只展开当前这条（面板是否打开由用户决定）
           expandedIds: { [event.opId]: true },
         };
       }
@@ -307,14 +253,16 @@ export const useOpLogStore = create<OpLogState>((set, get) => ({
 
       // end
       const existing = list.find((item) => item.id === event.opId);
-      const base: OpLogEntry = existing ?? {
-        id: event.opId,
-        repoPath,
-        label: event.label,
-        status: "running",
-        startedAt: "",
-        lines: [],
-      };
+      const base: OpLogEntry =
+        existing ??
+        ({
+          id: event.opId,
+          repoPath,
+          label: event.label,
+          status: "running",
+          startedAt: "",
+          lines: [],
+        } satisfies OpLogEntry);
       const entry: OpLogEntry = {
         ...base,
         label: event.label,
@@ -328,32 +276,25 @@ export const useOpLogStore = create<OpLogState>((set, get) => ({
             ? [{ text: `[${base.startedAt || "--:--:--"}]操作成功` }]
             : [
                 ...(event.error
-                  ? [{ text: `[${base.startedAt || "--:--:--"}]ERROR: ${event.error}` }]
+                  ? [
+                      {
+                        text: `[${base.startedAt || "--:--:--"}]ERROR: ${event.error}`,
+                      },
+                    ]
                   : []),
                 { text: `[${base.startedAt || "--:--:--"}]操作失败` },
               ]),
         ],
       };
 
-      if (!event.ok) {
-        clearAutoCloseTimer();
-      }
-
       return {
-        autoCloseOpId: event.ok ? event.opId : null,
         byRepo: {
           ...state.byRepo,
           [repoPath]: upsertEntry(list, entry),
         },
-        // 结束时仍只展开本条（失败可看完整输出）
         expandedIds: { [event.opId]: true },
       };
     });
-
-    // 必须在 set 之后关面板：updater 内读到的仍是 running，会误判为仍有进行中操作
-    if (event.kind === "end" && event.ok) {
-      scheduleAutoClose(event.opId);
-    }
   },
 }));
 
@@ -378,7 +319,6 @@ export function stopOpLogListener(): void {
     unlisten = null;
   }
   listenStarted = false;
-  clearAutoCloseTimer();
 }
 
 export function selectRepoEntries(

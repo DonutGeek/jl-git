@@ -121,15 +121,17 @@ export const HistoryGraph = memo(function HistoryGraph({
   }
 
   const tipHalf = DOT_SIZE + 1.5;
+  // 节点遮罩略大于线宽，确保竖轨不从圆心透出
+  const maskPad = STROKE_WIDTH + 0.5;
 
-  // 单色：跟随 foreground 略透明，保证暗色主题下竖轨/圆点仍清晰可见
+  // 轨线 / 圆点走语义 Token（muted / primary / background），随应用主题切换
   return (
-    <div className="text-foreground/55 pointer-events-auto w-max" aria-hidden="true">
+    <div className="pointer-events-auto w-max" aria-hidden="true">
       <svg
         width={width}
         height={height}
         viewBox={`0 0 ${width} ${height}`}
-        className="block overflow-visible"
+        className="text-muted-foreground block overflow-visible"
       >
         {layout.rows.map((row, rowIndex) => {
           const centerY = rowCenterY(rowIndex);
@@ -203,6 +205,25 @@ export const HistoryGraph = memo(function HistoryGraph({
                 hideTooltip();
               }}
             >
+              {/* 不透明底垫：切断下层竖轨，避免半透明 fill 透线 */}
+              {isMerge ? (
+                <rect
+                  x={cx - DOT_SIZE - maskPad}
+                  y={cy - DOT_SIZE - maskPad}
+                  width={(DOT_SIZE + maskPad) * 2}
+                  height={(DOT_SIZE + maskPad) * 2}
+                  rx={2.5}
+                  ry={2.5}
+                  fill="var(--background)"
+                />
+              ) : (
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={DOT_SIZE + maskPad}
+                  fill="var(--background)"
+                />
+              )}
               {isMerge ? (
                 <rect
                   x={cx - DOT_SIZE}
@@ -213,8 +234,6 @@ export const HistoryGraph = memo(function HistoryGraph({
                   rx={2}
                   ry={2}
                   fill="currentColor"
-                  stroke="var(--background)"
-                  strokeWidth={1}
                 />
               ) : isTip ? (
                 <circle
@@ -222,9 +241,8 @@ export const HistoryGraph = memo(function HistoryGraph({
                   cy={cy}
                   r={DOT_SIZE}
                   fill="var(--background)"
-                  stroke="currentColor"
+                  stroke="var(--primary)"
                   strokeWidth={2}
-                  className="text-foreground"
                 />
               ) : (
                 <circle
@@ -232,8 +250,6 @@ export const HistoryGraph = memo(function HistoryGraph({
                   cy={cy}
                   r={DOT_SIZE}
                   fill="currentColor"
-                  stroke="var(--background)"
-                  strokeWidth={1}
                 />
               )}
               <circle cx={cx} cy={cy} r={DOT_SIZE + 4} fill="transparent" />

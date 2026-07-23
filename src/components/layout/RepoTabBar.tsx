@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/context-menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 import { cn } from "@/lib/utils";
@@ -510,6 +511,7 @@ export function RepoTabBar() {
                   aliasValue.trim() === aliasTarget?.name
                 }
               >
+                {aliasBusy ? <Spinner className="size-3.5" /> : null}
                 {t("repo.tabAliasSave")}
               </Button>
             </DialogFooter>

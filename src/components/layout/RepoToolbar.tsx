@@ -199,11 +199,12 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     }
 
     setCheckingOut(true);
+    const toastId = toast.loading(t("repo.checkoutStart", { branch: branchName }));
     try {
       await checkout(branchName);
-      toast.success(t("repo.checkoutSuccess", { branch: branchName }));
+      toast.success(t("repo.checkoutSuccess", { branch: branchName }), { id: toastId });
     } catch (error) {
-      toast.error(toUserMessage(error));
+      toast.error(toUserMessage(error), { id: toastId });
     } finally {
       setCheckingOut(false);
     }
@@ -526,7 +527,11 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
             aria-label={t("repo.branchLabel")}
             title={branchLabel}
           >
-            <GitBranchIcon className="size-3.5 shrink-0" aria-hidden="true" />
+            {checkingOut ? (
+              <Spinner className="size-3.5 shrink-0" />
+            ) : (
+              <GitBranchIcon className="size-3.5 shrink-0" aria-hidden="true" />
+            )}
             <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">
               {branchLabel}
             </span>
@@ -583,10 +588,11 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
                 disabled={syncBusy || needsPublish}
                 onClick={() => void handlePull()}
               >
-                <ArrowDownToLine
-                  className={cn("size-3.5", pulling && "animate-pulse")}
-                  aria-hidden="true"
-                />
+                {pulling ? (
+                  <Spinner className="size-3.5" />
+                ) : (
+                  <ArrowDownToLine className="size-3.5" aria-hidden="true" />
+                )}
                 <span>{t("repo.pull")}</span>
               </Button>
             </span>
@@ -611,10 +617,11 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
                       disabled={syncBusy || ahead <= 0}
                       onClick={() => void handlePush()}
                     >
-                      <ArrowUpFromLine
-                        className={cn("size-3.5", pushing && "animate-pulse")}
-                        aria-hidden="true"
-                      />
+                      {pushing ? (
+                        <Spinner className="size-3.5" />
+                      ) : (
+                        <ArrowUpFromLine className="size-3.5" aria-hidden="true" />
+                      )}
                       <span>{t("repo.push")}</span>
                       {ahead > 0 ? (
                         <span
@@ -657,10 +664,11 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
                 disabled={syncBusy}
                 onClick={() => void handlePublish()}
               >
-                <CloudUpload
-                  className={cn("size-3.5", pushing && "animate-pulse")}
-                  aria-hidden="true"
-                />
+                {pushing ? (
+                  <Spinner className="size-3.5" />
+                ) : (
+                  <CloudUpload className="size-3.5" aria-hidden="true" />
+                )}
                 <span>{t("repo.publishBranch")}</span>
               </Button>
             </TooltipTrigger>
