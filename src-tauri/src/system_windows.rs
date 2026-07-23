@@ -46,7 +46,8 @@ fn close_handle(handle: HANDLE) {
 pub fn read_process_metrics(pid: u32) -> Result<ProcessMetrics, AppError> {
     unsafe {
         let handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, pid);
-        if handle == 0 || handle == INVALID_HANDLE_VALUE {
+        // windows-sys 的 HANDLE 为 *mut c_void，失败为 null / INVALID_HANDLE_VALUE
+        if handle.is_null() || handle == INVALID_HANDLE_VALUE {
             // 部分环境权限不足时回退当前进程伪句柄
             let current = GetCurrentProcess();
             return read_metrics_from_handle(current, pid, false);
@@ -114,7 +115,7 @@ fn compute_cpu_percent(cpu_100ns: u64) -> f32 {
 fn count_threads(pid: u32) -> Option<u32> {
     unsafe {
         let snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-        if snap == INVALID_HANDLE_VALUE || snap == 0 {
+        if snap.is_null() || snap == INVALID_HANDLE_VALUE {
             return None;
         }
         let mut entry: THREADENTRY32 = zeroed();
