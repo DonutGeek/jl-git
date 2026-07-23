@@ -490,7 +490,7 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                     // 与 ChangesPanel 等 h-6 工具按钮一致：走 Button 的 rounded-md
                     "border px-2 shadow-none transition-colors",
                     thinkingEnabled
-                      ? "border-transparent bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                      ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
                       : "border-border bg-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground",
                   )}
                   aria-pressed={thinkingEnabled}
