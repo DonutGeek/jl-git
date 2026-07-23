@@ -37,8 +37,3 @@ export function createAppWindowChromeOptions(
     trafficLightPosition: new LogicalPosition(16, 26),
   };
 }
-
-/** 是否需要自绘最小化 / 最大化·还原 / 关闭（Win/Linux 已用系统装饰，恒为 false） */
-export function needsCustomChromeControls(_os: AppOs): boolean {
-  return false;
-}

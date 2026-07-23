@@ -133,7 +133,7 @@ Command::new("git")
 | macOS | 顶栏 `pl-[88px]`；系统交通灯 |
 | Windows / Linux | 系统最小化/最大化/关闭；子窗同样 `decorations: true` |
 
-Capabilities 需含：`allow-minimize` / `allow-maximize` / `allow-unmaximize` / `allow-toggle-maximize` / `allow-close` / `allow-is-maximized`（主窗与各子窗）。
+窗口按钮由系统装饰提供；前端不再自绘三键。若业务仍需程序化改窗口状态，再按需声明对应 capabilities。
 
 设计：[windows-window-chrome](../superpowers/specs/2026-07-22-windows-window-chrome-design.md) · [official-three-platform](../superpowers/specs/2026-07-22-official-three-platform-design.md)
 

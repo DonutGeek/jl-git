@@ -41,7 +41,7 @@ Linux 参考环境：**Ubuntu 22.04 / 24.04 + GNOME**。其他发行版尽力而
 | `src-tauri/tauri.linux.conf.json` | `decorations: false` |
 
 子窗：`createAppWindowChromeOptions()` — mac Overlay；Win/Linux `decorations: false`。  
-UI：`useWindowChromeLayout` — mac `pl-[88px]`；Win/Linux 自绘三键。
+UI：`useWindowChromeLayout` — mac `pl-[88px]`；Win/Linux 系统原生标题栏。
 
 `bundle.targets` 首期含 `app` / `dmg` / `nsis` / `appimage`（去掉未承诺的 `deb`）。
 

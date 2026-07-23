@@ -24,10 +24,6 @@ import { CSS } from "@dnd-kit/utilities";
 import { FolderPlus, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  toggleCurrentWindowMaximize,
-  WindowChromeControls,
-} from "@/components/layout/WindowChromeControls";
 import { OpenRepoDialog } from "@/components/project/OpenRepoDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -156,9 +152,10 @@ function SortableRepoTab(props: SortableRepoTabProps) {
     </ContextMenuContent></ContextMenu>;
 }
 
+/** 仓库标签顶栏（Win/Linux 用系统窗口按钮，不再挂自绘三键） */
 export function RepoTabBar() {
   const { t } = useTranslation();
-  const { headerPaddingClass, showCustomChromeControls } = useWindowChromeLayout();
+  const { headerPaddingClass } = useWindowChromeLayout();
   const navigate = useNavigate();
   const location = useLocation();
   const tabEntries = useOpenTabsStore((state) => state.tabs);
@@ -387,16 +384,9 @@ export function RepoTabBar() {
             headerPaddingClass,
             draggingId ? "z-[60]" : "z-40",
           )}
-          onDoubleClick={(event) => {
-            if (!showCustomChromeControls) return;
-            // 仅空白拖拽区双击；点在标签/按钮上不最大化
-            const target = event.target as HTMLElement;
-            if (target.closest("button, a, [role='button'], [data-no-maximize]")) return;
-            void toggleCurrentWindowMaximize();
-          }}
         >
           {/* 交互控件 no-drag；拖拽留白必须是兄弟节点，不能包在 no-drag 里（否则加载页无工具栏时窗口无法拖动） */}
-          <div className="flex h-7 shrink-0 items-center gap-1.5" style={noDragStyle} data-no-maximize>
+          <div className="flex h-7 shrink-0 items-center gap-1.5" style={noDragStyle}>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <Button
@@ -417,7 +407,6 @@ export function RepoTabBar() {
           <div
             className="flex h-7 min-w-0 items-center gap-1 overflow-x-auto"
             style={noDragStyle}
-            data-no-maximize
           >
             <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
               <div className="flex h-7 items-center gap-1">
@@ -476,7 +465,6 @@ export function RepoTabBar() {
             </Tooltip>
           </div>
           <div data-tauri-drag-region className="h-full min-w-8 flex-1" />
-          {showCustomChromeControls ? <WindowChromeControls /> : null}
         </header>
         <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
           {draggingTab ? (

@@ -1,18 +1,12 @@
 import { useEffect, useState } from "react";
 
 import { getAppInfo } from "@/services/system/system.info";
-import {
-  detectAppOs,
-  needsCustomChromeControls,
-  type AppOs,
-} from "@/services/window/windowChrome";
+import { detectAppOs, type AppOs } from "@/services/window/windowChrome";
 
 export interface WindowChromeLayout {
   os: AppOs;
   /** mac Overlay：左侧为交通灯留白 */
   isMacOverlay: boolean;
-  /** 自绘三键：当前各平台均不需要（Win/Linux 系统装饰，mac 交通灯） */
-  showCustomChromeControls: boolean;
   headerPaddingClass: string;
 }
 
@@ -37,12 +31,10 @@ export function useWindowChromeLayout(): WindowChromeLayout {
   }, []);
 
   const isMacOverlay = os === "macos";
-  const showCustomChromeControls = needsCustomChromeControls(os);
 
   return {
     os,
     isMacOverlay,
-    showCustomChromeControls,
     headerPaddingClass: isMacOverlay ? "pl-[88px]" : "pl-3",
   };
 }
