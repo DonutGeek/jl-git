@@ -49,6 +49,7 @@ export interface AppDataImportResult {
 
 const EXACT_LOCAL_STORAGE_KEYS = [
   "jlgit-theme",
+  "jlgit-app-theme-boot",
   "jlgit-locale",
   "jlgit-app-prefs",
   "jlgit-open-tabs",

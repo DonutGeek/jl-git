@@ -7,6 +7,9 @@
   "diskTotal": "Total: {{size}}",
   "diskUsedPercent": "{{percent}}% used",
   "diskUnknown": "Disk unknown",
+  "diskCurrent": "Current",
+  "diskVolumeCount": "{{count}} volumes",
+  "diskMultiHint": "The status bar shows free space on the volume of the current repository",
   "gitIdentity": "{{name}}",
   "gitIdentityEmpty": "Git user not configured",
   "opLog": "Operation log",
@@ -37,6 +40,6 @@
   "updateInstallFailedServer": "Update server is temporarily unavailable. Try again later",
   "updateInstallFailedDetail": "Update install failed: {{detail}}",
   "updateDevHint": "In-app updates require a packaged build, not the dev server",
-  "multiAgent": "Jingling",
+  "multiAgent": "JingLing",
   "settings": "Settings"
 }

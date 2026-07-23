@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -440,11 +441,10 @@ export function CommitBox() {
     <div className="flex h-full min-h-0 flex-col gap-2 p-3">
       <div className="flex shrink-0 items-center justify-between gap-2">
         <label className="text-foreground flex cursor-pointer items-center gap-2 text-xs select-none">
-          <input
-            type="checkbox"
-            className="border-input text-primary focus-visible:ring-ring size-3.5 shrink-0 rounded-sm border accent-primary"
+          <Checkbox
+            className="size-3.5"
             checked={pushAfterCommit}
-            onChange={(event) => setPushAfterCommit(event.target.checked)}
+            onCheckedChange={(checked) => setPushAfterCommit(checked === true)}
             disabled={working}
           />
           <span>{t("repo.pushToRemote")}</span>

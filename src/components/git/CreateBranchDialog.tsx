@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
@@ -197,10 +198,11 @@ export function CreateBranchDialog({
 
           {lockedStart ? (
             <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={checkoutAfterCreate}
-                onChange={(event) => setCheckoutAfterCreate(event.target.checked)}
+                onCheckedChange={(checked) =>
+                  setCheckoutAfterCreate(checked === true)
+                }
                 disabled={submitting}
               />
               <span>{t("repo.createBranchCheckoutAfter")}</span>

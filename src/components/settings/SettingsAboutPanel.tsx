@@ -150,7 +150,7 @@ export function SettingsAboutPanel() {
           draggable={false}
         />
         <h2 className="text-foreground mt-4 text-lg font-semibold tracking-tight">
-          {appInfo?.name ?? "鲸灵Git"}
+          {t("common.productName")}
         </h2>
         <p className="text-muted-foreground mt-1 font-mono text-xs tabular-nums">
           v{appInfo?.version ?? "—"}

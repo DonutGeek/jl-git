@@ -137,5 +137,12 @@ settings theme.mode
 | 昼夜 | 仍跟 `html.dark`；切换主题包会重置自定义色 |
 | 偏好 | `appThemeId` + `themeChromeLight` / `themeChromeDark` |
 | 代码 | 模块化目录 `src/design/themes/`（见 [应用主题模块](../superpowers/specs/2026-07-22-app-themes-modular-design.md)） |
+| 首屏 | `applyAppThemeToDocument` 写入 `localStorage` 键 `jlgit-app-theme-boot`；`index.html` 内联脚本在 paint 前同步 `data-app-theme` / Token 快照，避免冷启动闪「原色」 |
+| 启动壳 | `#app-loading` 仅同色底 + 小转圈（无文案）；`background`/`color`/`--primary` 跟 boot Token，无快照时按 `.dark` 回退 |
+| `colorScheme` | 与 `.dark` 同步设置 `html.style.colorScheme`，使原生控件（滚动条等）跟昼夜 |
 
 新增主题：新建 `packs/<name>.ts` → 挂到 `packs/index.ts` → 扩 `AppThemeId` → i18n。**禁止**把色板堆进 `apply-*` 或设置组件。色板来源见 `src/design/themes/packs/SOURCES.md`。
+
+### 控件与主题
+
+业务层选择器优先 `SelectMenu` / `GitRefPicker`（outline + `border-input` + focus `ring`，选中项 `bg-accent`）。勾选框用 shadcn `Checkbox`，筛选框用 `Input`；**禁止**再落原生 `<select>` / `<input type="checkbox">` 作为产品控件。

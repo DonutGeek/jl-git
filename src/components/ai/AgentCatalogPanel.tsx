@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { AgentPluginList } from "@/components/ai/AgentPluginList";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { AgentPluginDefinition } from "@/plugins/agent/registry";
 import { cn } from "@/lib/utils";
 
@@ -101,9 +102,7 @@ export function AgentCatalogPanel({
         className={cn(
           "min-h-0 flex-1",
           variant === "gallery" ? "mt-3" : "mt-2",
-          showCenteredEmpty
-            ? "flex min-h-56 items-center justify-center"
-            : "overflow-y-auto",
+          showCenteredEmpty && "flex min-h-56 items-center justify-center",
         )}
       >
         {tab === "plugins" ? (
@@ -116,13 +115,15 @@ export function AgentCatalogPanel({
               description={t("agent.catalogPluginsEmptyDescription")}
             />
           ) : (
-            <AgentPluginList
-              variant={variant}
-              plugins={plugins}
-              onSelect={onSelectPlugin}
-              onTry={onTryPlugin}
-              onUninstall={onUninstallPlugin}
-            />
+            <ScrollArea className="h-full">
+              <AgentPluginList
+                variant={variant}
+                plugins={plugins}
+                onSelect={onSelectPlugin}
+                onTry={onTryPlugin}
+                onUninstall={onUninstallPlugin}
+              />
+            </ScrollArea>
           )
         ) : skillsEmpty ? (
           <EmptyState
@@ -133,13 +134,15 @@ export function AgentCatalogPanel({
             description={t("agent.catalogSkillsEmptyDescription")}
           />
         ) : (
-          <AgentPluginList
-            variant={variant}
-            plugins={skills}
-            onSelect={onSelectPlugin}
-            onTry={onTryPlugin}
-            onUninstall={onUninstallPlugin}
-          />
+          <ScrollArea className="h-full">
+            <AgentPluginList
+              variant={variant}
+              plugins={skills}
+              onSelect={onSelectPlugin}
+              onTry={onTryPlugin}
+              onUninstall={onUninstallPlugin}
+            />
+          </ScrollArea>
         )}
       </div>
     </div>

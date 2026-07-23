@@ -191,6 +191,31 @@ pub fn disk_space(path: Option<&str>) -> Result<SystemDiskSpace, AppError> {
     disk_space_for_path(&target)
 }
 
+/// 枚举本机可见卷（Win 盘符 / Unix 真实挂载），供状态栏 hover 多盘展示
+pub fn list_disk_volumes() -> Result<Vec<SystemDiskSpace>, AppError> {
+    #[cfg(target_os = "windows")]
+    {
+        return crate::system_windows::list_disk_volumes();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let output = Command::new("df")
+            .args(["-kP"])
+            .output()
+            .map_err(|error| {
+                AppError::new("INTERNAL", "无法读取磁盘空间").with_details(error.to_string())
+            })?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(AppError::new("INTERNAL", "读取磁盘空间失败").with_details(stderr));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        Ok(parse_df_kp_all(&stdout))
+    }
+}
+
 #[cfg(not(target_os = "windows"))]
 fn disk_space_for_path(path: &Path) -> Result<SystemDiskSpace, AppError> {
     let path_str = path.to_string_lossy();
@@ -215,7 +240,7 @@ fn disk_space_for_path(path: &Path) -> Result<SystemDiskSpace, AppError> {
     crate::system_windows::disk_space_for_path(path)
 }
 
-/// 解析 `df -kP`：第二行起为数据；字段为 1024-blocks / Available / Mounted on
+/// 解析单路径 `df -kP`：取第一条数据行（不做伪卷过滤）
 #[cfg(not(target_os = "windows"))]
 fn parse_df_kp(stdout: &str) -> Result<SystemDiskSpace, AppError> {
     let line = stdout
@@ -224,25 +249,164 @@ fn parse_df_kp(stdout: &str) -> Result<SystemDiskSpace, AppError> {
         .find(|line| !line.trim().is_empty())
         .ok_or_else(|| AppError::new("INTERNAL", "磁盘空间输出为空"))?;
 
+    parse_df_data_line(line).ok_or_else(|| AppError::new("INTERNAL", "无法解析磁盘空间"))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn parse_df_data_line(line: &str) -> Option<SystemDiskSpace> {
     let parts: Vec<&str> = line.split_whitespace().collect();
     // Filesystem 1024-blocks Used Available Capacity Mounted on
     if parts.len() < 6 {
-        return Err(AppError::new("INTERNAL", "无法解析磁盘空间"));
+        return None;
     }
-
-    let total_kb: u64 = parts[1]
-        .parse()
-        .map_err(|_| AppError::new("INTERNAL", "无法解析磁盘总大小"))?;
-    let available_kb: u64 = parts[3]
-        .parse()
-        .map_err(|_| AppError::new("INTERNAL", "无法解析可用空间"))?;
+    let total_kb: u64 = parts[1].parse().ok()?;
+    let available_kb: u64 = parts[3].parse().ok()?;
     let mount = parts[5..].join(" ");
-
-    Ok(SystemDiskSpace {
+    Some(SystemDiskSpace {
         path: mount,
         total_bytes: total_kb.saturating_mul(1024),
         available_bytes: available_kb.saturating_mul(1024),
     })
+}
+
+/// 解析全部 `df -kP` 行，过滤伪文件系统与空卷
+#[cfg(not(target_os = "windows"))]
+fn parse_df_kp_all(stdout: &str) -> Vec<SystemDiskSpace> {
+    let mut volumes = Vec::new();
+    for line in stdout.lines().skip(1) {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 6 {
+            continue;
+        }
+        let fs = parts[0];
+        let mount = parts[5..].join(" ");
+        if is_pseudo_volume(fs, &mount) {
+            continue;
+        }
+        let Some(space) = parse_df_data_line(line) else {
+            continue;
+        };
+        // 忽略极小卷（典型伪挂载）
+        if space.total_bytes < 1024 * 1024 {
+            continue;
+        }
+        volumes.push(space);
+    }
+    refine_unix_volumes(volumes)
+}
+
+/// macOS APFS 会把同一容器拆成 / 与 Data 等多挂载；/Volumes 下小镜像也不当独立「盘」
+#[cfg(not(target_os = "windows"))]
+fn refine_unix_volumes(volumes: Vec<SystemDiskSpace>) -> Vec<SystemDiskSpace> {
+    let has_data = volumes
+        .iter()
+        .any(|volume| volume.path == "/System/Volumes/Data");
+
+    let mut filtered: Vec<SystemDiskSpace> = volumes
+        .into_iter()
+        .filter(|volume| {
+            let path = volume.path.as_str();
+            // 有 Data 时去掉根分区（同源容量，用户看到会像「多盘符」）
+            if has_data && path == "/" {
+                return false;
+            }
+            // 其余 System Volumes 对用户无意义
+            if path.starts_with("/System/Volumes/") && path != "/System/Volumes/Data" {
+                return false;
+            }
+            // /Volumes/* 小于 1GB 多为 dmg / 安装镜像，不算外置盘
+            if path.starts_with("/Volumes/") && volume.total_bytes < 1_073_741_824 {
+                return false;
+            }
+            true
+        })
+        .collect();
+
+    // 相同总容量+可用 → 视为同一物理盘，只留优先路径
+    filtered.sort_by(|left, right| {
+        volume_path_rank(&left.path)
+            .cmp(&volume_path_rank(&right.path))
+            .then_with(|| left.path.cmp(&right.path))
+    });
+    let mut deduped: Vec<SystemDiskSpace> = Vec::new();
+    for volume in filtered {
+        let duplicate = deduped.iter().any(|existing| {
+            existing.total_bytes == volume.total_bytes
+                && existing.available_bytes == volume.available_bytes
+        });
+        if !duplicate {
+            deduped.push(volume);
+        }
+    }
+    deduped
+}
+
+#[cfg(not(target_os = "windows"))]
+fn volume_path_rank(path: &str) -> u8 {
+    if path == "/System/Volumes/Data" {
+        return 0;
+    }
+    if path == "/" {
+        return 1;
+    }
+    if path.starts_with("/Volumes/") {
+        return 2;
+    }
+    3
+}
+
+#[cfg(not(target_os = "windows"))]
+fn is_pseudo_volume(filesystem: &str, mount: &str) -> bool {
+    let fs = filesystem.to_ascii_lowercase();
+    if matches!(
+        fs.as_str(),
+        "tmpfs"
+            | "devtmpfs"
+            | "devfs"
+            | "proc"
+            | "sysfs"
+            | "cgroup"
+            | "cgroup2"
+            | "squashfs"
+            | "overlay"
+            | "efivarfs"
+            | "tracefs"
+            | "debugfs"
+            | "securityfs"
+            | "pstore"
+            | "bpf"
+            | "mqueue"
+            | "hugetlbfs"
+            | "configfs"
+            | "fusectl"
+            | "rpc_pipefs"
+            | "autofs"
+            | "none"
+    ) || fs.starts_with("map")
+        || fs.contains("tmpfs")
+    {
+        return true;
+    }
+    matches!(
+        mount,
+        "/dev"
+            | "/dev/shm"
+            | "/run"
+            | "/sys"
+            | "/proc"
+            | "/boot/efi"
+            | "/System/Volumes/VM"
+            | "/System/Volumes/Preboot"
+            | "/System/Volumes/Update"
+            | "/private/var/vm"
+    ) || mount.starts_with("/System/Volumes/xarts")
+        || mount.starts_with("/System/Volumes/iSCPreboot")
+        || mount.starts_with("/System/Volumes/Hardware")
+        || mount.starts_with("/System/Volumes/Update")
 }
 
 #[cfg(test)]
@@ -258,6 +422,23 @@ mod tests {
         assert_eq!(result.path, "/System/Volumes/Data");
         assert_eq!(result.total_bytes, 239482880 * 1024);
         assert_eq!(result.available_bytes, 10400000 * 1024);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn parses_df_all_filters_pseudo() {
+        let sample = "Filesystem 1024-blocks Used Available Capacity Mounted on\n\
+/dev/disk3s1s1 239482880 220000000 10400000 96% /\n\
+/dev/disk3s5 239482880 220000000 10400000 96% /System/Volumes/Data\n\
+tmpfs 102400 0 102400 0% /dev/shm\n\
+/dev/disk3s1 239482880 220000000 10400000 96% /System/Volumes/VM\n\
+/dev/disk4s1 48000 24000 24000 50% /Volumes/鲸灵Git\n\
+/dev/sdb1 104857600 52428800 52428800 50% /mnt/data\n";
+        let volumes = parse_df_kp_all(sample);
+        // Data 保留；/ 与 Data 同源去掉；小 dmg 去掉；Linux 外置盘保留
+        assert_eq!(volumes.len(), 2);
+        assert_eq!(volumes[0].path, "/System/Volumes/Data");
+        assert_eq!(volumes[1].path, "/mnt/data");
     }
 
     #[test]

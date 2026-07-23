@@ -4,6 +4,7 @@ import { FolderGit2, Search } from "lucide-react";
 
 import { RemoteRepositoryLabel } from "@/components/project/RemoteRepositoryLabel";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -125,7 +126,19 @@ export function RecentProjectList({
           <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">{t("dashboard.recentTitle")}</h2><Badge variant="secondary" className="px-1.5 py-0 text-[10px] tabular-nums">{t("dashboard.recentCount", { count: rows.length })}</Badge></div>
           <p className="text-muted-foreground mt-0.5 text-xs">{t("dashboard.recentDescription")}</p>
         </div>
-        <label className="relative block w-52"><Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" aria-hidden="true" /><input value={filter} onChange={(event) => setFilter(event.target.value)} className="border-input bg-background focus-visible:ring-ring h-8 w-full rounded-md border pr-3 pl-8 text-xs outline-none focus-visible:ring-2" placeholder={t("repo.filter")} aria-label={t("repo.filter")} /></label>
+        <label className="relative block w-52">
+          <Search
+            className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
+            aria-hidden="true"
+          />
+          <Input
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            className="h-8 bg-background pr-3 pl-8 text-xs"
+            placeholder={t("repo.filter")}
+            aria-label={t("repo.filter")}
+          />
+        </label>
       </div>
 
       <div className="min-h-0 flex-1">

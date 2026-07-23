@@ -6,7 +6,10 @@ use std::sync::Mutex;
 use std::time::Instant;
 
 use windows_sys::Win32::Foundation::{CloseHandle, FILETIME, HANDLE, INVALID_HANDLE_VALUE};
-use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+use windows_sys::Win32::Storage::FileSystem::{
+    GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDriveStringsW, DRIVE_FIXED, DRIVE_RAMDISK,
+    DRIVE_REMOTE, DRIVE_REMOVABLE,
+};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Thread32First, Thread32Next, TH32CS_SNAPTHREAD, THREADENTRY32,
 };
@@ -139,7 +142,50 @@ fn count_threads(pid: u32) -> Option<u32> {
 /// 路径所在卷的磁盘空间（GetDiskFreeSpaceExW）
 pub fn disk_space_for_path(path: &Path) -> Result<SystemDiskSpace, AppError> {
     let root = volume_root(path);
-    let wide = to_wide_null(&root);
+    disk_space_for_root(&root)
+}
+
+/// 枚举固定盘 / 可移动 / 网络 / RAM 盘（跳过光驱与未就绪卷）
+pub fn list_disk_volumes() -> Result<Vec<SystemDiskSpace>, AppError> {
+    let mut buffer = vec![0u16; 512];
+    let written = unsafe { GetLogicalDriveStringsW(buffer.len() as u32, buffer.as_mut_ptr()) };
+    if written == 0 || written as usize >= buffer.len() {
+        return Err(AppError::new("INTERNAL", "无法枚举磁盘卷"));
+    }
+
+    let mut volumes = Vec::new();
+    let mut start = 0usize;
+    let end = written as usize;
+    while start < end {
+        if buffer[start] == 0 {
+            break;
+        }
+        let mut next = start;
+        while next < end && buffer[next] != 0 {
+            next += 1;
+        }
+        let drive = String::from_utf16_lossy(&buffer[start..next]);
+        start = next + 1;
+
+        let wide = to_wide_null(&drive);
+        let drive_type = unsafe { GetDriveTypeW(wide.as_ptr()) };
+        if !matches!(
+            drive_type,
+            DRIVE_FIXED | DRIVE_REMOVABLE | DRIVE_REMOTE | DRIVE_RAMDISK
+        ) {
+            continue;
+        }
+        if let Ok(space) = disk_space_for_root(&drive) {
+            if space.total_bytes > 0 {
+                volumes.push(space);
+            }
+        }
+    }
+    Ok(volumes)
+}
+
+fn disk_space_for_root(root: &str) -> Result<SystemDiskSpace, AppError> {
+    let wide = to_wide_null(root);
     let mut free_available: u64 = 0;
     let mut total: u64 = 0;
     let mut total_free: u64 = 0;
@@ -155,7 +201,7 @@ pub fn disk_space_for_path(path: &Path) -> Result<SystemDiskSpace, AppError> {
         return Err(AppError::new("INTERNAL", "无法读取磁盘空间"));
     }
     Ok(SystemDiskSpace {
-        path: root,
+        path: root.to_string(),
         total_bytes: total,
         available_bytes: free_available,
     })

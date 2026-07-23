@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 export interface GitRefPickerOption {
@@ -53,7 +54,9 @@ export function GitRefPicker({
           variant="outline"
           disabled={disabled}
           className={cn(
-            "h-9 w-full justify-between px-3 font-normal shadow-sm",
+            "border-input bg-background hover:bg-accent hover:text-accent-foreground",
+            "focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full justify-between gap-1.5 px-3 font-normal shadow-xs",
+            "focus-visible:ring-[3px]",
             className,
           )}
         >
@@ -65,32 +68,42 @@ export function GitRefPicker({
           >
             {display || t("common.pleaseSelect")}
           </span>
-          <ChevronDown className="size-4 shrink-0 opacity-50" aria-hidden="true" />
+          <ChevronDown
+            className="text-muted-foreground size-4 shrink-0"
+            aria-hidden="true"
+          />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
-        className="max-h-64 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
+        className="max-h-64 w-[var(--radix-dropdown-menu-trigger-width)] overflow-hidden p-0"
       >
-        {options.map((option) => {
-          const isSelected = option.value === value;
-          return (
-            <DropdownMenuItem
-              key={option.key}
-              className="font-mono"
-              onSelect={() => onValueChange(option.value)}
-            >
-              <Check
-                className={cn(
-                  "size-3.5 shrink-0",
-                  isSelected ? "opacity-100" : "opacity-0",
-                )}
-                aria-hidden="true"
-              />
-              <span className="min-w-0 flex-1 truncate">{option.label}</span>
-            </DropdownMenuItem>
-          );
-        })}
+        <ScrollArea className="h-full max-h-64">
+          <div className="p-1">
+            {options.map((option) => {
+              const isSelected = option.value === value;
+              return (
+                <DropdownMenuItem
+                  key={option.key}
+                  className={cn(
+                    "gap-2 font-mono",
+                    isSelected && "bg-accent text-accent-foreground",
+                  )}
+                  onSelect={() => onValueChange(option.value)}
+                >
+                  <Check
+                    className={cn(
+                      "text-primary size-3.5 shrink-0",
+                      isSelected ? "opacity-100" : "opacity-0",
+                    )}
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                </DropdownMenuItem>
+              );
+            })}
+          </div>
+        </ScrollArea>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -5,9 +5,11 @@ export function applyThemeToDocument(mode: ThemeMode): void {
   const root = document.documentElement;
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const effective = mode === "system" ? (prefersDark ? "dark" : "light") : mode;
+  const dark = effective === "dark";
 
-  root.classList.toggle("dark", effective === "dark");
+  root.classList.toggle("dark", dark);
   root.dataset.theme = mode;
+  root.style.colorScheme = dark ? "dark" : "light";
 }
 
 export function resolveEffective(

@@ -94,7 +94,7 @@ function AdaptiveTriggerLabel({
 }
 
 /**
- * 项目统一下拉选择：轻边框触发器 + 勾选当前项（对齐顶栏分支选择器）
+ * 项目统一下拉选择：边框/焦点环走 input·ring token，勾选态用 primary（跟应用主题）
  */
 export function SelectMenu({
   value,
@@ -125,12 +125,14 @@ export function SelectMenu({
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           disabled={disabled}
           aria-label={ariaLabel}
           title={typeof displayLabel === "undefined" ? fullLabel : undefined}
           className={cn(
-            "border-border h-8 w-full justify-between gap-1.5 border px-2.5 text-sm font-normal shadow-none",
+            "border-input bg-background hover:bg-accent hover:text-accent-foreground",
+            "focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-full justify-between gap-1.5 px-2.5 text-sm font-normal shadow-xs",
+            "focus-visible:ring-[3px]",
             compact && "h-7 gap-1 px-2 text-xs",
             triggerClassName,
           )}
@@ -161,7 +163,11 @@ export function SelectMenu({
               return (
                 <DropdownMenuItem
                   key={option.value}
-                  className={cn("gap-2", compact ? "text-xs" : "text-sm")}
+                  className={cn(
+                    "gap-2",
+                    compact ? "text-xs" : "text-sm",
+                    selected && "bg-accent text-accent-foreground",
+                  )}
                   style={option.style}
                   onSelect={() => onChange(option.value)}
                 >

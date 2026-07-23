@@ -4,6 +4,7 @@
   "error": "Something went wrong",
   "cancel": "Cancel",
   "pleaseSelect": "Please select",
+  "productName": "JL Git",
   "aiApiKeyRequired": "Configure and enable an API Key in Settings first",
   "gitNotFound": "Git was not found. Install Git and make sure it is on your PATH"
 }

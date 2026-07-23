@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -192,11 +193,10 @@ export function MediaFilePreview({
           </span>
         ) : null}
         <label className="text-muted-foreground flex cursor-pointer items-center gap-1.5 text-[11px]">
-          <input
-            type="checkbox"
-            className="accent-primary size-3.5"
+          <Checkbox
+            className="size-3.5"
             checked={showBackground}
-            onChange={(event) => setShowBackground(event.target.checked)}
+            onCheckedChange={(checked) => setShowBackground(checked === true)}
           />
           {t("repo.mediaShowBackground")}
         </label>

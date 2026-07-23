@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 
 import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
+import { DiskSpaceTooltip } from "@/components/layout/DiskSpaceTooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -31,6 +32,7 @@ import { gitService } from "@/services/git";
 import {
   getAppInfo,
   getDiskSpace,
+  listDiskVolumes,
   type SystemAppInfo,
   type SystemDiskSpace,
 } from "@/services/system/system.info";
@@ -97,6 +99,7 @@ export function StatusBar() {
 
   const [appInfo, setAppInfo] = useState<SystemAppInfo | null>(null);
   const [disk, setDisk] = useState<SystemDiskSpace | null>(null);
+  const [diskVolumes, setDiskVolumes] = useState<SystemDiskSpace[]>([]);
   const [fallbackIdentity, setFallbackIdentity] = useState<GitIdentity | null>(null);
   const [updating, setUpdating] = useState(false);
   /** 与设置「关于」共享，关于页检查到更新后状态栏同步显示 */
@@ -149,29 +152,28 @@ export function StatusBar() {
       })
       .catch(() => {
         if (!cancelled) {
-          setAppInfo({ name: "鲸灵Git", version: "1.0.1", arch: "", os: "" });
+          setAppInfo({ name: t("common.productName"), version: "1.0.1", arch: "", os: "" });
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let cancelled = false;
 
-    void getDiskSpace(repoPath ?? undefined)
-      .then((space) => {
-        if (!cancelled) {
-          setDisk(space);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setDisk(null);
-        }
-      });
+    void Promise.all([
+      getDiskSpace(repoPath ?? undefined).catch(() => null),
+      listDiskVolumes().catch(() => [] as SystemDiskSpace[]),
+    ]).then(([space, volumes]) => {
+      if (cancelled) {
+        return;
+      }
+      setDisk(space);
+      setDiskVolumes(volumes);
+    });
 
     return () => {
       cancelled = true;
@@ -212,23 +214,13 @@ export function StatusBar() {
       : t("statusBar.gitIdentityEmpty");
 
   const versionLabel = useMemo(() => {
+    const name = t("common.productName");
     if (!appInfo) {
-      return "鲸灵Git";
+      return name;
     }
     const arch = appInfo.arch ? ` ${appInfo.arch}` : "";
-    return `${appInfo.name} ${appInfo.version}${arch}`;
-  }, [appInfo]);
-
-  const diskUsedRatio = useMemo(() => {
-    if (!disk || disk.totalBytes <= 0) {
-      return 0;
-    }
-    const used = Math.max(0, disk.totalBytes - disk.availableBytes);
-    return Math.min(1, used / disk.totalBytes);
-  }, [disk]);
-
-  const diskUsedPercent = Math.round(diskUsedRatio * 100);
-  const diskNearFull = diskUsedRatio >= 0.9;
+    return `${name} ${appInfo.version}${arch}`;
+  }, [appInfo, t]);
 
   const diskLabel = disk
     ? t("statusBar.diskAvailable", { size: formatBytes(disk.availableBytes) })
@@ -379,42 +371,14 @@ export function StatusBar() {
               <span className="max-w-[5.5rem] truncate">{diskLabel}</span>
             </button>
           </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs">
-            {disk ? (
-              <div className="space-y-1.5 text-xs">
-                <p className="font-medium">{t("statusBar.diskSpace")}</p>
-                <p className="text-muted-foreground break-all">{disk.path}</p>
-                {/* 进度条仅在悬停弹出层展示；轨道用 background 透明度，适配 Tooltip 反色浅底 */}
-                <div
-                  className="bg-background/25 relative h-2 w-full overflow-hidden rounded-full"
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={diskUsedPercent}
-                  aria-label={t("statusBar.diskUsedPercent", { percent: diskUsedPercent })}
-                >
-                  <div
-                    className={cn(
-                      "absolute inset-y-0 left-0 rounded-full",
-                      diskNearFull ? "bg-destructive" : "bg-primary",
-                    )}
-                    style={{ width: `${diskUsedPercent}%` }}
-                  />
-                </div>
-                <p>
-                  {t("statusBar.diskUsedPercent", { percent: diskUsedPercent })}
-                  {" · "}
-                  {t("statusBar.diskAvailableFull", {
-                    size: formatBytes(disk.availableBytes),
-                  })}
-                </p>
-                <p>
-                  {t("statusBar.diskTotal", { size: formatBytes(disk.totalBytes) })}
-                </p>
-              </div>
-            ) : (
-              t("statusBar.diskUnknown")
+          <TooltipContent
+            side="top"
+            className={cn(
+              "p-3",
+              diskVolumes.length > 1 ? "max-w-sm" : "max-w-xs",
             )}
+          >
+            <DiskSpaceTooltip current={disk} volumes={diskVolumes} />
           </TooltipContent>
         </Tooltip>
 

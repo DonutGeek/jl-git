@@ -924,10 +924,10 @@ export function ProjectManager({
                     className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
                     aria-hidden="true"
                   />
-                  <input
+                  <Input
                     value={filter}
                     onChange={(event) => setFilter(event.target.value)}
-                    className="border-input bg-background focus-visible:ring-ring h-8 w-full rounded-md border pr-3 pl-8 text-xs outline-none focus-visible:ring-2"
+                    className="h-8 bg-background pr-3 pl-8 text-xs"
                     placeholder={t("repo.filter")}
                     aria-label={t("repo.filter")}
                     disabled={opening || dragging}

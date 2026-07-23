@@ -23,6 +23,12 @@ pub fn system_disk_space(path: Option<String>) -> Result<SystemDiskSpace, AppErr
     system::disk_space(path.as_deref())
 }
 
+/// 枚举本机可见磁盘卷（多盘符 / 多挂载）
+#[tauri::command]
+pub fn system_disk_volumes() -> Result<Vec<SystemDiskSpace>, AppError> {
+    system::list_disk_volumes()
+}
+
 /// 打开系统终端并定位到指定目录（通常为当前仓库根）
 #[tauri::command]
 pub fn system_open_terminal(

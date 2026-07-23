@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/store/useRepoStore";
@@ -219,10 +220,9 @@ export function CreateTagDialog({
             />
           </label>
           <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={push && Boolean(remote)}
-              onChange={(event) => setPush(event.target.checked)}
+              onCheckedChange={(checked) => setPush(checked === true)}
               disabled={busy || !remote}
             />
             <span>{t("repo.pushTag")}</span>

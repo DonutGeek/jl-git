@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { SelectMenu } from "@/components/common/SelectMenu";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +63,11 @@ export function MergeBranchDialog({
     target: target ?? "",
   });
 
+  const modeOptions = MERGE_MODE_OPTIONS.map((value) => ({
+    value,
+    label: t(`repo.mergeMode${value[0].toUpperCase()}${value.slice(1)}`),
+  }));
+
   return (
     <Dialog
       open={open}
@@ -76,35 +83,28 @@ export function MergeBranchDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <label className="text-foreground grid gap-1.5 text-sm">
-            <span>{t("repo.mergeMode")}</span>
-            <select
+          <div className="grid gap-1.5 text-sm">
+            <span className="text-foreground">{t("repo.mergeMode")}</span>
+            <SelectMenu
               value={mode}
+              options={modeOptions}
               disabled={busy}
-              onChange={(event) => setMode(event.target.value as GitMergeMode)}
-              className="border-input bg-background focus-visible:ring-ring h-9 rounded-md border px-3 text-sm outline-none focus-visible:ring-2"
-            >
-              {MERGE_MODE_OPTIONS.map((value) => (
-                <option key={value} value={value}>
-                  {t(`repo.mergeMode${value[0].toUpperCase()}${value.slice(1)}`)}
-                </option>
-              ))}
-            </select>
-          </label>
+              ariaLabel={t("repo.mergeMode")}
+              onChange={(next) => setMode(next as GitMergeMode)}
+            />
+          </div>
 
           <div className="space-y-1.5">
             <label className="text-foreground flex cursor-pointer items-center gap-2 text-sm select-none">
-              <input
-                type="checkbox"
-                className="border-input text-primary focus-visible:ring-ring size-3.5 shrink-0 rounded-sm border accent-primary"
+              <Checkbox
                 checked={autostash}
                 disabled={busy || squash}
-                onChange={(event) => setAutostash(event.target.checked)}
+                onCheckedChange={(checked) => setAutostash(checked === true)}
               />
               <span>{t("repo.mergeAutostash")}</span>
             </label>
             {squash ? (
-              <p className="text-muted-foreground pl-5.5 text-xs">
+              <p className="text-muted-foreground pl-6 text-xs">
                 {t("repo.mergeAutostashUnavailable")}
               </p>
             ) : null}

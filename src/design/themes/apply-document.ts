@@ -44,6 +44,49 @@ const APP_THEME_TOKEN_PROPS = [
   "--editor-theme-accent",
 ] as const;
 
+/** 首屏脚本读取，避免非默认主题冷启动闪「原色」 */
+export const APP_THEME_BOOT_STORAGE_KEY = "jlgit-app-theme-boot";
+
+interface AppThemeBootSnapshot {
+  dark: boolean;
+  themeId: string;
+  /** true：无 inline 覆写，沿用 tokens.css */
+  native: boolean;
+  vars: Record<string, string>;
+  sidebarTranslucent: boolean;
+  contrast: string;
+}
+
+function persistAppThemeBootSnapshot(
+  themeId: AppThemeId,
+  chrome: AppThemeChrome,
+  native: boolean,
+): void {
+  const root = document.documentElement;
+  const vars: Record<string, string> = {};
+  if (!native) {
+    for (const prop of APP_THEME_TOKEN_PROPS) {
+      const value = root.style.getPropertyValue(prop).trim();
+      if (value) {
+        vars[prop] = value;
+      }
+    }
+  }
+  const snapshot: AppThemeBootSnapshot = {
+    dark: isDocumentDark(),
+    themeId,
+    native,
+    vars,
+    sidebarTranslucent: chrome.translucentSidebar,
+    contrast: String(chrome.contrast),
+  };
+  try {
+    localStorage.setItem(APP_THEME_BOOT_STORAGE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
 export function clearAppThemeTokenOverrides(): void {
   const root = document.documentElement;
   for (const prop of APP_THEME_TOKEN_PROPS) {
@@ -69,10 +112,12 @@ export function applyAppThemeToDocument(
 
   clearAppThemeTokenOverrides();
 
-  if (
+  const useNative =
     usesNativeDesignTokens(themeId) &&
-    isAppThemeChromeAtPreset(themeId, chrome)
-  ) {
+    isAppThemeChromeAtPreset(themeId, chrome);
+
+  if (useNative) {
+    persistAppThemeBootSnapshot(themeId, chrome, true);
     return;
   }
 
@@ -118,6 +163,8 @@ export function applyAppThemeToDocument(
   root.style.setProperty("--sidebar-border", border);
   root.style.setProperty("--sidebar-ring", accent);
   root.style.setProperty("--editor-theme-accent", accent);
+
+  persistAppThemeBootSnapshot(themeId, chrome, false);
 }
 
 /** @deprecated */

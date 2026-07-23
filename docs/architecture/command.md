@@ -481,7 +481,7 @@ interface GitBranch {
 
 `git_push` 对齐 ugit：`push --progress` + `protocol.version=2`；有分支时使用 `origin main:main` 式 refspec；**不**清空 credential.helper。成功后前端刷新 status / branches / log。
 
-### `system_app_info` / `system_runtime_stats` / `system_disk_space` / `system_list_fonts`
+### `system_app_info` / `system_runtime_stats` / `system_disk_space` / `system_disk_volumes` / `system_list_fonts`
 
 | 命令 | 输入 | 输出 |
 |------|------|------|
@@ -489,12 +489,14 @@ interface GitBranch {
 | `system_runtime_stats` | — | `{ pid; rssBytes; cpuPercent; uptimeMs }` |
 | `system_list_fonts` | — | `string[]`（本机字体族，已排序去重） |
 | `system_disk_space` | `{ path?: string }` | `{ path; totalBytes; availableBytes }` |
+| `system_disk_volumes` | — | `{ path; totalBytes; availableBytes }[]` |
 | `system_open_terminal` | `{ path; preference?; customPath? }` | `{ ok: true }` |
 | `system_reveal_in_file_manager` | `{ path }` | `{ ok: true }` |
 | `system_open_in_editor` | `{ path; preference?; customPath? }` | `{ ok: true }` |
 
 `system_list_fonts` 经 `font-kit` 枚举系统字体族，供设置中客户端 / 编辑器字体下拉使用。
 `system_runtime_stats` 供设置「关于」挂载期间约 1s 轮询；`cpuPercent` 在 Windows 上可能为 `0`（UI 显示为不可用）。
+`system_disk_space` 查路径所在卷（状态栏摘要）；`system_disk_volumes` 枚举可见卷：Windows 为盘符；Unix 过滤伪挂载，macOS 合并 APFS `/` 与 Data、忽略 `/Volumes` 下小镜像。仅多卷时 hover 用列表，单卷仍为紧凑卡。状态栏摘要仍只显示当前仓库所在卷。
 
 `path` 须为已存在目录。终端 / 访达 / 编辑器均用参数数组调用系统命令，不拼 shell。  
 `preference`：编辑器为 `auto` / `cursor` / `vscode` / `custom`；终端按平台为 `auto` 与具体终端 id（如 `wt`、`terminal`、`gnome-terminal`）或 `custom`。`customPath` 仅在 `custom` 时使用。

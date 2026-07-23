@@ -11,6 +11,7 @@ import {
 } from "@/components/git/BranchManageTable";
 import { AppWindowHeader } from "@/components/layout/AppWindowHeader";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -362,11 +363,11 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
                     {t("repo.deleteBranchRemoteHint")}
                   </p>
                   <label className="text-foreground flex cursor-pointer items-center gap-2 text-sm select-none">
-                    <input
-                      type="checkbox"
-                      className="border-input text-primary focus-visible:ring-ring size-3.5 shrink-0 rounded-sm border accent-primary"
+                    <Checkbox
                       checked={deleteRemoteAlso}
-                      onChange={(event) => setDeleteRemoteAlso(event.target.checked)}
+                      onCheckedChange={(checked) =>
+                        setDeleteRemoteAlso(checked === true)
+                      }
                       disabled={deleteBusy}
                     />
                     <span>{t("repo.deleteBranchRemoteCheckbox")}</span>

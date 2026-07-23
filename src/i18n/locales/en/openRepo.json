@@ -5,7 +5,7 @@
   "pathPlaceholder": "Repository path",
   "pickButton": "Browse",
   "aliasLabel": "Repository alias",
-  "aliasPlaceholder": "e.g. JLGit",
+  "aliasPlaceholder": "e.g. JL Git",
   "detailLabel": "Project details",
   "detailPlaceholder": "Optional project summary. Type it, or use AI (bottom-right) from README / manifests",
   "descriptionGenerate": "Generate summary with AI",

@@ -129,6 +129,7 @@ pub fn run() {
             commands::system::system_runtime_stats,
             commands::system::system_list_fonts,
             commands::system::system_disk_space,
+            commands::system::system_disk_volumes,
             commands::system::system_open_terminal,
             commands::system::system_reveal_in_file_manager,
             commands::system::system_open_in_editor,

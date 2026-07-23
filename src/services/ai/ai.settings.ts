@@ -1,7 +1,9 @@
 import { LazyStore } from "@tauri-apps/plugin-store";
 
-import i18n from "@/i18n";
 import { getDefaultAiInstructions } from "@/prompts/aiInstructions";
+import { LEGACY_EN_COMMIT_INSTRUCTIONS } from "@/prompts/git/commitInstructions";
+import { LEGACY_EN_PULL_REQUEST_INSTRUCTIONS } from "@/prompts/git/pullRequestInstructions";
+import { LEGACY_EN_RESUME_INSTRUCTIONS } from "@/prompts/resume/instructions";
 import { isRecord } from "@/types/error";
 
 const STORE_FILE = "ai-secrets.json";
@@ -187,7 +189,7 @@ export function invalidateAiSettingsStore(): void {
   storePromise = null;
 }
 
-/** 读取 AI 文案约束；未配置时回退 JLGit 默认规则。 */
+/** 读取 AI 文案约束；未配置或仍为旧版英文默认稿时，回退固定中文默认。 */
 export async function getAiInstructions(): Promise<AiInstructions> {
   const store = await getStore();
   const commit = await store.get<string>(COMMIT_INSTRUCTIONS);
@@ -205,12 +207,32 @@ export async function getAiInstructions(): Promise<AiInstructions> {
       }
     }
   }
-  const defaults = getDefaultAiInstructions(i18n.language ?? "zh-CN");
+  const defaults = getDefaultAiInstructions();
   return {
-    commit: typeof commit === "string" ? commit : defaults.commit,
-    pullRequest: typeof pullRequest === "string" ? pullRequest : defaults.pullRequest,
-    resume: typeof resume === "string" ? resume : defaults.resume,
+    commit: resolveInstruction(commit, defaults.commit, LEGACY_EN_COMMIT_INSTRUCTIONS),
+    pullRequest: resolveInstruction(
+      pullRequest,
+      defaults.pullRequest,
+      LEGACY_EN_PULL_REQUEST_INSTRUCTIONS,
+    ),
+    resume: resolveInstruction(resume, defaults.resume, LEGACY_EN_RESUME_INSTRUCTIONS),
   };
+}
+
+/** 空值或旧 en 默认全文 → 中文内置默认；其它字符串视为用户自定义 */
+function resolveInstruction(
+  saved: string | undefined,
+  fallback: string,
+  legacyEnDefault: string,
+): string {
+  if (typeof saved !== "string") {
+    return fallback;
+  }
+  const trimmed = saved.trim();
+  if (!trimmed || trimmed === legacyEnDefault) {
+    return fallback;
+  }
+  return saved;
 }
 
 /** 保存指定场景的 AI 文案约束；空内容会清除对应配置。 */
