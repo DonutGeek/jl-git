@@ -213,17 +213,28 @@ fn read_commit_patch(
 
     let output = runner::run_git_allow_nonzero(repo_path, &args)?;
     let mut text = output.stdout;
-    let mut truncated = false;
-    if text.len() > limit {
-        text.truncate(limit);
-        truncated = true;
-    }
+    let truncated = truncate_text_to_limit(&mut text, limit);
     Ok(PatchOut { text, truncated })
 }
 
 struct PatchOut {
     text: String,
     truncated: bool,
+}
+
+/// 按 UTF-8 字符边界安全截断：直接 `String::truncate` 落在多字节字符中间会 panic（闪退）。
+/// 返回是否发生了截断。
+fn truncate_text_to_limit(text: &mut String, limit: usize) -> bool {
+    if text.len() <= limit {
+        return false;
+    }
+    // 向下取最近的字符边界，避免切断多字节字符
+    let mut end = limit;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    text.truncate(end);
+    true
 }
 
 fn read_patch(
@@ -241,11 +252,7 @@ fn read_patch(
     let output = runner::run_git_allow_nonzero(repo_path, &args)?;
     // diff 对「无差异」也可能非 0；有 stdout 则仍可用
     let mut text = output.stdout;
-    let mut truncated = false;
-    if text.len() > limit {
-        text.truncate(limit);
-        truncated = true;
-    }
+    let truncated = truncate_text_to_limit(&mut text, limit);
 
     // 未跟踪文件：普通 diff 为空，用 --no-index 生成（失败则保持空 patch）
     if !staged && text.is_empty() {
@@ -276,11 +283,7 @@ fn diff_untracked(repo_path: &Path, abs_file: &Path, limit: usize) -> Result<Pat
         })?;
 
     let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
-    let mut truncated = false;
-    if text.len() > limit {
-        text.truncate(limit);
-        truncated = true;
-    }
+    let truncated = truncate_text_to_limit(&mut text, limit);
     Ok(PatchOut { text, truncated })
 }
 
@@ -484,6 +487,28 @@ mod tests {
         let (text, truncated) = bytes_to_text(vec![b'a'; 10], 4, "utf-8");
         assert_eq!(text, "aaaa");
         assert!(truncated);
+    }
+
+    #[test]
+    fn truncate_respects_utf8_char_boundary() {
+        // limit 落在多字节字符中间时不得 panic，应向下退到字符边界
+        let mut text = String::from("а"); // 西里尔字母，占 2 字节
+        text.push_str("bc");
+        // 原文 "аbc" 共 4 字节；limit=1 落在多字节字符中间
+        let truncated = truncate_text_to_limit(&mut text, 1);
+        assert!(truncated);
+        assert_eq!(text, "");
+
+        // 中文场景：每个汉字 3 字节，limit=4 落在第二个汉字中间 → 退到 3
+        let mut zh = String::from("中文");
+        let truncated = truncate_text_to_limit(&mut zh, 4);
+        assert!(truncated);
+        assert_eq!(zh, "中");
+
+        // 未超限时不截断
+        let mut short = String::from("ok");
+        assert!(!truncate_text_to_limit(&mut short, 10));
+        assert_eq!(short, "ok");
     }
 
     #[test]
