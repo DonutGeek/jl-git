@@ -3,7 +3,7 @@
   "close": "关闭",
   "empty": "当前仓库暂无操作记录",
   "emptyTitle": "暂无操作记录",
-  "emptyDescription": "提交、切换分支、检查更新或推送后，命令明细会记录在这里。可随时从状态栏打开查看。",
+  "emptyDescription": "提交、切换分支、标签、检查更新或推送后，命令明细会记录在这里。可随时从状态栏打开查看。",
   "copy": "复制",
   "copied": "已复制日志",
   "copyFailed": "复制失败",
@@ -24,5 +24,10 @@
   "labelMerge": "合并",
   "labelStageAll": "全部暂存",
   "labelUnstageAll": "全部取消暂存",
+  "labelCreateTag": "创建标签",
+  "labelDeleteTag": "删除标签",
+  "labelPushTag": "推送标签",
+  "labelDeleteRemoteTag": "删除远端标签",
+  "labelFetchTag": "拉取标签",
   "labelUnknown": "操作"
 }

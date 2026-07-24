@@ -28,6 +28,10 @@ import { toUserMessage } from "@/types/error";
 import { GitCommitSummary, GitStatusEntry } from "@/types/git";
 import { isStagedChangeEntry } from "@/utils/gitConflict";
 import { hasConfiguredGitIdentity } from "@/utils/gitIdentity";
+import {
+  isPushRejectedError,
+  toastPushError,
+} from "@/utils/gitPushError";
 
 /** 提交信息历史展示最近几条标题；选择后填入完整提交文案。 */
 const COMMIT_MESSAGE_HISTORY_LIMIT = 5;
@@ -91,6 +95,8 @@ export function CommitBox() {
   const commit = useRepoStore((state) => state.commit);
   const undoCommit = useRepoStore((state) => state.undoCommit);
   const push = useRepoStore((state) => state.push);
+  const pull = useRepoStore((state) => state.pull);
+  const fetchRemote = useRepoStore((state) => state.fetch);
   const status = useRepoStore((state) => state.status);
   const identity = useRepoStore((state) => state.identity);
   const commits = useRepoStore((state) => state.commits);
@@ -307,7 +313,34 @@ export function CommitBox() {
             { id: toastId },
           );
         } catch (pushError) {
-          toast.error(toUserMessage(pushError), { id: toastId });
+          toastPushError(pushError, {
+            toastId,
+            onUpdate: () => {
+              void (async () => {
+                const pullToastId = toast.loading(t("repo.pullStart"));
+                try {
+                  const pullResult = await pull();
+                  const pullSeconds = (pullResult.elapsedMs / 1000).toFixed(3);
+                  if (pullResult.conflict) {
+                    toast.error(t("repo.pullConflict"), { id: pullToastId });
+                  } else {
+                    toast.success(
+                      t("repo.pullSuccess", {
+                        remote: pullResult.remote,
+                        seconds: pullSeconds,
+                      }),
+                      { id: pullToastId },
+                    );
+                  }
+                } catch (pullError) {
+                  toast.error(toUserMessage(pullError), { id: pullToastId });
+                }
+              })();
+            },
+          });
+          if (isPushRejectedError(pushError)) {
+            void fetchRemote().catch(() => undefined);
+          }
         }
       }
     } catch (error) {

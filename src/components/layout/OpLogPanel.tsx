@@ -50,6 +50,11 @@ function labelKey(label: OpLogLabel): string {
   if (label === "merge") return "opLog.labelMerge";
   if (label === "stageAll") return "opLog.labelStageAll";
   if (label === "unstageAll") return "opLog.labelUnstageAll";
+  if (label === "createTag") return "opLog.labelCreateTag";
+  if (label === "deleteTag") return "opLog.labelDeleteTag";
+  if (label === "pushTag") return "opLog.labelPushTag";
+  if (label === "deleteRemoteTag") return "opLog.labelDeleteRemoteTag";
+  if (label === "fetchTag") return "opLog.labelFetchTag";
   return "opLog.labelUnknown";
 }
 

@@ -65,6 +65,10 @@ import { copyToClipboard } from "@/utils/clipboard";
 import { deferUi } from "@/utils/deferUi";
 import { buildBranchTree } from "@/utils/branchTree";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
+import {
+  isPushRejectedError,
+  toastPushError,
+} from "@/utils/gitPushError";
 
 const BRANCH_ROW_HEIGHT_PX = 28;
 const BRANCH_VIRTUAL_OVERSCAN = 12;
@@ -83,6 +87,7 @@ export function BranchList() {
   const refreshBranches = useRepoStore((state) => state.refreshBranches);
   const pullRemote = useRepoStore((state) => state.pull);
   const pushRemote = useRepoStore((state) => state.push);
+  const fetchRemote = useRepoStore((state) => state.fetch);
   const deleteBranch = useRepoStore((state) => state.deleteBranch);
   const renameBranch = useRepoStore((state) => state.renameBranch);
   const mergeBranch = useRepoStore((state) => state.merge);
@@ -232,7 +237,13 @@ export function BranchList() {
         id: toastId,
       });
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toastPushError(error, {
+        toastId,
+        onUpdate: () => void handlePull(branch),
+      });
+      if (isPushRejectedError(error)) {
+        void fetchRemote().catch(() => undefined);
+      }
     }
   }
 
@@ -249,7 +260,13 @@ export function BranchList() {
         id: toastId,
       });
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toastPushError(error, {
+        toastId,
+        onUpdate: () => void handlePull(branch),
+      });
+      if (isPushRejectedError(error)) {
+        void fetchRemote().catch(() => undefined);
+      }
     }
   }
 

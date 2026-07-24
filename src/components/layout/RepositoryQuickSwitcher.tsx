@@ -136,10 +136,20 @@ export function RepositoryQuickSwitcher({
             placeholder={t("repo.searchRepositories")}
             aria-label={t("repo.searchRepositories")}
           />
-          <CommandList className="max-h-none overflow-y-visible">
+          {/* 关闭 CommandList 原生滚动；主滚动交给 ScrollArea（须给明确高度，仅 max-h 时 viewport 的 h-full 无法形成纵滚） */}
+          <CommandList className="max-h-none overflow-hidden p-0">
             <CommandEmpty>{t("repo.switchProjectNoMatch")}</CommandEmpty>
-            {/* 主滚动交给 shadcn ScrollArea；上方 CommandList 关闭原生滚动 */}
-            <ScrollArea className="max-h-80">
+            <ScrollArea
+              className={cn(
+                "h-80",
+                // Radix viewport 内层 display:table 会被长路径撑宽 → 横滚 + truncate 失效
+                "[&_[data-slot=scroll-area-viewport]]:overflow-x-hidden",
+                "[&_[data-slot=scroll-area-viewport]>div]:!block",
+                "[&_[data-slot=scroll-area-viewport]>div]:!min-w-0",
+                "[&_[data-slot=scroll-area-viewport]>div]:w-full",
+                "[&_[data-slot=scroll-area-scrollbar][data-orientation=horizontal]]:hidden",
+              )}
+            >
               <CommandGroup className="py-2">
                 {sortedProjects.map((project) => {
                   const workspaceName = project.workspaceId
@@ -150,13 +160,14 @@ export function RepositoryQuickSwitcher({
                     <CommandItem
                       key={project.id}
                       value={projectQuickSwitcherValue(project, workspaceName)}
+                      className="min-w-0 overflow-hidden"
                       aria-current={
                         project.id === currentProjectId ? "page" : undefined
                       }
                       onSelect={() => handleProject(project.id)}
                     >
                       <ProjectIcon name={project.icon} className="shrink-0" />
-                      <span className="max-w-[45%] shrink-0 truncate font-medium">
+                      <span className="min-w-0 max-w-[40%] shrink truncate font-medium">
                         {project.name}
                       </span>
                       {workspaceName ? (

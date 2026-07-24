@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   Field,
-  FieldContent,
   FieldDescription,
   FieldGroup,
   FieldLabel,
@@ -101,37 +100,37 @@ export function MergeBranchDialog({
             />
           </Field>
 
-          <Field orientation="horizontal" data-disabled={busy || squash || undefined}>
-            <Checkbox
-              id="merge-autostash"
-              checked={autostash}
-              disabled={busy || squash}
-              onCheckedChange={(checked) => setAutostash(checked === true)}
-            />
-            <FieldContent>
-              <FieldLabel htmlFor="merge-autostash">
+          {/* 勾选与 label 同行垂直居中；说明单独一行，避免 FieldContent 把对齐顶偏 */}
+          <div className="space-y-1.5">
+            <Field
+              orientation="horizontal"
+              className="w-auto items-center gap-2"
+              data-disabled={busy || squash || undefined}
+            >
+              <Checkbox
+                id="merge-autostash"
+                className="size-3.5"
+                checked={autostash}
+                disabled={busy || squash}
+                onCheckedChange={(checked) => setAutostash(checked === true)}
+              />
+              <FieldLabel htmlFor="merge-autostash" className="font-normal">
                 {t("repo.mergeAutostash")}
               </FieldLabel>
-              {squash ? (
-                <FieldDescription>
-                  {t("repo.mergeAutostashUnavailable")}
-                </FieldDescription>
-              ) : null}
-            </FieldContent>
-          </Field>
+            </Field>
+            {squash ? (
+              <FieldDescription className="pl-5">
+                {t("repo.mergeAutostashUnavailable")}
+              </FieldDescription>
+            ) : null}
+          </div>
         </FieldGroup>
 
-        <DialogFooter>
+        {/* 主按钮独占一行；关闭仍用右上角 X */}
+        <DialogFooter className="sm:flex-col sm:justify-stretch">
           <Button
             type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={() => onOpenChange(false)}
-          >
-            {t("common.cancel")}
-          </Button>
-          <Button
-            type="button"
+            className="w-full"
             disabled={!source || !target || busy}
             onClick={() => onConfirm({ mode, autostash: squash ? false : autostash })}
           >

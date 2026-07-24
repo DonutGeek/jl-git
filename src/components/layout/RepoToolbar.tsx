@@ -58,6 +58,10 @@ import { toUserMessage } from "@/types/error";
 import type { GitBranch } from "@/types/git";
 import { Project } from "@/types/project";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
+import {
+  isPushRejectedError,
+  toastPushError,
+} from "@/utils/gitPushError";
 
 /**
  * 工具栏默认比较：源=当前分支；目标优先 upstream，其次 origin/<name>，否则自身。
@@ -128,6 +132,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
   }, [status?.entries.length]);
 
   const ahead = status?.ahead ?? 0;
+  const behind = status?.behind ?? 0;
   const localBranches = useMemo(
     () => branches.filter((branch) => !branch.isRemote),
     [branches],
@@ -276,7 +281,14 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
         id: toastId,
       });
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toastPushError(error, {
+        toastId,
+        onUpdate: () => void handlePull(),
+      });
+      // 静默 fetch，刷新 behind 角标，便于用户直接点「更新」
+      if (isPushRejectedError(error)) {
+        void fetchRemote().catch(() => undefined);
+      }
     } finally {
       setPushing(false);
     }
@@ -300,7 +312,13 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
         id: toastId,
       });
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toastPushError(error, {
+        toastId,
+        onUpdate: () => void handlePull(),
+      });
+      if (isPushRejectedError(error)) {
+        void fetchRemote().catch(() => undefined);
+      }
     } finally {
       setPushing(false);
     }
@@ -589,7 +607,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-8"
+                className="relative h-8 gap-1.5"
                 disabled={syncBusy || needsPublish}
                 onClick={() => void handlePull()}
               >
@@ -599,11 +617,23 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
                   <ArrowDownToLine className="size-3.5" aria-hidden="true" />
                 )}
                 <span>{t("repo.pull")}</span>
+                {behind > 0 ? (
+                  <span
+                    className="bg-primary text-primary-foreground ml-0.5 inline-flex size-4 items-center justify-center rounded-full text-[10px] leading-none font-semibold"
+                    aria-label={t("repo.unpulledCount", { count: behind })}
+                  >
+                    {behind > 99 ? "99+" : behind}
+                  </span>
+                ) : null}
               </Button>
             </span>
           </TooltipTrigger>
           <TooltipContent>
-            {needsPublish ? t("repo.pullNeedsPublish") : t("repo.pullHint")}
+            {needsPublish
+              ? t("repo.pullNeedsPublish")
+              : behind > 0
+                ? t("repo.unpulledCount", { count: behind })
+                : t("repo.pullHint")}
           </TooltipContent>
         </Tooltip>
 
