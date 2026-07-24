@@ -40,6 +40,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
@@ -55,6 +56,7 @@ import { gitService } from "@/services/git";
 
 import { toUserMessage } from "@/types/error";
 import { GitStatusEntry } from "@/types/git";
+import { filterChangeEntries } from "@/utils/filterChangeEntries";
 import { formatFileSize } from "@/utils/formatFileSize";
 import { getPathBasename } from "@/utils/getPathBasename";
 import {
@@ -872,8 +874,11 @@ export function ChangesPanel() {
   );
   const [unstagedGroupOpen, setUnstagedGroupOpen] = useState(true);
   const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(() => new Set());
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [mutating, setMutating] = useState(false);
 
+  const activeSearchQuery = searchOpen ? searchQuery : "";
   const demotedSet = useMemo(
     () => new Set(demotedConflictPaths),
     [demotedConflictPaths],
@@ -881,20 +886,26 @@ export function ChangesPanel() {
   const unstagedEntries = useMemo(
     () =>
       sortChangeEntries(
-        entries.filter((entry) => isUnstagedEntry(entry, demotedSet)),
+        filterChangeEntries(
+          entries.filter((entry) => isUnstagedEntry(entry, demotedSet)),
+          activeSearchQuery,
+        ),
         sortMode,
         "worktree",
       ),
-    [demotedSet, entries, sortMode],
+    [activeSearchQuery, demotedSet, entries, sortMode],
   );
   const stagedEntries = useMemo(
     () =>
       sortChangeEntries(
-        entries.filter((entry) => isStagedEntry(entry, demotedSet)),
+        filterChangeEntries(
+          entries.filter((entry) => isStagedEntry(entry, demotedSet)),
+          activeSearchQuery,
+        ),
         sortMode,
         "index",
       ),
-    [demotedSet, entries, sortMode],
+    [activeSearchQuery, demotedSet, entries, sortMode],
   );
   const busy = loading || mutating;
   const treeFolderKeys = useMemo(
@@ -1012,8 +1023,13 @@ export function ChangesPanel() {
     return `${label} (${count})`;
   }
 
-  function handleSoon(action: string): void {
-    toast.message(t("repo.syncComingSoon", { action }));
+  function toggleSearch(): void {
+    if (searchOpen) {
+      setSearchOpen(false);
+      setSearchQuery("");
+      return;
+    }
+    setSearchOpen(true);
   }
 
   const groupLabel = t("repo.groupDefault");
@@ -1024,8 +1040,26 @@ export function ChangesPanel() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-border relative flex h-8 shrink-0 items-center border-b px-2">
+        {searchOpen ? (
+          <Input
+            autoFocus
+            type="search"
+            value={searchQuery}
+            placeholder={t("repo.changesSearch")}
+            aria-label={t("repo.changesSearch")}
+            className="mr-2 h-6 w-52 min-w-0 max-w-[calc(100%-4rem)] px-2 text-xs"
+            onChange={(event) => setSearchQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setSearchOpen(false);
+                setSearchQuery("");
+              }
+            }}
+          />
+        ) : null}
+
         {/* 左侧：排序 */}
-        {view === "list" ? (
+        {!searchOpen && view === "list" ? (
           <DropdownMenu>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
@@ -1064,53 +1098,55 @@ export function ChangesPanel() {
         ) : null}
 
         {/* 中间：列表 / 树形居中，略缩小 */}
-        <div
-          className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5"
-          role="group"
-          aria-label={t("repo.changesViewMode")}
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={cn(
-              "h-6 gap-1 px-2 text-xs transition-colors",
-              view === "list"
-                ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                : "text-muted-foreground",
-            )}
-            aria-pressed={view === "list"}
-            onClick={() => setView("list")}
+        {!searchOpen ? (
+          <div
+            className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5"
+            role="group"
+            aria-label={t("repo.changesViewMode")}
           >
-            <List className="size-3.5" aria-hidden="true" />
-            {t("repo.viewList")}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={cn(
-              "h-6 gap-1 px-2 text-xs transition-colors",
-              view === "tree"
-                ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                : "text-muted-foreground",
-            )}
-            aria-pressed={view === "tree"}
-            onClick={showTreeView}
-          >
-            <ListTree className="size-3.5" aria-hidden="true" />
-            {t("repo.viewTree")}
-          </Button>
-        </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-6 gap-1 px-2 text-xs transition-colors",
+                view === "list"
+                  ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                  : "text-muted-foreground",
+              )}
+              aria-pressed={view === "list"}
+              onClick={() => setView("list")}
+            >
+              <List className="size-3.5" aria-hidden="true" />
+              {t("repo.viewList")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-6 gap-1 px-2 text-xs transition-colors",
+                view === "tree"
+                  ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                  : "text-muted-foreground",
+              )}
+              aria-pressed={view === "tree"}
+              onClick={showTreeView}
+            >
+              <ListTree className="size-3.5" aria-hidden="true" />
+              {t("repo.viewTree")}
+            </Button>
+          </div>
+        ) : null}
 
         {/* 右侧：树形展开控制 / 搜索 / 更多 */}
         <div
           className={cn(
             "ml-auto flex shrink-0 items-center gap-0.5",
-            view === "tree" && "-translate-x-1",
+            !searchOpen && view === "tree" && "-translate-x-1",
           )}
         >
-          {view === "tree" ? (
+          {!searchOpen && view === "tree" ? (
             <>
               <Tooltip delayDuration={300}>
                 <TooltipTrigger asChild>
@@ -1146,23 +1182,25 @@ export function ChangesPanel() {
               </Tooltip>
             </>
           ) : null}
-          {view === "list" ? (
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground size-6"
-                  aria-label={t("repo.changesSearch")}
-                  onClick={() => handleSoon(t("repo.changesSearch"))}
-                >
-                  <Search className="size-3.5" aria-hidden="true" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t("repo.changesSearch")}</TooltipContent>
-            </Tooltip>
-          ) : null}
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "text-muted-foreground size-6",
+                  searchOpen && "bg-accent text-accent-foreground",
+                )}
+                aria-label={t("repo.changesSearch")}
+                aria-pressed={searchOpen}
+                onClick={toggleSearch}
+              >
+                <Search className="size-3.5" aria-hidden="true" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("repo.changesSearch")}</TooltipContent>
+          </Tooltip>
           <DropdownMenu>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
