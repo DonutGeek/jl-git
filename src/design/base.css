@@ -48,6 +48,15 @@
     box-shadow: none !important;
   }
 
+  /*
+   * Tooltip：官方默认 text-balance 会在换行后留下右侧大块空白
+   *（Radix primitives#2647）。用 pretty 保留较自然的断行，同时让气泡随内容收紧。
+   * 不改 components/ui（shadcn CLI 覆盖会带回 text-balance）。
+   */
+  [data-slot="tooltip-content"] {
+    text-wrap: pretty !important;
+  }
+
   code,
   kbd,
   pre,
