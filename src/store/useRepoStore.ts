@@ -570,6 +570,36 @@ function setError(set: (state: Partial<RepoStoreState>) => void, error: unknown)
   set({ error: toUserMessage(error), loading: false });
 }
 
+/**
+ * 乐观标记：把标签标记为「已存在于远端」，避免推送/带推送创建后短暂显示「未推送」。
+ * 远端未知（remoteTags 为 null）时不臆造列表，交由后续刷新（打开面板/手动刷新）决定。
+ */
+function markRemoteTagPresent(
+  set: (state: Partial<RepoStoreState>) => void,
+  get: () => RepoStore,
+  name: string,
+): void {
+  const remoteTags = get().remoteTags;
+  if (!remoteTags || remoteTags.some((tag) => tag.name === name)) {
+    return;
+  }
+  const target = get().tags.find((tag) => tag.name === name)?.target ?? "";
+  set({ remoteTags: [...remoteTags, { name, target }] });
+}
+
+/** 乐观移除：远端标签删除成功后同步移除远端缓存中的对应项 */
+function removeRemoteTagPresent(
+  set: (state: Partial<RepoStoreState>) => void,
+  get: () => RepoStore,
+  name: string,
+): void {
+  const remoteTags = get().remoteTags;
+  if (!remoteTags) {
+    return;
+  }
+  set({ remoteTags: remoteTags.filter((tag) => tag.name !== name) });
+}
+
 export const useRepoStore = create<RepoStore>((set, get) => ({
   ...initialState,
 
@@ -909,6 +939,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const repoPath = requireRepoPath(get().repoPath);
       const result = await gitService.createTag(repoPath, options);
       await Promise.all([get().refreshTags(), get().refreshLog(true)]);
+      // 推送成功后立即同步远端状态，避免新标签短暂显示「未推送」
+      if (result.pushed) {
+        markRemoteTagPresent(set, get, options.name);
+      }
       return result;
     } catch (error) {
       setError(set, error);
@@ -936,6 +970,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const repoPath = requireRepoPath(get().repoPath);
       const remote = await resolveDefaultRemote(repoPath);
       await gitService.pushTag(repoPath, name, remote);
+      markRemoteTagPresent(set, get, name);
     } catch (error) {
       setError(set, error);
       throw error;
@@ -947,6 +982,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const repoPath = requireRepoPath(get().repoPath);
       const remote = await resolveDefaultRemote(repoPath);
       await gitService.deleteRemoteTag(repoPath, name, remote);
+      removeRemoteTagPresent(set, get, name);
     } catch (error) {
       setError(set, error);
       throw error;
@@ -959,6 +995,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const remote = await resolveDefaultRemote(repoPath);
       // 先删远端再删本地：远端失败时本地标签仍保留，便于重试
       await gitService.deleteRemoteTag(repoPath, name, remote);
+      removeRemoteTagPresent(set, get, name);
       await get().deleteTag(name);
     } catch (error) {
       setError(set, error);
