@@ -137,8 +137,9 @@ export function RecentProjectList({
       </div>
 
       <div className="min-h-0 flex-1">
-        <ScrollArea className="h-full pb-4 [&_[data-slot=scroll-area-viewport]>div]:!block">
-          <ul className="space-y-1" role="listbox" aria-label={t("dashboard.recentTitle")}>
+        {/* -mr-6 让滚动条贴住面板右缘（抵消 section 的 px-6）；pr-3 使选中高亮与滚动条留出约 12px 间隔，风格对齐提交历史列表 */}
+        <ScrollArea className="-mr-6 h-full pb-4 [&_[data-slot=scroll-area-viewport]>div]:!block">
+          <ul className="space-y-1 pr-3" role="listbox" aria-label={t("dashboard.recentTitle")}>
             {filteredRows.map((project) => {
               const isSelected = selectedId === project.id;
               const remoteUrl = remoteUrls[project.id];
