@@ -39,6 +39,10 @@ interface ProjectStoreActions {
   addAndOpen: (
     input: Pick<AddProjectInput, "path" | "name" | "workspaceId" | "description" | "icon">,
   ) => Promise<Project>;
+  /** 仅新增仓库记录（不标记最近打开、不设为当前），用于「保存并继续」 */
+  addProject: (
+    input: Pick<AddProjectInput, "path" | "name" | "workspaceId" | "description" | "icon">,
+  ) => Promise<Project>;
   openExisting: (id: string) => Promise<Project>;
   removeProject: (id: string) => Promise<void>;
   updateAlias: (id: string, name: string) => Promise<Project>;
@@ -150,6 +154,24 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     } catch (error) {
       const message = toUserMessage(error);
       set({ error: message, loading: false });
+      throw error;
+    }
+  },
+
+  async addProject(input) {
+    set({ error: null });
+
+    try {
+      const project = await projectService.add(input);
+
+      set((state) => ({
+        projects: upsertProject(state.projects, project),
+      }));
+
+      return project;
+    } catch (error) {
+      const message = toUserMessage(error);
+      set({ error: message });
       throw error;
     }
   },

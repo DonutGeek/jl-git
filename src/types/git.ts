@@ -216,11 +216,24 @@ export interface GitTag {
   target: string;
   /** 注解标签为 tagger 时间；轻量标签为指向提交时间；无则空串 */
   authoredAt: string;
+  /** 注解标签的标签信息；轻量标签无 */
   message?: string;
+  /** 指向提交的标题，供无标签信息时兜底展示 */
+  subject?: string;
 }
 
 export interface GitTagsResult {
   tags: GitTag[];
+}
+
+/** 远端标签（来自 ls-remote），仅含名称与指向对象 id */
+export interface GitRemoteTag {
+  name: string;
+  target: string;
+}
+
+export interface GitRemoteTagsResult {
+  tags: GitRemoteTag[];
 }
 
 export interface GitCreateTagOptions {

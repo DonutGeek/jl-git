@@ -12,6 +12,7 @@ import {
   GitMergeOptions,
   GitMergeResult,
   GitPullResult,
+  GitRemoteTag,
   GitRepoState,
   GitStatusEntry,
   GitStatusResult,
@@ -215,6 +216,8 @@ export function restoreRepoSession(repoPath: string): boolean {
     identity: cached.identity,
     branches: cached.branches,
     tags: cached.tags,
+    remoteTags: null,
+    remoteTagsLoading: false,
     commits,
     hasMore: capped ? false : cached.hasMore,
     logRef: cached.logRef,
@@ -250,6 +253,8 @@ export function beginRepoSwitch(repoPath: string): void {
     identity: null,
     branches: [],
     tags: [],
+    remoteTags: null,
+    remoteTagsLoading: false,
     commits: [],
     hasMore: false,
     logRef: null,
@@ -337,6 +342,10 @@ interface RepoStoreState {
   identity: GitIdentity | null;
   branches: GitBranch[];
   tags: GitTag[];
+  /** 远端标签（ls-remote 结果）；null 表示未知/无远端/离线，用于避免误判未推送 */
+  remoteTags: GitRemoteTag[] | null;
+  /** 远端标签是否正在查询 */
+  remoteTagsLoading: boolean;
   commits: GitCommitSummary[];
   hasMore: boolean;
   /** 历史列表范围；空值表示当前默认历史。 */
@@ -383,6 +392,16 @@ interface RepoStoreActions {
   setLogOrder: (order: GitLogOrder) => Promise<void>;
   createTag: (options: GitCreateTagOptions) => Promise<GitTagCreateResult>;
   deleteTag: (name: string) => Promise<void>;
+  /** 查询远端标签（联网），刷新本地/远端分组数据 */
+  refreshRemoteTags: () => Promise<void>;
+  /** 推送单个标签到默认远端（origin 优先） */
+  pushTag: (name: string) => Promise<void>;
+  /** 拉取远端标签到本地 */
+  fetchRemoteTag: (name: string) => Promise<void>;
+  /** 从默认远端删除标签 */
+  deleteRemoteTag: (name: string) => Promise<void>;
+  /** 同时删除本地与远端标签 */
+  deleteTagBoth: (name: string) => Promise<void>;
   loadMoreLog: () => Promise<void>;
   selectCommit: (commitId: string | null) => Promise<void>;
   stage: (paths: string[]) => Promise<void>;
@@ -428,6 +447,8 @@ const initialState: RepoStoreState = {
   identity: null,
   branches: [],
   tags: [],
+  remoteTags: null,
+  remoteTagsLoading: false,
   commits: [],
   hasMore: false,
   logRef: null,
@@ -505,6 +526,25 @@ function requireRepoPath(repoPath: string | null): string {
   }
 
   return repoPath;
+}
+
+/** 解析默认远端名（origin 优先，否则第一个）；无远端返回 null */
+async function resolveDefaultRemoteOrNull(
+  repoPath: string,
+): Promise<string | null> {
+  const remotes = await gitService.listRemotes(repoPath);
+  const preferred =
+    remotes.find((remote) => remote.name === "origin") ?? remotes[0];
+  return preferred?.name ?? null;
+}
+
+/** 解析默认远端名（origin 优先，否则第一个）；无远端时抛校验错误 */
+async function resolveDefaultRemote(repoPath: string): Promise<string> {
+  const remote = await resolveDefaultRemoteOrNull(repoPath);
+  if (!remote) {
+    throwValidationError(i18n.t("repo.tagPushUnavailable"));
+  }
+  return remote;
 }
 
 /** 冲突或合并进行中时拒绝切换分支等写操作 */
@@ -885,6 +925,75 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       if (deletedSelectedRef) {
         await get().selectLogRef(historyLogRefFromStatus(get().status));
       }
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
+  },
+
+  async pushTag(name) {
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      const remote = await resolveDefaultRemote(repoPath);
+      await gitService.pushTag(repoPath, name, remote);
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
+  },
+
+  async deleteRemoteTag(name) {
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      const remote = await resolveDefaultRemote(repoPath);
+      await gitService.deleteRemoteTag(repoPath, name, remote);
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
+  },
+
+  async deleteTagBoth(name) {
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      const remote = await resolveDefaultRemote(repoPath);
+      // 先删远端再删本地：远端失败时本地标签仍保留，便于重试
+      await gitService.deleteRemoteTag(repoPath, name, remote);
+      await get().deleteTag(name);
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
+  },
+
+  async refreshRemoteTags() {
+    const repoPath = get().repoPath;
+    if (!repoPath) {
+      return;
+    }
+    set({ remoteTagsLoading: true });
+    try {
+      const remote = await resolveDefaultRemoteOrNull(repoPath);
+      if (!remote) {
+        // 无远端：置 null 表示「未知」，避免把本地标签误判为未推送
+        set({ remoteTags: null, remoteTagsLoading: false });
+        return;
+      }
+      const remoteTags = await gitService.listRemoteTags(repoPath, remote);
+      set({ remoteTags, remoteTagsLoading: false });
+    } catch (error) {
+      // 离线/无权限等失败不应影响本地标签展示，静默降级为「未知」
+      console.warn("加载远端标签失败", error);
+      set({ remoteTags: null, remoteTagsLoading: false });
+    }
+  },
+
+  async fetchRemoteTag(name) {
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      const remote = await resolveDefaultRemote(repoPath);
+      await gitService.fetchRemoteTag(repoPath, name, remote);
+      await get().refreshTags();
     } catch (error) {
       setError(set, error);
       throw error;

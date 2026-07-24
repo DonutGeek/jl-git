@@ -54,7 +54,15 @@ import {
   listTree,
 } from "./git.show";
 import { getStatus } from "./git.status";
-import { createTag, deleteTag, listTags } from "./git.tag";
+import {
+  createTag,
+  deleteRemoteTag,
+  deleteTag,
+  fetchRemoteTag,
+  listRemoteTags,
+  listTags,
+  pushTag,
+} from "./git.tag";
 
 export const gitService = {
   getBlame,
@@ -69,6 +77,7 @@ export const gitService = {
   deleteGitIdentityAccount,
   listBranches,
   listTags,
+  listRemoteTags,
   listDir,
   getFileSize,
   getLog,
@@ -101,6 +110,9 @@ export const gitService = {
   renameBranch,
   createTag,
   deleteTag,
+  pushTag,
+  deleteRemoteTag,
+  fetchRemoteTag,
   fetch,
   pull,
   push,

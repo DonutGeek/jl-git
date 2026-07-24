@@ -13,5 +13,7 @@
   "descriptionGenerateSuccess": "Project summary generated",
   "descriptionGenerateFailed": "Failed to generate project summary",
   "descriptionNeedPath": "Enter a repository path first",
-  "submitButton": "Open"
+  "submitButton": "Open",
+  "saveAndContinue": "Save & continue",
+  "saveAndContinueSuccess": "Saved repository “{{name}}”"
 }

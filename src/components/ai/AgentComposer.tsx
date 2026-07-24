@@ -512,7 +512,8 @@ export const AgentComposer = forwardRef<HTMLFormElement, AgentComposerProps>(
                   ariaLabel={t("agent.modelPickerAria")}
                   disabled={inputLocked || modelLoading}
                   size="sm"
-                  triggerClassName="h-6 w-auto min-w-0 max-w-[12.5rem] shrink"
+                  // 与「深度思考」按钮同为 h-6：触发器内置 data-[size=sm]:h-8 优先级更高，需用同一 data 变体覆盖
+                  triggerClassName="data-[size=sm]:h-6 w-auto min-w-0 max-w-[12.5rem] shrink"
                 />
               ) : null}
             </div>

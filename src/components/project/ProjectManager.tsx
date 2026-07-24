@@ -254,6 +254,7 @@ export function ProjectManager({
   const projects = useProjectStore((state) => state.projects);
   const workspaces = useProjectStore((state) => state.workspaces);
   const addAndOpen = useProjectStore((state) => state.addAndOpen);
+  const addProject = useProjectStore((state) => state.addProject);
   const createWorkspace = useProjectStore((state) => state.createWorkspace);
   const updateWorkspace = useProjectStore((state) => state.updateWorkspace);
   const removeWorkspace = useProjectStore((state) => state.removeWorkspace);
@@ -568,6 +569,32 @@ export function ProjectManager({
     }
   }
 
+  /** 仅保存仓库记录并清空表单，便于连续添加多个仓库（不跳转打开） */
+  async function saveAndContinue(): Promise<void> {
+    const repositoryPath = path.trim();
+    if (!repositoryPath || opening || descriptionGenerating) {
+      return;
+    }
+
+    setOpening(true);
+
+    try {
+      const project = await addProject({
+        path: repositoryPath,
+        name: alias.trim() || undefined,
+        workspaceId: workspaceId || undefined,
+        description: description.trim() || undefined,
+        icon: projectIcon,
+      });
+      resetOpenForm();
+      toast.success(t("openRepo.saveAndContinueSuccess", { name: project.name }));
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setOpening(false);
+    }
+  }
+
   function startCreateGroup(parentId: string | null): void {
     setGroupDialog({ mode: "create", parentId });
     setNewGroupName("");
@@ -853,13 +880,14 @@ export function ProjectManager({
         ))}
       </aside>
 
-      <section className="min-w-0 flex-1 px-6 pt-3 pb-6">
+      <section className="flex min-h-0 flex-1 flex-col px-6 pt-3 pb-6">
         {view === "recent" ? (
           <RecentProjectList onOpenProject={onOpenProject} />
         ) : null}
 
         {view === "open" ? (
-          <form className="max-w-2xl space-y-6" onSubmit={(event) => void submitOpen(event)}>
+          <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block">
+          <form className="max-w-2xl space-y-6 pb-2" onSubmit={(event) => void submitOpen(event)}>
             <FieldGroup className="gap-4">
               <Field>
                 <FieldLabel htmlFor="project-manager-path">
@@ -938,13 +966,24 @@ export function ProjectManager({
               />
             </FieldGroup>
 
-            <Button
-              type="submit"
-              disabled={!path.trim() || opening || descriptionGenerating}
-            >
-              {opening ? t("common.loading") : t("openRepo.submitButton")}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="submit"
+                disabled={!path.trim() || opening || descriptionGenerating}
+              >
+                {opening ? t("common.loading") : t("openRepo.submitButton")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!path.trim() || opening || descriptionGenerating}
+                onClick={() => void saveAndContinue()}
+              >
+                {t("openRepo.saveAndContinue")}
+              </Button>
+            </div>
           </form>
+          </ScrollArea>
         ) : null}
 
         {view === "groups" ? (

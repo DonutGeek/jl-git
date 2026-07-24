@@ -28,7 +28,7 @@ use crate::git::{
         GitLsTreeResult, GitShowResult,
     },
     status::{self, GitStatusResult},
-    tag::{self, GitTag},
+    tag::{self, GitRemoteTag, GitTag},
     version::{self, GitVersionResult},
 };
 
@@ -48,6 +48,12 @@ pub struct GitBranchesResult {
 #[serde(rename_all = "camelCase")]
 pub struct GitTagsResult {
     tags: Vec<GitTag>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitRemoteTagsResult {
+    tags: Vec<GitRemoteTag>,
 }
 
 #[derive(Serialize)]
@@ -229,6 +235,114 @@ pub async fn git_tag_delete(
     .await
     .map_err(|error| {
         AppError::new("INTERNAL", "删除标签任务失败").with_details(error.to_string())
+    })?
+}
+
+#[tauri::command]
+pub async fn git_tag_push(
+    app: AppHandle,
+    path: String,
+    name: String,
+    remote: String,
+) -> Result<OkResult, AppError> {
+    let name = name.trim().to_string();
+    let remote = remote.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::new("VALIDATION", "标签名称不能为空"));
+    }
+    if remote.is_empty() {
+        return Err(AppError::new("VALIDATION", "未配置可推送的远端"));
+    }
+    let repo_path = resolve_repo_path(&path)?;
+    let repo_key = path;
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "pushTag", || {
+            tag::push_tag(&repo_path, &remote, &name)?;
+            Ok(OkResult { ok: true })
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "推送标签任务失败").with_details(error.to_string())
+    })?
+}
+
+#[tauri::command]
+pub async fn git_tag_delete_remote(
+    app: AppHandle,
+    path: String,
+    name: String,
+    remote: String,
+) -> Result<OkResult, AppError> {
+    let name = name.trim().to_string();
+    let remote = remote.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::new("VALIDATION", "标签名称不能为空"));
+    }
+    if remote.is_empty() {
+        return Err(AppError::new("VALIDATION", "未配置可推送的远端"));
+    }
+    let repo_path = resolve_repo_path(&path)?;
+    let repo_key = path;
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "deleteRemoteTag", || {
+            tag::delete_remote_tag(&repo_path, &remote, &name)?;
+            Ok(OkResult { ok: true })
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "删除远端标签任务失败").with_details(error.to_string())
+    })?
+}
+
+#[tauri::command]
+pub async fn git_tags_remote(
+    path: String,
+    remote: String,
+) -> Result<GitRemoteTagsResult, AppError> {
+    let remote = remote.trim().to_string();
+    if remote.is_empty() {
+        return Err(AppError::new("VALIDATION", "未配置可查询的远端"));
+    }
+    let repo_path = resolve_repo_path(&path)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(GitRemoteTagsResult {
+            tags: tag::list_remote_tags(&repo_path, &remote)?,
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "查询远端标签任务失败").with_details(error.to_string())
+    })?
+}
+
+#[tauri::command]
+pub async fn git_tag_fetch(
+    app: AppHandle,
+    path: String,
+    name: String,
+    remote: String,
+) -> Result<OkResult, AppError> {
+    let name = name.trim().to_string();
+    let remote = remote.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::new("VALIDATION", "标签名称不能为空"));
+    }
+    if remote.is_empty() {
+        return Err(AppError::new("VALIDATION", "未配置可查询的远端"));
+    }
+    let repo_path = resolve_repo_path(&path)?;
+    let repo_key = path;
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "fetchTag", || {
+            tag::fetch_remote_tag(&repo_path, &remote, &name)?;
+            Ok(OkResult { ok: true })
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "拉取远端标签任务失败").with_details(error.to_string())
     })?
 }
 

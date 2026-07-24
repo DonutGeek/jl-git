@@ -195,7 +195,7 @@ interface BranchTreeProps {
 }
 
 /** 左侧虚线引导列：落在父级折叠箭头正下方 */
-function IndentGuides({ depth }: { depth: number }) {
+export function IndentGuides({ depth }: { depth: number }) {
   if (depth <= 0) {
     return null;
   }

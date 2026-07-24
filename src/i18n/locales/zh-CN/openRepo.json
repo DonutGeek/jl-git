@@ -13,5 +13,7 @@
   "descriptionGenerateSuccess": "已生成项目简介",
   "descriptionGenerateFailed": "生成项目简介失败",
   "descriptionNeedPath": "请先填写仓库路径",
-  "submitButton": "打开"
+  "submitButton": "打开",
+  "saveAndContinue": "保存并继续",
+  "saveAndContinueSuccess": "已保存仓库「{{name}}」"
 }

@@ -14,16 +14,31 @@ pub struct GitTag {
     pub target: String,
     /// 注解标签为 tagger 时间；轻量标签为指向提交时间；无则空串
     pub authored_at: String,
+    /// 注解标签的标签信息（annotation）；轻量标签为空
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// 指向提交的标题（commit subject），供无标签信息时兜底展示
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject: Option<String>,
+}
+
+/// 远端标签（来自 ls-remote），只含名称与指向对象 id
+#[derive(Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitRemoteTag {
+    pub name: String,
+    pub target: String,
 }
 
 pub fn list_tags(repo_path: &Path) -> Result<Vec<GitTag>, AppError> {
+    // objecttype 用于区分注解标签(tag)与轻量标签(commit)：
+    // - 注解标签：contents:subject 为标签信息，*contents:subject 为指向提交标题
+    // - 轻量标签：contents:subject 即指向提交标题，*contents:subject 为空
     let output = runner::run_git(
         repo_path,
         &[
             "for-each-ref",
-            "--format=%(refname:short)%00%(objectname)%00%(creatordate:iso-strict)%00%(contents:subject)",
+            "--format=%(refname:short)%00%(objectname)%00%(creatordate:iso-strict)%00%(objecttype)%00%(contents:subject)%00%(*contents:subject)",
             "refs/tags",
         ],
     )?;
@@ -96,6 +111,51 @@ pub fn push_tag(repo_path: &Path, remote: &str, name: &str) -> Result<(), AppErr
     Ok(())
 }
 
+/// 列出远端标签：git ls-remote --tags --refs <remote>
+/// `--refs` 过滤掉解引用的 `^{}` 行与伪引用，得到干净的 refs/tags/<name>
+pub fn list_remote_tags(repo_path: &Path, remote: &str) -> Result<Vec<GitRemoteTag>, AppError> {
+    validate_git_ref(remote)?;
+    let output = runner::run_git_timeout(
+        repo_path,
+        &["ls-remote", "--tags", "--refs", remote],
+        PUSH_TIMEOUT,
+    )?;
+    Ok(parse_remote_tags(&output.stdout))
+}
+
+/// 拉取指定远端标签到本地：git fetch <remote> tag <name>
+pub fn fetch_remote_tag(repo_path: &Path, remote: &str, name: &str) -> Result<(), AppError> {
+    validate_git_ref(remote)?;
+    validate_tag_name(repo_path, name)?;
+    runner::run_git_timeout(
+        repo_path,
+        &["fetch", "--progress", remote, "tag", name],
+        PUSH_TIMEOUT,
+    )?;
+    Ok(())
+}
+
+/// 删除远端标签：git push <remote> --delete refs/tags/<name>
+pub fn delete_remote_tag(repo_path: &Path, remote: &str, name: &str) -> Result<(), AppError> {
+    validate_git_ref(remote)?;
+    validate_tag_name(repo_path, name)?;
+    let refspec = format!("refs/tags/{name}");
+    runner::run_git_timeout(
+        repo_path,
+        &[
+            "-c",
+            "protocol.version=2",
+            "push",
+            "--progress",
+            remote,
+            "--delete",
+            &refspec,
+        ],
+        PUSH_TIMEOUT,
+    )?;
+    Ok(())
+}
+
 fn validate_tag_name(repo_path: &Path, name: &str) -> Result<(), AppError> {
     let trimmed = name.trim();
     validate_git_ref(trimmed)?;
@@ -122,17 +182,51 @@ fn parse_tags(stdout: &str) -> Vec<GitTag> {
                 return None;
             }
             let authored_at = fields.next().map(str::trim).unwrap_or("").to_string();
-            let message = fields
+            let object_type = fields.next().map(str::trim).unwrap_or("");
+            let contents_subject = fields
                 .next()
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
                 .map(str::to_string);
+            let deref_subject = fields
+                .next()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string);
+
+            // 注解标签：contents 为标签信息，解引用后才是提交标题；轻量标签：contents 即提交标题
+            let (message, subject) = if object_type == "tag" {
+                (contents_subject, deref_subject)
+            } else {
+                (None, contents_subject)
+            };
 
             Some(GitTag {
                 name: name.to_string(),
                 target: target.to_string(),
                 authored_at,
                 message,
+                subject,
+            })
+        })
+        .collect()
+}
+
+/// 解析 ls-remote 输出：每行形如 `<sha>\trefs/tags/<name>`
+fn parse_remote_tags(stdout: &str) -> Vec<GitRemoteTag> {
+    stdout
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split('\t');
+            let target = fields.next()?.trim();
+            let full_ref = fields.next()?.trim();
+            let name = full_ref.strip_prefix("refs/tags/")?.trim();
+            if name.is_empty() || target.is_empty() {
+                return None;
+            }
+            Some(GitRemoteTag {
+                name: name.to_string(),
+                target: target.to_string(),
             })
         })
         .collect()
@@ -140,19 +234,45 @@ fn parse_tags(stdout: &str) -> Vec<GitTag> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_tags;
+    use super::{parse_remote_tags, parse_tags, GitRemoteTag};
 
     #[test]
     fn parses_annotated_and_lightweight_tags() {
+        // 注解标签：objecttype=tag，contents 为标签信息，解引用后为提交标题
+        // 轻量标签：objecttype=commit，contents 即提交标题，解引用为空
         let tags = parse_tags(
-            "v1.0.0\0abc123\02026-07-01T10:00:00+08:00\0Release one\nv1.1.0\0def456\0\0\n",
+            "v1.0.0\0abc123\02026-07-01T10:00:00+08:00\0tag\0Release one\0Initial commit\nv1.1.0\0def456\0\0commit\0Fix bug\0\n",
         );
 
         assert_eq!(tags.len(), 2);
         assert_eq!(tags[0].name, "v1.0.0");
         assert_eq!(tags[0].authored_at, "2026-07-01T10:00:00+08:00");
         assert_eq!(tags[0].message.as_deref(), Some("Release one"));
+        assert_eq!(tags[0].subject.as_deref(), Some("Initial commit"));
         assert_eq!(tags[1].authored_at, "");
         assert_eq!(tags[1].message, None);
+        assert_eq!(tags[1].subject.as_deref(), Some("Fix bug"));
+    }
+
+    #[test]
+    fn parses_remote_tags_from_ls_remote() {
+        // --refs 已去除 ^{} 行，这里仅验证常规行解析
+        let tags = parse_remote_tags(
+            "abc123\trefs/tags/v1.0.0\ndef456\trefs/tags/v1.1.0\n\tbad-line\n",
+        );
+
+        assert_eq!(
+            tags,
+            vec![
+                GitRemoteTag {
+                    name: "v1.0.0".into(),
+                    target: "abc123".into(),
+                },
+                GitRemoteTag {
+                    name: "v1.1.0".into(),
+                    target: "def456".into(),
+                },
+            ]
+        );
     }
 }

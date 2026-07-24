@@ -16,6 +16,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
@@ -135,55 +136,53 @@ export function RepositoryQuickSwitcher({
             placeholder={t("repo.searchRepositories")}
             aria-label={t("repo.searchRepositories")}
           />
-          <CommandList>
+          <CommandList className="max-h-none overflow-y-visible">
             <CommandEmpty>{t("repo.switchProjectNoMatch")}</CommandEmpty>
-            <CommandGroup className="py-2">
-              {sortedProjects.map((project) => {
-                const workspaceName = project.workspaceId
-                  ? workspaceNames.get(project.workspaceId)
-                  : undefined;
+            {/* 主滚动交给 shadcn ScrollArea；上方 CommandList 关闭原生滚动 */}
+            <ScrollArea className="max-h-80">
+              <CommandGroup className="py-2">
+                {sortedProjects.map((project) => {
+                  const workspaceName = project.workspaceId
+                    ? workspaceNames.get(project.workspaceId)
+                    : undefined;
 
-                return (
-                  <CommandItem
-                    key={project.id}
-                    value={projectQuickSwitcherValue(project, workspaceName)}
-                    className="py-2"
-                    aria-current={
-                      project.id === currentProjectId ? "page" : undefined
-                    }
-                    onSelect={() => handleProject(project.id)}
-                  >
-                    <ProjectIcon name={project.icon} className="shrink-0" />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate font-medium">
-                          {project.name}
-                        </span>
-                        {workspaceName ? (
-                          <Badge
-                            variant="secondary"
-                            className="h-4 max-w-28 px-1.5 text-[10px]"
-                            title={workspaceName}
-                          >
-                            <span className="truncate">{workspaceName}</span>
-                          </Badge>
-                        ) : null}
+                  return (
+                    <CommandItem
+                      key={project.id}
+                      value={projectQuickSwitcherValue(project, workspaceName)}
+                      aria-current={
+                        project.id === currentProjectId ? "page" : undefined
+                      }
+                      onSelect={() => handleProject(project.id)}
+                    >
+                      <ProjectIcon name={project.icon} className="shrink-0" />
+                      <span className="max-w-[45%] shrink-0 truncate font-medium">
+                        {project.name}
                       </span>
+                      {workspaceName ? (
+                        <Badge
+                          variant="secondary"
+                          className="h-4 max-w-28 shrink-0 px-1.5 text-[10px]"
+                          title={workspaceName}
+                        >
+                          <span className="truncate">{workspaceName}</span>
+                        </Badge>
+                      ) : null}
                       <span
-                        className="text-muted-foreground block truncate text-xs"
+                        className="text-muted-foreground min-w-0 flex-1 truncate text-xs"
                         title={project.path}
                       >
                         {project.path}
                       </span>
-                    </span>
-                  </CommandItem>
-                );
-              })}
-              <CommandItem value={t("repo.newTab")} onSelect={handleNewTab}>
-                <Plus aria-hidden="true" />
-                <span>{t("repo.newTab")}</span>
-              </CommandItem>
-            </CommandGroup>
+                    </CommandItem>
+                  );
+                })}
+                <CommandItem value={t("repo.newTab")} onSelect={handleNewTab}>
+                  <Plus aria-hidden="true" />
+                  <span>{t("repo.newTab")}</span>
+                </CommandItem>
+              </CommandGroup>
+            </ScrollArea>
           </CommandList>
         </CommandDialog>
       ) : null}

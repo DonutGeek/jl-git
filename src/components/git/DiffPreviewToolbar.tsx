@@ -105,7 +105,7 @@ export function DiffPreviewToolbar({
           value: option.id,
           label: option.label,
         }))}
-        triggerClassName="border-border z-10 h-6 w-auto max-w-[9rem] shrink-0 rounded-md border px-1.5 text-[11px] font-normal tabular-nums shadow-none"
+        triggerClassName="border-border z-10 data-[size=sm]:h-6 w-auto max-w-[9rem] shrink-0 rounded-md border px-1.5 text-[11px] font-normal tabular-nums shadow-none"
         contentClassName="min-w-[10rem] font-mono"
       />
 

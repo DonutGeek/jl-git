@@ -1047,7 +1047,7 @@ export function ChangesPanel() {
             value={searchQuery}
             placeholder={t("repo.changesSearch")}
             aria-label={t("repo.changesSearch")}
-            className="mr-2 h-6 w-52 min-w-0 max-w-[calc(100%-4rem)] px-2 text-xs"
+            className="mr-2 h-6 min-w-0 flex-1 px-2 text-xs"
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape") {

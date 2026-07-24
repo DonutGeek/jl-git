@@ -32,13 +32,18 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 import { cn } from "@/lib/utils";
 
@@ -140,7 +145,7 @@ interface SortableRepoTabProps {
   onSelect: (tabId: string) => void; onClose: (event: MouseEvent | KeyboardEvent, tabId: string) => void;
   onCloseTab: (tabId: string) => void; onCloseOthers: (tabId: string) => void; onCloseLeft: (tabId: string) => void; onCloseRight: (tabId: string) => void;
   onRemove: (project: Project) => void; onSetAlias: (project: Project) => void; onCopyRemote: (project: Project) => void; onCopyPath: (project: Project) => void;
-  closeLabel: string; labels: Record<"close" | "remove" | "closeOthers" | "closeLeft" | "closeRight" | "setAlias" | "copyRemote" | "copyPath", string>;
+  closeLabel: string; labels: Record<"close" | "remove" | "closeMore" | "closeOthers" | "closeLeft" | "closeRight" | "setAlias" | "copy" | "copyRemote" | "copyPath", string>;
 }
 
 function SortableRepoTab(props: SortableRepoTabProps) {
@@ -148,10 +153,33 @@ function SortableRepoTab(props: SortableRepoTabProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tab.id });
   const project = tab.project;
   return <ContextMenu><ContextMenuTrigger asChild><div ref={setNodeRef} className={cn("flex h-7 items-center", isDragging && "opacity-40")} style={{ transform: CSS.Transform.toString(transform), transition }} {...attributes} {...listeners}><TabChrome tab={tab} isActive={isActive} onSelect={onSelect} onClose={onClose} closeLabel={closeLabel} /></div></ContextMenuTrigger>
-    <ContextMenuContent className="min-w-40"><ContextMenuItem onSelect={() => onCloseTab(tab.id)}>{labels.close}</ContextMenuItem>
-      {project ? <><ContextMenuItem onSelect={() => onRemove(project)}>{labels.remove}</ContextMenuItem><ContextMenuSeparator /></> : null}
-      <ContextMenuItem disabled={tabCount <= 1} onSelect={() => onCloseOthers(tab.id)}>{labels.closeOthers}</ContextMenuItem><ContextMenuItem disabled={tabIndex === 0} onSelect={() => onCloseLeft(tab.id)}>{labels.closeLeft}</ContextMenuItem><ContextMenuItem disabled={tabIndex >= tabCount - 1} onSelect={() => onCloseRight(tab.id)}>{labels.closeRight}</ContextMenuItem>
-      {project ? <><ContextMenuSeparator /><ContextMenuItem onSelect={() => onSetAlias(project)}>{labels.setAlias}</ContextMenuItem><ContextMenuItem onSelect={() => onCopyRemote(project)}>{labels.copyRemote}</ContextMenuItem><ContextMenuItem onSelect={() => onCopyPath(project)}>{labels.copyPath}</ContextMenuItem></> : null}
+    <ContextMenuContent className="min-w-40">
+      <ContextMenuItem onSelect={() => onCloseTab(tab.id)}>{labels.close}</ContextMenuItem>
+      {/* 批量关闭有共性，收进子菜单 */}
+      <ContextMenuSub>
+        <ContextMenuSubTrigger disabled={tabCount <= 1}>{labels.closeMore}</ContextMenuSubTrigger>
+        <ContextMenuSubContent className="min-w-40">
+          <ContextMenuItem disabled={tabCount <= 1} onSelect={() => onCloseOthers(tab.id)}>{labels.closeOthers}</ContextMenuItem>
+          <ContextMenuItem disabled={tabIndex === 0} onSelect={() => onCloseLeft(tab.id)}>{labels.closeLeft}</ContextMenuItem>
+          <ContextMenuItem disabled={tabIndex >= tabCount - 1} onSelect={() => onCloseRight(tab.id)}>{labels.closeRight}</ContextMenuItem>
+        </ContextMenuSubContent>
+      </ContextMenuSub>
+      {project ? (
+        <>
+          <ContextMenuSeparator />
+          {/* 复制类操作有共性，收进子菜单 */}
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>{labels.copy}</ContextMenuSubTrigger>
+            <ContextMenuSubContent className="min-w-40">
+              <ContextMenuItem onSelect={() => onCopyRemote(project)}>{labels.copyRemote}</ContextMenuItem>
+              <ContextMenuItem onSelect={() => onCopyPath(project)}>{labels.copyPath}</ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+          <ContextMenuItem onSelect={() => onSetAlias(project)}>{labels.setAlias}</ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem variant="destructive" onSelect={() => onRemove(project)}>{labels.remove}</ContextMenuItem>
+        </>
+      ) : null}
     </ContextMenuContent></ContextMenu>;
 }
 
@@ -182,15 +210,18 @@ export function RepoTabBar() {
   const [aliasBusy, setAliasBusy] = useState(false);
   /** 仅跟路由走，与 WorkspaceHost 显隐同一帧，避免标签/页面不同步 */
   const activeId = resolveActiveTabId(location.pathname, tabEntries);
+  const { viewport: tabScrollViewport, bindScrollArea } = useScrollAreaViewport();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const labels = useMemo(
     () => ({
       close: t("repo.tabClose"),
       remove: t("repo.tabRemove"),
+      closeMore: t("repo.tabCloseMore"),
       closeOthers: t("repo.tabCloseOthers"),
       closeLeft: t("repo.tabCloseLeft"),
       closeRight: t("repo.tabCloseRight"),
       setAlias: t("repo.tabSetAlias"),
+      copy: t("common.copy"),
       copyRemote: t("repo.tabCopyRemote"),
       copyPath: t("repo.tabCopyPath"),
     }),
@@ -235,6 +266,20 @@ export function RepoTabBar() {
     }
     setLastActiveTabId(activeId);
   }, [activeId, location.pathname, setLastActiveTabId, tabEntries]);
+
+  // 点击标签或从别处跳转时，把激活标签滚入可见区域（含冷启动恢复）
+  useEffect(() => {
+    if (!activeId || !tabScrollViewport) {
+      return;
+    }
+    const raf = window.requestAnimationFrame(() => {
+      const activeEl = tabScrollViewport.querySelector<HTMLElement>(
+        '[aria-current="page"]',
+      );
+      activeEl?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [activeId, tabScrollViewport, tabEntries]);
 
   const tabs = useMemo(() => {
     const byId = new Map(projects.map((project) => [project.id, project]));
@@ -383,7 +428,10 @@ export function RepoTabBar() {
         <header
           data-tauri-drag-region
           className={cn(
-            "border-border bg-muted/40 relative flex h-12 shrink-0 items-center border-b pr-0",
+            // 底边线用绝对定位伪元素绘制，不占布局高度：
+            // 保证内容盒高度=h-12(48px)，与滚动内容 h-12 完全一致，从根上消除 1px 纵向溢出
+            "bg-muted/40 relative flex h-12 shrink-0 items-center pr-0",
+            "after:bg-border after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:content-['']",
             headerPaddingClass,
             draggingId ? "z-[60]" : "z-40",
           )}
@@ -408,46 +456,50 @@ export function RepoTabBar() {
             <div className="bg-border h-3.5 w-px shrink-0 self-center" aria-hidden="true" />
           </div>
           <div
-            className="flex h-7 min-w-0 items-center gap-1 overflow-x-auto"
+            className="flex h-full min-w-0 items-center gap-1"
             style={noDragStyle}
           >
-            <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
-              <div className="flex h-7 items-center gap-1">
-                {tabs.map((tab, index) => (
-                  <SortableRepoTab
-                    key={tab.id}
-                    tab={tab}
-                    isActive={tab.id === activeId}
-                    tabIndex={index}
-                    tabCount={tabs.length}
-                    onSelect={handleSelect}
-                    onClose={handleClose}
-                    onCloseTab={closeOneTab}
-                    onCloseOthers={(id) => {
-                      closeOtherTabs(id);
-                      syncRouteAfterTabsChange(id);
-                    }}
-                    onCloseLeft={(id) => {
-                      closeTabsToLeft(id);
-                      syncRouteAfterTabsChange(id);
-                    }}
-                    onCloseRight={(id) => {
-                      closeTabsToRight(id);
-                      syncRouteAfterTabsChange(id);
-                    }}
-                    onRemove={(project) => void handleRemove(project)}
-                    onSetAlias={(project) => {
-                      setAliasTarget(project);
-                      setAliasValue(project.name);
-                    }}
-                    onCopyRemote={(project) => void handleCopyRemote(project)}
-                    onCopyPath={(project) => void handleCopyPath(project)}
-                    closeLabel={t("repo.closeTab", { name: tab.label })}
-                    labels={labels}
-                  />
-                ))}
-              </div>
-            </SortableContext>
+            {/* 主滚动用 shadcn ScrollArea：细滚动条、悬停/滚动时才显示，不再用裸 overflow-x-auto */}
+            {/* 内容 h-12 与视口高度一致（表头已去掉占位边框），纵向不溢出，无需隐藏纵向滚动条 */}
+            <ScrollArea ref={bindScrollArea} className="h-full min-w-0">
+              <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
+                <div className="flex h-12 w-max items-center gap-1">
+                  {tabs.map((tab, index) => (
+                    <SortableRepoTab
+                      key={tab.id}
+                      tab={tab}
+                      isActive={tab.id === activeId}
+                      tabIndex={index}
+                      tabCount={tabs.length}
+                      onSelect={handleSelect}
+                      onClose={handleClose}
+                      onCloseTab={closeOneTab}
+                      onCloseOthers={(id) => {
+                        closeOtherTabs(id);
+                        syncRouteAfterTabsChange(id);
+                      }}
+                      onCloseLeft={(id) => {
+                        closeTabsToLeft(id);
+                        syncRouteAfterTabsChange(id);
+                      }}
+                      onCloseRight={(id) => {
+                        closeTabsToRight(id);
+                        syncRouteAfterTabsChange(id);
+                      }}
+                      onRemove={(project) => void handleRemove(project)}
+                      onSetAlias={(project) => {
+                        setAliasTarget(project);
+                        setAliasValue(project.name);
+                      }}
+                      onCopyRemote={(project) => void handleCopyRemote(project)}
+                      onCopyPath={(project) => void handleCopyPath(project)}
+                      closeLabel={t("repo.closeTab", { name: tab.label })}
+                      labels={labels}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </ScrollArea>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <Button

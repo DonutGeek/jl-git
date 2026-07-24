@@ -25,6 +25,9 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 
@@ -119,20 +122,29 @@ export function ProjectContextMenu({
             {t("projectManager.projectSettings")}
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem
-            disabled={disabled}
-            onSelect={() => void handleCopyRemote()}
-          >
-            <Link aria-hidden="true" />
-            {t("projectManager.copyRemote")}
-          </ContextMenuItem>
-          <ContextMenuItem
-            disabled={disabled}
-            onSelect={() => void handleCopyPath()}
-          >
-            <Copy aria-hidden="true" />
-            {t("projectManager.copyLocalPath")}
-          </ContextMenuItem>
+          {/* 复制类操作有共性，收进子菜单 */}
+          <ContextMenuSub>
+            <ContextMenuSubTrigger disabled={disabled}>
+              <Copy aria-hidden="true" />
+              {t("common.copy")}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="min-w-44">
+              <ContextMenuItem
+                disabled={disabled}
+                onSelect={() => void handleCopyRemote()}
+              >
+                <Link aria-hidden="true" />
+                {t("projectManager.copyRemote")}
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={disabled}
+                onSelect={() => void handleCopyPath()}
+              >
+                <Copy aria-hidden="true" />
+                {t("projectManager.copyLocalPath")}
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
           <ContextMenuSeparator />
           <ContextMenuItem
             variant="destructive"
