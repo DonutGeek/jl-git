@@ -50,6 +50,7 @@ function UsageBar({
   return (
     <div
       className={cn(
+        // 提示气泡是反色面（bg-foreground/text-background），轨道用 background 透明度以保证各主题对比
         "bg-background/25 relative h-1.5 w-full overflow-hidden rounded-full",
         className,
       )}
@@ -61,7 +62,7 @@ function UsageBar({
       <div
         className={cn(
           "absolute inset-y-0 left-0 rounded-full",
-          nearFull ? "bg-destructive" : "bg-primary",
+          nearFull ? "bg-destructive" : "bg-background",
         )}
         style={{ width: `${percent}%` }}
       />
@@ -115,7 +116,7 @@ export function DiskSpaceTooltip({ current, volumes }: DiskSpaceTooltipProps) {
     return (
       <div className="space-y-1.5 text-xs">
         <p className="font-medium">{t("statusBar.diskSpace")}</p>
-        <p className="text-muted-foreground break-all">{space.path}</p>
+        <p className="text-background/70 break-all">{space.path}</p>
         <UsageBar ratio={ratio} nearFull={ratio >= 0.9} className="h-2" />
         <p>
           {t("statusBar.diskUsedPercent", { percent })}
@@ -149,13 +150,13 @@ export function DiskSpaceTooltip({ current, volumes }: DiskSpaceTooltipProps) {
             <div className="flex items-center gap-2">
               <p className="min-w-0 flex-1 truncate font-mono text-[11px]">{space.path}</p>
               {isCurrent ? (
-                <span className="text-primary shrink-0 text-[10px] font-medium">
+                <span className="text-background shrink-0 text-[10px] font-semibold">
                   {t("statusBar.diskCurrent")}
                 </span>
               ) : null}
             </div>
             <UsageBar ratio={ratio} nearFull={ratio >= 0.9} />
-            <p className="text-muted-foreground text-[10px] leading-snug">
+            <p className="text-background/70 text-[10px] leading-snug">
               {t("statusBar.diskUsedPercent", { percent })}
               {" · "}
               {t("statusBar.diskAvailable", {
@@ -174,7 +175,7 @@ export function DiskSpaceTooltip({ current, volumes }: DiskSpaceTooltipProps) {
     <div className="space-y-2 text-xs">
       <div className="flex items-baseline justify-between gap-3">
         <p className="font-medium">{t("statusBar.diskSpace")}</p>
-        <p className="text-muted-foreground shrink-0 text-[10px]">
+        <p className="text-background/70 shrink-0 text-[10px]">
           {t("statusBar.diskVolumeCount", { count: ordered.length })}
         </p>
       </div>
@@ -183,7 +184,7 @@ export function DiskSpaceTooltip({ current, volumes }: DiskSpaceTooltipProps) {
       ) : (
         list
       )}
-      <p className="text-muted-foreground text-[10px] leading-snug">
+      <p className="text-background/70 text-[10px] leading-snug">
         {t("statusBar.diskMultiHint")}
       </p>
     </div>

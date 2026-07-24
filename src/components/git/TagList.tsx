@@ -439,11 +439,6 @@ export function TagList({ onSelectTag }: TagListProps) {
                         label={`${t("repo.tagsRemote")} (${row.count})`}
                         open={remoteOpen}
                         onToggle={() => setRemoteOpen((prev) => !prev)}
-                        trailing={
-                          remoteTagsLoading ? (
-                            <Spinner className="text-muted-foreground mr-1 size-3.5" />
-                          ) : undefined
-                        }
                       />
                     )
                   ) : row.kind === "local" ? (
@@ -727,7 +722,11 @@ function TagRow({
           <Copy className="size-3.5" aria-hidden="true" />
           {t("repo.copyTagName")}
         </ContextMenuItem>
-        <ContextMenuItem disabled={busy} onSelect={onPushRemote}>
+        {/* 已在远端则无需再推送，按状态禁用 */}
+        <ContextMenuItem
+          disabled={busy || (remoteKnown && onRemote)}
+          onSelect={onPushRemote}
+        >
           <Upload className="size-3.5" aria-hidden="true" />
           {t("repo.pushTagToRemote")}
         </ContextMenuItem>
@@ -819,7 +818,7 @@ function RemoteTagRow({
           onSelect={onDeleteRemote}
         >
           <CloudOff className="size-3.5" aria-hidden="true" />
-          {t("repo.deleteTagRemote")}
+          {t("repo.deleteTagAction")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

@@ -105,6 +105,7 @@ export function CommitBox() {
 
   const [pushAfterCommit, setPushAfterCommit] = useState(defaultPushAfterCommit);
   const [busy, setBusy] = useState(false);
+  const [isCommitting, setIsCommitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const hasApiKey = useHasAgentApiKey();
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -276,6 +277,7 @@ export function CommitBox() {
     }
 
     setBusy(true);
+    setIsCommitting(true);
     try {
       await commit();
       toast.success(t("repo.commitSuccess"));
@@ -312,6 +314,7 @@ export function CommitBox() {
       toast.error(toUserMessage(error));
     } finally {
       setBusy(false);
+      setIsCommitting(false);
     }
   }
 
@@ -549,11 +552,14 @@ export function CommitBox() {
                 <Button
                   type="button"
                   size="sm"
-                  className="h-7 w-full min-w-0 px-2 text-xs"
+                  className="h-7 w-full min-w-0 gap-1 px-2 text-xs"
                   onClick={() => void handleCommit()}
                   disabled={!canCommit}
                 >
-                  {commitButtonLabel}
+                  {isCommitting ? <Spinner className="size-3.5" /> : null}
+                  <span className="truncate">
+                    {isCommitting ? t("repo.committing") : commitButtonLabel}
+                  </span>
                 </Button>
               </span>
             </TooltipTrigger>
