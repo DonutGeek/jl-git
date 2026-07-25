@@ -594,7 +594,7 @@ interface GitBranch {
 
 ## SSH 密钥
 
-前端经 `src/services/ssh/ssh.keys.ts`；登记元数据进 Tauri Store（`ssh-keys.json`），**不**存私钥内容与口令。
+前端经 `src/services/ssh/ssh.keys.ts`；登记元数据进 Tauri Store（`ssh-keys.json`），**不**存私钥内容与口令。主窗启动（`applyLocalMachineBootstrap`）与设置 → SSH 均会调用 `ssh_key_scan_local` 自动补登记尚未在列表中的本地密钥。
 
 ### `ssh_key_generate`
 
@@ -605,6 +605,16 @@ interface GitBranch {
 | **输出** | `{ name; publicKey; privateKeyPath; hasPassphrase }` |
 | **错误** | `VALIDATION` `IO` `INTERNAL` |
 | **约束** | 参数数组调用；口令仅作 `-N` 入参，不写日志 |
+
+### `ssh_key_scan_local`
+
+| | |
+|--|--|
+| **目的** | 扫描本机 SSH 目录中带旁路 `.pub` 的私钥（自动识别） |
+| **输入** | 无 |
+| **输出** | `{ sshDir; keys: [{ name; publicKey; privateKeyPath; hasPassphrase }] }` |
+| **错误** | `INTERNAL` `INVALID_PATH` `IO` |
+| **约束** | 目录经 Tauri `home_dir` 解析为 `~/.ssh`（Windows 为 `%USERPROFILE%\.ssh`）；跳过 `config` / `known_hosts` 等；只返回公钥与路径，不读出口令、不返回私钥内容；口令标记仅根据私钥文件头探测 |
 
 ### `ssh_key_read_public`
 

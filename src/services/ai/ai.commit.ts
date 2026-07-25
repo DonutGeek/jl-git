@@ -1,6 +1,7 @@
 import { buildCommitMessageSystemPrompt } from "@/prompts/git";
 import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
 import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
+import { readCommitModelId } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getStagedDiff } from "@/services/git/git.diff";
 
@@ -8,7 +9,6 @@ import i18n from "@/i18n";
 import type { AppError } from "@/types/error";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
-const DEEPSEEK_COMMIT_MODEL = "deepseek-chat";
 const AI_REQUEST_TIMEOUT_MS = 30_000;
 const AI_DIFF_MAX_BYTES = 65_536;
 const CONVENTIONAL_COMMIT_PATTERN =
@@ -44,8 +44,10 @@ export async function generateCommitMessage(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: DEEPSEEK_COMMIT_MODEL,
+        model: readCommitModelId(),
         temperature: 0.2,
+        // 提交文案固定非思考，与设置所选模型无关
+        thinking: { type: "disabled" },
         messages: [
           {
             role: "system",

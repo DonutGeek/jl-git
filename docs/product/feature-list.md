@@ -133,8 +133,8 @@
 | 设置抽屉 | Done | 分组：外观 / Git / SSH / 鲸灵 / 外部工具 / 数据 / 通用（多仓入口并入鲸灵） |
 | 数据（路径/清理/备份） | Done | 显示路径与访达打开；按模块清理；完整 zip 备份导入导出 |
 | 语言 | Done | 设置抽屉 + 状态栏中英文切换 |
-| Git 全局身份 | Done | 设置内读写 user.name / user.email |
-| SSH 密钥管理 | Done | 设置内生成（可选口令）/ 选择本地；列表展示路径与公钥；启用/禁用（至多一项启用）；可改私钥口令；仅「新增」删除时移除私钥与 .pub，导入仅取消登记；口令与私钥内容不进 Store |
+| Git 全局身份 | Done | 设置内管理账号；**主窗启动时**从本机 `git config --global` 播种并写回启用项；提交依赖实际 git 身份（非仅 SSH） |
+| SSH 密钥管理 | Done | 设置内生成（可选口令）/ 选择本地 / **扫描本机 `~/.ssh`（macOS·Windows·Linux）自动登记**；**主窗启动即同步**（不依赖打开设置）；列表展示路径与公钥；启用/禁用（至多一项启用）；可改私钥口令；仅「新增」删除时移除私钥与 .pub，导入仅取消登记；口令与私钥内容不进 Store |
 | 客户端/编辑器字体 | Done | 设置内选择，CSS 变量应用 |
 | 外部编辑器 / Shell | In Progress | 偏好已持久化；打开逻辑后续接路径 |
 | 开机自启 | Done | 默认关闭；用户手动开启后经 autostart 写入系统启动项，启动时按偏好同步 |
@@ -147,7 +147,7 @@
 | DeepSeek API Key | Done | 设置抽屉可创建、启用/禁用、编辑名称、删除；仅允许一个启用、删除二次确认，列表仅显示脱敏 Key，Tauri Store，不进 SQLite |
 | DeepSeek 余额 | Done | 设置 → 鲸灵：`GET /user/balance`；刷新 + 浏览器打开充值页 |
 | AI Git 指令 | Done | 可配置提交指令与拉取请求指令；提交指令已接入提交文案生成 |
-| AI Commit Message | Done | 根据限长、脱敏后的暂存区 Diff 生成 Conventional Commit 文案，用户确认后提交 |
+| AI Commit Message | Done | 根据限长、脱敏后的暂存区 Diff 生成 Conventional Commit 文案，用户确认后提交；设置 → 鲸灵可切换模型（官方 `GET /models`） |
 | 鲸灵对话入口 | Done | 左侧面板、虚拟消息列表、多对话标签、DeepSeek 流式回复；会话按项目隔离并写入 SQLite（含 reasoning）；删项目 CASCADE |
 | 鲸灵（单仓/多仓） | Done | 同一套 Agent；默认专注 Git/仓库；简历与技能创建使用互相隔离的独立 Prompt；简历需用户主动声明作者身份后才只读匹配提交；技能创建生成可落盘 Skill 包内容但不直接写盘；会话按宿主分桶 |
 | 鲸灵内容安全 | Done | 本地高置信度恶意请求门禁 + 全模式公共安全 Prompt；仓库内容按不可信数据处理；保留防御性安全与授权测试 |

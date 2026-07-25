@@ -48,6 +48,31 @@ export async function listGitIdentityAccounts(): Promise<GitIdentityAccount[]> {
   return seedFromGlobalIdentityIfPossible(store);
 }
 
+/**
+ * 启动时调用：播种账号（若需要），并把启用账号同步到 `git config --global`。
+ * 提交校验读的是本机 git 配置，不能只写应用内 Store。
+ */
+export async function ensureGitIdentityBootstrapped(): Promise<GitIdentityAccount[]> {
+  const accounts = await listGitIdentityAccounts();
+  const enabled = accounts.find((item) => item.enabled);
+  if (!enabled || !hasConfiguredGitIdentity(enabled)) {
+    return accounts;
+  }
+
+  try {
+    const global = await getGlobalIdentity();
+    const sameName = (global.name?.trim() ?? "") === enabled.name;
+    const sameEmail = (global.email?.trim() ?? "") === enabled.email;
+    if (!sameName || !sameEmail) {
+      await setGlobalIdentity({ name: enabled.name, email: enabled.email });
+    }
+  } catch (error) {
+    console.warn("[git.accounts] sync enabled account to global failed", error);
+  }
+
+  return accounts;
+}
+
 /** 创建并启用账号；同时写入 git config --global。 */
 export async function createGitIdentityAccount(
   name: string,

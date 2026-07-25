@@ -144,6 +144,7 @@ pub fn run() {
             commands::ssh_keys::ssh_key_generate,
             commands::ssh_keys::ssh_key_change_passphrase,
             commands::ssh_keys::ssh_key_delete,
+            commands::ssh_keys::ssh_key_scan_local,
             commands::ssh_keys::ssh_key_read_public
         ])
         .run(tauri::generate_context!())

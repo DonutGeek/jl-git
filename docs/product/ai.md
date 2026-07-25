@@ -13,7 +13,7 @@ AI 是 **辅助层**，不是 Git 的替代执行器。所有副作用（commit�
 1. **建议 ≠ 执行**：模型输出先展示，用户编辑后再提交
 2. **最小上下文**：只上传完成任务所需的 diff/摘要，可截断
 3. **可配置**：无 DeepSeek API Key 时，提示用户在设置中配置，不阻塞 Git 主路径
-4. **最小实现**：当前只接入 DeepSeek（提交等用 `deepseek-chat`；鲸灵经 `GET /models` 选模型），后续提供商扩展须经统一 `AiService`
+4. **最小实现**：当前只接入 DeepSeek（提交文案模型可在设置中经官方 `GET /models` 切换，默认 `deepseek-v4-flash` 且显式关闭 thinking；鲸灵经同一接口选模型），后续提供商扩展须经统一 `AiService`
 
 ---
 
@@ -92,8 +92,8 @@ flowchart LR
 
 - 提供商：DeepSeek
 - Endpoint：`https://api.deepseek.com/chat/completions`
-- 模型：提交文案为 `deepseek-chat`；**单仓/多仓鲸灵** 仅展示官方 `GET /models` 返回（无本地兜底列表；无 Key / 失败则为空）。有列表时优先恢复本地已选，否则优先 `deepseek-v4-pro`。共用 `AgentReasoningBlock`。输入框可切换模型；「深度思考」仅在当前模型支持 thinking 时显示。说明：早期公开信息常按 R1（推理）/ V3（通用）划分；**当前官方 V4 Pro/Flash 均为同模型双模式**（可用 thinking 开关，见 [Thinking Mode](https://api-docs.deepseek.com/zh-cn/guides/thinking_mode)）；不支持则隐藏且请求禁用 thinking。生成中仍可编辑输入框（发送键变为停止）。助手可「重新生成」；用户消息可内联「修改」后截断重发
-- 设置 → 鲸灵：API Key、余额、`GET /user/balance`、「去充值」（多仓鲸灵从状态栏入口打开；技能规则由各自内置 Prompt 固定，设置页不提供技能指令编辑）
+- 模型：提交文案默认 `deepseek-v4-flash`（`thinking: disabled`；可在设置 → 鲸灵切换，列表同官方 `GET /models`，偏好存 `localStorage` 键 `jlgit:commit-model`）。项目简介等其它短任务仍默认 `deepseek-v4-flash`。**单仓/多仓鲸灵** 仅展示官方 `GET /models` 返回（无本地兜底列表；无 Key / 失败则为空）。有列表时优先恢复本地已选，否则优先 `deepseek-v4-pro`。共用 `AgentReasoningBlock`。输入框可切换模型；「深度思考」仅在当前模型支持 thinking 时显示。说明：早期公开信息常按 R1（推理）/ V3（通用）划分；**当前官方 V4 Pro/Flash 均为同模型双模式**（可用 thinking 开关，见 [Thinking Mode](https://api-docs.deepseek.com/zh-cn/guides/thinking_mode)）；不支持则隐藏且请求禁用 thinking。`deepseek-chat` / `deepseek-reasoner` 已于 2026-07-24 退役，勿再硬编码。生成中仍可编辑输入框（发送键变为停止）。助手可「重新生成」；用户消息可内联「修改」后截断重发
+- 设置 → 鲸灵：API Key、余额、提交信息模型、`GET /user/balance`、「去充值」（多仓鲸灵从状态栏入口打开；技能规则由各自内置 Prompt 固定，设置页不提供技能指令编辑）
 - 附加指令：提交 / 拉取请求仍可读已存配置或 JLGit 默认；简历、技能创建不使用用户自定义指令
 - **默认指令正文固定中文**，不跟界面语言切换；设置页标签/提示仍走 i18n。若盘里仍是旧版英文默认全文，读时视为未自定义并回退中文默认；用户改过的内容保留
 

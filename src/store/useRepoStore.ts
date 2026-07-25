@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import i18n from "@/i18n";
 import { gitService } from "@/services/git";
+import { ensureGitIdentityBootstrapped } from "@/services/git/git.accounts";
 import { buildHistoryLogOptions } from "@/services/git/git.log";
 import { AppError, toUserMessage } from "@/types/error";
 import {
@@ -33,6 +34,21 @@ import {
   hasUnresolvedConflicts,
   isWriteOpBlocked,
 } from "@/utils/repoOperationGuard";
+
+/** 仓库身份为空时，再走一遍启动播种/写回全局，然后重读 */
+async function resolveRepoIdentity(repoPath: string): Promise<GitIdentity> {
+  let identity = await gitService.getIdentity(repoPath);
+  if (hasConfiguredGitIdentity(identity)) {
+    return identity;
+  }
+  try {
+    await ensureGitIdentityBootstrapped();
+    identity = await gitService.getIdentity(repoPath);
+  } catch (error) {
+    console.warn("[useRepoStore] reconcile git identity failed", error);
+  }
+  return identity;
+}
 
 const LOG_PAGE_SIZE = 50;
 /** 历史列表常驻提交硬顶：超出后停止加载更多，避免无限追加占内存 */
@@ -655,7 +671,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       return;
     }
     try {
-      const identity = await gitService.getIdentity(repoPath);
+      const identity = await resolveRepoIdentity(repoPath);
       if (get().repoPath !== repoPath) {
         return;
       }
@@ -719,7 +735,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       try {
         const [status, identity, branches, tags, log, repoState] = await Promise.all([
           gitService.getStatus(repoPath),
-          gitService.getIdentity(repoPath),
+          resolveRepoIdentity(repoPath),
           gitService.listBranches(repoPath, true),
           gitService.listTags(repoPath),
           gitService.getLog(
@@ -791,7 +807,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       const defaultLogRef = historyLogRefFromStatus(status);
       const [identity, branches, tags, log, repoState] = await Promise.all([
-        gitService.getIdentity(repoPath),
+        resolveRepoIdentity(repoPath),
         gitService.listBranches(repoPath, true),
         gitService.listTags(repoPath),
         gitService.getLog(

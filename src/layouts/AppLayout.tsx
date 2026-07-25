@@ -6,6 +6,7 @@ import { RepoTabBar } from "@/components/layout/RepoTabBar";
 import { StatusBar } from "@/components/layout/StatusBar";
 import { WorkspaceHost } from "@/components/layout/WorkspaceHost";
 import { SettingsDrawer } from "@/components/settings/SettingsDrawer";
+import { applyLocalMachineBootstrap } from "@/utils/localMachineBootstrap";
 import { applyStartupTabsBootstrap } from "@/utils/startupTabsBootstrap";
 
 /** 标签栏 + 工作区保活宿主常驻，子路由只负责改 URL */
@@ -15,6 +16,11 @@ export function AppLayout() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      // 尽早识别本机 Git 身份 / SSH，不依赖打开设置
+      await applyLocalMachineBootstrap();
+      if (cancelled) {
+        return;
+      }
       await applyStartupTabsBootstrap(navigate);
       if (cancelled) {
         return;

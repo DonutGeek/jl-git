@@ -31,6 +31,7 @@ import { toast } from "sonner";
 
 import { SettingsAboutPanel } from "@/components/settings/SettingsAboutPanel";
 import { SettingsAiBalance } from "@/components/settings/SettingsAiBalance";
+import { SettingsCommitModel } from "@/components/settings/SettingsCommitModel";
 import { SettingsDataPanel } from "@/components/settings/SettingsDataPanel";
 import { SettingsFieldHeading } from "@/components/settings/SettingsFieldHeading";
 import { SettingsColorSwatch } from "@/components/settings/SettingsColorSwatch";
@@ -1694,6 +1695,13 @@ export function SettingsDrawer() {
               </div>
             </div>
             <SettingsAiBalance
+              hasEnabledKey={apiKeys.some((key) => key.enabled)}
+              refreshToken={`${apiKeys
+                .filter((key) => key.enabled)
+                .map((key) => key.id)
+                .join(",")}|${activeCategory}`}
+            />
+            <SettingsCommitModel
               hasEnabledKey={apiKeys.some((key) => key.enabled)}
               refreshToken={`${apiKeys
                 .filter((key) => key.enabled)

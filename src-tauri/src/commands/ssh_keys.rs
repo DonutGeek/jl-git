@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 use tauri::Manager;
@@ -61,6 +62,15 @@ pub struct SshKeyChangePassphraseResult {
 #[serde(rename_all = "camelCase")]
 pub struct SshKeyDeleteResult {
     pub ok: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshKeyScanResult {
+    /// 本机 SSH 目录绝对路径（macOS/Linux: `~/.ssh`；Windows: `%USERPROFILE%\.ssh`）
+    pub ssh_dir: String,
+    /// 已找到的「私钥 + 同名 .pub」密钥（不含私钥内容）
+    pub keys: Vec<SshKeyMaterial>,
 }
 
 /// 生成 ed25519 密钥对到 `~/.ssh`，仅返回公钥与私钥路径（口令不回传、不落盘）。
@@ -199,6 +209,92 @@ pub fn ssh_key_delete(
     Ok(SshKeyDeleteResult { ok: true })
 }
 
+/// 扫描本机 `~/.ssh`（三端：经 Tauri `home_dir` 解析），识别带旁路 `.pub` 的私钥。
+/// 仅返回公钥与路径元数据，不读出口令、不返回私钥内容。
+#[tauri::command]
+pub fn ssh_key_scan_local(app: AppHandle) -> Result<SshKeyScanResult, AppError> {
+    let ssh_dir = resolve_ssh_dir(&app)?;
+    let ssh_dir_display = ssh_dir.to_string_lossy().to_string();
+
+    if !ssh_dir.exists() {
+        return Ok(SshKeyScanResult {
+            ssh_dir: ssh_dir_display,
+            keys: Vec::new(),
+        });
+    }
+    if !ssh_dir.is_dir() {
+        return Err(AppError::new("INVALID_PATH", ".ssh 路径不是目录"));
+    }
+
+    let ssh_canon = ssh_dir.canonicalize().map_err(|error| {
+        AppError::new("INVALID_PATH", "无法解析 .ssh 目录").with_details(error.to_string())
+    })?;
+
+    let entries = fs::read_dir(&ssh_canon).map_err(|error| {
+        AppError::new("IO", "无法读取 .ssh 目录").with_details(error.to_string())
+    })?;
+
+    let mut keys: Vec<SshKeyMaterial> = Vec::new();
+    for entry in entries {
+        let entry = match entry {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let public_path = entry.path();
+        if !public_path.is_file() {
+            continue;
+        }
+        let file_name = match public_path.file_name().and_then(|name| name.to_str()) {
+            Some(name) => name,
+            None => continue,
+        };
+        // 只认旁路公钥；config / known_hosts 等非密钥文件自然被跳过
+        if !file_name.ends_with(".pub") || file_name.len() <= 4 {
+            continue;
+        }
+        if is_ignored_ssh_basename(file_name) {
+            continue;
+        }
+
+        let private_name = &file_name[..file_name.len() - 4];
+        if private_name.is_empty() || is_ignored_ssh_basename(private_name) {
+            continue;
+        }
+        let private_path = ssh_canon.join(private_name);
+        if !private_path.is_file() {
+            continue;
+        }
+        // 再次校验落在 ~/.ssh 内（防异常挂载/联结）
+        let private_canon = match private_path.canonicalize() {
+            Ok(path) => path,
+            Err(_) => continue,
+        };
+        if !private_canon.starts_with(&ssh_canon) {
+            continue;
+        }
+
+        let public_key = match read_public_key_file(&public_path) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let has_passphrase = detect_has_passphrase(&private_canon);
+
+        keys.push(SshKeyMaterial {
+            name: private_name.to_string(),
+            public_key,
+            private_key_path: private_canon.to_string_lossy().to_string(),
+            has_passphrase,
+        });
+    }
+
+    keys.sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
+
+    Ok(SshKeyScanResult {
+        ssh_dir: ssh_dir_display,
+        keys,
+    })
+}
+
 /// 读取公钥：支持 `.pub` 或对应私钥旁的 `.pub`。
 #[tauri::command]
 pub fn ssh_key_read_public(input: SshKeyReadPublicInput) -> Result<SshKeyMaterial, AppError> {
@@ -223,12 +319,16 @@ pub fn ssh_key_read_public(input: SshKeyReadPublicInput) -> Result<SshKeyMateria
         .and_then(|stem| stem.to_str())
         .unwrap_or("ssh-key")
         .to_string();
+    let has_passphrase = {
+        let private = PathBuf::from(&private_key_path);
+        private.is_file() && detect_has_passphrase(&private)
+    };
 
     Ok(SshKeyMaterial {
         name,
         public_key,
         private_key_path,
-        has_passphrase: false,
+        has_passphrase,
     })
 }
 
@@ -380,4 +480,91 @@ fn read_public_key_file(path: &Path) -> Result<String, AppError> {
         return Err(AppError::new("VALIDATION", "不是有效的 SSH 公钥"));
     }
     Ok(line.to_string())
+}
+
+/// 非密钥文件名（含误加 .pub 后缀的配置类文件）
+fn is_ignored_ssh_basename(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    let stem = lower.strip_suffix(".pub").unwrap_or(lower.as_str());
+    matches!(
+        stem,
+        "config"
+            | "known_hosts"
+            | "known_hosts.old"
+            | "authorized_keys"
+            | "authorized_keys2"
+            | "environment"
+            | "rc"
+    ) || stem.starts_with("known_hosts.")
+}
+
+/// 轻量探测私钥是否加密：只读文件头，不调用 ssh-keygen、不回传内容。
+fn detect_has_passphrase(private_path: &Path) -> bool {
+    let Ok(bytes) = fs::read(private_path) else {
+        return false;
+    };
+    let sample = if bytes.len() > 8_192 {
+        &bytes[..8_192]
+    } else {
+        &bytes
+    };
+    let Ok(text) = std::str::from_utf8(sample) else {
+        return false;
+    };
+    if text.contains("Proc-Type: 4,ENCRYPTED") {
+        return true;
+    }
+    if text.contains("BEGIN OPENSSH PRIVATE KEY") {
+        // OpenSSH：解密后头含 cipher / kdf；加密常用 bcrypt，明文为 none
+        return openssh_key_appears_encrypted(text);
+    }
+    let upper = text.to_ascii_uppercase();
+    upper.contains("ENCRYPTED")
+}
+
+/// 解析 OpenSSH 私钥 PEM 中的 cipher/kdf 名（长度前缀字符串）。
+fn openssh_key_appears_encrypted(pem: &str) -> bool {
+    let mut body = String::new();
+    for line in pem.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty()
+            || trimmed.starts_with("-----BEGIN")
+            || trimmed.starts_with("-----END")
+        {
+            continue;
+        }
+        body.push_str(trimmed);
+    }
+    let Ok(decoded) = STANDARD.decode(body.as_bytes()) else {
+        return pem.contains("bcrypt") || pem.contains("aes256-");
+    };
+    // openssh-key-v1\0 + ciphername + kdfname …
+    const MAGIC: &[u8] = b"openssh-key-v1\0";
+    if !decoded.starts_with(MAGIC) {
+        return false;
+    }
+    let mut cursor = MAGIC.len();
+    let cipher = match read_ssh_string(&decoded, &mut cursor) {
+        Some(value) => value,
+        None => return false,
+    };
+    let kdf = match read_ssh_string(&decoded, &mut cursor) {
+        Some(value) => value,
+        None => return false,
+    };
+    !(cipher == "none" && kdf == "none")
+}
+
+fn read_ssh_string<'a>(data: &'a [u8], cursor: &mut usize) -> Option<&'a str> {
+    if *cursor + 4 > data.len() {
+        return None;
+    }
+    let len = u32::from_be_bytes(data[*cursor..*cursor + 4].try_into().ok()?) as usize;
+    *cursor += 4;
+    if *cursor + len > data.len() {
+        return None;
+    }
+    let slice = &data[*cursor..*cursor + len];
+    *cursor += len;
+    std::str::from_utf8(slice).ok()
 }

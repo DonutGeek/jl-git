@@ -7,6 +7,7 @@ import {
   Plus,
   Power,
   PowerOff,
+  ScanSearch,
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -43,6 +44,7 @@ import {
   importSshKeyFromDisk,
   listSshKeys,
   setSshKeyEnabled,
+  syncLocalSshKeys,
   type SshKeyRecord,
 } from "@/services/ssh/ssh.keys";
 import { systemOpenService } from "@/services/system/system.open";
@@ -83,22 +85,35 @@ export function SettingsSshPanel() {
 
   useEffect(() => {
     let active = true;
-    void listSshKeys()
-      .then((next) => {
-        if (active) {
-          setKeys(next);
+    void (async () => {
+      try {
+        // 启动时已扫过；此处再同步一次以展示最新列表（有新增才 toast）
+        const registered = await listSshKeys();
+        if (!active) {
+          return;
         }
-      })
-      .catch((error: unknown) => {
+        setKeys(registered);
+
+        const synced = await syncLocalSshKeys();
+        if (!active) {
+          return;
+        }
+        setKeys(synced.keys);
+        if (synced.importedCount > 0) {
+          toast.success(
+            t("settings.sshScanImported", { count: synced.importedCount }),
+          );
+        }
+      } catch (error: unknown) {
         if (active) {
           toast.error(toUserMessage(error) || t("settings.sshLoadFailed"));
         }
-      })
-      .finally(() => {
+      } finally {
         if (active) {
           setLoading(false);
         }
-      });
+      }
+    })();
     return () => {
       active = false;
     };
@@ -146,6 +161,27 @@ export function SettingsSshPanel() {
       toast.success(t("settings.sshKeyImported"));
     } catch (error) {
       toast.error(toUserMessage(error) || t("settings.sshImportFailed"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleScanLocal(): Promise<void> {
+    setBusy(true);
+    try {
+      const synced = await syncLocalSshKeys();
+      setKeys(synced.keys);
+      if (synced.importedCount > 0) {
+        toast.success(
+          t("settings.sshScanImported", { count: synced.importedCount }),
+        );
+      } else if (synced.scannedCount > 0) {
+        toast.success(t("settings.sshScanUpToDate"));
+      } else {
+        toast.message(t("settings.sshScanEmpty", { path: synced.sshDir }));
+      }
+    } catch (error) {
+      toast.error(toUserMessage(error) || t("settings.sshScanFailed"));
     } finally {
       setBusy(false);
     }
@@ -262,6 +298,19 @@ export function SettingsSshPanel() {
             >
               <Plus aria-hidden="true" />
               {t("settings.sshAdd")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-border h-8 shadow-none"
+              disabled={busy || loading}
+              onClick={() => {
+                void handleScanLocal();
+              }}
+            >
+              <ScanSearch aria-hidden="true" />
+              {t("settings.sshScan")}
             </Button>
             <Button
               type="button"

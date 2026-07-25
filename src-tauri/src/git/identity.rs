@@ -20,9 +20,7 @@ pub fn get_identity(repo_path: &Path) -> Result<GitIdentity, AppError> {
 
 /// 仅读全局 Git 身份（状态栏在无仓库时使用）
 pub fn get_global_identity() -> Result<GitIdentity, AppError> {
-    let cwd = std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("."));
+    let cwd = resolve_home_dir();
 
     Ok(GitIdentity {
         name: read_global_config(&cwd, "user.name")?,
@@ -35,9 +33,7 @@ pub fn set_global_identity(
     name: Option<&str>,
     email: Option<&str>,
 ) -> Result<GitIdentity, AppError> {
-    let cwd = std::env::var("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("."));
+    let cwd = resolve_home_dir();
 
     if let Some(value) = name {
         let trimmed = value.trim();
@@ -59,6 +55,23 @@ pub fn set_global_identity(
     }
 
     get_global_identity()
+}
+
+/// 三端主目录：Unix `HOME`，Windows `USERPROFILE`（供 `git config --global` cwd）
+fn resolve_home_dir() -> PathBuf {
+    if let Ok(home) = std::env::var("HOME") {
+        let trimmed = home.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed);
+        }
+    }
+    if let Ok(profile) = std::env::var("USERPROFILE") {
+        let trimmed = profile.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed);
+        }
+    }
+    PathBuf::from(".")
 }
 
 fn read_config(repo_path: &Path, key: &str) -> Result<Option<String>, AppError> {

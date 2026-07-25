@@ -33,6 +33,24 @@ interface SshKeyMaterial {
   hasPassphrase: boolean;
 }
 
+export interface SshKeyScanResult {
+  /** 本机 SSH 目录（三端经 Rust home_dir 解析） */
+  sshDir: string;
+  keys: SshKeyMaterial[];
+}
+
+export interface SyncLocalSshKeysResult {
+  keys: SshKeyRecord[];
+  /** 本次新登记数量 */
+  importedCount: number;
+  /** 扫描到的本地密钥总数 */
+  scannedCount: number;
+  sshDir: string;
+}
+
+/** 优先启用的常见密钥文件名（小写） */
+const PREFERRED_KEY_NAMES = ["id_ed25519", "id_rsa", "id_ecdsa", "id_dsa"] as const;
+
 let storePromise: Promise<LazyStore> | null = null;
 
 function getStore(): Promise<LazyStore> {
@@ -78,11 +96,92 @@ export async function createSshKey(
   });
 }
 
-/** 选择本地密钥文件并登记（需同目录 .pub） */
+/** 扫描本机 ~/.ssh（macOS / Windows / Linux）中带旁路 .pub 的私钥 */
+export async function scanLocalSshKeys(): Promise<SshKeyScanResult> {
+  return invokeCommand<SshKeyScanResult>("ssh_key_scan_local");
+}
+
+/**
+ * 扫描本地 SSH 目录，自动登记尚未在列表中的密钥（imported）。
+ * 不覆盖用户已有启用项；若原先无任何登记，则按常见文件名优先启用一项。
+ */
+export async function syncLocalSshKeys(): Promise<SyncLocalSshKeysResult> {
+  const scan = await scanLocalSshKeys();
+  const existing = await listSshKeys();
+  const knownPaths = new Set(
+    existing.map((item) => normalizePathKey(item.privateKeyPath)),
+  );
+
+  const fresh = scan.keys.filter(
+    (item) => !knownPaths.has(normalizePathKey(item.privateKeyPath)),
+  );
+  if (fresh.length === 0) {
+    return {
+      keys: existing,
+      importedCount: 0,
+      scannedCount: scan.keys.length,
+      sshDir: scan.sshDir,
+    };
+  }
+
+  const hadAny = existing.length > 0;
+  const hasEnabled = existing.some((item) => item.enabled);
+  const preferredName = pickPreferredKeyName(fresh.map((item) => item.name));
+
+  let next: SshKeyRecord[] = [
+    ...existing.map((item) => ({
+      ...item,
+      // 原先无启用项且本次会导入时，先全部关掉，再启用优先项
+      enabled: hadAny && hasEnabled ? item.enabled : false,
+    })),
+  ];
+
+  for (const material of fresh) {
+    const shouldEnable =
+      !hadAny &&
+      !hasEnabled &&
+      material.name.toLowerCase() === preferredName;
+    next.push({
+      id: crypto.randomUUID(),
+      name: material.name,
+      publicKey: material.publicKey,
+      privateKeyPath: material.privateKeyPath,
+      hasPassphrase: material.hasPassphrase,
+      enabled: shouldEnable,
+      origin: "imported",
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  // 全新同步时若优先名未命中，启用第一项
+  if (!hadAny && !next.some((item) => item.enabled) && next.length > 0) {
+    next = next.map((item, index) => ({ ...item, enabled: index === 0 }));
+  }
+
+  next = ensureSingleEnabled(next);
+  await saveKeys(next);
+  return {
+    keys: next,
+    importedCount: fresh.length,
+    scannedCount: scan.keys.length,
+    sshDir: scan.sshDir,
+  };
+}
+
+/** 选择本地密钥文件并登记（需同目录 .pub）；对话框默认打开 ~/.ssh */
 export async function importSshKeyFromDisk(): Promise<SshKeyRecord[] | null> {
+  let defaultPath: string | undefined;
+  try {
+    const scan = await scanLocalSshKeys();
+    defaultPath = scan.sshDir || undefined;
+  } catch {
+    defaultPath = undefined;
+  }
+
   const selected = await open({
     multiple: false,
     title: i18n.t("settings.sshPick"),
+    defaultPath,
   });
   if (!selected || Array.isArray(selected)) {
     return null;
@@ -93,7 +192,13 @@ export async function importSshKeyFromDisk(): Promise<SshKeyRecord[] | null> {
   });
 
   const keys = await listSshKeys();
-  if (keys.some((item) => item.privateKeyPath === material.privateKeyPath)) {
+  if (
+    keys.some(
+      (item) =>
+        normalizePathKey(item.privateKeyPath) ===
+        normalizePathKey(material.privateKeyPath),
+    )
+  ) {
     throw new Error(i18n.t("settings.sshKeyDuplicate"));
   }
 
@@ -102,7 +207,7 @@ export async function importSshKeyFromDisk(): Promise<SshKeyRecord[] | null> {
     name: material.name,
     publicKey: material.publicKey,
     privateKeyPath: material.privateKeyPath,
-    hasPassphrase: false,
+    hasPassphrase: material.hasPassphrase,
     enabled: true,
     origin: "imported",
     createdAt: new Date().toISOString(),
@@ -251,4 +356,20 @@ function ensureSingleEnabled(keys: SshKeyRecord[]): SshKeyRecord[] {
     ...item,
     enabled: item.id === firstEnabledId,
   }));
+}
+
+/** 路径比较键：统一分隔符与大小写（Windows 盘符） */
+function normalizePathKey(path: string): string {
+  const normalized = path.replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalized.toLowerCase();
+}
+
+function pickPreferredKeyName(names: readonly string[]): string {
+  const lowerNames = names.map((name) => name.toLowerCase());
+  for (const preferred of PREFERRED_KEY_NAMES) {
+    if (lowerNames.includes(preferred)) {
+      return preferred;
+    }
+  }
+  return (names[0] ?? "").toLowerCase();
 }

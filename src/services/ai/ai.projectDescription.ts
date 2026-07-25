@@ -1,5 +1,6 @@
 import { buildProjectDescriptionSystemPrompt } from "@/prompts/git";
 import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
+import { DEFAULT_UTILITY_MODEL } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getAgentKey } from "@/services/ai/ai.settings";
 import { getProjectProfileSnapshot } from "@/services/project/project.profile";
@@ -8,7 +9,6 @@ import i18n from "@/i18n";
 import type { AppError } from "@/types/error";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
-const DEEPSEEK_MODEL = "deepseek-chat";
 const AI_REQUEST_TIMEOUT_MS = 30_000;
 const MAX_DESCRIPTION_CHARS = 800;
 
@@ -48,8 +48,10 @@ export async function generateProjectDescription(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: DEEPSEEK_MODEL,
+        model: DEFAULT_UTILITY_MODEL,
         temperature: 0.3,
+        // V4 默认 thinking 开启；短任务保持非思考（旧 deepseek-chat 行为）
+        thinking: { type: "disabled" },
         messages: [
           {
             role: "system",

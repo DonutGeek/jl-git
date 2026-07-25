@@ -46,12 +46,15 @@ export {
 export type { DeepSeekBalanceInfo, DeepSeekBalanceResult } from "./ai.balance";
 export {
   DEFAULT_AGENT_MODEL,
+  DEFAULT_UTILITY_MODEL,
   fetchDeepSeekModels,
   formatDeepSeekModelLabel,
   formatDeepSeekModelShortLabel,
   modelSupportsThinking,
   readAgentModelId,
+  readCommitModelId,
   writeAgentModelId,
+  writeCommitModelId,
 } from "./ai.models";
 export type { DeepSeekModelInfo } from "./ai.models";
 export {
