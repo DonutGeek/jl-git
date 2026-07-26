@@ -1,0 +1,30 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "project-manage",
+  "description": "Capability for the repository / project manage floating window",
+  "windows": ["project-manage"],
+  "permissions": [
+    "core:default",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-create",
+    "core:window:allow-start-dragging",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-is-maximized",
+    "opener:default",
+    "sql:default",
+    "sql:allow-execute",
+    "sql:allow-select",
+    "store:default",
+    "dialog:default",
+    "fs:default",
+    "clipboard-manager:default",
+    "clipboard-manager:allow-write-text",
+    "log:default"
+  ]
+}

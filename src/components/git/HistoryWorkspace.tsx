@@ -5,7 +5,7 @@ import { CommitFileDiffPane } from "@/components/git/CommitFileDiffPane";
 import { HistoryDetailPane } from "@/components/git/HistoryDetailPane";
 import { HistoryList } from "@/components/git/HistoryList";
 import { HistoryWorkspaceProvider } from "@/components/git/HistoryWorkspaceContext";
-import { SplitPane } from "@/components/layout/SplitPane";
+import { ResizableSplit } from "@/components/layout/ResizableSplit";
 import { cn } from "@/lib/utils";
 
 import { useRepoStore } from "@/store/useRepoStore";
@@ -13,8 +13,8 @@ import { useRepoStore } from "@/store/useRepoStore";
 const HISTORY_DETAIL_SPLIT_KEY = "jlgit:split:history-detail";
 /** 历史详情栏标记：弹层右缘相对此元素左缘对齐 */
 const HISTORY_DETAIL_PANE_ATTR = "data-history-detail-pane";
-/** SplitPane 水平分隔条为 w-1.5（6px）；弹层右缘让出，露出拖拽线 */
-const HISTORY_SPLIT_SEPARATOR_PX = 6;
+/** ResizableSplit 水平分隔线 1px；弹层右缘让出，露出拖拽线 */
+const HISTORY_SPLIT_SEPARATOR_PX = 1;
 
 interface HistoryWorkspaceProps {
   className?: string;
@@ -81,13 +81,12 @@ export function HistoryWorkspace({
         ref={rootRef}
         className={cn("relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden", className)}
       >
-        <SplitPane
+        <ResizableSplit
           orientation="horizontal"
           defaultRatio={68}
           minFirstPx={420}
           minSecondPx={280}
           storageKey={HISTORY_DETAIL_SPLIT_KEY}
-          separatorSizePx={HISTORY_SPLIT_SEPARATOR_PX}
           separatorClassName={showCommitFileDiff ? "z-40" : undefined}
           first={
             <aside

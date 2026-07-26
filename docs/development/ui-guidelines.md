@@ -340,7 +340,7 @@ pnpm dlx shadcn@latest add sonner
 | 按钮、可点击列表行、标签、活动栏图标 | `cursor-pointer` | 明确「可点」 |
 | 禁用按钮 / 不可点 | `cursor-not-allowed` 或保持默认且无 pointer | 与 `disabled` 一致 |
 | 异步进行中（整行打开中） | `cursor-wait` 可选用 | 防重复点 |
-| 面板分隔线（左右拖） | `cursor-col-resize` | 悬停即显示，不必等按下 |
+| 面板分隔线（左右拖） | `cursor-col-resize` | 悬停即显示，不必等按下；**全部**可拖分栏用 shadcn Resizable：双栏走 `ResizableSplit`，特殊布局（如历史图谱列）直接组合 `ResizablePanelGroup` + `ResizableHandle`，手柄样式统一用 `RESIZABLE_HANDLE_CLASSNAME`（禁止改 `ui/resizable`、禁止自绘 pointer 分隔） |
 | 面板分隔线（上下拖） | `cursor-row-resize` | 同上 |
 | 文本输入 / 可选中正文 | `cursor-text`（浏览器默认即可） | 勿强行 pointer |
 | 仅展示、暂不可点的列表行 | `cursor-default` | 可有轻悬停底，但不要假 pointer |
@@ -352,7 +352,7 @@ pnpm dlx shadcn@latest add sonner
 |------|------|
 | macOS | `tauri.macos.conf.json`：Overlay + 交通灯；顶栏 `pl-[88px]`；**禁止**去掉留白或 `decorations: false` |
 | Windows / Linux | `decorations: true`（系统标题栏与窗口按钮）；顶栏左侧 `pl-3`，不挂自绘三键，不显示 Tauri 应用菜单行 |
-| 拖拽 | 空白区 `data-tauri-drag-region`；可点控件 `WebkitAppRegion: no-drag` |
+| 拖拽 | **仅 mac Overlay** 空白区 `data-tauri-drag-region`；可点控件 `WebkitAppRegion: no-drag`。Win/Linux 用系统标题栏拖移，**禁止**自绘区挂 drag-region（避免 IPC `startDragging` 前摇） |
 | 复用 | 子窗顶栏用 `AppWindowHeader`；布局判断用 `useWindowChromeLayout` |
 
 设计见 [windows-window-chrome](../superpowers/specs/2026-07-22-windows-window-chrome-design.md) · [official-three-platform](../superpowers/specs/2026-07-22-official-three-platform-design.md)。

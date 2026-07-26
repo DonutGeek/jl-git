@@ -3,6 +3,7 @@ export * from "./git.branch";
 export * from "./git.branch-compare";
 export * from "./git.commit";
 export * from "./git.conflict";
+export * from "./git.clone";
 export * from "./git.diff";
 export * from "./git.fs";
 export * from "./git.accounts";
@@ -19,7 +20,9 @@ import { getBlame } from "./git.blame";
 import { checkout, createBranch, deleteBranch, listBranches, renameBranch } from "./git.branch";
 import { getBranchCompare, getBranchFileDiff } from "./git.branch-compare";
 import {
+  amendMessage,
   commit,
+  discard,
   stage,
   stageAll,
   undoCommit,
@@ -34,7 +37,13 @@ import {
   writeWorktreeFile,
 } from "./git.conflict";
 import { getCommitFileDiff, getDiff, getFileMedia, getStagedDiff } from "./git.diff";
-import { getFileSize, listDir } from "./git.fs";
+import {
+  createPath,
+  getFileSize,
+  listDir,
+  removePath,
+  renamePath,
+} from "./git.fs";
 import {
   createGitIdentityAccount,
   deleteGitIdentityAccount,
@@ -45,6 +54,7 @@ import {
 } from "./git.accounts";
 import { getGlobalIdentity, getIdentity, setGlobalIdentity } from "./git.identity";
 import { getLog } from "./git.log";
+import { cloneRepository } from "./git.clone";
 import { merge } from "./git.merge";
 import { fetch, listRemotes, pull, push } from "./git.remote";
 import {
@@ -82,6 +92,9 @@ export const gitService = {
   listRemoteTags,
   listDir,
   getFileSize,
+  removePath,
+  renamePath,
+  createPath,
   getLog,
   getCommit,
   getCommitMessage,
@@ -98,7 +111,9 @@ export const gitService = {
   unstage,
   stageAll,
   unstageAll,
+  discard,
   commit,
+  amendMessage,
   undoCommit,
   merge,
   getRepoState,
@@ -115,6 +130,7 @@ export const gitService = {
   pushTag,
   deleteRemoteTag,
   fetchRemoteTag,
+  cloneRepository,
   fetch,
   pull,
   push,

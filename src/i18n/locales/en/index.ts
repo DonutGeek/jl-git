@@ -6,6 +6,7 @@ import branchManage from "./branchManage.json";
 import common from "./common.json";
 import dashboard from "./dashboard.json";
 import fileHistory from "./fileHistory.json";
+import cloneRepo from "./cloneRepo.json";
 import openRepo from "./openRepo.json";
 import opLog from "./opLog.json";
 import projectManager from "./projectManager.json";
@@ -23,6 +24,7 @@ const en = {
   dashboard,
   projectManager,
   openRepo,
+  cloneRepo,
   ai,
   agent,
   branchCompare,

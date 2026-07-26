@@ -116,3 +116,37 @@ pub fn commit(
     let head = runner::run_git(repo_path, &["rev-parse", "HEAD"])?;
     Ok(head.stdout.trim().to_string())
 }
+
+/// 仅修改 HEAD 提交信息（不改 tree / 不重建 index）
+pub fn amend_message(repo_path: &Path, rev: &str, message: &str) -> Result<String, AppError> {
+    if message.trim().is_empty() {
+        return Err(AppError::new("VALIDATION", "提交信息不能为空"));
+    }
+    if rev.trim().is_empty() || rev.contains('\0') || rev.starts_with('-') {
+        return Err(AppError::new("VALIDATION", "非法提交引用"));
+    }
+    if is_sequencer_in_progress(repo_path)? {
+        return Err(AppError::new(
+            "VALIDATION",
+            "合并或变基进行中，无法修改提交信息",
+        ));
+    }
+
+    let head = runner::run_git(repo_path, &["rev-parse", "HEAD"])?;
+    let target = runner::run_git(repo_path, &["rev-parse", rev])?;
+    if head.stdout.trim() != target.stdout.trim() {
+        return Err(AppError::new(
+            "VALIDATION",
+            "只能修改当前 HEAD 提交的信息",
+        ));
+    }
+
+    runner::run_git_with_stdin(
+        repo_path,
+        &["commit", "--amend", "-F", "-"],
+        message.as_bytes(),
+    )?;
+
+    let next_head = runner::run_git(repo_path, &["rev-parse", "HEAD"])?;
+    Ok(next_head.stdout.trim().to_string())
+}

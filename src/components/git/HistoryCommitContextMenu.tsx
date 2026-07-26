@@ -1,0 +1,272 @@
+import { useState, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
+import { Copy, FileDown, Hash, PencilLine } from "lucide-react";
+import { toast } from "sonner";
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+
+import { gitService } from "@/services/git";
+import { exportTextFile } from "@/services/system/system.write";
+import { useRepoStore } from "@/store/useRepoStore";
+
+import { toUserMessage } from "@/types/error";
+import type { GitCommitSummary } from "@/types/git";
+import { copyToClipboard } from "@/utils/clipboard";
+import { buildCommitMessageExportFileName } from "@/utils/commitExportFileName";
+import {
+  CONTEXT_MENU_HISTORY_HIGHLIGHT_CLASS,
+  useContextMenuOpen,
+  withContextMenuHighlight,
+} from "@/utils/contextMenuHighlight";
+import { deferUi } from "@/utils/deferUi";
+import { isWriteOpBlocked } from "@/utils/repoOperationGuard";
+
+interface HistoryCommitContextMenuProps {
+  commit: GitCommitSummary;
+  /** 是否为当前 HEAD（仅 HEAD 可改提交信息） */
+  isHead: boolean;
+  /** 已推送到远端时改写需二次确认 */
+  alreadyPushed: boolean;
+  /** 菜单打开时选中该提交 */
+  onMenuOpen?: () => void;
+  children: ReactElement;
+}
+
+/** 历史列表提交行右键菜单 */
+export function HistoryCommitContextMenu({
+  commit,
+  isHead,
+  alreadyPushed,
+  onMenuOpen,
+  children,
+}: HistoryCommitContextMenuProps) {
+  const { t } = useTranslation();
+  const repoPath = useRepoStore((state) => state.repoPath);
+  const repoState = useRepoStore((state) => state.repoState);
+  const amendMessage = useRepoStore((state) => state.amendMessage);
+  const [editOpen, setEditOpen] = useState(false);
+  const [confirmPushOpen, setConfirmPushOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [loadingMessage, setLoadingMessage] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const writeBlocked = isWriteOpBlocked(repoState);
+  const { menuOpen, onOpenChange } = useContextMenuOpen(onMenuOpen);
+
+  async function loadFullMessage(): Promise<string> {
+    if (!repoPath) {
+      throw new Error(t("repo.errors.noRepo"));
+    }
+    const result = await gitService.getCommitMessage(repoPath, commit.id);
+    return result.message.trim() || commit.subject.trim();
+  }
+
+  async function handleCopySha(): Promise<void> {
+    try {
+      await copyToClipboard(commit.id);
+      toast.success(t("repo.copyShaSuccess"));
+    } catch (error) {
+      toast.error(toUserMessage(error) || t("repo.copyFailed"));
+    }
+  }
+
+  async function handleCopyMessage(): Promise<void> {
+    try {
+      const full = await loadFullMessage();
+      await copyToClipboard(full);
+      toast.success(t("repo.copyCommitMessageSuccess"));
+    } catch (error) {
+      toast.error(toUserMessage(error) || t("repo.copyFailed"));
+    }
+  }
+
+  async function handleExportMessage(): Promise<void> {
+    try {
+      // 只导出提交说明（标题+正文），不含 Author/Date/改动文件列表
+      const full = await loadFullMessage();
+      const dest = await exportTextFile({
+        contents: `${full}\n`,
+        defaultPath: buildCommitMessageExportFileName(
+          commit.subject,
+          commit.shortId,
+        ),
+        filterName: t("repo.exportCommitMessageFilter"),
+        extensions: ["txt"],
+      });
+      if (!dest) {
+        return;
+      }
+      toast.success(t("repo.exportCommitMessageSuccess"));
+    } catch (error) {
+      toast.error(toUserMessage(error) || t("repo.exportCommitMessageFailed"));
+    }
+  }
+
+  async function openEditDialog(): Promise<void> {
+    setLoadingMessage(true);
+    setEditOpen(true);
+    try {
+      const full = await loadFullMessage();
+      setMessage(full);
+    } catch (error) {
+      setEditOpen(false);
+      toast.error(toUserMessage(error));
+    } finally {
+      setLoadingMessage(false);
+    }
+  }
+
+  function handleRequestEdit(): void {
+    if (!isHead || writeBlocked) {
+      return;
+    }
+    if (alreadyPushed) {
+      deferUi(() => setConfirmPushOpen(true));
+      return;
+    }
+    deferUi(() => {
+      void openEditDialog();
+    });
+  }
+
+  async function handleSaveEdit(): Promise<void> {
+    if (saving) {
+      return;
+    }
+    const trimmed = message.trim();
+    if (!trimmed) {
+      toast.error(t("repo.errors.emptyMessage"));
+      return;
+    }
+    setSaving(true);
+    try {
+      await amendMessage(commit.id, trimmed);
+      toast.success(t("repo.amendMessageSuccess"));
+      setEditOpen(false);
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <ContextMenu onOpenChange={onOpenChange}>
+        <ContextMenuTrigger asChild>
+          {withContextMenuHighlight(
+            children,
+            menuOpen,
+            CONTEXT_MENU_HISTORY_HIGHLIGHT_CLASS,
+          )}
+        </ContextMenuTrigger>
+        <ContextMenuContent className="min-w-48">
+          <ContextMenuItem onSelect={() => void handleCopySha()}>
+            <Hash aria-hidden="true" />
+            {t("repo.copySha")}
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={() => void handleCopyMessage()}>
+            <Copy aria-hidden="true" />
+            {t("repo.copyCommitMessage")}
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={() => void handleExportMessage()}>
+            <FileDown aria-hidden="true" />
+            {t("repo.exportCommitMessage")}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            disabled={!isHead || writeBlocked}
+            onSelect={() => handleRequestEdit()}
+          >
+            <PencilLine aria-hidden="true" />
+            {t("repo.amendMessage")}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+
+      <AlertDialog open={confirmPushOpen} onOpenChange={setConfirmPushOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("repo.amendMessageTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("repo.amendMessagePushedHint")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                setConfirmPushOpen(false);
+                void openEditDialog();
+              }}
+            >
+              {t("repo.amendMessageContinue")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("repo.amendMessageTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("repo.amendMessageDescription", { shortId: commit.shortId })}
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            disabled={loadingMessage || saving}
+            className="min-h-40 font-mono text-sm"
+            aria-label={t("repo.commitMessage")}
+            placeholder={t("repo.commitMessagePlaceholder")}
+          />
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={saving}
+              onClick={() => setEditOpen(false)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="button"
+              disabled={loadingMessage || saving || !message.trim()}
+              onClick={() => void handleSaveEdit()}
+            >
+              {saving ? t("common.loading") : t("repo.amendMessageSave")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

@@ -1,0 +1,21 @@
+{
+  "urlLabel": "Repository URL",
+  "urlPlaceholder": "Enter repository URL",
+  "pathLabel": "Local path",
+  "pathPlaceholder": "Enter local path",
+  "pickButton": "Browse",
+  "submitButton": "Clone",
+  "cloneAndContinue": "Clone and continue",
+  "cloning": "Cloning…",
+  "success": "Cloned and opened “{{name}}”",
+  "cloneAndContinueSuccess": "Cloned and saved “{{name}}”",
+  "cloned": "Cloned “{{name}}”",
+  "urlRequired": "Enter a repository URL",
+  "pathRequired": "Enter a local path",
+  "fillDetailAfterClone": "Fill in project details after cloning",
+  "detailDialogTitle": "Project details",
+  "detailDialogDescription": "Add a summary for “{{name}}”. You can generate one with AI from the repository.",
+  "detailConfirm": "Confirm",
+  "detailSkip": "Skip",
+  "detailSaved": "Project details saved"
+}

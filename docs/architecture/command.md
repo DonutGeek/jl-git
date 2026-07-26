@@ -166,6 +166,36 @@ interface AppError {
 | **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` |
 | **说明** | 优先工作区文件；已删除则回退 `HEAD:path` / `:path` blob |
 
+### `fs_remove`
+
+| | |
+|--|--|
+| **目的** | 删除仓库内相对文件或目录（目录递归） |
+| **输入** | `{ path: string; relative: string }` |
+| **输出** | `{ ok: true }` |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `FS_FAILED` |
+| **安全** | 路径须相对仓库根且不得含 `..`；禁止操作 `.git`；canonicalize 后须落在仓库根下且不得为仓库根本身 |
+
+### `fs_rename`
+
+| | |
+|--|--|
+| **目的** | 在同一父目录下重命名文件或目录 |
+| **输入** | `{ path: string; from: string; newName: string }`（`newName` 仅为文件名） |
+| **输出** | `{ path: string }`（重命名后的相对路径） |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `FS_EXISTS` `FS_FAILED` |
+| **安全** | 同 `fs_remove`；`newName` 不得含路径分隔符或 `..` |
+
+### `fs_create`
+
+| | |
+|--|--|
+| **目的** | 在父目录下新建空目录或空文件 |
+| **输入** | `{ path: string; parent?: string; name: string; isDir: boolean }`（`parent` 空表示仓库根；`name` 仅为文件名） |
+| **输出** | `{ path: string; isDir: boolean }` |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `FS_EXISTS` `FS_FAILED` |
+| **安全** | 同 `fs_remove`；禁止在 `.git` 下创建 |
+
 ### `git_status`
 
 | | |
@@ -435,6 +465,17 @@ interface GitBranch {
 | **输出** | `{ commitId: string }` |
 | **错误** | `VALIDATION`（空 message；非合并态下空 paths）；`GIT_FAILED`（hooks 失败等） |
 
+### `git_amend_message`
+
+| | |
+|--|--|
+| **目的** | 仅修改 HEAD 提交信息（不改 tree / 不重建 index） |
+| **输入** | `{ path: string; rev: string; message: string }` |
+| **输出** | `{ commitId: string }` |
+| **错误** | `VALIDATION`（空 message；`rev` 非当前 HEAD；合并/变基进行中）；`GIT_FAILED` |
+
+`rev` 须解析为当前 `HEAD`。UI 对可能已推送的提交二次确认。
+
 **普通提交**执行顺序：
 
 1. `git reset -- .` — 清空暂存区
@@ -467,6 +508,16 @@ interface GitBranch {
 
 无 upstream 时工具栏显示「发布分支」，执行 `git push --set-upstream --progress origin <branch>`（oplog label：`publish`）。
 
+### `git_clone`
+
+| | |
+|--|--|
+| **目的** | 克隆远端仓库到本地目录 |
+| **输入** | `{ url: string; path: string }`（`path` 为克隆完成后的仓库目录，须尚不存在；父目录须存在） |
+| **输出** | `{ path: string; elapsedMs: number }` |
+| **错误** | `VALIDATION` `INVALID_PATH` `GIT_FAILED` `GIT_TIMEOUT` `GIT_AUTH` `GIT_NOT_FOUND` |
+| **约束** | 参数数组调用 `git clone -- <url> <path>`；阻塞线程池；超时 600s；不禁用 credential.helper |
+
 ### `git_fetch` / `git_pull` / `git_push`
 
 | 命令 | 输入 | 输出 |
@@ -495,12 +546,19 @@ interface GitBranch {
 | `system_open_terminal` | `{ path; preference?; customPath? }` | `{ ok: true }` |
 | `system_reveal_in_file_manager` | `{ path }` | `{ ok: true }` |
 | `system_open_in_editor` | `{ path; preference?; customPath? }` | `{ ok: true }` |
+| `system_open_with_default_app` | `{ path }` | `{ ok: true }` |
+| `system_write_text_file` | `{ path; contents }` | `{ ok: true }` |
 
 `system_list_fonts` 经 `font-kit` 枚举系统字体族，供设置中客户端 / 编辑器字体下拉使用。
 `system_runtime_stats` 供设置「关于」挂载期间约 1s 轮询；`cpuPercent` 在 Windows 上可能为 `0`（UI 显示为不可用）。
 `system_disk_space` 查路径所在卷（状态栏摘要）；`system_disk_volumes` 枚举可见卷：Windows 为盘符；Unix 过滤伪挂载，macOS 合并 APFS `/` 与 Data、忽略 `/Volumes` 下小镜像。仅多卷时 hover 用列表，单卷仍为紧凑卡。状态栏摘要仍只显示当前仓库所在卷。
 
-`path` 须为已存在目录。终端 / 访达 / 编辑器均用参数数组调用系统命令，不拼 shell。  
+`system_open_terminal` 的 `path` 须为已存在目录。`system_reveal_in_file_manager` / `system_open_in_editor` / `system_open_with_default_app` 的 `path` 可为已存在文件或目录：
+- macOS：访达 `open -R` 选中文件；编辑器 / 默认程序走 `open`
+- Windows：资源管理器 `explorer /select,`；默认程序 `cmd /C start`；路径去掉 `\\?\` 前缀
+- Linux：优先 `FileManager1.ShowItems` 选中文件，失败则 `xdg-open` 打开父目录；默认程序走 `xdg-open`
+
+`system_write_text_file` 的 `path` 须为绝对路径（通常来自另存为对话框）。均用参数数组调用系统命令，不拼 shell。  
 `preference`：编辑器为 `auto` / `cursor` / `vscode` / `custom`；终端按平台为 `auto` 与具体终端 id（如 `wt`、`terminal`、`gnome-terminal`）或 `custom`。`customPath` 仅在 `custom` 时使用。
 
 ### `git_identity_global`

@@ -10,7 +10,7 @@
   "emptyDescription": "当前范围下没有可显示的提交。",
   "selectCommit": "选择提交以查看详情",
   "selectCommitDescription": "左侧选择一条提交后，将显示详情与变更文件。",
-  "searchPlaceholder": "搜索提交",
+  "searchPlaceholder": "请输入搜索内容",
   "allBranches": "所有分支",
   "currentScope": "当前范围",
   "files": "{{total}} 文件 {{added}} 新增 {{modified}} 修改 {{deleted}} 删除",

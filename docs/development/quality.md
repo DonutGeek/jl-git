@@ -23,7 +23,7 @@ JLGit 是桌面工具型产品，**写完必须自检**，不能把「能编译�
 
 | 现象 | 级别 | 说明 |
 |------|------|------|
-| `Maximum update depth exceeded` / 白屏报错 | **S0** | 常见于：① Zustand selector 每次返回新引用（如 `state.status?.entries ?? []`，`status` 为空时每次新 `[]`）→ React `useSyncExternalStore` / `forceStoreRerender` 死循环；② 布局库 `useDefaultLayout` 订阅 localStorage 写回成环；③ `useEffect` 无条件 setState。**禁止**在 selector 里 `?? []` / `?? {}`；用模块级常量空数组/空对象。分栏用自写 `SplitPane`，勿用会订阅 storage 的 `useDefaultLayout` |
+| `Maximum update depth exceeded` / 白屏报错 | **S0** | 常见于：① Zustand selector 每次返回新引用（如 `state.status?.entries ?? []`，`status` 为空时每次新 `[]`）→ React `useSyncExternalStore` / `forceStoreRerender` 死循环；② 布局库 `useDefaultLayout` 订阅 localStorage 写回成环；③ `useEffect` 无条件 setState。**禁止**在 selector 里 `?? []` / `?? {}`；用模块级常量空数组/空对象。分栏用 shadcn Resizable（`ResizableSplit` 或同套 `ResizablePanelGroup` + `RESIZABLE_HANDLE_CLASSNAME`，仅松手写 storage），勿用会订阅 storage 的 `useDefaultLayout`，禁止自绘 `cursor-*-resize` 分隔 |
 | 切换仓库整页变成 loading、壳层消失再重建 | **S1/S2** | 用户感知为「整个应用刷一下」；应保留壳只换数据 |
 | 拖拽标签被下方工具栏裁切遮盖 | **S2** | 交互可用性受损 |
 | 分隔线悬停加粗挤动内容 | **S2** | 布局抖动 |
@@ -72,7 +72,7 @@ cd src-tauri && cargo test
 - [ ] `useEffect` 依赖不会因「每次 set 新对象/写 storage」形成环  
 - [ ] 写 `localStorage` / Zustand persist 的路径：确认不会在 mount 时无条件反复写入  
 - [ ] **Zustand selector**：禁止 `?? []` / `?? {}`（每次新引用 → Maximum update depth）；用模块级常量  
-- [ ] **面板布局**：勿用 `useDefaultLayout`；用 `SplitPane`（或等价、不订阅 storage 的方案）  
+- [ ] **面板布局**：勿用 `useDefaultLayout`；用 shadcn Resizable（`ResizableSplit` / `RESIZABLE_HANDLE_CLASSNAME`），含历史图谱列  
 - [ ] 路由 `projectId` 变化：只刷新数据，不无故拆掉顶栏/工具栏  
 - [ ] cleanup 只在「离开页面」时 `reset`，不要在「同页换 id」时清空导致闪白  
 - [ ] Store 的 `set`：无变化时返回原 state（或提前 return），避免无意义通知  

@@ -3,6 +3,8 @@
   "loading": "Loading...",
   "error": "Something went wrong",
   "cancel": "Cancel",
+  "expand": "Expand",
+  "collapse": "Collapse",
   "copy": "Copy",
   "notifications": "Notifications",
   "pleaseSelect": "Please select",

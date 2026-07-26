@@ -62,6 +62,7 @@ import {
   isPushRejectedError,
   toastPushError,
 } from "@/utils/gitPushError";
+import { revealInFileManagerLabel as revealInFileManagerLabelForOs } from "@/utils/platformLabels";
 
 /**
  * 工具栏默认比较：源=当前分支；目标优先 upstream，其次 origin/<name>，否则自身。
@@ -97,13 +98,11 @@ interface RepoToolbarProps {
 /** 顶栏标签下方的仓库工具条：仓库 / 视图 / 分支 / 同步 */
 export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbarProps) {
   const { t } = useTranslation();
-  const { os } = useWindowChromeLayout();
-  const revealInFileManagerLabel =
-    os === "windows"
-      ? t("repo.openInExplorer")
-      : os === "linux"
-        ? t("repo.openInFileManager")
-        : t("repo.openInFinder");
+  const { os, isMacOverlay } = useWindowChromeLayout();
+  const dragProps = isMacOverlay
+    ? ({ "data-tauri-drag-region": true } as const)
+    : {};
+  const revealInFileManagerLabel = revealInFileManagerLabelForOs(os, t);
   const navigate = useNavigate();
 
   const projects = useProjectStore((state) => state.projects);
@@ -403,7 +402,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
 
   return (
     <div
-      data-tauri-drag-region
+      {...dragProps}
       className="border-border bg-background flex h-11 shrink-0 items-center gap-2 border-b px-2"
     >
       {/* 仓库切换 */}

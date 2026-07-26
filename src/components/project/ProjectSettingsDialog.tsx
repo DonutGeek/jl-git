@@ -1,10 +1,10 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { SelectMenu } from "@/components/common/SelectMenu";
 import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
 import { ProjectIconPicker } from "@/components/project/ProjectIconPicker";
+import { WorkspaceSelectMenu } from "@/components/project/WorkspaceSelectMenu";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,38 +20,12 @@ import { Input } from "@/components/ui/input";
 import { useProjectStore } from "@/store/useProjectStore";
 
 import { toUserMessage } from "@/types/error";
-import type { Project, ProjectIcon, Workspace } from "@/types/project";
+import type { Project, ProjectIcon } from "@/types/project";
 
 interface ProjectSettingsDialogProps {
   project: Project;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}
-
-function buildWorkspaceOptions(
-  workspaces: Workspace[],
-): Array<{ value: string; label: string }> {
-  const byId = new Map(workspaces.map((workspace) => [workspace.id, workspace]));
-
-  function labelFor(workspace: Workspace): string {
-    const names = [workspace.name];
-    const visited = new Set([workspace.id]);
-    let parentId = workspace.parentId;
-    while (parentId && !visited.has(parentId)) {
-      visited.add(parentId);
-      const parent = byId.get(parentId);
-      if (!parent) {
-        break;
-      }
-      names.unshift(parent.name);
-      parentId = parent.parentId;
-    }
-    return names.join(" / ");
-  }
-
-  return workspaces
-    .map((workspace) => ({ value: workspace.id, label: labelFor(workspace) }))
-    .sort((left, right) => left.label.localeCompare(right.label));
 }
 
 export function ProjectSettingsDialog({
@@ -60,7 +34,6 @@ export function ProjectSettingsDialog({
   onOpenChange,
 }: ProjectSettingsDialogProps) {
   const { t } = useTranslation();
-  const workspaces = useProjectStore((state) => state.workspaces);
   const updateProject = useProjectStore((state) => state.updateProject);
   const [name, setName] = useState(project.name);
   const [icon, setIcon] = useState<ProjectIcon>(project.icon);
@@ -68,13 +41,6 @@ export function ProjectSettingsDialog({
   const [description, setDescription] = useState(project.description ?? "");
   const [descriptionGenerating, setDescriptionGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
-  const workspaceOptions = useMemo(
-    () => [
-      { value: "", label: t("projectManager.ungrouped") },
-      ...buildWorkspaceOptions(workspaces),
-    ],
-    [t, workspaces],
-  );
 
   useEffect(() => {
     if (!open) {
@@ -164,9 +130,8 @@ export function ProjectSettingsDialog({
               </Field>
               <Field>
                 <FieldLabel>{t("projectManager.workspaceLabel")}</FieldLabel>
-                <SelectMenu
+                <WorkspaceSelectMenu
                   value={workspaceId}
-                  options={workspaceOptions}
                   onChange={setWorkspaceId}
                   ariaLabel={t("projectManager.workspaceLabel")}
                   disabled={saving || descriptionGenerating}

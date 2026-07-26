@@ -107,6 +107,8 @@ export async function buildAgentProfiles(
   return results;
 }
 
+const JLGIT_META_DESCRIPTION_MAX_CHARS = 800;
+
 /** 从 Project + 分组表组装鲸灵Git 登记信息 */
 export function buildJlgitMeta(
   project: Project,
@@ -116,11 +118,32 @@ export function buildJlgitMeta(
     project.workspaceId != null
       ? (groupNameById.get(project.workspaceId)?.trim() || null)
       : null;
+  const description = project.description?.trim() || null;
   return {
     path: project.path,
     alias: project.name,
     groupName,
+    description,
   };
+}
+
+/** 序列化为模型可读的 jlgitMeta 块；description 仅非空时输出 */
+export function formatJlgitMetaBlock(meta: AgentJlgitMeta): string {
+  const lines = [
+    "jlgitMeta (JLGit registration; prefer for project name/description over README):",
+    `  path: ${meta.path}`,
+    `  alias: ${meta.alias}`,
+    `  group: ${meta.groupName?.trim() || "(ungrouped)"}`,
+  ];
+  const description = meta.description?.trim();
+  if (description) {
+    const clipped =
+      description.length > JLGIT_META_DESCRIPTION_MAX_CHARS
+        ? `${description.slice(0, JLGIT_META_DESCRIPTION_MAX_CHARS)}…`
+        : description;
+    lines.push(`  description: ${clipped}`);
+  }
+  return lines.join("\n");
 }
 
 function normalizeAuthorFilters(

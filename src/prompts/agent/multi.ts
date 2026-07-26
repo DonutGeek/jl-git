@@ -22,7 +22,7 @@ export function buildMultiAgentSystemPrompt(
     ...AGENT_FACTUALITY_PROMPT,
     ...AGENT_RESPONSE_PROMPT,
     "Multi-repo rules:",
-    "- Prefer jlgitMeta (alias / path / group) when identifying a project, then README, then folder name and commit themes.",
+    "- Prefer jlgitMeta (alias / description / path / group) when identifying a project, then README, then folder name and commit themes.",
     "- When listing registered projects, list all of them from the snapshot.",
     "- Do not invent claims or metrics that are absent from the repository data.",
     ...AGENT_ACTIONS_PROMPT,

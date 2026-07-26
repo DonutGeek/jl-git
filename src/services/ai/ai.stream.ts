@@ -1,13 +1,15 @@
 import { streamAgentReply } from "@/services/ai/ai.agent";
 import { streamMultiAgentReply } from "@/services/ai/ai.multi";
 import type { AgentChatMessage } from "@/types/ai";
-import type { AgentProjectProfile } from "@/types/agent";
+import type { AgentJlgitMeta, AgentProjectProfile } from "@/types/agent";
 
 interface StreamJinglingProjectOptions {
   host: "project";
   messages: readonly AgentChatMessage[];
   repoPath: string;
   locale: string;
+  /** 鲸灵Git 登记信息（含项目详情），供单仓识别 */
+  jlgitMeta?: AgentJlgitMeta;
   signal?: AbortSignal;
   model?: string;
   enableThinking?: boolean;
@@ -59,6 +61,7 @@ export async function streamJinglingReply(
     messages: options.messages,
     repoPath: options.repoPath,
     locale: options.locale,
+    jlgitMeta: options.jlgitMeta,
     signal: options.signal,
     model: options.model,
     enableThinking: options.enableThinking,

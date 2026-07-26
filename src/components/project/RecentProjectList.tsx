@@ -152,6 +152,7 @@ export function RecentProjectList({
                   <ProjectContextMenu
                     project={project}
                     onOpenProject={handleOpenProject}
+                    onMenuOpen={() => setSelectedId(project.id)}
                   >
                     <button
                         type="button"

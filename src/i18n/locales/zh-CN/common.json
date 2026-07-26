@@ -3,6 +3,8 @@
   "loading": "加载中...",
   "error": "出错了",
   "cancel": "取消",
+  "expand": "展开",
+  "collapse": "收起",
   "copy": "复制",
   "notifications": "通知",
   "pleaseSelect": "请选择",

@@ -1,13 +1,16 @@
-use std::path::Path;
 use std::time::{Duration, Instant};
 
+use std::path::{Component, Path};
+
 use crate::error::AppError;
-use crate::git::path::validate_git_ref;
+use crate::git::path::{require_git_toplevel, validate_git_ref};
 use crate::git::{runner, status};
 
 /// fetch 默认超时：避免网络/凭据挂起拖死界面
 const FETCH_TIMEOUT: Duration = Duration::from_secs(120);
 const PUSH_TIMEOUT: Duration = Duration::from_secs(180);
+/// clone 可能较大，放宽超时
+const CLONE_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// fetch 结果：供前端展示耗时与远端名
 #[derive(serde::Serialize)]
@@ -201,6 +204,95 @@ pub struct GitRemote {
     pub name: String,
     pub fetch_url: String,
     pub push_url: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCloneResult {
+    /// 克隆完成后的本地仓库绝对路径
+    pub path: String,
+    pub elapsed_ms: u64,
+}
+
+/// 克隆远端仓库到本地目录：`git clone -- <url> <dest>`（参数数组，禁止 shell）。
+pub fn clone_repository(url: &str, dest: &Path) -> Result<GitCloneResult, AppError> {
+    let url = url.trim();
+    validate_clone_url(url)?;
+    validate_clone_dest(dest)?;
+
+    let parent = dest
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .ok_or_else(|| AppError::new("INVALID_PATH", "存放路径无效"))?;
+    if !parent.exists() {
+        return Err(AppError::new("INVALID_PATH", "存放目录不存在"));
+    }
+    if !parent.is_dir() {
+        return Err(AppError::new("INVALID_PATH", "存放路径的上级不是目录"));
+    }
+    if dest.exists() {
+        return Err(AppError::new(
+            "VALIDATION",
+            "目标路径已存在，请更换存放路径",
+        ));
+    }
+
+    let dest_str = dest
+        .to_str()
+        .ok_or_else(|| AppError::new("INVALID_PATH", "存放路径无效"))?;
+
+    let started = Instant::now();
+    // 与 fetch/push 一致：不禁用 credential.helper；无 TTY 时不交互卡住
+    runner::run_git_timeout(
+        parent,
+        &["clone", "--progress", "--", url, dest_str],
+        CLONE_TIMEOUT,
+    )?;
+
+    let repo_path = require_git_toplevel(dest)?;
+    Ok(GitCloneResult {
+        path: repo_path.to_string_lossy().to_string(),
+        elapsed_ms: started.elapsed().as_millis() as u64,
+    })
+}
+
+fn validate_clone_url(url: &str) -> Result<(), AppError> {
+    if url.is_empty() {
+        return Err(AppError::new("VALIDATION", "请填写仓库地址"));
+    }
+    if url.contains('\0') || url.contains('\n') || url.contains('\r') {
+        return Err(AppError::new("VALIDATION", "仓库地址非法"));
+    }
+    if url.starts_with('-') {
+        return Err(AppError::new("VALIDATION", "仓库地址非法"));
+    }
+    let lower = url.to_ascii_lowercase();
+    let looks_remote = lower.starts_with("http://")
+        || lower.starts_with("https://")
+        || lower.starts_with("ssh://")
+        || lower.starts_with("git://")
+        || lower.starts_with("git@")
+        || url.contains(':');
+    if !looks_remote {
+        return Err(AppError::new(
+            "VALIDATION",
+            "请填写有效的仓库地址（HTTPS / SSH）",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_clone_dest(dest: &Path) -> Result<(), AppError> {
+    if dest.as_os_str().is_empty() {
+        return Err(AppError::new("VALIDATION", "请填写存放路径"));
+    }
+    if dest
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err(AppError::new("VALIDATION", "存放路径不得包含 .."));
+    }
+    Ok(())
 }
 
 /// 列出远端：`git remote -v`

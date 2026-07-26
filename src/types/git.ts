@@ -197,6 +197,12 @@ export interface GitPushResult {
   elapsedMs: number;
 }
 
+export interface GitCloneResult {
+  /** 克隆完成后的本地仓库绝对路径 */
+  path: string;
+  elapsedMs: number;
+}
+
 export interface GitRemote {
   name: string;
   fetchUrl: string;
@@ -390,4 +396,15 @@ export interface FsListResult {
 export interface FsFileSizeResult {
   /** 字节数；无法取得时为 null */
   size: number | null;
+}
+
+export interface FsRenameResult {
+  /** 重命名后的仓库相对路径 */
+  path: string;
+}
+
+export interface FsCreateResult {
+  /** 新建后的仓库相对路径 */
+  path: string;
+  isDir: boolean;
 }

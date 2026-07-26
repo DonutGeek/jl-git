@@ -45,7 +45,9 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+
 import type { AgentConversation } from "@/types/ai";
+import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
 
 interface AgentConversationTabsProps {
   conversations: readonly AgentConversation[];
@@ -169,9 +171,12 @@ function SortableConversationTab({
 }: SortableConversationTabProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: conversation.id });
+  const { menuOpen, onOpenChange } = useContextMenuOpen(() =>
+    onSelect(conversation.id),
+  );
 
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChange={onOpenChange}>
       <ContextMenuTrigger asChild>
         <div
           ref={setNodeRef}
@@ -183,7 +188,7 @@ function SortableConversationTab({
           <ConversationTabChrome
             conversation={conversation}
             label={label}
-            isActive={isActive}
+            isActive={isActive || menuOpen}
             canDelete={canDelete}
             onSelect={onSelect}
             onDelete={onDelete}

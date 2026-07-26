@@ -92,6 +92,10 @@ export interface TextDiffPreviewProps {
   /** 受控「更多」偏好（外层自管工具栏时传入） */
   viewPrefs?: DiffViewPrefs;
   onViewPrefsChange?: (patch: Partial<DiffViewPrefs>) => void;
+  /** 初始视图模式（如工作区文件预览默认 file） */
+  defaultMode?: DiffPreviewMode;
+  /** 工作区单文件：隐藏文件/差异切换与差异导航 */
+  workspaceFileChrome?: boolean;
   className?: string;
 }
 
@@ -128,12 +132,14 @@ function TextDiffPreview(
   blameRev = null,
   viewPrefs: controlledViewPrefs,
   onViewPrefsChange,
+  defaultMode = "diff",
+  workspaceFileChrome = false,
   className,
 }: TextDiffPreviewProps,
   ref,
 ) {
   const { t } = useTranslation();
-  const [mode, setMode] = useState<DiffPreviewMode>("diff");
+  const [mode, setMode] = useState<DiffPreviewMode>(defaultMode);
   const [innerDiffLayout, setInnerDiffLayout] =
     useState<DiffPreviewLayout>("sideBySide");
   const [innerFoldUnchanged, setInnerFoldUnchanged] = useState(false);
@@ -501,6 +507,9 @@ function TextDiffPreview(
           foldUnchanged={foldUnchanged}
           onFoldUnchangedChange={setFoldUnchanged}
           diffToolsDisabled={mode !== "diff" || (diff.binary && !allowBinaryEditor)}
+          hideDiffLayoutTools={workspaceFileChrome}
+          hideModeSwitch={workspaceFileChrome}
+          hideHunkNav={workspaceFileChrome}
           onOpenHistory={onOpenHistory}
           viewPrefs={viewPrefs}
           onViewPrefsChange={handleViewPrefsChange}

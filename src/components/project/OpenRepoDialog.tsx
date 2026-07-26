@@ -32,13 +32,26 @@ interface OpenRepoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   replaceNewTabId?: string;
+  /**
+   * 仅登记到应用（不切主窗标签、不导航）。
+   * 供仓库管理子窗使用。
+   */
+  registerOnly?: boolean;
+  onRegistered?: (projectId: string) => void;
 }
 
 /** 打开本地仓库对话框：路径可输入/选择，别名与项目详情可选 */
-export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepoDialogProps) {
+export function OpenRepoDialog({
+  open,
+  onOpenChange,
+  replaceNewTabId,
+  registerOnly = false,
+  onRegistered,
+}: OpenRepoDialogProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const addAndOpen = useProjectStore((state) => state.addAndOpen);
+  const addProject = useProjectStore((state) => state.addProject);
   const openRepositoryTab = useOpenTabsStore((state) => state.openRepositoryTab);
   const replaceNewTabWithRepository = useOpenTabsStore(
     (state) => state.replaceNewTabWithRepository,
@@ -102,6 +115,21 @@ export function OpenRepoDialog({ open, onOpenChange, replaceNewTabId }: OpenRepo
     setLoading(true);
 
     try {
+      if (registerOnly) {
+        const project = await addProject({
+          path: trimmedPath,
+          name: alias.trim() || undefined,
+          description: description.trim() || undefined,
+          icon,
+        });
+        handleOpenChange(false);
+        onRegistered?.(project.id);
+        toast.success(
+          t("projectManager.manageRegisterSuccess", { name: project.name }),
+        );
+        return;
+      }
+
       const project = await addAndOpen({
         path: trimmedPath,
         name: alias.trim() || undefined,

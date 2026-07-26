@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ActivityBar, type SidebarView } from "@/components/layout/ActivityBar";
 import { RepoToolbar, type RepoMainView } from "@/components/layout/RepoToolbar";
-import { SplitPane } from "@/components/layout/SplitPane";
+import { ResizableSplit } from "@/components/layout/ResizableSplit";
 import { BranchList } from "@/components/git/BranchList";
 import { TagList } from "@/components/git/TagList";
 import { AgentChatPanel } from "@/components/ai/AgentChatPanel";
@@ -24,11 +24,13 @@ import { FileTree } from "@/components/git/FileTree";
 import { HistoryWorkspace } from "@/components/git/HistoryWorkspace";
 import { WorkspaceBrowser } from "@/components/git/WorkspaceBrowser";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
+import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 import { cn } from "@/lib/utils";
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
 
 import { useProjectStore } from "@/store/useProjectStore";
+import { useRepoNavStore } from "@/store/useRepoNavStore";
 import { hasRepoSession, restoreRepoSession, beginRepoSwitch, useRepoStore } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
@@ -87,6 +89,10 @@ interface RepoPageProps {
 
 export function RepoPage({ projectId, active }: RepoPageProps) {
   const { t } = useTranslation();
+  const { isMacOverlay } = useWindowChromeLayout();
+  const dragProps = isMacOverlay
+    ? ({ "data-tauri-drag-region": true } as const)
+    : {};
 
   const findById = useProjectStore((state) => state.findById);
   const loadProjects = useProjectStore((state) => state.loadProjects);
@@ -95,6 +101,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
   const refreshStatus = useRepoStore((state) => state.refreshStatus);
   const reset = useRepoStore((state) => state.reset);
   const conflictFocusEpoch = useRepoStore((state) => state.conflictFocusEpoch);
+  const fileTreeReveal = useRepoNavStore((state) => state.fileTreeReveal);
 
   const [project, setProject] = useState<Project | null>(() => lookupProject(projectId));
   const [bootstrapping, setBootstrapping] = useState(() => !lookupProject(projectId));
@@ -115,6 +122,16 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       setSidebarView("branches");
     }
   }, [hasApiKey, sidebarView]);
+
+  // 变更右键「在仓库目录树中显示」：切到目录树侧栏
+  useEffect(() => {
+    if (!fileTreeReveal) {
+      return;
+    }
+    setSidebarView("files");
+  }, [fileTreeReveal]);
+
+  const workspacePreview = useRepoNavStore((state) => state.workspacePreview);
 
   // 活动栏切换时静默刷新对应数据（目录树靠重新挂载拉取）
   const prevSidebarViewRef = useRef<SidebarView | null>(null);
@@ -322,10 +339,19 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
     setMainView(view);
   }
 
+  // 目录树点击文件：切到工作区并打开预览
+  useEffect(() => {
+    if (!workspacePreview) {
+      return;
+    }
+    handleMainViewChange("workspace");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅响应预览请求 nonce
+  }, [workspacePreview]);
+
   if (bootstrapping && !project) {
     return (
       // 加载期无 RepoToolbar：整页可拖窗口，避免只能点到失效的标签栏留白
-      <section data-tauri-drag-region className="flex h-full flex-col">
+      <section {...dragProps} className="flex h-full flex-col">
         <div className="flex flex-1 items-center justify-center">
           <p className="text-muted-foreground text-sm">{t("repo.opening")}</p>
         </div>
@@ -335,7 +361,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
 
   if ((error && !project) || !project) {
     return (
-      <section data-tauri-drag-region className="flex h-full flex-col">
+      <section {...dragProps} className="flex h-full flex-col">
         <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
           <p className="text-destructive text-sm" role="alert">
             {error ?? t("repo.notFound")}
@@ -371,7 +397,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
   );
 
   const changesPane = (
-    <SplitPane
+    <ResizableSplit
       orientation="horizontal"
       defaultRatio={32}
       minFirstPx={320}
@@ -379,7 +405,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       storageKey="jlgit:split:changes-preview"
       first={
         <section className="flex h-full min-h-0 flex-col overflow-hidden">
-          <SplitPane
+          <ResizableSplit
             orientation="vertical"
             defaultRatio={65}
             minFirstPx={CHANGES_LIST_MIN_HEIGHT_PX}
@@ -439,7 +465,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
         <div className="relative flex min-h-0 min-w-0 flex-1">
           <ActivityBar active={sidebarView} onChange={setSidebarView} />
 
-          <SplitPane
+          <ResizableSplit
             orientation="horizontal"
             defaultRatio={5}
             minFirstPx={SIDEBAR_MIN_WIDTH_PX}

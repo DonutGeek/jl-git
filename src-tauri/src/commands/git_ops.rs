@@ -9,7 +9,7 @@ use crate::git::{
     branch_compare::{self, GitBranchCompareResult},
     conflict::{self, ConflictSide, GitWorktreeFileResult},
     diff::{self, GitDiffResult, GitStagedDiffResult},
-    fs_list::{self, FsFileSizeResult, FsListResult},
+    fs_list::{self, FsCreateResult, FsFileSizeResult, FsListResult, FsRenameResult},
     identity::{self, GitIdentity},
     log::{self, GitLogResult},
     media::{self, GitFileMedia},
@@ -19,7 +19,7 @@ use crate::git::{
         normalize_existing_dir, require_git_toplevel, validate_git_ref,
         validate_repo_relative_paths,
     },
-    remote::{self, GitFetchResult, GitPullResult, GitPushResult, GitRemote},
+    remote::{self, GitCloneResult, GitFetchResult, GitPullResult, GitPushResult, GitRemote},
     repo_state::{self, GitRepoState},
     reset::{self, GitResetResult},
     runner,
@@ -131,6 +131,34 @@ pub fn fs_list_dir(path: String, relative: Option<String>) -> Result<FsListResul
 pub fn fs_file_size(path: String, file_path: String) -> Result<FsFileSizeResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
     fs_list::file_size(&repo_path, &file_path)
+}
+
+/// 删除仓库内相对文件或目录
+#[tauri::command]
+pub fn fs_remove(path: String, relative: String) -> Result<OkResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    fs_list::remove(&repo_path, &relative)?;
+    Ok(OkResult { ok: true })
+}
+
+/// 在同一父目录下重命名
+#[tauri::command]
+pub fn fs_rename(path: String, from: String, new_name: String) -> Result<FsRenameResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    fs_list::rename(&repo_path, &from, &new_name)
+}
+
+/// 在父目录下新建空目录或空文件
+#[tauri::command]
+pub fn fs_create(
+    path: String,
+    parent: Option<String>,
+    name: String,
+    is_dir: bool,
+) -> Result<FsCreateResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    let parent = parent.unwrap_or_default();
+    fs_list::create(&repo_path, &parent, &name, is_dir)
 }
 
 #[tauri::command]
@@ -557,6 +585,48 @@ pub fn git_unstage_all(path: String) -> Result<OkResult, AppError> {
     Ok(OkResult { ok: true })
 }
 
+/// 放弃工作区 / 暂存区对指定路径的更改（危险；UI 须二次确认）
+#[tauri::command]
+pub fn git_discard(path: String, paths: Vec<String>) -> Result<OkResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    if paths.is_empty() {
+        return Err(AppError::new("VALIDATION", "路径不能为空"));
+    }
+    validate_repo_relative_paths(&paths)?;
+
+    let mut tracked: Vec<String> = Vec::new();
+    let mut untracked: Vec<String> = Vec::new();
+    for relative in &paths {
+        if is_tracked_path(&repo_path, relative)? {
+            tracked.push(relative.clone());
+        } else {
+            untracked.push(relative.clone());
+        }
+    }
+
+    if !tracked.is_empty() {
+        let mut args = vec![
+            "restore".to_string(),
+            "--source=HEAD".to_string(),
+            "--staged".to_string(),
+            "--worktree".to_string(),
+            "--".to_string(),
+        ];
+        args.extend(tracked);
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        runner::run_git(&repo_path, &arg_refs)?;
+    }
+
+    if !untracked.is_empty() {
+        let mut args = vec!["clean".to_string(), "-f".to_string(), "--".to_string()];
+        args.extend(untracked);
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        runner::run_git(&repo_path, &arg_refs)?;
+    }
+
+    Ok(OkResult { ok: true })
+}
+
 #[tauri::command]
 pub async fn git_commit(
     app: AppHandle,
@@ -581,6 +651,50 @@ pub async fn git_commit(
     .await
     .map_err(|error| {
         AppError::new("INTERNAL", "commit 任务失败").with_details(error.to_string())
+    })?
+}
+
+/// 仅修改 HEAD 提交信息（须为当前 HEAD；不改 tree）
+#[tauri::command]
+pub async fn git_amend_message(
+    app: AppHandle,
+    path: String,
+    rev: String,
+    message: String,
+) -> Result<GitCommitResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    let repo_key = path;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "amend_message", || {
+            crate::git::commit::amend_message(&repo_path, &rev, &message)
+        })
+        .map(|commit_id| GitCommitResult { commit_id })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "修改提交信息任务失败").with_details(error.to_string())
+    })?
+}
+
+/// 克隆远端仓库到本地路径（阻塞线程池 + 超时）
+#[tauri::command]
+pub async fn git_clone(
+    app: AppHandle,
+    url: String,
+    path: String,
+) -> Result<GitCloneResult, AppError> {
+    let dest = PathBuf::from(path.trim());
+    let repo_key = dest.to_string_lossy().to_string();
+
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "clone", || {
+            remote::clone_repository(&url, &dest)
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "clone 任务失败").with_details(error.to_string())
     })?
 }
 
@@ -1029,6 +1143,12 @@ fn remote_tracking_parts(candidate: &str) -> Option<(&str, &str)> {
 fn resolve_repo_path(path: &str) -> Result<PathBuf, AppError> {
     let path = normalize_existing_dir(path)?;
     require_git_toplevel(&path)
+}
+
+fn is_tracked_path(repo_path: &PathBuf, relative: &str) -> Result<bool, AppError> {
+    let output =
+        runner::run_git_allow_nonzero(repo_path, &["ls-files", "--error-unmatch", "--", relative])?;
+    Ok(output.code == 0)
 }
 
 fn run_path_command(

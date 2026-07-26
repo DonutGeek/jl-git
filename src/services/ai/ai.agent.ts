@@ -8,7 +8,10 @@ import {
   buildResumeIdentityRequest,
   extractDeclaredResumeAuthors,
 } from "@/services/agent/agent.resumeIdentity";
-import { toGitAuthorPatterns } from "@/services/agent/agent.profile";
+import {
+  formatJlgitMetaBlock,
+  toGitAuthorPatterns,
+} from "@/services/agent/agent.profile";
 import { buildAgentSystemPrompt } from "@/prompts/agent";
 import { buildResumeSystemPrompt } from "@/prompts/resume";
 import { buildSkillCreatorSystemPrompt } from "@/prompts/skillCreator";
@@ -25,6 +28,7 @@ import {
 import i18n from "@/i18n";
 import { isRecord, type AppError } from "@/types/error";
 import type { AgentChatMessage } from "@/types/ai";
+import type { AgentJlgitMeta } from "@/types/agent";
 import type {
   GitBranch,
   GitCommitDetail,
@@ -51,6 +55,8 @@ interface StreamAgentReplyOptions {
   messages: readonly AgentChatMessage[];
   repoPath: string;
   locale: string;
+  /** 鲸灵Git 登记信息（别名 / 详情等），优先于 README 识别项目 */
+  jlgitMeta?: AgentJlgitMeta;
   signal?: AbortSignal;
   /** DeepSeek model id，如 deepseek-v4-pro / deepseek-v4-flash */
   model?: string;
@@ -69,6 +75,7 @@ export async function streamAgentReply({
   messages,
   repoPath,
   locale,
+  jlgitMeta,
   signal,
   model = DEFAULT_AGENT_MODEL,
   enableThinking = true,
@@ -101,6 +108,7 @@ export async function streamAgentReply({
     messages,
     resumeMode ? resumeAuthors : [],
     skillMode === "skill-creator",
+    jlgitMeta,
   );
   const systemPrompt =
     skillMode === "resume"
@@ -183,6 +191,7 @@ async function buildRepositoryContext(
   messages: readonly AgentChatMessage[],
   resumeAuthors: ReadonlyArray<{ name: string; email: string }> = [],
   forceFileTree = false,
+  jlgitMeta?: AgentJlgitMeta,
 ): Promise<string> {
   const question = messages[messages.length - 1]?.content ?? "";
   const selectedBranches = messages[messages.length - 1]?.mentions
@@ -227,6 +236,7 @@ async function buildRepositoryContext(
   ]);
 
   const sections = [
+    jlgitMeta ? formatJlgitMetaBlock(jlgitMeta) : `repoPath: ${repoPath}`,
     resumeMode
       ? [
           "userDeclaredGitAuthors:",

@@ -15,13 +15,14 @@ import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
 interface ProjectDescriptionFieldProps {
   value: string;
   onChange: (value: string) => void;
-  /** 仓库路径：有值才可 AI 生成 */
+  /** 本地仓库路径：AI 生成时读取 README / 清单 */
   repoPath: string;
   disabled?: boolean;
   generating: boolean;
   onGeneratingChange: (generating: boolean) => void;
   /** 避免同页多实例时 label/id 冲突 */
   fieldId?: string;
+  placeholder?: string;
 }
 
 /** 项目详情 Textarea + 右下角 AI 生成简介 */
@@ -33,6 +34,7 @@ export function ProjectDescriptionField({
   generating,
   onGeneratingChange,
   fieldId = "project-description",
+  placeholder,
 }: ProjectDescriptionFieldProps) {
   const { t } = useTranslation();
   const hasApiKey = useHasAgentApiKey();
@@ -44,10 +46,11 @@ export function ProjectDescriptionField({
     hasApiKey && trimmedPath.length > 0 && !disabled && !generating;
 
   async function handleGenerate(): Promise<void> {
+    if (!hasApiKey) {
+      openSettingsDrawer("ai");
+      return;
+    }
     if (!canGenerate) {
-      if (!hasApiKey) {
-        openSettingsDrawer("ai");
-      }
       return;
     }
 
@@ -63,6 +66,20 @@ export function ProjectDescriptionField({
     }
   }
 
+  const ariaLabel = !hasApiKey
+    ? t("common.aiApiKeyRequired")
+    : !trimmedPath
+      ? t("openRepo.descriptionNeedPath")
+      : t("openRepo.descriptionGenerate");
+
+  const tooltip = !hasApiKey
+    ? t("common.aiApiKeyRequired")
+    : !trimmedPath
+      ? t("openRepo.descriptionNeedPath")
+      : generating
+        ? t("openRepo.descriptionGenerating")
+        : t("openRepo.descriptionGenerate");
+
   return (
     <Field>
       <FieldLabel htmlFor={fieldId}>
@@ -73,7 +90,7 @@ export function ProjectDescriptionField({
           id={fieldId}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder={t("openRepo.detailPlaceholder")}
+          placeholder={placeholder ?? t("openRepo.detailPlaceholder")}
           disabled={disabled || generating}
           className="min-h-28 resize-y pb-10"
         />
@@ -86,13 +103,7 @@ export function ProjectDescriptionField({
                   variant="ghost"
                   size="icon-xs"
                   className="text-muted-foreground size-7"
-                  aria-label={
-                    !hasApiKey
-                      ? t("common.aiApiKeyRequired")
-                      : !trimmedPath
-                        ? t("openRepo.descriptionNeedPath")
-                        : t("openRepo.descriptionGenerate")
-                  }
+                  aria-label={ariaLabel}
                   disabled={!canGenerate && hasApiKey}
                   onClick={() => void handleGenerate()}
                 >
@@ -104,15 +115,7 @@ export function ProjectDescriptionField({
                 </Button>
               </span>
             </TooltipTrigger>
-            <TooltipContent>
-              {!hasApiKey
-                ? t("common.aiApiKeyRequired")
-                : !trimmedPath
-                  ? t("openRepo.descriptionNeedPath")
-                  : generating
-                    ? t("openRepo.descriptionGenerating")
-                    : t("openRepo.descriptionGenerate")}
-            </TooltipContent>
+            <TooltipContent>{tooltip}</TooltipContent>
           </Tooltip>
         </div>
       </div>

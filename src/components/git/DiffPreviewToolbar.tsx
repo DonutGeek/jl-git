@@ -61,6 +61,10 @@ interface DiffPreviewToolbarProps {
   onViewPrefsChange: (patch: Partial<DiffViewPrefs>) => void;
   /** 无仓库路径 / 二进制等场景禁用行追溯 */
   lineBlameDisabled?: boolean;
+  /** 隐藏居中「文件 / 差异」切换（工作区单文件预览） */
+  hideModeSwitch?: boolean;
+  /** 隐藏上下差异块导航 */
+  hideHunkNav?: boolean;
 }
 
 /**
@@ -88,6 +92,8 @@ export function DiffPreviewToolbar({
   viewPrefs,
   onViewPrefsChange,
   lineBlameDisabled = false,
+  hideModeSwitch = false,
+  hideHunkNav = false,
 }: DiffPreviewToolbarProps) {
   const { t } = useTranslation();
   const sideBySide = diffLayout === "sideBySide";
@@ -109,42 +115,44 @@ export function DiffPreviewToolbar({
         contentClassName="min-w-[10rem] font-mono"
       />
 
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div
-          className="bg-muted/60 pointer-events-auto flex items-center gap-0.5 rounded-md p-0.5"
-          role="tablist"
-          aria-label={t("repo.diffViewMode")}
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "file"}
-            className={cn(
-              "cursor-pointer rounded-sm px-2 py-0.5 text-[11px] transition-colors",
-              mode === "file"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            onClick={() => onModeChange("file")}
+      {!hideModeSwitch ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div
+            className="bg-muted/60 pointer-events-auto flex items-center gap-0.5 rounded-md p-0.5"
+            role="tablist"
+            aria-label={t("repo.diffViewMode")}
           >
-            {t("repo.diffFileView")}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "diff"}
-            className={cn(
-              "cursor-pointer rounded-sm px-2 py-0.5 text-[11px] transition-colors",
-              mode === "diff"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            onClick={() => onModeChange("diff")}
-          >
-            {t("repo.diffDiffView")}
-          </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "file"}
+              className={cn(
+                "cursor-pointer rounded-sm px-2 py-0.5 text-[11px] transition-colors",
+                mode === "file"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => onModeChange("file")}
+            >
+              {t("repo.diffFileView")}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "diff"}
+              className={cn(
+                "cursor-pointer rounded-sm px-2 py-0.5 text-[11px] transition-colors",
+                mode === "diff"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => onModeChange("diff")}
+            >
+              {t("repo.diffDiffView")}
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       <div className="z-10 ml-auto flex shrink-0 items-center gap-0.5">
         {navLabel ? (
@@ -152,20 +160,24 @@ export function DiffPreviewToolbar({
             {navLabel}
           </span>
         ) : null}
-        <ToolIconButton
-          label={t("repo.diffPrevChange")}
-          disabled={!canNavigateHunk}
-          onClick={onPrevHunk}
-        >
-          <ChevronUp aria-hidden="true" />
-        </ToolIconButton>
-        <ToolIconButton
-          label={t("repo.diffNextChange")}
-          disabled={!canNavigateHunk}
-          onClick={onNextHunk}
-        >
-          <ChevronDown aria-hidden="true" />
-        </ToolIconButton>
+        {!hideHunkNav ? (
+          <>
+            <ToolIconButton
+              label={t("repo.diffPrevChange")}
+              disabled={!canNavigateHunk}
+              onClick={onPrevHunk}
+            >
+              <ChevronUp aria-hidden="true" />
+            </ToolIconButton>
+            <ToolIconButton
+              label={t("repo.diffNextChange")}
+              disabled={!canNavigateHunk}
+              onClick={onNextHunk}
+            >
+              <ChevronDown aria-hidden="true" />
+            </ToolIconButton>
+          </>
+        ) : null}
 
         {!hideDiffLayoutTools ? (
           <>
@@ -196,7 +208,7 @@ export function DiffPreviewToolbar({
               <FoldVertical aria-hidden="true" />
             </ToolIconButton>
           </>
-        ) : (
+        ) : hideHunkNav || hideModeSwitch ? null : (
           <div className="bg-border mx-0.5 h-4 w-px shrink-0" aria-hidden="true" />
         )}
 

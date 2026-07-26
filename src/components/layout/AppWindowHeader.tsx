@@ -11,19 +11,21 @@ interface AppWindowHeaderProps {
 }
 
 /**
- * 子窗统一顶栏：mac Overlay 左留白；Win/Linux 系统装饰；空白区可拖。
- * 标题文案留在 drag-region 内以便拖动。
+ * 子窗统一顶栏：mac Overlay 左留白 + 自绘拖拽；Win/Linux 仅系统标题栏拖移（避免 IPC 前摇）。
  */
 export function AppWindowHeader({
   children,
   className,
   heightClassName = "h-12",
 }: AppWindowHeaderProps) {
-  const { headerPaddingClass } = useWindowChromeLayout();
+  const { headerPaddingClass, isMacOverlay } = useWindowChromeLayout();
+  const dragProps = isMacOverlay
+    ? ({ "data-tauri-drag-region": true } as const)
+    : {};
 
   return (
     <header
-      data-tauri-drag-region
+      {...dragProps}
       className={cn(
         "border-border bg-muted/40 flex shrink-0 items-center border-b px-4",
         heightClassName,
@@ -31,8 +33,10 @@ export function AppWindowHeader({
         className,
       )}
     >
-      <div className="flex min-w-0 items-center gap-2">{children}</div>
-      <div data-tauri-drag-region className="h-full min-w-2 flex-1" />
+      <div {...dragProps} className="flex min-w-0 items-center gap-2">
+        {children}
+      </div>
+      <div {...dragProps} className="h-full min-w-2 flex-1" />
     </header>
   );
 }

@@ -7,7 +7,7 @@
   "refreshFailed": "Failed to refresh branches",
   "empty": "No branches",
   "emptyDescription": "No branches match the current filters.",
-  "searchPlaceholder": "Search branch, author, or commit",
+  "searchPlaceholder": "Enter branch, author, or commit",
   "scopeLocal": "Local",
   "scopeRemote": "Remote",
   "filterAll": "All",

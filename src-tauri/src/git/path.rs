@@ -3,14 +3,21 @@ use crate::git::runner;
 use std::path::{Path, PathBuf};
 
 pub fn normalize_existing_dir(path: &str) -> Result<PathBuf, AppError> {
+    let path = normalize_existing_path(path)?;
+
+    if !path.is_dir() {
+        return Err(AppError::new("INVALID_PATH", "路径不是目录"));
+    }
+
+    Ok(path)
+}
+
+/// 规范化已存在的文件或目录路径
+pub fn normalize_existing_path(path: &str) -> Result<PathBuf, AppError> {
     let path = PathBuf::from(path);
 
     if !path.exists() {
         return Err(AppError::new("INVALID_PATH", "路径不存在"));
-    }
-
-    if !path.is_dir() {
-        return Err(AppError::new("INVALID_PATH", "路径不是目录"));
     }
 
     std::fs::canonicalize(&path).map_err(|error| {

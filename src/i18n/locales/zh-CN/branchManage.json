@@ -7,7 +7,7 @@
   "refreshFailed": "刷新分支列表失败",
   "empty": "没有分支",
   "emptyDescription": "当前筛选条件下没有可显示的分支。",
-  "searchPlaceholder": "搜索分支、作者或提交",
+  "searchPlaceholder": "请输入分支、作者或提交",
   "scopeLocal": "本地",
   "scopeRemote": "远端",
   "filterAll": "全部",

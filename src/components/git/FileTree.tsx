@@ -7,6 +7,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  FileTreeContextMenu,
+  type FileTreeMutation,
+} from "@/components/git/FileTreeContextMenu";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +24,8 @@ import {
 import { cn } from "@/lib/utils";
 
 import { gitService } from "@/services/git";
+import { useRepoNavStore } from "@/store/useRepoNavStore";
+import { useRepoStore } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
 import { FsEntry } from "@/types/git";
@@ -33,7 +39,13 @@ interface TreeNodeProps {
   depth: number;
   filter: string;
   expanded: Set<string>;
+  selectedPath: string | null;
+  repoPath: string;
   onToggle: (path: string) => void;
+  onSelect: (path: string) => void;
+  /** 点击文件时打开工作区预览 */
+  onOpenFile?: (path: string) => void;
+  onMutated?: (mutation: FileTreeMutation) => void;
   childrenCache: Map<string, FsEntry[]>;
   ensureChildren: (path: string) => Promise<void>;
   loadingPaths: Set<string>;
@@ -44,26 +56,39 @@ function TreeNode({
   depth,
   filter,
   expanded,
+  selectedPath,
+  repoPath,
   onToggle,
+  onSelect,
+  onOpenFile,
+  onMutated,
   childrenCache,
   ensureChildren,
   loadingPaths,
 }: TreeNodeProps) {
   const isOpen = expanded.has(entry.path);
+  const selected = selectedPath === entry.path;
   const children = childrenCache.get(entry.path) ?? [];
   const loading = loadingPaths.has(entry.path);
+  const rowRef = useRef<HTMLButtonElement | null>(null);
 
   const filterLower = filter.trim().toLowerCase();
   const selfMatch =
     filterLower.length === 0 || entry.name.toLowerCase().includes(filterLower);
-
   // 过滤时：目录若自身不匹配，仍可能因子孙匹配而显示（懒加载限制下仅匹配已加载层）
-  if (filterLower.length > 0 && !selfMatch && !entry.isDir) {
-    return null;
-  }
+  const hidden =
+    filterLower.length > 0 && !selfMatch && !entry.isDir;
+
+  useEffect(() => {
+    if (selected && rowRef.current) {
+      rowRef.current.scrollIntoView({ block: "nearest" });
+    }
+  }, [selected]);
 
   async function handleToggle(): Promise<void> {
+    onSelect(entry.path);
     if (!entry.isDir) {
+      onOpenFile?.(entry.path);
       return;
     }
 
@@ -73,38 +98,49 @@ function TreeNode({
     onToggle(entry.path);
   }
 
+  if (hidden) {
+    return null;
+  }
+
   return (
     <div>
-      <Button
-        type="button"
-        variant="ghost"
-        className={cn(
-          "h-7 w-full justify-start gap-1 rounded-md px-1.5 py-0 text-left font-normal",
-          // 目录可展开；文件暂不可点，勿假 pointer
-          entry.isDir ? "cursor-pointer" : "cursor-default",
-        )}
-        style={{ paddingLeft: `${6 + depth * 12}px` }}
-        onClick={() => void handleToggle()}
-        disabled={!entry.isDir && filterLower.length > 0 && !selfMatch}
+      <FileTreeContextMenu
+        entry={entry}
+        repoPath={repoPath}
+        onMenuOpen={() => onSelect(entry.path)}
+        onMutated={onMutated}
       >
-        {entry.isDir ? (
-          isOpen ? (
-            <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+        <Button
+          ref={rowRef}
+          type="button"
+          variant="ghost"
+          className={cn(
+            "h-7 w-full justify-start gap-1 rounded-md px-1.5 py-0 text-left font-normal cursor-pointer",
+            selected && "bg-accent text-accent-foreground",
+          )}
+          style={{ paddingLeft: `${6 + depth * 12}px` }}
+          onClick={() => void handleToggle()}
+          disabled={!entry.isDir && filterLower.length > 0 && !selfMatch}
+        >
+          {entry.isDir ? (
+            isOpen ? (
+              <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+            )
           ) : (
-            <ChevronRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
-          )
-        ) : (
-          <span className="size-3.5 shrink-0" aria-hidden="true" />
-        )}
+            <span className="size-3.5 shrink-0" aria-hidden="true" />
+          )}
 
-        <MaterialFileIcon
-          name={entry.name}
-          isDir={entry.isDir}
-          className="size-3.5"
-        />
+          <MaterialFileIcon
+            name={entry.name}
+            isDir={entry.isDir}
+            className="size-3.5"
+          />
 
-        <span className="min-w-0 flex-1 truncate text-xs">{entry.name}</span>
-      </Button>
+          <span className="min-w-0 flex-1 truncate text-xs">{entry.name}</span>
+        </Button>
+      </FileTreeContextMenu>
 
       {entry.isDir && isOpen ? (
         <div>
@@ -123,7 +159,12 @@ function TreeNode({
                 depth={depth + 1}
                 filter={filter}
                 expanded={expanded}
+                selectedPath={selectedPath}
+                repoPath={repoPath}
                 onToggle={onToggle}
+                onSelect={onSelect}
+                onOpenFile={onOpenFile}
+                onMutated={onMutated}
                 childrenCache={childrenCache}
                 ensureChildren={ensureChildren}
                 loadingPaths={loadingPaths}
@@ -139,6 +180,13 @@ function TreeNode({
 /** 仓库目录树：懒加载展开（状态字母仅在变更列表展示） */
 export function FileTree({ repoPath }: FileTreeProps) {
   const { t } = useTranslation();
+  const fileTreeReveal = useRepoNavStore((state) => state.fileTreeReveal);
+  const openWorkspacePreview = useRepoNavStore((state) => state.openWorkspacePreview);
+  const clearWorkspacePreview = useRepoNavStore((state) => state.clearWorkspacePreview);
+  const workspacePreviewPath = useRepoNavStore(
+    (state) => state.workspacePreview?.path ?? null,
+  );
+  const refreshStatus = useRepoStore((state) => state.refreshStatus);
 
   const [filter, setFilter] = useState("");
   const [rootEntries, setRootEntries] = useState<FsEntry[]>([]);
@@ -146,6 +194,7 @@ export function FileTree({ repoPath }: FileTreeProps) {
     () => new Map(),
   );
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const [loadingRoot, setLoadingRoot] = useState(true);
@@ -153,6 +202,8 @@ export function FileTree({ repoPath }: FileTreeProps) {
   const childrenCacheRef = useRef(childrenCache);
   childrenCacheRef.current = childrenCache;
   const loadGenerationRef = useRef(0);
+  const ensureChildrenRef = useRef<(path: string) => Promise<void>>(async () => {});
+  const revealNonceRef = useRef(0);
 
   const loadRoot = useCallback(async (): Promise<void> => {
     const generation = loadGenerationRef.current + 1;
@@ -232,6 +283,7 @@ export function FileTree({ repoPath }: FileTreeProps) {
     },
     [repoPath],
   );
+  ensureChildrenRef.current = ensureChildren;
 
   function toggleExpand(path: string): void {
     setExpanded((prev) => {
@@ -243,6 +295,109 @@ export function FileTree({ repoPath }: FileTreeProps) {
       }
       return next;
     });
+  }
+
+  // 从变更面板定位到目录树
+  useEffect(() => {
+    if (!fileTreeReveal || fileTreeReveal.nonce === revealNonceRef.current) {
+      return;
+    }
+    revealNonceRef.current = fileTreeReveal.nonce;
+    const target = fileTreeReveal.path.replace(/\\/g, "/");
+    const parts = target.split("/").filter(Boolean);
+    if (parts.length === 0) {
+      return;
+    }
+
+    setFilter("");
+    setSelectedPath(target);
+
+    void (async () => {
+      const folders: string[] = [];
+      for (let i = 0; i < parts.length - 1; i += 1) {
+        folders.push(parts.slice(0, i + 1).join("/"));
+      }
+      for (const folder of folders) {
+        await ensureChildrenRef.current(folder);
+      }
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        for (const folder of folders) {
+          next.add(folder);
+        }
+        return next;
+      });
+    })();
+  }, [fileTreeReveal]);
+
+  // 工作区预览路径变化时同步目录树选中
+  useEffect(() => {
+    if (workspacePreviewPath) {
+      setSelectedPath(workspacePreviewPath.replace(/\\/g, "/"));
+    }
+  }, [workspacePreviewPath]);
+
+  function handleOpenFile(path: string): void {
+    openWorkspacePreview(path.replace(/\\/g, "/"));
+  }
+
+  async function handleMutated(mutation: FileTreeMutation): Promise<void> {
+    const preview = workspacePreviewPath?.replace(/\\/g, "/") ?? null;
+
+    if (mutation.type === "create") {
+      const parent = mutation.parentPath.replace(/\\/g, "/");
+      const created = mutation.path.replace(/\\/g, "/");
+      setExpanded((prev) => new Set(prev).add(parent));
+      setSelectedPath(created);
+      try {
+        const [parentListing, root] = await Promise.all([
+          gitService.listDir(repoPath, parent),
+          gitService.listDir(repoPath, ""),
+        ]);
+        setChildrenCache((prev) => {
+          const next = new Map(prev);
+          next.set(parent, parentListing.entries);
+          childrenCacheRef.current = next;
+          return next;
+        });
+        setRootEntries(root.entries);
+      } catch (error) {
+        setError(toUserMessage(error));
+      }
+      if (!mutation.isDir) {
+        openWorkspacePreview(created);
+      }
+      void refreshStatus();
+      return;
+    }
+
+    if (mutation.type === "delete") {
+      const deleted = mutation.path.replace(/\\/g, "/");
+      if (preview === deleted || preview?.startsWith(`${deleted}/`)) {
+        clearWorkspacePreview();
+      }
+      if (selectedPath === deleted || selectedPath?.startsWith(`${deleted}/`)) {
+        setSelectedPath(null);
+      }
+    } else {
+      const from = mutation.from.replace(/\\/g, "/");
+      const to = mutation.to.replace(/\\/g, "/");
+      if (preview === from) {
+        openWorkspacePreview(to);
+      } else if (preview?.startsWith(`${from}/`)) {
+        clearWorkspacePreview();
+      }
+      if (selectedPath === from) {
+        setSelectedPath(to);
+      }
+    }
+
+    try {
+      await loadRoot();
+    } catch {
+      // 错误已写入 error 区
+    }
+    void refreshStatus();
   }
 
   const filterLower = filter.trim().toLowerCase();
@@ -319,7 +474,14 @@ export function FileTree({ repoPath }: FileTreeProps) {
                 depth={0}
                 filter={filter}
                 expanded={expanded}
+                selectedPath={selectedPath}
+                repoPath={repoPath}
                 onToggle={toggleExpand}
+                onSelect={setSelectedPath}
+                onOpenFile={handleOpenFile}
+                onMutated={(mutation) => {
+                  void handleMutated(mutation);
+                }}
                 childrenCache={childrenCache}
                 ensureChildren={ensureChildren}
                 loadingPaths={loadingPaths}

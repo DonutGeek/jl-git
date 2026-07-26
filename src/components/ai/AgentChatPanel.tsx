@@ -45,9 +45,11 @@ import {
   filterEnabledAgentSkills,
   getDisabledAgentPluginIds,
 } from "@/services/agent/agent.plugins";
+import { buildJlgitMeta } from "@/services/agent/agent.profile";
 import { openBranchCompareWindow } from "@/services/window/branchCompareWindow";
 import { EMPTY_CONVERSATIONS, useAgentChatStore } from "@/store/useAgentChatStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
+import { useProjectStore } from "@/store/useProjectStore";
 import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { AgentChatMessage, AgentConversation, AgentMention } from "@/types/ai";
@@ -69,6 +71,17 @@ interface AgentChatPanelProps {
 export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   const { t } = useTranslation();
   const hasApiKey = useHasAgentApiKey();
+  const project = useProjectStore((state) => state.findById(projectId));
+  const workspaces = useProjectStore((state) => state.workspaces);
+  const jlgitMeta = useMemo(() => {
+    if (!project) {
+      return undefined;
+    }
+    const groupNameById = new Map(
+      workspaces.map((workspace) => [workspace.id, workspace.name]),
+    );
+    return buildJlgitMeta(project, groupNameById);
+  }, [project, workspaces]);
   const composerRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   /** 流式请求绑定会话，切换 Tab 后仍写回原 conversationId */
@@ -480,6 +493,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
         messages: historyForRequest,
         repoPath,
         locale,
+        jlgitMeta,
         model: modelId,
         enableThinking: thinkingSupported && thinkingEnabled,
         signal: controller.signal,

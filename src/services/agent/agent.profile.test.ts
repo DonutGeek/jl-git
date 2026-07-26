@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildJlgitMeta,
   commitMatchesAuthor,
+  formatJlgitMetaBlock,
   prepareProfilesForAgentContext,
   toGitAuthorPatterns,
 } from "@/services/agent/agent.profile";
 import type { AgentProjectProfile } from "@/types/agent";
+import type { Project } from "@/types/project";
 
 describe("commitMatchesAuthor", () => {
   it("邮箱相同、显示名不同时仍命中（设置 jingyue / 提交 DonutGeek）", () => {
@@ -47,6 +50,41 @@ describe("toGitAuthorPatterns", () => {
   });
 });
 
+describe("buildJlgitMeta / formatJlgitMetaBlock", () => {
+  const project: Project = {
+    id: "p1",
+    path: "/tmp/demo",
+    name: "演示仓",
+    workspaceId: "g1",
+    description: "  跨端 Git 客户端  ",
+    icon: "folder-git-2",
+    pinned: false,
+    sortOrder: 0,
+    createdAt: "",
+    updatedAt: "",
+    lastOpenedAt: null,
+  };
+
+  it("登记详情进入 jlgitMeta，并序列化给模型", () => {
+    const meta = buildJlgitMeta(project, new Map([["g1", "工作"]]));
+    expect(meta).toEqual({
+      path: "/tmp/demo",
+      alias: "演示仓",
+      groupName: "工作",
+      description: "跨端 Git 客户端",
+    });
+    const block = formatJlgitMetaBlock(meta);
+    expect(block).toContain("description: 跨端 Git 客户端");
+    expect(block).toContain("alias: 演示仓");
+  });
+
+  it("无详情时不输出 description 行", () => {
+    const meta = buildJlgitMeta({ ...project, description: null }, new Map());
+    expect(meta.description).toBeNull();
+    expect(formatJlgitMetaBlock(meta)).not.toContain("description:");
+  });
+});
+
 describe("prepareProfilesForAgentContext", () => {
   it("二次过滤不会因显示名不一致清空已按邮箱拉取的提交", () => {
     const profile: AgentProjectProfile = {
@@ -57,6 +95,7 @@ describe("prepareProfilesForAgentContext", () => {
         path: "/tmp/JLGit",
         alias: "JLGit",
         groupName: null,
+        description: "现代 Git 桌面客户端",
       },
       firstCommitAt: "2026-01-01T00:00:00+00:00",
       lastCommitAt: "2026-07-01T00:00:00+00:00",

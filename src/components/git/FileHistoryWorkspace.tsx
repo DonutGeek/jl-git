@@ -8,7 +8,7 @@ import { CommitAuthorAvatars } from "@/components/git/CommitAuthorAvatars";
 import { TextDiffPreview } from "@/components/git/TextDiffPreview";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AppWindowHeader } from "@/components/layout/AppWindowHeader";
-import { SplitPane } from "@/components/layout/SplitPane";
+import { ResizableSplit } from "@/components/layout/ResizableSplit";
 import { cn } from "@/lib/utils";
 
 import { getCommitFileDiff, getLog } from "@/services/git";
@@ -121,7 +121,7 @@ export function FileHistoryWorkspace({
       </AppWindowHeader>
 
       <div className="min-h-0 flex-1">
-        <SplitPane
+        <ResizableSplit
           orientation="horizontal"
           defaultRatio={28}
           minFirstPx={220}

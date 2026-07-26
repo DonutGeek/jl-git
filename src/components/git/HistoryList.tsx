@@ -7,8 +7,6 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type KeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
   type SyntheticEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
@@ -27,10 +25,19 @@ import {
   SearchX,
   SlidersHorizontal,
 } from "lucide-react";
+import { usePanelRef } from "react-resizable-panels";
 import { toast } from "sonner";
 
+
+import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
+import { TRUNCATE_BUDGET_ATTR } from "@/components/common/TruncateStartPath";
+import { CommitAuthorAvatars } from "@/components/git/CommitAuthorAvatars";
+import { GitRefTag } from "@/components/git/GitRefTag";
+import { HistoryCommitContextMenu } from "@/components/git/HistoryCommitContextMenu";
+import { HistoryGraph } from "@/components/git/HistoryGraph";
+import { useHistoryWorkspace } from "@/components/git/HistoryWorkspaceContext";
+import { RESIZABLE_HANDLE_CLASSNAME } from "@/components/layout/ResizableSplit";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,18 +46,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { CommitAuthorAvatars } from "@/components/git/CommitAuthorAvatars";
-import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
-import { TRUNCATE_BUDGET_ATTR } from "@/components/common/TruncateStartPath";
-import { GitRefTag } from "@/components/git/GitRefTag";
-import { HistoryGraph } from "@/components/git/HistoryGraph";
-import { useHistoryWorkspace } from "@/components/git/HistoryWorkspaceContext";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { cn } from "@/lib/utils";
 
@@ -225,6 +232,10 @@ interface HistoryCommitRowProps {
   isHovered: boolean;
   /** 当前检出分支 tip：行内空心圆标记（不占非 tip 行的空白列） */
   isTip: boolean;
+  /** 是否为当前 HEAD（可修改提交信息） */
+  isHead: boolean;
+  /** HEAD 是否已无本地超前（改写需确认） */
+  alreadyPushed: boolean;
   /** 行内展示的 refs（已按「远程分支」开关过滤） */
   visibleRefs: string[];
   expandBranchNames: boolean;
@@ -282,6 +293,8 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
   isSelected,
   isHovered,
   isTip,
+  isHead,
+  alreadyPushed,
   visibleRefs,
   expandBranchNames,
   branchOnLeft,
@@ -340,58 +353,65 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
   ) : null;
 
   return (
-    <li
-      className={cn("border-0", className)}
-      style={{ height: HISTORY_ROW_HEIGHT_PX, ...style }}
+    <HistoryCommitContextMenu
+      commit={commit}
+      isHead={isHead}
+      alreadyPushed={alreadyPushed}
+      onMenuOpen={() => onSelect(commit.id)}
     >
-      <button
-        type="button"
-        role="option"
-        aria-selected={isSelected}
-        className={cn(
-          // 固定四列：文案 | 时间 | 作者 | hash；作者约 avatar+短名（5.5rem），避免与 hash 间大空档
-          "grid h-full w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_138px_5.5rem_7ch] items-center gap-1.5 rounded-md border-0 px-2 text-left shadow-none transition-colors duration-150",
-          isSelected
-            ? "bg-primary/15 text-foreground hover:bg-primary/20"
-            : isHovered
-              ? "bg-muted text-foreground"
-              : "hover:bg-accent/60 text-foreground",
-        )}
-        onClick={() => onSelect(commit.id)}
+      <li
+        className={cn("border-0", className)}
+        style={{ height: HISTORY_ROW_HEIGHT_PX, ...style }}
       >
-        <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-          {/* 仅 tip 行显示空心圆；非 tip 不占位，避免出现「圈下面一整列空白」 */}
-          {isTip ? (
-            <Circle
-              className="text-primary size-3 shrink-0 stroke-[2.5]"
-              aria-hidden="true"
+        <button
+          type="button"
+          role="option"
+          aria-selected={isSelected}
+          className={cn(
+            // 固定四列：文案 | 时间 | 作者 | hash；作者约 avatar+短名（5.5rem），避免与 hash 间大空档
+            "grid h-full w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_138px_5.5rem_7ch] items-center gap-1.5 rounded-md border-0 px-2 text-left shadow-none transition-colors duration-150",
+            isSelected
+              ? "bg-primary/15 text-foreground hover:bg-primary/20"
+              : isHovered
+                ? "bg-muted text-foreground"
+                : "hover:bg-accent/60 text-foreground",
+          )}
+          onClick={() => onSelect(commit.id)}
+        >
+          <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+            {/* 仅 tip 行显示空心圆；非 tip 不占位，避免出现「圈下面一整列空白」 */}
+            {isTip ? (
+              <Circle
+                className="text-primary size-3 shrink-0 stroke-[2.5]"
+                aria-hidden="true"
+              />
+            ) : null}
+            {branchOnLeft ? branchSlot : null}
+            <span className={subjectClassName} title={commit.subject}>
+              {commit.subject}
+            </span>
+            {!branchOnLeft ? branchSlot : null}
+          </div>
+
+          <span className="text-muted-foreground truncate font-mono text-[11px] leading-none tabular-nums">
+            {authoredLabel}
+          </span>
+
+          <div className="text-muted-foreground flex min-w-0 items-center gap-1 overflow-hidden">
+            <CommitAuthorAvatars
+              authorName={commit.authorName}
+              authorEmail={commit.authorEmail ?? ""}
+              coAuthors={commit.coAuthors ?? []}
             />
-          ) : null}
-          {branchOnLeft ? branchSlot : null}
-          <span className={subjectClassName} title={commit.subject}>
-            {commit.subject}
-          </span>
-          {!branchOnLeft ? branchSlot : null}
-        </div>
+            <span className="min-w-0 truncate text-xs leading-none" title={commit.authorName}>
+              {commit.authorName}
+            </span>
+          </div>
 
-        <span className="text-muted-foreground truncate font-mono text-[11px] leading-none tabular-nums">
-          {authoredLabel}
-        </span>
-
-        <div className="text-muted-foreground flex min-w-0 items-center gap-1 overflow-hidden">
-          <CommitAuthorAvatars
-            authorName={commit.authorName}
-            authorEmail={commit.authorEmail ?? ""}
-            coAuthors={commit.coAuthors ?? []}
-          />
-          <span className="min-w-0 truncate text-xs leading-none" title={commit.authorName}>
-            {commit.authorName}
-          </span>
-        </div>
-
-        <CopyableHash fullId={commit.id} />
-      </button>
-    </li>
+          <CopyableHash fullId={commit.id} />
+        </button>
+      </li>
+    </HistoryCommitContextMenu>
   );
 });
 
@@ -450,9 +470,7 @@ export function HistoryList() {
   const [authorMenuFilter, setAuthorMenuFilter] = useState("");
   const [author, setAuthor] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
-  const [graphWidth, setGraphWidth] = useState(readHistoryGraphWidth);
   const [viewPrefs, setViewPrefs] = useState<HistoryViewPrefs>(readHistoryViewPrefs);
-  const [draggingGraphDivider, setDraggingGraphDivider] = useState(false);
   /** 与列表纵向滚动同步，供视口内图谱层 translateY */
   const [graphScrollTop, setGraphScrollTop] = useState(0);
   /** SVG 内容宽度：撑开列内横向 ScrollArea，不改变列宽 */
@@ -460,8 +478,7 @@ export function HistoryList() {
   /** 图谱圆点悬停 → 同步高亮对应历史行 */
   const [hoveredCommitId, setHoveredCommitId] = useState<string | null>(null);
   const { viewport: historyViewport, bindScrollArea } = useScrollAreaViewport();
-  /** 历史列视口：用于拖拽宽度计算；分隔线挂在此层以保证视口等高 */
-  const historyPaneRef = useRef<HTMLDivElement>(null);
+  const graphPanelRef = usePanelRef();
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const loadingMoreRef = useRef(false);
 
@@ -472,6 +489,15 @@ export function HistoryList() {
   const currentBranch = status?.branch ?? null;
   /** 历史「当前分支」范围：检出分支名；游离 HEAD 时用 HEAD */
   const currentBranchLogRef = status?.detached ? "HEAD" : currentBranch;
+  /** 当前 HEAD tip 短 hash，用于判断可否修改提交信息 */
+  const headTipShortId = useMemo(() => {
+    const current = branches.find((branch) => branch.isCurrent);
+    const tip = current?.tipShortId?.trim();
+    return tip || null;
+  }, [branches]);
+  /** ahead=0 且有上游时，改写 HEAD 需确认（可能已推送） */
+  const alreadyPushed =
+    (status?.ahead ?? 0) <= 0 && Boolean(status?.upstream);
   /** 历史范围下拉：本地在上 + origin/ 远端（此前误只列本地） */
   const historyScopeBranches = useMemo(() => {
     const byName = (left: (typeof branches)[number], right: (typeof branches)[number]) =>
@@ -636,19 +662,23 @@ export function HistoryList() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(HISTORY_GRAPH_WIDTH_STORAGE_KEY, String(graphWidth));
-    } catch {
-      // 存储不可用不影响拖拽体验
-    }
-  }, [graphWidth]);
-
-  useEffect(() => {
-    try {
       localStorage.setItem(HISTORY_VIEW_PREFS_STORAGE_KEY, JSON.stringify(viewPrefs));
     } catch {
       // 存储不可用不影响视图开关
     }
   }, [viewPrefs]);
+
+  function persistGraphWidthPx(widthPx: number): void {
+    const next = Math.min(
+      HISTORY_GRAPH_MAX_WIDTH,
+      Math.max(HISTORY_GRAPH_MIN_WIDTH, Math.round(widthPx)),
+    );
+    try {
+      localStorage.setItem(HISTORY_GRAPH_WIDTH_STORAGE_KEY, String(next));
+    } catch {
+      // 存储不可用不影响拖拽体验
+    }
+  }
 
   function toggleViewPref(key: keyof HistoryViewPrefs): void {
     setViewPrefs((current) => ({ ...current, [key]: !current[key] }));
@@ -797,50 +827,6 @@ export function HistoryList() {
     historyViewport?.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function clampGraphWidth(nextWidth: number): number {
-    const paneWidth = historyPaneRef.current?.getBoundingClientRect().width ?? 0;
-    const maxByPane = paneWidth > 0 ? Math.max(HISTORY_GRAPH_MIN_WIDTH, paneWidth - 300) : HISTORY_GRAPH_MAX_WIDTH;
-    return Math.min(Math.min(HISTORY_GRAPH_MAX_WIDTH, maxByPane), Math.max(HISTORY_GRAPH_MIN_WIDTH, nextWidth));
-  }
-
-  function updateGraphWidth(clientX: number): void {
-    const rect = historyPaneRef.current?.getBoundingClientRect();
-    if (!rect) {
-      return;
-    }
-    // 分隔线在「左边距 + graphWidth」处，宽度不含左侧留白
-    setGraphWidth(clampGraphWidth(clientX - rect.left - HISTORY_EDGE_GAP_PX));
-  }
-
-  function handleGraphDividerPointerDown(event: ReactPointerEvent<HTMLDivElement>): void {
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setDraggingGraphDivider(true);
-    updateGraphWidth(event.clientX);
-  }
-
-  function handleGraphDividerPointerMove(event: ReactPointerEvent<HTMLDivElement>): void {
-    if (!draggingGraphDivider) {
-      return;
-    }
-    updateGraphWidth(event.clientX);
-  }
-
-  function handleGraphDividerPointerEnd(event: ReactPointerEvent<HTMLDivElement>): void {
-    setDraggingGraphDivider(false);
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  }
-
-  function handleGraphDividerKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
-      return;
-    }
-    event.preventDefault();
-    setGraphWidth((width) => clampGraphWidth(width + (event.key === "ArrowLeft" ? -16 : 16)));
-  }
-
   function handleSoon(action: string): void {
     toast.message(t("repo.syncComingSoon", { action }));
   }
@@ -863,8 +849,8 @@ export function HistoryList() {
           ? t("repo.historyDate30d")
           : t("repo.historyDate90d");
 
-  // absolute 行不受 padding 约束；用 left/right 避开图谱列与左右留白
-  const commitRowLeft = HISTORY_EDGE_GAP_PX + graphWidth + HISTORY_EDGE_GAP_PX;
+  // absolute 行不受 padding 约束；列表已在右侧 Panel 内，仅留左右边距
+  const commitRowLeft = HISTORY_EDGE_GAP_PX;
   const commitRowRight = HISTORY_EDGE_GAP_PX + 4;
 
   return (
@@ -1272,220 +1258,241 @@ export function HistoryList() {
         </div>
       </div>
 
-      <div
-        ref={historyPaneRef}
-        className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
-      >
-        <ScrollArea
-          ref={bindScrollArea}
-          // Radix viewport 内层 display:table 会撑开宽度导致 truncate 失效；在用法处覆盖，不改 ui/scroll-area
-          // 禁止横向滚动：宽图谱 SVG 只在左侧列内裁切，不拖出整表底栏滚动条
-          className="h-full w-full [&_[data-slot=scroll-area-viewport]]:overflow-x-hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
-        >
-        {commits.length === 0 ? (
-          <div className="flex h-full min-h-[12rem] flex-col items-center justify-center gap-3 px-6 text-center">
-            <GitCommitHorizontal
-              className="text-muted-foreground size-10 opacity-50"
-              aria-hidden="true"
-            />
-            <div className="space-y-1">
-              <p className="text-sm font-medium">{t("repo.history")}</p>
-              <p className="text-muted-foreground max-w-sm text-xs">
-                {t("repo.historyEmpty")}
-              </p>
-            </div>
-          </div>
-        ) : filteredCommits.length === 0 ? (
-          <div className="flex h-full min-h-[12rem] flex-col items-center justify-center gap-3 px-6 text-center">
-            <SearchX
-              className="text-muted-foreground size-10 opacity-50"
-              aria-hidden="true"
-            />
-            <div className="space-y-1">
-              <p className="text-sm font-medium">{t("repo.historyNoMatch")}</p>
-              <p className="text-muted-foreground max-w-sm text-xs">
-                {t("repo.historyNoMatchHint")}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <ul
-            className="relative w-full min-w-0"
-            style={{
-              height: `${commitVirtualizer.getTotalSize()}px`,
-            }}
-            role="listbox"
-            aria-label={t("repo.history")}
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+        {commits.length === 0 || filteredCommits.length === 0 ? (
+          <ScrollArea
+            ref={bindScrollArea}
+            className="h-full w-full [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
           >
-            {commitVirtualizer.getVirtualItems().map((virtualItem) => {
-              const commit = filteredCommits[virtualItem.index];
-              if (!commit) {
-                return null;
-              }
-              const refs = commit.refs ?? [];
-              const visibleRefs = filterVisibleHistoryRefs(
-                refs,
-                viewPrefs.showRemoteBranches,
-              );
-              const isTip =
-                currentBranch != null &&
-                refs.some((ref) => ref === currentBranch || ref.endsWith(`&${currentBranch}`));
-
-              return (
-                <HistoryCommitRow
-                  key={virtualItem.key}
-                  commit={commit}
-                  isSelected={selectedCommitId === commit.id}
-                  isHovered={hoveredCommitId === commit.id}
-                  isTip={isTip}
-                  visibleRefs={visibleRefs}
-                  expandBranchNames={viewPrefs.expandBranchNames}
-                  branchOnLeft={viewPrefs.branchOnLeft}
-                  onSelect={handleSelectCommit}
-                  className="absolute top-0 min-w-0"
-                  style={{
-                    height: `${virtualItem.size}px`,
-                    transform: `translateY(${virtualItem.start}px)`,
-                    left: commitRowLeft,
-                    right: commitRowRight,
-                  }}
+            {commits.length === 0 ? (
+              <div className="flex h-full min-h-[12rem] flex-col items-center justify-center gap-3 px-6 text-center">
+                <GitCommitHorizontal
+                  className="text-muted-foreground size-10 opacity-50"
+                  aria-hidden="true"
                 />
-              );
-            })}
-          </ul>
-        )}
-
-        {shouldAutoLoadMore || loadMoreFailed ? (
-          <div
-            ref={loadMoreSentinelRef}
-            className="flex min-h-8 items-center justify-center gap-2 px-2 py-2"
-            aria-live="polite"
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{t("repo.history")}</p>
+                  <p className="text-muted-foreground max-w-sm text-xs">
+                    {t("repo.historyEmpty")}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex h-full min-h-[12rem] flex-col items-center justify-center gap-3 px-6 text-center">
+                <SearchX
+                  className="text-muted-foreground size-10 opacity-50"
+                  aria-hidden="true"
+                />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{t("repo.historyNoMatch")}</p>
+                  <p className="text-muted-foreground max-w-sm text-xs">
+                    {t("repo.historyNoMatchHint")}
+                  </p>
+                </div>
+              </div>
+            )}
+          </ScrollArea>
+        ) : (
+          <ResizablePanelGroup
+            id={HISTORY_GRAPH_WIDTH_STORAGE_KEY}
+            orientation="horizontal"
+            className="h-full min-h-0 min-w-0"
+            onLayoutChanged={(_layout, meta) => {
+              if (!meta.isUserInteraction) {
+                return;
+              }
+              const widthPx = graphPanelRef.current?.getSize().inPixels;
+              if (typeof widthPx === "number") {
+                persistGraphWidthPx(widthPx);
+              }
+            }}
           >
-            {loadingMore ? (
-              <>
-                <Spinner className="text-muted-foreground size-3.5 shrink-0" />
-                <span className="text-muted-foreground text-xs">{t("repo.historyLoadingMore")}</span>
-              </>
-            ) : loadMoreFailed ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground h-7 px-2 text-xs"
-                onClick={() => {
-                  setLoadMoreFailed(false);
-                  setFilterLoadExhausted(false);
-                  void handleLoadMore();
-                }}
-                disabled={loading}
-              >
-                {t("repo.historyRetryLoadMore")}
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-        </ScrollArea>
-
-        {/*
-         * 图谱列：视口等高 overlay。
-         * 纵位：外层 overflow 裁切 + translateY 跟列表 scrollTop（勿放进 h-full ScrollArea 视口内，
-         * 否则 Radix 纵向 scrollTop 会把整图滚出可视区，只剩行内 tip 占位的假象）。
-         * 横滑：列宽受限时用 ScrollArea；高度跟 SVG，避免视口可纵滚。
-         */}
-        {filteredCommits.length > 0 ? (
-          <div
-            className="bg-background absolute top-0 bottom-0 z-10 overflow-hidden"
-            style={{ width: graphWidth, left: HISTORY_EDGE_GAP_PX }}
-            onWheel={handleGraphColumnWheel}
-            aria-hidden="true"
-          >
-            <div
-              style={{
-                transform: `translateY(${-graphScrollTop}px)`,
-              }}
+            <ResizablePanel
+              id="graph"
+              panelRef={graphPanelRef}
+              defaultSize={`${readHistoryGraphWidth()}px`}
+              minSize={`${HISTORY_GRAPH_MIN_WIDTH}px`}
+              maxSize={`${HISTORY_GRAPH_MAX_WIDTH}px`}
+              groupResizeBehavior="preserve-pixel-size"
+              className="min-h-0 min-w-0"
             >
-              <ScrollArea
-                className={cn(
-                  "w-full",
-                  // 高度跟内容，不写 h-full，杜绝纵向可滚视口
-                  "[&_[data-slot=scroll-area-viewport]]:!h-auto [&_[data-slot=scroll-area-viewport]]:!max-h-none",
-                  "[&_[data-slot=scroll-area-viewport]]:!overflow-x-auto [&_[data-slot=scroll-area-viewport]]:!overflow-y-hidden",
-                  "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0",
-                  "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:hidden",
-                )}
-                style={{ width: graphWidth }}
+              {/*
+               * 图谱列：纵位用 translateY 跟列表 scrollTop（勿放进列表 ScrollArea，
+               * 否则 Radix 纵滚会把整图滚出可视区）。横滑用列内 ScrollArea。
+               */}
+              <div
+                className="bg-background h-full min-h-0 overflow-hidden pl-2"
+                onWheel={handleGraphColumnWheel}
+                aria-hidden="true"
               >
                 <div
                   style={{
-                    width: Math.max(graphWidth, graphContentWidth || graphWidth),
+                    transform: `translateY(${-graphScrollTop}px)`,
                   }}
                 >
-                  <HistoryGraph
-                    commits={filteredCommits}
-                    topologyCommits={commits}
-                    currentBranch={currentBranch}
-                    onHoverCommit={setHoveredCommitId}
-                    onSelectCommit={handleSelectCommit}
-                    onContentWidthChange={setGraphContentWidth}
-                  />
+                  <ScrollArea
+                    className={cn(
+                      "w-full",
+                      "[&_[data-slot=scroll-area-viewport]]:!h-auto [&_[data-slot=scroll-area-viewport]]:!max-h-none",
+                      "[&_[data-slot=scroll-area-viewport]]:!overflow-x-auto [&_[data-slot=scroll-area-viewport]]:!overflow-y-hidden",
+                      "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0",
+                      "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:hidden",
+                    )}
+                  >
+                    <div
+                      className="min-w-full"
+                      style={
+                        graphContentWidth > 0
+                          ? { width: graphContentWidth }
+                          : undefined
+                      }
+                    >
+                      <HistoryGraph
+                        commits={filteredCommits}
+                        topologyCommits={commits}
+                        currentBranch={currentBranch}
+                        onHoverCommit={setHoveredCommitId}
+                        onSelectCommit={handleSelectCommit}
+                        onContentWidthChange={setGraphContentWidth}
+                      />
+                    </div>
+                  </ScrollArea>
                 </div>
-              </ScrollArea>
-            </div>
-          </div>
-        ) : null}
+              </div>
+            </ResizablePanel>
 
-        {/*
-         * 分隔线挂在滚动视口外，始终占满历史列高度（一根长线），
-         * 样式与 SplitPane / ResizableHandle 一致：默认 border，悬停/拖拽 primary。
-         */}
-        {filteredCommits.length > 0 ? (
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-valuemin={HISTORY_GRAPH_MIN_WIDTH}
-            aria-valuemax={HISTORY_GRAPH_MAX_WIDTH}
-            aria-valuenow={Math.round(graphWidth)}
-            tabIndex={0}
-            className={cn(
-              // 与 SplitPane 一致：分隔槽铺底，避免选中行从线左侧透出
-              "absolute inset-y-0 z-20 w-1.5 cursor-col-resize bg-background",
-              "before:bg-border before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:transition-[background-color,width]",
-              "after:absolute after:inset-y-0 after:left-1/2 after:w-3 after:-translate-x-1/2",
-              "hover:before:bg-primary hover:before:w-0.5",
-              "focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none",
-              draggingGraphDivider && "before:bg-primary before:w-0.5",
-            )}
-            style={{ left: `${HISTORY_EDGE_GAP_PX + graphWidth}px` }}
-            onPointerDown={handleGraphDividerPointerDown}
-            onPointerMove={handleGraphDividerPointerMove}
-            onPointerUp={handleGraphDividerPointerEnd}
-            onPointerCancel={handleGraphDividerPointerEnd}
-            onKeyDown={handleGraphDividerKeyDown}
-          />
-        ) : null}
+            <ResizableHandle className={RESIZABLE_HANDLE_CLASSNAME} />
 
-        {showBackToTop ? (
-          <Tooltip delayDuration={400}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                className={cn(
-                  "bg-background/95 text-muted-foreground absolute right-3 bottom-3 z-10 rounded-full shadow-sm",
-                  "hover:bg-accent hover:text-foreground",
-                )}
-                aria-label={t("repo.backToTop")}
-                onClick={scrollHistoryToTop}
+            <ResizablePanel
+              id="commits"
+              minSize="300px"
+              className="relative min-h-0 min-w-0"
+            >
+              <ScrollArea
+                ref={bindScrollArea}
+                // Radix viewport 内层 display:table 会撑开宽度导致 truncate 失效；在用法处覆盖，不改 ui/scroll-area
+                className="h-full w-full [&_[data-slot=scroll-area-viewport]]:overflow-x-hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
               >
-                <ArrowUp className="size-3.5" aria-hidden="true" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left" sideOffset={8}>
-              {t("repo.backToTop")}
-            </TooltipContent>
-          </Tooltip>
-        ) : null}
+                <ul
+                  className="relative w-full min-w-0"
+                  style={{
+                    height: `${commitVirtualizer.getTotalSize()}px`,
+                  }}
+                  role="listbox"
+                  aria-label={t("repo.history")}
+                >
+                  {commitVirtualizer.getVirtualItems().map((virtualItem) => {
+                    const commit = filteredCommits[virtualItem.index];
+                    if (!commit) {
+                      return null;
+                    }
+                    const refs = commit.refs ?? [];
+                    const visibleRefs = filterVisibleHistoryRefs(
+                      refs,
+                      viewPrefs.showRemoteBranches,
+                    );
+                    const isTip =
+                      currentBranch != null &&
+                      refs.some(
+                        (ref) =>
+                          ref === currentBranch ||
+                          ref.endsWith(`&${currentBranch}`),
+                      );
+                    const isHead =
+                      (headTipShortId != null &&
+                        (commit.shortId === headTipShortId ||
+                          commit.id.startsWith(headTipShortId))) ||
+                      (status?.detached === true &&
+                        (commit.refs ?? []).some(
+                          (ref) =>
+                            ref === "HEAD" ||
+                            ref.endsWith("&HEAD") ||
+                            ref.includes("HEAD"),
+                        ));
+
+                    return (
+                      <HistoryCommitRow
+                        key={virtualItem.key}
+                        commit={commit}
+                        isSelected={selectedCommitId === commit.id}
+                        isHovered={hoveredCommitId === commit.id}
+                        isTip={isTip}
+                        isHead={isHead}
+                        alreadyPushed={alreadyPushed}
+                        visibleRefs={visibleRefs}
+                        expandBranchNames={viewPrefs.expandBranchNames}
+                        branchOnLeft={viewPrefs.branchOnLeft}
+                        onSelect={handleSelectCommit}
+                        className="absolute top-0 min-w-0"
+                        style={{
+                          height: `${virtualItem.size}px`,
+                          transform: `translateY(${virtualItem.start}px)`,
+                          left: commitRowLeft,
+                          right: commitRowRight,
+                        }}
+                      />
+                    );
+                  })}
+                </ul>
+
+                {shouldAutoLoadMore || loadMoreFailed ? (
+                  <div
+                    ref={loadMoreSentinelRef}
+                    className="flex min-h-8 items-center justify-center gap-2 px-2 py-2"
+                    aria-live="polite"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <Spinner className="text-muted-foreground size-3.5 shrink-0" />
+                        <span className="text-muted-foreground text-xs">
+                          {t("repo.historyLoadingMore")}
+                        </span>
+                      </>
+                    ) : loadMoreFailed ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground h-7 px-2 text-xs"
+                        onClick={() => {
+                          setLoadMoreFailed(false);
+                          setFilterLoadExhausted(false);
+                          void handleLoadMore();
+                        }}
+                        disabled={loading}
+                      >
+                        {t("repo.historyRetryLoadMore")}
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </ScrollArea>
+
+              {showBackToTop ? (
+                <Tooltip delayDuration={400}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      className={cn(
+                        "bg-background/95 text-muted-foreground absolute right-3 bottom-3 z-10 rounded-full shadow-sm",
+                        "hover:bg-accent hover:text-foreground",
+                      )}
+                      aria-label={t("repo.backToTop")}
+                      onClick={scrollHistoryToTop}
+                    >
+                      <ArrowUp className="size-3.5" aria-hidden="true" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" sideOffset={8}>
+                    {t("repo.backToTop")}
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
       </div>
     </div>
   );

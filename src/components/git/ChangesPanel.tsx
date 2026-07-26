@@ -21,6 +21,8 @@ import {
 import { toast } from "sonner";
 
 import { EmptyState } from "@/components/common/EmptyState";
+import { TruncateStartPath } from "@/components/common/TruncateStartPath";
+import { ChangeFileContextMenu } from "@/components/git/ChangeFileContextMenu";
 import {
   ChangeTreeFolderRow,
   flattenChangeTreeRows,
@@ -29,8 +31,7 @@ import {
 } from "@/components/git/ChangeTree";
 import { DiffLineStats } from "@/components/git/DiffLineStats";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
-import { TruncateStartPath } from "@/components/common/TruncateStartPath";
-import { SplitPane } from "@/components/layout/SplitPane";
+import { ResizableSplit } from "@/components/layout/ResizableSplit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -356,129 +357,145 @@ function ChangeRow({
       ? fullPath
       : (entry.path.split("/").pop() ?? entry.path);
 
-  return (
-      <div
-        role="option"
-        aria-selected={selected}
-        tabIndex={0}
-        className={cn(
-          "group flex h-7 w-full min-w-0 cursor-pointer items-center gap-1 rounded-md px-2 transition-colors",
-          selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
-        )}
-        style={
-          indentDepth == null
-            ? undefined
-            : { paddingLeft: `${8 + indentDepth * 14}px` }
+  const row = (
+    <div
+      role="option"
+      aria-selected={selected}
+      tabIndex={0}
+      className={cn(
+        "group flex h-7 w-full min-w-0 cursor-pointer items-center gap-1 rounded-md px-2 transition-colors",
+        selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
+      )}
+      style={
+        indentDepth == null
+          ? undefined
+          : { paddingLeft: `${8 + indentDepth * 14}px` }
+      }
+      onClick={() => onSelect(entry.path, side)}
+      onDoubleClick={() => {
+        if (!disabled && !conflictLocked) {
+          onToggle(entry.path);
         }
-        onClick={() => onSelect(entry.path, side)}
-        onDoubleClick={() => {
-          if (!disabled && !conflictLocked) {
-            onToggle(entry.path);
-          }
-        }}
-        onMouseEnter={() => {
-          setHovered(true);
-          void loadSize();
-        }}
-        onMouseLeave={() => {
-          setHovered(false);
-        }}
-        onFocus={() => {
-          void loadSize();
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onSelect(entry.path, side);
-          }
-        }}
+      }}
+      onMouseEnter={() => {
+        setHovered(true);
+        void loadSize();
+      }}
+      onMouseLeave={() => {
+        setHovered(false);
+      }}
+      onFocus={() => {
+        void loadSize();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(entry.path, side);
+        }
+      }}
+    >
+      {indented ? <span className="size-3 shrink-0" aria-hidden="true" /> : null}
+      <span
+        className={cn(
+          "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
+          gitStatusLetterClass(
+            side === "index" ? entry.indexStatus : entry.worktreeStatus,
+            { conflict: isConflictEntry(entry) },
+          ),
+        )}
+        aria-hidden="true"
       >
-        {indented ? <span className="size-3 shrink-0" aria-hidden="true" /> : null}
-        <span
-          className={cn(
-            "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
-            gitStatusLetterClass(
-              side === "index" ? entry.indexStatus : entry.worktreeStatus,
-              { conflict: isConflictEntry(entry) },
-            ),
-          )}
+        {label}
+      </span>
+      {isConflictEntry(entry) ? (
+        <TriangleAlert
+          className="text-destructive size-3.5 shrink-0"
           aria-hidden="true"
-        >
-          {label}
-        </span>
-        {isConflictEntry(entry) ? (
-          <TriangleAlert
-            className="text-destructive size-3.5 shrink-0"
-            aria-hidden="true"
-          />
-        ) : null}
-        <MaterialFileIcon
-          name={entry.path}
-          isDir={false}
-          className="size-3.5 shrink-0"
         />
-        <TruncateStartPath
-          className="min-w-0 flex-1"
-          path={displayPath}
-          title={fullPath}
-        />
+      ) : null}
+      <MaterialFileIcon
+        name={entry.path}
+        isDir={false}
+        className="size-3.5 shrink-0"
+      />
+      <TruncateStartPath
+        className="min-w-0 flex-1"
+        path={displayPath}
+        title={fullPath}
+      />
 
-        <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-0.5">
-          {showLineStats ? (
-            <DiffLineStats additions={additions} deletions={deletions} className="ml-0" />
-          ) : null}
-          {showSize ? (
-            <span className="text-muted-foreground px-0.5 font-mono text-[10px] tabular-nums">
-              {sizeLabel}
-            </span>
-          ) : null}
-          {/* 与原版相同：仅 hover/选中时出现。冲突时仍 disabled，但需盖掉 Button 默认 disabled:opacity-50，否则未 hover 也会露出 */}
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "size-6 shrink-0 focus-visible:opacity-100 [&_svg]:size-3",
-                  conflictLocked
-                    ? cn(
-                        "text-muted-foreground",
-                        selected
-                          ? "opacity-40 disabled:opacity-40"
-                          : "opacity-0 disabled:opacity-0 group-hover:opacity-40 group-hover:disabled:opacity-40",
-                      )
-                    : [
-                        "disabled:opacity-0 group-hover:disabled:opacity-50",
-                        selected
-                          ? "opacity-100"
-                          : "opacity-0 group-hover:opacity-100",
-                      ],
-                )}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (!conflictLocked) {
-                    onToggle(entry.path);
-                  }
-                }}
-                disabled={disabled || conflictLocked}
-                aria-label={
-                  conflictLocked ? t("repo.conflictStageLocked") : toggleLabel
+      <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-0.5">
+        {showLineStats ? (
+          <DiffLineStats additions={additions} deletions={deletions} className="ml-0" />
+        ) : null}
+        {showSize ? (
+          <span className="text-muted-foreground px-0.5 font-mono text-[10px] tabular-nums">
+            {sizeLabel}
+          </span>
+        ) : null}
+        {/* 与原版相同：仅 hover/选中时出现。冲突时仍 disabled，但需盖掉 Button 默认 disabled:opacity-50，否则未 hover 也会露出 */}
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "size-6 shrink-0 focus-visible:opacity-100 [&_svg]:size-3",
+                conflictLocked
+                  ? cn(
+                      "text-muted-foreground",
+                      selected
+                        ? "opacity-40 disabled:opacity-40"
+                        : "opacity-0 disabled:opacity-0 group-hover:opacity-40 group-hover:disabled:opacity-40",
+                    )
+                  : [
+                      "disabled:opacity-0 group-hover:disabled:opacity-50",
+                      selected
+                        ? "opacity-100"
+                        : "opacity-0 group-hover:opacity-100",
+                    ],
+              )}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (!conflictLocked) {
+                  onToggle(entry.path);
                 }
-              >
-                {side === "worktree" ? (
-                  <ArrowDown aria-hidden="true" />
-                ) : (
-                  <ArrowUp aria-hidden="true" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">
-              {conflictLocked ? t("repo.conflictStageLocked") : toggleLabel}
-            </TooltipContent>
-          </Tooltip>
-        </div>
+              }}
+              disabled={disabled || conflictLocked}
+              aria-label={
+                conflictLocked ? t("repo.conflictStageLocked") : toggleLabel
+              }
+            >
+              {side === "worktree" ? (
+                <ArrowDown aria-hidden="true" />
+              ) : (
+                <ArrowUp aria-hidden="true" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            {conflictLocked ? t("repo.conflictStageLocked") : toggleLabel}
+          </TooltipContent>
+        </Tooltip>
       </div>
+    </div>
+  );
+
+  if (!repoPath) {
+    return row;
+  }
+
+  return (
+    <ChangeFileContextMenu
+      entry={entry}
+      side={side}
+      repoPath={repoPath}
+      disabled={disabled}
+      onMenuOpen={() => onSelect(entry.path, side)}
+    >
+      {row}
+    </ChangeFileContextMenu>
   );
 }
 
@@ -1251,12 +1268,11 @@ export function ChangesPanel() {
 
       {/* 左右留白在各区 ScrollArea 上；此处只留上下与两区间细缝 */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-1 pb-1">
-        <SplitPane
+        <ResizableSplit
           orientation="vertical"
           defaultRatio={55}
           minFirstPx={120}
           minSecondPx={120}
-          separatorSizePx={7}
           storageKey="jlgit:split:changes-staged"
           first={
             <ChangeGroup

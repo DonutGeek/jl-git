@@ -26,6 +26,21 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 - **Command：** `fs_file_size`
 - **说明：** 读取相对文件大小（变更列表悬停展示）；工作区优先，已删回退 HEAD / index
 
+### `removePath(repoPath: string, relative: string): Promise<OkResult>`
+
+- **Command：** `fs_remove`
+- **说明：** 删除仓库内相对文件或目录（目录递归）；目录树右键删除用
+
+### `renamePath(repoPath: string, from: string, newName: string): Promise<FsRenameResult>`
+
+- **Command：** `fs_rename`
+- **说明：** 同一父目录下重命名；`newName` 仅为文件名
+
+### `createPath(repoPath: string, parent: string, name: string, isDir: boolean): Promise<FsCreateResult>`
+
+- **Command：** `fs_create`
+- **说明：** 在父目录下新建空目录或空文件；目录树右键「添加空目录 / 添加新文件」
+
 ### `getStatus(repoPath: string): Promise<GitStatusResult>`
 
 - **Command：** `git_status`
@@ -118,6 +133,7 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 | `unstageAll(repoPath)` | `git_unstage_all` |
 | `discard(repoPath, paths: string[])` | `git_discard` |
 | `commit(repoPath, message, options: { paths; removePaths?; amend? })` | `git_commit` |
+| `amendMessage(repoPath, rev, message)` | `git_amend_message` |
 | `undoCommit(repoPath, target?)` | `git_undo_commit` |
 
 `commit` 按 ugit 流程：`reset` → `update-index`（`paths` / `removePaths`）→ `commit -F -`。调用方应传入当前「待提交」路径列表。
@@ -125,6 +141,8 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 `undoCommit`：`git reset --mixed` 到父提交（或传入的 `target`）；变更回到工作区。UI 仅在有未推送提交（`ahead > 0`）时启用。
 
 `discard` 调用前 UI 必须确认。成功后调用方应 `getStatus` 刷新 Store。
+
+`amendMessage` 仅允许 `rev` 为当前 HEAD；成功后调用方应刷新 status / log（提交 id 会变）。已推送时 UI 须二次确认。
 
 ---
 
@@ -151,6 +169,7 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 
 | 方法 | Command |
 |------|---------|
+| `cloneRepository(url, path)` | `git_clone` | 克隆到本地目录；返回 `{ path, elapsedMs }`；成功后由 UI 登记并打开 |
 | `listRemotes(repoPath)` | `git_remotes` |
 | `fetch(repoPath, remote?: string)` | `git_fetch` | 返回 `{ ok, remote, elapsedMs }` |
 | `pull(repoPath, options?: { remote?; branch?; rebase? })` | `git_pull` | 返回 `{ ok, conflict, remote, elapsedMs }`；冲突时 `conflict: true` |

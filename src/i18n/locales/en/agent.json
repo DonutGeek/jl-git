@@ -12,7 +12,7 @@
   "tabRenameConfirm": "Save",
   "tabPin": "Pin to top",
   "tabUnpin": "Unpin",
-  "inputPlaceholder": "Ask, or type @ to pick a plugin/skill/branch…",
+  "inputPlaceholder": "Enter a question, or type @ for plugin/skill/branch…",
   "sendMessage": "Send message",
   "stopReply": "Stop generating",
   "thinking": "JingLing is thinking…",

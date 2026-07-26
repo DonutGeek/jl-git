@@ -8,8 +8,8 @@ export interface AgentIdentity {
 }
 
 /**
- * 鲸灵Git 登记信息（打开/管理仓库时用户填写）。
- * 注入模型上下文；后续可扩展 description 等字段，序列化层按非空输出即可。
+ * 鲸灵Git 登记信息（打开 / 克隆 / 管理仓库时用户填写）。
+ * 注入模型上下文；识别项目名与简介时优先于此，其次 README。
  */
 export interface AgentJlgitMeta {
   /** 仓库绝对路径 */
@@ -18,6 +18,8 @@ export interface AgentJlgitMeta {
   alias: string;
   /** 仓库分组名；未分组为 null */
   groupName: string | null;
+  /** 项目详情 / 简介；未填写为 null */
+  description: string | null;
 }
 
 /** 单仓画像（只读汇总，注入多仓鲸灵 Agent 上下文） */

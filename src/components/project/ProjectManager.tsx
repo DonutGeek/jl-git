@@ -1,14 +1,12 @@
 import { FormEvent, useMemo, useState, type ReactNode } from "react";
 import {
-  BriefcaseBusiness,
-  Box,
   ChevronDown,
-  Code2,
   Folder,
+  FolderKanban,
   FolderOpen,
   FolderTree,
+  GitBranchPlus,
   History,
-  Layers3,
   Pencil,
   Plus,
   Search,
@@ -31,18 +29,19 @@ import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 
-import { SelectMenu } from "@/components/common/SelectMenu";
+import { CloneRepoPanel } from "@/components/project/CloneRepoPanel";
 import { ProjectContextMenu } from "@/components/project/ProjectContextMenu";
 import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
 import { ProjectIcon } from "@/components/project/ProjectIcon";
 import { ProjectIconPicker } from "@/components/project/ProjectIconPicker";
 import { RecentProjectList } from "@/components/project/RecentProjectList";
+import { WorkspaceGroupDialog } from "@/components/project/WorkspaceGroupDialog";
+import { WorkspaceSelectMenu } from "@/components/project/WorkspaceSelectMenu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Field,
-  FieldError,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
@@ -51,6 +50,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { projectService } from "@/services/project";
+import { openProjectManageWindow } from "@/services/window/projectManageWindow";
 import { useProjectStore } from "@/store/useProjectStore";
 import { toUserMessage } from "@/types/error";
 import {
@@ -58,8 +58,6 @@ import {
   Project,
   type ProjectIcon as ProjectIconName,
   Workspace,
-  WorkspaceColor,
-  WorkspaceIcon,
 } from "@/types/project";
 import { buildProjectOrderItems } from "@/utils/projectGroupOrder";
 
@@ -67,15 +65,7 @@ interface ProjectManagerProps {
   onOpenProject: (projectId: string) => void;
 }
 
-type View = "recent" | "open" | "groups";
-
-const WORKSPACE_COLOR_CLASS: Record<WorkspaceColor, string> = {
-  blue: "bg-workspace-blue",
-  green: "bg-workspace-green",
-  orange: "bg-workspace-orange",
-  purple: "bg-workspace-purple",
-  red: "bg-workspace-red",
-};
+type View = "recent" | "open" | "clone" | "groups";
 
 /** workspace/project：可排序项；container：仅投放目标（如根「无分组」） */
 interface DragEntry {
@@ -175,49 +165,6 @@ function getProjectName(path: string): string {
   return parts[parts.length - 1] ?? "";
 }
 
-function buildWorkspaceOptions(
-  workspaces: Workspace[],
-  excludeIds: Set<string> = new Set(),
-): Array<{ value: string; label: string }> {
-  const workspaceIds = new Set(workspaces.map((workspace) => workspace.id));
-
-  function visit(parentId: string | null, prefix: string): Array<{ value: string; label: string }> {
-    return workspaces
-      .filter((workspace) => workspace.parentId === parentId && !excludeIds.has(workspace.id))
-      .flatMap((workspace) => [
-        { value: workspace.id, label: `${prefix}${workspace.name}` },
-        ...visit(workspace.id, `${prefix}${workspace.name} / `),
-      ]);
-  }
-
-  const roots = workspaces.filter(
-    (workspace) =>
-      !excludeIds.has(workspace.id) &&
-      (workspace.parentId === null || !workspaceIds.has(workspace.parentId)),
-  );
-
-  return roots.flatMap((workspace) => [
-    { value: workspace.id, label: workspace.name },
-    ...visit(workspace.id, `${workspace.name} / `),
-  ]);
-}
-
-/** 编辑时排除自身及子孙，避免成环 */
-function collectWorkspaceSubtreeIds(workspaces: Workspace[], rootId: string): Set<string> {
-  const ids = new Set<string>([rootId]);
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const workspace of workspaces) {
-      if (workspace.parentId && ids.has(workspace.parentId) && !ids.has(workspace.id)) {
-        ids.add(workspace.id);
-        grew = true;
-      }
-    }
-  }
-  return ids;
-}
-
 /** 新标签页中的仓库管理入口。 */
 export function ProjectManager({
   onOpenProject,
@@ -234,16 +181,11 @@ export function ProjectManager({
   const [workspaceId, setWorkspaceId] = useState("");
   const [opening, setOpening] = useState(false);
   const [picking, setPicking] = useState(false);
-  const [groupDialog, setGroupDialog] = useState<{
-    mode: "create" | "edit";
-    workspaceId?: string;
-    parentId: string | null;
-  } | null>(null);
-  const [newGroupName, setNewGroupName] = useState("");
-  const [newGroupIcon, setNewGroupIcon] = useState<WorkspaceIcon>("code");
-  const [newGroupColor, setNewGroupColor] = useState<WorkspaceColor>("blue");
-  const [creatingGroup, setCreatingGroup] = useState(false);
-  const [groupError, setGroupError] = useState<string | null>(null);
+  const [groupDialog, setGroupDialog] = useState<
+    | { mode: "create"; parentId: string | null }
+    | { mode: "edit"; workspace: Workspace }
+    | null
+  >(null);
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [rootExpanded, setRootExpanded] = useState(true);
@@ -255,8 +197,6 @@ export function ProjectManager({
   const workspaces = useProjectStore((state) => state.workspaces);
   const addAndOpen = useProjectStore((state) => state.addAndOpen);
   const addProject = useProjectStore((state) => state.addProject);
-  const createWorkspace = useProjectStore((state) => state.createWorkspace);
-  const updateWorkspace = useProjectStore((state) => state.updateWorkspace);
   const removeWorkspace = useProjectStore((state) => state.removeWorkspace);
   const reorderGroupedItems = useProjectStore((state) => state.reorderGroupedItems);
   const query = filter.trim().toLowerCase();
@@ -269,12 +209,10 @@ export function ProjectManager({
   const nav = [
     { id: "recent" as const, label: t("projectManager.recent"), icon: History },
     { id: "open" as const, label: t("projectManager.open"), icon: FolderOpen },
+    { id: "clone" as const, label: t("projectManager.clone"), icon: GitBranchPlus },
     { id: "groups" as const, label: t("projectManager.groups"), icon: FolderTree },
+    { id: "manage" as const, label: t("projectManager.manage"), icon: FolderKanban },
   ];
-  const workspaceOptions = useMemo(
-    () => [{ value: "", label: t("projectManager.ungrouped") }, ...buildWorkspaceOptions(workspaces)],
-    [t, workspaces],
-  );
   const rootWorkspaces = useMemo(
     () => workspaces
       .filter((workspace) => workspace.parentId === null || !workspaces.some((item) => item.id === workspace.parentId))
@@ -495,9 +433,7 @@ export function ProjectManager({
         });
       }
     } catch (error) {
-      const message = toUserMessage(error);
-      setGroupError(message);
-      toast.error(message);
+      toast.error(toUserMessage(error));
     }
   }
 
@@ -597,69 +533,10 @@ export function ProjectManager({
 
   function startCreateGroup(parentId: string | null): void {
     setGroupDialog({ mode: "create", parentId });
-    setNewGroupName("");
-    setNewGroupIcon("code");
-    setNewGroupColor("blue");
-    setGroupError(null);
   }
 
   function startEditGroup(workspace: Workspace): void {
-    setGroupDialog({
-      mode: "edit",
-      workspaceId: workspace.id,
-      parentId: workspace.parentId,
-    });
-    setNewGroupName(workspace.name);
-    setNewGroupIcon(workspace.icon);
-    setNewGroupColor(workspace.color);
-    setGroupError(null);
-  }
-
-  function closeGroupDialog(): void {
-    if (creatingGroup) {
-      return;
-    }
-    setGroupDialog(null);
-    setNewGroupName("");
-    setGroupError(null);
-  }
-
-  async function submitGroup(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    if (!newGroupName.trim() || creatingGroup || !groupDialog) {
-      return;
-    }
-
-    setCreatingGroup(true);
-    setGroupError(null);
-    try {
-      if (groupDialog.mode === "edit" && groupDialog.workspaceId) {
-        await updateWorkspace({
-          id: groupDialog.workspaceId,
-          name: newGroupName.trim(),
-          parentId: groupDialog.parentId,
-          icon: newGroupIcon,
-          color: newGroupColor,
-        });
-        toast.success(t("projectManager.editGroupSuccess"));
-      } else {
-        await createWorkspace(
-          newGroupName.trim(),
-          groupDialog.parentId ?? undefined,
-          newGroupIcon,
-          newGroupColor,
-        );
-        toast.success(t("projectManager.createGroupSuccess"));
-      }
-      setGroupDialog(null);
-      setNewGroupName("");
-    } catch (error) {
-      const message = toUserMessage(error);
-      setGroupError(message);
-      toast.error(message);
-    } finally {
-      setCreatingGroup(false);
-    }
+    setGroupDialog({ mode: "edit", workspace });
   }
 
   async function confirmDeleteGroup(): Promise<void> {
@@ -706,6 +583,7 @@ export function ProjectManager({
             project={project}
             onOpenProject={openGroupProject}
             disabled={opening || dragging}
+            onMenuOpen={() => setSelectedProjectId(project.id)}
           >
             <button
               type="button"
@@ -865,17 +743,27 @@ export function ProjectManager({
 
   return (
     <div className="flex min-h-0 flex-1">
-      <aside className="flex w-44 shrink-0 flex-col gap-1 p-3">
+      <aside className="flex w-48 shrink-0 flex-col gap-1 p-3">
         {nav.map((item) => (
           <Button
             key={item.id}
             variant="ghost"
             className={cn("justify-start gap-2", view === item.id && "bg-accent")}
-            onClick={() => setView(item.id)}
+            onClick={() => {
+              if (item.id === "manage") {
+                void openProjectManageWindow().catch((error: unknown) => {
+                  toast.error(
+                    toUserMessage(error) || t("projectManager.manageOpenFailed"),
+                  );
+                });
+                return;
+              }
+              setView(item.id);
+            }}
             disabled={opening}
           >
-            <item.icon className="size-4" aria-hidden="true" />
-            {item.label}
+            <item.icon className="size-4 shrink-0" aria-hidden="true" />
+            <span className="truncate">{item.label}</span>
           </Button>
         ))}
       </aside>
@@ -883,6 +771,13 @@ export function ProjectManager({
       <section className="flex min-h-0 flex-1 flex-col px-6 pt-3 pb-6">
         {view === "recent" ? (
           <RecentProjectList onOpenProject={onOpenProject} />
+        ) : null}
+
+        {view === "clone" ? (
+          <CloneRepoPanel
+            onOpenProject={onOpenProject}
+            disabled={opening}
+          />
         ) : null}
 
         {view === "open" ? (
@@ -944,9 +839,8 @@ export function ProjectManager({
                   <FieldLabel>
                     {t("projectManager.workspaceLabel")}
                   </FieldLabel>
-                  <SelectMenu
+                  <WorkspaceSelectMenu
                     value={workspaceId}
-                    options={workspaceOptions}
                     onChange={setWorkspaceId}
                     ariaLabel={t("projectManager.workspaceLabel")}
                     disabled={opening || descriptionGenerating}
@@ -1092,11 +986,6 @@ export function ProjectManager({
                       )}
                     </SortableContext>
                   ) : null}
-                  {groupError ? (
-                    <p className="text-destructive px-2 text-sm" role="alert">
-                      {groupError}
-                    </p>
-                  ) : null}
                 </div>
               </ScrollArea>
             </div>
@@ -1119,175 +1008,30 @@ export function ProjectManager({
               ) : null}
             </DragOverlay>
             </DndContext>
-            <Dialog
-              open={groupDialog !== null}
-              onOpenChange={(open) => {
-                if (!open) {
-                  closeGroupDialog();
-                }
-              }}
-            >
-              <DialogContent className="max-w-sm">
-                <DialogHeader>
-                  <DialogTitle>
-                    {groupDialog?.mode === "edit"
-                      ? t("projectManager.editGroup")
-                      : t("projectManager.createGroup")}
-                  </DialogTitle>
-                  <DialogDescription>
-                    {groupDialog?.mode === "edit"
-                      ? t("projectManager.editGroupDescription")
-                      : groupDialog?.parentId
-                        ? t("projectManager.createChildGroup", {
-                            name: workspaces.find((item) => item.id === groupDialog.parentId)?.name ?? "",
-                          })
-                        : t("projectManager.groupName")}
-                  </DialogDescription>
-                </DialogHeader>
-                <form className="space-y-6" onSubmit={(event) => void submitGroup(event)}>
-                  <FieldGroup className="gap-4">
-                    <Field>
-                      <FieldLabel htmlFor="workspace-group-name">
-                        {t("projectManager.groupName")}
-                      </FieldLabel>
-                      <Input
-                        id="workspace-group-name"
-                        value={newGroupName}
-                        onChange={(event) => setNewGroupName(event.target.value)}
-                        placeholder={t("projectManager.groupNamePlaceholder")}
-                        autoFocus
-                        disabled={creatingGroup}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel>{t("projectManager.parentGroup")}</FieldLabel>
-                      <SelectMenu
-                        value={groupDialog?.parentId ?? ""}
-                        displayLabel={
-                          <span className="flex items-center gap-2">
-                            <Folder className="size-4" />
-                            {groupDialog?.parentId
-                              ? buildWorkspaceOptions(workspaces).find((item) => item.value === groupDialog.parentId)
-                                  ?.label
-                              : t("projectManager.rootGroup")}
-                          </span>
-                        }
-                        options={[
-                          { value: "", label: t("projectManager.rootGroup"), preview: <Folder className="size-4" /> },
-                          ...buildWorkspaceOptions(
-                            workspaces,
-                            groupDialog?.mode === "edit" && groupDialog.workspaceId
-                              ? collectWorkspaceSubtreeIds(workspaces, groupDialog.workspaceId)
-                              : new Set(),
-                          ).map((item) => ({ ...item, preview: <Folder className="size-4" /> })),
-                        ]}
-                        onChange={(value) =>
-                          setGroupDialog((current) =>
-                            current ? { ...current, parentId: value || null } : current,
-                          )
-                        }
-                        ariaLabel={t("projectManager.parentGroup")}
-                      />
-                    </Field>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field>
-                        <FieldLabel>{t("projectManager.groupIcon")}</FieldLabel>
-                        <SelectMenu
-                          value={newGroupIcon}
-                          displayLabel={
-                            <span className="flex items-center gap-2">
-                              {newGroupIcon === "briefcase" ? (
-                                <BriefcaseBusiness className="size-4" />
-                              ) : newGroupIcon === "code" ? (
-                                <Code2 className="size-4" />
-                              ) : newGroupIcon === "layers" ? (
-                                <Layers3 className="size-4" />
-                              ) : newGroupIcon === "box" ? (
-                                <Box className="size-4" />
-                              ) : (
-                                <Folder className="size-4" />
-                              )}
-                              {t(`projectManager.icon${newGroupIcon[0].toUpperCase()}${newGroupIcon.slice(1)}`)}
-                            </span>
-                          }
-                          options={[
-                            { value: "code", label: t("projectManager.iconCode"), preview: <Code2 className="size-4" /> },
-                            { value: "folder", label: t("projectManager.iconFolder"), preview: <Folder className="size-4" /> },
-                            {
-                              value: "briefcase",
-                              label: t("projectManager.iconBriefcase"),
-                              preview: <BriefcaseBusiness className="size-4" />,
-                            },
-                            { value: "layers", label: t("projectManager.iconLayers"), preview: <Layers3 className="size-4" /> },
-                            { value: "box", label: t("projectManager.iconBox"), preview: <Box className="size-4" /> },
-                          ]}
-                          onChange={(value) => setNewGroupIcon(value as WorkspaceIcon)}
-                          ariaLabel={t("projectManager.groupIcon")}
-                        />
-                      </Field>
-                      <Field>
-                        <FieldLabel>{t("projectManager.groupColor")}</FieldLabel>
-                        <SelectMenu
-                          value={newGroupColor}
-                          displayLabel={
-                            <span className="flex items-center gap-2">
-                              <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS[newGroupColor])} />
-                              {t(`projectManager.color${newGroupColor[0].toUpperCase()}${newGroupColor.slice(1)}`)}
-                            </span>
-                          }
-                          options={[
-                            {
-                              value: "blue",
-                              label: t("projectManager.colorBlue"),
-                              preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.blue)} />,
-                            },
-                            {
-                              value: "green",
-                              label: t("projectManager.colorGreen"),
-                              preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.green)} />,
-                            },
-                            {
-                              value: "orange",
-                              label: t("projectManager.colorOrange"),
-                              preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.orange)} />,
-                            },
-                            {
-                              value: "purple",
-                              label: t("projectManager.colorPurple"),
-                              preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.purple)} />,
-                            },
-                            {
-                              value: "red",
-                              label: t("projectManager.colorRed"),
-                              preview: <span className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS.red)} />,
-                            },
-                          ]}
-                          onChange={(value) => setNewGroupColor(value as WorkspaceColor)}
-                          ariaLabel={t("projectManager.groupColor")}
-                        />
-                      </Field>
-                    </div>
-                    {groupError ? (
-                      <Field data-invalid>
-                        <FieldError>{groupError}</FieldError>
-                      </Field>
-                    ) : null}
-                  </FieldGroup>
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={closeGroupDialog}>
-                      {t("common.cancel")}
-                    </Button>
-                    <Button type="submit" disabled={!newGroupName.trim() || creatingGroup}>
-                      {creatingGroup
-                        ? t("common.loading")
-                        : groupDialog?.mode === "edit"
-                          ? t("projectManager.saveGroup")
-                          : t("projectManager.createGroup")}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
+            {groupDialog?.mode === "create" ? (
+              <WorkspaceGroupDialog
+                open
+                mode="create"
+                initialParentId={groupDialog.parentId}
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setGroupDialog(null);
+                  }
+                }}
+              />
+            ) : null}
+            {groupDialog?.mode === "edit" ? (
+              <WorkspaceGroupDialog
+                open
+                mode="edit"
+                workspace={groupDialog.workspace}
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setGroupDialog(null);
+                  }
+                }}
+              />
+            ) : null}
             <Dialog
               open={Boolean(deleteTarget)}
               onOpenChange={(open) => {

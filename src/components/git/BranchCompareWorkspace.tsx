@@ -7,7 +7,7 @@ import { BranchCompareFilePreview } from "@/components/git/BranchCompareFilePrev
 import { DiffLineStats } from "@/components/git/DiffLineStats";
 import { EmptyState } from "@/components/common/EmptyState";
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
-import { SplitPane } from "@/components/layout/SplitPane";
+import { ResizableSplit } from "@/components/layout/ResizableSplit";
 import { AppWindowHeader } from "@/components/layout/AppWindowHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -134,7 +134,7 @@ export function BranchCompareWorkspace({ project, branches, initialMode, initial
     </section>
     {mode === "localUpstream" && !effectiveTarget ? <p className="border-border text-muted-foreground shrink-0 border-b px-4 py-2 text-xs">{t("branchCompare.noUpstream")}</p> : null}
     {view === "files" ? (
-      <SplitPane
+      <ResizableSplit
         orientation="horizontal"
         defaultRatio={25}
         minFirstPx={200}

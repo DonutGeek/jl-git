@@ -25,6 +25,7 @@ import { FolderPlus, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { MultiAgentWindowButton } from "@/components/agent/MultiAgentWindowButton";
+import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
 import { OpenRepoDialog } from "@/components/project/OpenRepoDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +35,6 @@ import {
   ContextMenuSeparator,
   ContextMenuSub,
   ContextMenuSubContent,
-  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -48,6 +48,7 @@ import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 import { cn } from "@/lib/utils";
 
 import { useOpenTabsStore, type OpenTab } from "@/store/useOpenTabsStore";
+import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
 import { useProjectStore } from "@/store/useProjectStore";
 
 import { gitService } from "@/services/git";
@@ -152,41 +153,65 @@ function SortableRepoTab(props: SortableRepoTabProps) {
   const { tab, isActive, tabIndex, tabCount, onSelect, onClose, onCloseTab, onCloseOthers, onCloseLeft, onCloseRight, onRemove, onSetAlias, onCopyRemote, onCopyPath, closeLabel, labels } = props;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tab.id });
   const project = tab.project;
-  return <ContextMenu><ContextMenuTrigger asChild><div ref={setNodeRef} className={cn("flex h-7 items-center", isDragging && "opacity-40")} style={{ transform: CSS.Transform.toString(transform), transition }} {...attributes} {...listeners}><TabChrome tab={tab} isActive={isActive} onSelect={onSelect} onClose={onClose} closeLabel={closeLabel} /></div></ContextMenuTrigger>
-    <ContextMenuContent className="min-w-40">
-      <ContextMenuItem onSelect={() => onCloseTab(tab.id)}>{labels.close}</ContextMenuItem>
-      {/* 批量关闭有共性，收进子菜单 */}
-      <ContextMenuSub>
-        <ContextMenuSubTrigger disabled={tabCount <= 1}>{labels.closeMore}</ContextMenuSubTrigger>
-        <ContextMenuSubContent className="min-w-40">
-          <ContextMenuItem disabled={tabCount <= 1} onSelect={() => onCloseOthers(tab.id)}>{labels.closeOthers}</ContextMenuItem>
-          <ContextMenuItem disabled={tabIndex === 0} onSelect={() => onCloseLeft(tab.id)}>{labels.closeLeft}</ContextMenuItem>
-          <ContextMenuItem disabled={tabIndex >= tabCount - 1} onSelect={() => onCloseRight(tab.id)}>{labels.closeRight}</ContextMenuItem>
-        </ContextMenuSubContent>
-      </ContextMenuSub>
-      {project ? (
-        <>
-          <ContextMenuSeparator />
-          {/* 复制类操作有共性，收进子菜单 */}
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>{labels.copy}</ContextMenuSubTrigger>
-            <ContextMenuSubContent className="min-w-40">
-              <ContextMenuItem onSelect={() => onCopyRemote(project)}>{labels.copyRemote}</ContextMenuItem>
-              <ContextMenuItem onSelect={() => onCopyPath(project)}>{labels.copyPath}</ContextMenuItem>
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-          <ContextMenuItem onSelect={() => onSetAlias(project)}>{labels.setAlias}</ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem variant="destructive" onSelect={() => onRemove(project)}>{labels.remove}</ContextMenuItem>
-        </>
-      ) : null}
-    </ContextMenuContent></ContextMenu>;
+  const { menuOpen, onOpenChange } = useContextMenuOpen(() => onSelect(tab.id));
+  return (
+    <ContextMenu onOpenChange={onOpenChange}>
+      <ContextMenuTrigger asChild>
+        <div
+          ref={setNodeRef}
+          className={cn("flex h-7 items-center", isDragging && "opacity-40")}
+          style={{ transform: CSS.Transform.toString(transform), transition }}
+          {...attributes}
+          {...listeners}
+        >
+          <TabChrome
+            tab={tab}
+            isActive={isActive || menuOpen}
+            onSelect={onSelect}
+            onClose={onClose}
+            closeLabel={closeLabel}
+          />
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="min-w-40">
+        <ContextMenuItem onSelect={() => onCloseTab(tab.id)}>{labels.close}</ContextMenuItem>
+        {/* 批量关闭有共性，收进子菜单 */}
+        <ContextMenuSub>
+          <ContextMenuSubTrigger disabled={tabCount <= 1}>{labels.closeMore}</ContextMenuSubTrigger>
+          <ContextMenuSubContent className="min-w-40">
+            <ContextMenuItem disabled={tabCount <= 1} onSelect={() => onCloseOthers(tab.id)}>{labels.closeOthers}</ContextMenuItem>
+            <ContextMenuItem disabled={tabIndex === 0} onSelect={() => onCloseLeft(tab.id)}>{labels.closeLeft}</ContextMenuItem>
+            <ContextMenuItem disabled={tabIndex >= tabCount - 1} onSelect={() => onCloseRight(tab.id)}>{labels.closeRight}</ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        {project ? (
+          <>
+            <ContextMenuSeparator />
+            {/* 复制类操作有共性，收进子菜单 */}
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>{labels.copy}</ContextMenuSubTrigger>
+              <ContextMenuSubContent className="min-w-40">
+                <ContextMenuItem onSelect={() => onCopyRemote(project)}>{labels.copyRemote}</ContextMenuItem>
+                <ContextMenuItem onSelect={() => onCopyPath(project)}>{labels.copyPath}</ContextMenuItem>
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+            <ContextMenuItem onSelect={() => onSetAlias(project)}>{labels.setAlias}</ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem variant="destructive" onSelect={() => onRemove(project)}>{labels.remove}</ContextMenuItem>
+          </>
+        ) : null}
+      </ContextMenuContent>
+    </ContextMenu>
+  );
 }
 
 /** 仓库标签顶栏（Win/Linux 用系统窗口按钮，不再挂自绘三键） */
 export function RepoTabBar() {
   const { t } = useTranslation();
-  const { headerPaddingClass } = useWindowChromeLayout();
+  const { headerPaddingClass, isMacOverlay } = useWindowChromeLayout();
+  const dragProps = isMacOverlay
+    ? ({ "data-tauri-drag-region": true } as const)
+    : {};
   const navigate = useNavigate();
   const location = useLocation();
   const tabEntries = useOpenTabsStore((state) => state.tabs);
@@ -426,7 +451,7 @@ export function RepoTabBar() {
         onDragCancel={() => setDraggingId(null)}
       >
         <header
-          data-tauri-drag-region
+          {...dragProps}
           className={cn(
             // 底边线用绝对定位伪元素绘制，不占布局高度：
             // 保证内容盒高度=h-12(48px)，与滚动内容 h-12 完全一致，从根上消除 1px 纵向溢出
@@ -519,7 +544,7 @@ export function RepoTabBar() {
               <TooltipContent>{t("repo.addTab")}</TooltipContent>
             </Tooltip>
           </div>
-          <div data-tauri-drag-region className="h-full min-w-8 flex-1" />
+          <div {...dragProps} className="h-full min-w-8 flex-1" />
           <div
             className="flex h-7 shrink-0 items-center pr-3"
             style={noDragStyle}

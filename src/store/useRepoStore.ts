@@ -424,7 +424,11 @@ interface RepoStoreActions {
   unstage: (paths: string[]) => Promise<void>;
   stageAll: () => Promise<void>;
   unstageAll: () => Promise<void>;
+  /** 放弃更改（调用前 UI 须确认） */
+  discard: (paths: string[]) => Promise<void>;
   commit: () => Promise<string>;
+  /** 仅修改 HEAD 提交信息（rev 须为当前 HEAD） */
+  amendMessage: (rev: string, message: string) => Promise<string>;
   /** 撤销最近未推送提交：reset --mixed，变更回到工作区 */
   undoCommit: () => Promise<{ target: string; elapsedMs: number }>;
   merge: (source: string, options?: GitMergeOptions) => Promise<GitMergeResult>;
@@ -1227,6 +1231,31 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     }
   },
 
+  async discard(paths) {
+    set({ error: null });
+
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      if (paths.length === 0) {
+        throwValidationError(i18n.t("repo.discardEmpty"));
+      }
+      const entries = get().status?.entries ?? [];
+      const hasConflictPath = paths.some((path) => {
+        const entry = entries.find((item) => item.path === path);
+        return entry ? isConflictEntry(entry) : false;
+      });
+      if (hasConflictPath) {
+        throwValidationError(i18n.t("repo.conflictDiscardLocked"));
+      }
+      await gitService.discard(repoPath, paths);
+      const status = await gitService.getStatus(repoPath);
+      set({ status, ...statusSelectionPatch(get, status) });
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
+  },
+
   async unstageAll() {
     set({ error: null });
 
@@ -1325,6 +1354,56 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         commitMessage: "",
         repoState,
         loading: false,
+      });
+
+      return commitId;
+    } catch (error) {
+      setError(set, error);
+      throw error;
+    }
+  },
+
+  async amendMessage(rev, message) {
+    set({ loading: true, error: null });
+
+    try {
+      const repoPath = requireRepoPath(get().repoPath);
+      const trimmed = message.trim();
+      if (!trimmed) {
+        throwValidationError(i18n.t("repo.errors.emptyMessage"));
+      }
+      if (!hasConfiguredGitIdentity(get().identity)) {
+        throwValidationError(i18n.t("repo.errors.noGitIdentity"));
+      }
+      assertWriteOpAllowed(get);
+
+      const commitId = await gitService.amendMessage(repoPath, rev, trimmed);
+      const [status, log, branches] = await Promise.all([
+        gitService.getStatus(repoPath),
+        gitService.getLog(
+          repoPath,
+          buildHistoryLogOptions({
+            limit: LOG_PAGE_SIZE,
+            logRef: get().logRef,
+            order: get().logOrder,
+          }),
+        ),
+        gitService.listBranches(repoPath, true),
+      ]);
+
+      set({
+        status,
+        ...statusSelectionPatch(get, status),
+        commits: log.commits,
+        hasMore: log.hasMore,
+        branches,
+        selectedCommitId: commitId,
+        selectedCommitDetail: null,
+        loading: false,
+      });
+      // 详情按新 id 重拉
+      void get().selectCommit(commitId).catch(() => {
+        // 选中失败不阻断 amend 成功
       });
 
       return commitId;

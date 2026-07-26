@@ -30,8 +30,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-import { BranchTreeNode } from "@/utils/branchTree";
 import { GitBranch } from "@/types/git";
+import { BranchTreeNode } from "@/utils/branchTree";
+import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
 
 /** 分支行右键菜单动作 */
 export interface BranchContextActions {
@@ -353,9 +354,14 @@ export function BranchLeaf({
   const canMergeIntoCurrent =
     !isCurrent && !isDisabled && contextActions.canMergeIntoCurrent(branch);
   const hasTrackingBranch = !isRemote && Boolean(branch.upstream);
+  const { menuOpen, onOpenChange } = useContextMenuOpen(() => {
+    if (!isDisabled) {
+      onSelect(branch);
+    }
+  });
 
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChange={onOpenChange}>
       <Tooltip delayDuration={300}>
         <TooltipTrigger asChild>
           <ContextMenuTrigger asChild>
@@ -366,7 +372,7 @@ export function BranchLeaf({
                 "h-7 w-full min-w-0 justify-start gap-1 overflow-hidden rounded-md px-1.5 text-left text-xs transition-colors [&_svg]:size-3",
                 isCurrent
                   ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                  : selected
+                  : selected || menuOpen
                     ? "bg-accent text-foreground hover:bg-accent"
                     : "text-foreground",
                 isBusy && "cursor-wait",
@@ -376,11 +382,6 @@ export function BranchLeaf({
                   return;
                 }
                 onSelect(branch);
-              }}
-              onContextMenu={() => {
-                if (!isDisabled) {
-                  onSelect(branch);
-                }
               }}
               onDoubleClick={() => {
                 if (!canCheckout) {

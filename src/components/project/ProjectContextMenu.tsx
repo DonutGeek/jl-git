@@ -2,13 +2,16 @@ import { useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Copy,
+  ExternalLink,
   FolderOpen,
   Link,
   Settings2,
+  Terminal,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
 import { ProjectSettingsDialog } from "@/components/project/ProjectSettingsDialog";
 import {
   AlertDialog,
@@ -27,22 +30,32 @@ import {
   ContextMenuSeparator,
   ContextMenuSub,
   ContextMenuSubContent,
-  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 
 import { gitService, pickPrimaryRemoteUrl } from "@/services/git";
+import { systemOpenService } from "@/services/system/system.open";
+import { detectAppOs } from "@/services/window/windowChrome";
 import { useProjectStore } from "@/store/useProjectStore";
 
 import { toUserMessage } from "@/types/error";
 import type { Project } from "@/types/project";
 import { copyToClipboard } from "@/utils/clipboard";
+import {
+  useContextMenuOpen,
+  withContextMenuHighlight,
+} from "@/utils/contextMenuHighlight";
 import { deferUi } from "@/utils/deferUi";
+import { revealInFileManagerLabel } from "@/utils/platformLabels";
 
 interface ProjectContextMenuProps {
   project: Project;
   onOpenProject: (projectId: string) => void;
   disabled?: boolean;
+  /** 菜单打开时选中该项 */
+  onMenuOpen?: () => void;
+  /** 从应用移除成功后回调 */
+  onRemoved?: () => void;
   children: ReactElement;
 }
 
@@ -51,6 +64,8 @@ export function ProjectContextMenu({
   project,
   onOpenProject,
   disabled = false,
+  onMenuOpen,
+  onRemoved,
   children,
 }: ProjectContextMenuProps) {
   const { t } = useTranslation();
@@ -58,6 +73,8 @@ export function ProjectContextMenu({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const { menuOpen, onOpenChange } = useContextMenuOpen(onMenuOpen);
+  const revealLabel = revealInFileManagerLabel(detectAppOs(), t);
 
   async function handleCopyRemote(): Promise<void> {
     try {
@@ -84,6 +101,15 @@ export function ProjectContextMenu({
     }
   }
 
+  async function runSystemOpen(action: () => Promise<void>): Promise<void> {
+    try {
+      await action();
+      toast.success(t("projectManager.manageSystemOpenSuccess"));
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    }
+  }
+
   async function handleDelete(): Promise<void> {
     if (deleting) {
       return;
@@ -95,6 +121,7 @@ export function ProjectContextMenu({
         t("projectManager.deleteProjectSuccess", { name: project.name }),
       );
       setDeleteOpen(false);
+      onRemoved?.();
     } catch (error) {
       toast.error(toUserMessage(error));
     } finally {
@@ -104,8 +131,10 @@ export function ProjectContextMenu({
 
   return (
     <>
-      <ContextMenu>
-        <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenu onOpenChange={onOpenChange}>
+        <ContextMenuTrigger asChild>
+          {withContextMenuHighlight(children, menuOpen)}
+        </ContextMenuTrigger>
         <ContextMenuContent className="min-w-48">
           <ContextMenuItem
             disabled={disabled}
@@ -145,6 +174,40 @@ export function ProjectContextMenu({
               </ContextMenuItem>
             </ContextMenuSubContent>
           </ContextMenuSub>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            disabled={disabled}
+            onSelect={() =>
+              void runSystemOpen(() =>
+                systemOpenService.revealInFileManager(project.path),
+              )
+            }
+          >
+            <FolderOpen aria-hidden="true" />
+            {revealLabel}
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={disabled}
+            onSelect={() =>
+              void runSystemOpen(() =>
+                systemOpenService.openTerminal(project.path),
+              )
+            }
+          >
+            <Terminal aria-hidden="true" />
+            {t("repo.openInTerminal")}
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={disabled}
+            onSelect={() =>
+              void runSystemOpen(() =>
+                systemOpenService.openInEditor(project.path),
+              )
+            }
+          >
+            <ExternalLink aria-hidden="true" />
+            {t("repo.openInEditor")}
+          </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem
             variant="destructive"

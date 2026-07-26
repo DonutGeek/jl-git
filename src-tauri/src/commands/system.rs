@@ -43,13 +43,13 @@ pub fn system_open_terminal(
     )
 }
 
-/// 在文件管理器中打开目录
+/// 在文件管理器中显示文件或目录
 #[tauri::command]
 pub fn system_reveal_in_file_manager(path: String) -> Result<OkResult, AppError> {
     system::reveal_in_file_manager(&path)
 }
 
-/// 用本机编辑器打开目录
+/// 用本机编辑器打开文件或目录
 #[tauri::command]
 pub fn system_open_in_editor(
     path: String,
@@ -61,4 +61,16 @@ pub fn system_open_in_editor(
         preference.as_deref(),
         custom_path.as_deref(),
     )
+}
+
+/// 使用系统默认程序打开文件或目录
+#[tauri::command]
+pub fn system_open_with_default_app(path: String) -> Result<OkResult, AppError> {
+    system::open_with_default_app(&path)
+}
+
+/// 写入文本文件（绝对路径；供导出等用户选定路径）
+#[tauri::command]
+pub fn system_write_text_file(path: String, contents: String) -> Result<OkResult, AppError> {
+    system::write_text_file(&path, &contents)
 }

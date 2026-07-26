@@ -57,6 +57,7 @@ import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { GitRemoteTag, GitTag } from "@/types/git";
 import { copyToClipboard } from "@/utils/clipboard";
+import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
 import { deferUi } from "@/utils/deferUi";
 import {
   filterAndSortTags,
@@ -643,9 +644,10 @@ function TagRow({
   const infoValue = message || subject || "";
   // 远端已知时才展示同步态：不在远端标「未推送」，已同步则不再额外标记
   const showUnpushed = remoteKnown && !onRemote;
+  const { menuOpen, onOpenChange } = useContextMenuOpen(onSelect);
 
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChange={onOpenChange}>
       <Tooltip delayDuration={400}>
         <ContextMenuTrigger asChild>
           <TooltipTrigger asChild>
@@ -654,7 +656,7 @@ function TagRow({
               variant="ghost"
               className={cn(
                 "h-7 w-full min-w-0 justify-start gap-1 overflow-hidden rounded-md px-1.5 text-left text-xs transition-colors [&_svg]:size-3",
-                selected
+                selected || menuOpen
                   ? "bg-accent text-foreground hover:bg-accent"
                   : "text-foreground",
                 busy && "cursor-wait",
@@ -762,9 +764,10 @@ function RemoteTagRow({
   onDeleteRemote,
 }: RemoteTagRowProps) {
   const { t } = useTranslation();
+  const { menuOpen, onOpenChange } = useContextMenuOpen();
 
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChange={onOpenChange}>
       <Tooltip delayDuration={400}>
         <ContextMenuTrigger asChild>
           <TooltipTrigger asChild>
@@ -774,6 +777,7 @@ function RemoteTagRow({
               className={cn(
                 "text-muted-foreground h-7 w-full min-w-0 justify-start gap-1 overflow-hidden rounded-md px-1.5 text-left text-xs transition-colors [&_svg]:size-3",
                 "hover:text-foreground",
+                menuOpen && "bg-accent text-foreground",
                 busy && "cursor-wait",
               )}
               disabled={busy}

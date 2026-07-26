@@ -1,3 +1,4 @@
+import { formatJlgitMetaBlock } from "@/services/agent/agent.profile";
 import { getAgentKey } from "@/services/ai/ai.settings";
 import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
 import { DEFAULT_AGENT_MODEL } from "@/services/ai/ai.models";
@@ -209,7 +210,7 @@ function formatProfileBlock(
   resumeMode: boolean,
 ): string | null {
   const title = profile.jlgitMeta.alias || profile.projectName;
-  const jlgitMetaBlock = formatJlgitMetaBlock(profile);
+  const jlgitMetaBlock = formatJlgitMetaBlock(profile.jlgitMeta);
   const folderName = repoFolderNameFromPath(profile.jlgitMeta.path);
   const techStackLabel = resumeMode
     ? "techStack (package.json ∩ author usage)"
@@ -309,18 +310,6 @@ function formatProfileBlock(
   ]
     .filter((line): line is string => line !== null)
     .join("\n");
-}
-
-/** 鲸灵Git 登记信息块；后续字段非空时在此追加即可 */
-function formatJlgitMetaBlock(profile: AgentProjectProfile): string {
-  const meta = profile.jlgitMeta;
-  const lines = [
-    "jlgitMeta (JLGit registration; prefer for project name/description over README):",
-    `  path: ${meta.path}`,
-    `  alias: ${meta.alias}`,
-    `  group: ${meta.groupName?.trim() || "(ungrouped)"}`,
-  ];
-  return lines.join("\n");
 }
 
 function repoFolderNameFromPath(path: string): string {

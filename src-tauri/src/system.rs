@@ -6,7 +6,45 @@ use std::sync::OnceLock;
 use std::time::Instant;
 
 use crate::error::AppError;
-use crate::git::path::normalize_existing_dir;
+use crate::git::path::{normalize_existing_dir, normalize_existing_path};
+use std::fs;
+
+/// 交给访达 / 资源管理器 / xdg-open 的路径：去掉 Windows `\\?\` 前缀
+fn path_for_shell(path: &Path) -> String {
+    let raw = path.to_string_lossy();
+    #[cfg(windows)]
+    {
+        let trimmed = raw.strip_prefix(r"\\?\").unwrap_or(raw.as_ref());
+        if let Some(unc) = trimmed.strip_prefix(r"UNC\") {
+            return format!(r"\\{unc}");
+        }
+        return trimmed.to_string();
+    }
+    #[cfg(not(windows))]
+    {
+        raw.into_owned()
+    }
+}
+
+/// 将绝对路径编码为 file:// URI（Linux FileManager1.ShowItems）
+#[cfg(all(unix, not(target_os = "macos")))]
+fn path_to_file_uri(path: &Path) -> String {
+    let mut uri = String::from("file://");
+    for byte in path.as_os_str().as_encoded_bytes() {
+        match byte {
+            b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'/'
+            | b'-'
+            | b'_'
+            | b'.'
+            | b'~' => uri.push(char::from(*byte)),
+            _ => uri.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    uri
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -497,18 +535,20 @@ pub fn open_terminal(
     Ok(OkResult { ok: true })
 }
 
-/// 在文件管理器中打开目录（macOS Finder / Windows 资源管理器）
+/// 在文件管理器中显示路径（目录打开；文件则选中）
 pub fn reveal_in_file_manager(path: &str) -> Result<OkResult, AppError> {
-    let dir = normalize_existing_dir(path)?;
+    let target = normalize_existing_path(path)?;
+    let path_str = path_for_shell(&target);
 
     #[cfg(target_os = "macos")]
     {
-        let status = Command::new("open")
-            .arg(&dir)
-            .status()
-            .map_err(|error| {
-                AppError::new("INTERNAL", "无法打开访达").with_details(error.to_string())
-            })?;
+        let mut cmd = Command::new("open");
+        if target.is_file() {
+            cmd.arg("-R");
+        }
+        let status = cmd.arg(&path_str).status().map_err(|error| {
+            AppError::new("INTERNAL", "无法打开访达").with_details(error.to_string())
+        })?;
         if !status.success() {
             return Err(AppError::new("INTERNAL", "打开访达失败"));
         }
@@ -516,37 +556,79 @@ pub fn reveal_in_file_manager(path: &str) -> Result<OkResult, AppError> {
 
     #[cfg(target_os = "windows")]
     {
-        Command::new("explorer")
-            .arg(&dir)
-            .spawn()
-            .map_err(|error| {
-                AppError::new("INTERNAL", "无法打开资源管理器").with_details(error.to_string())
-            })?;
+        // `/select,` 须与路径同属一个参数；去掉 `\\?\` 以免资源管理器无法定位
+        if target.is_file() {
+            Command::new("explorer")
+                .arg(format!("/select,{path_str}"))
+                .spawn()
+                .map_err(|error| {
+                    AppError::new("INTERNAL", "无法打开资源管理器").with_details(error.to_string())
+                })?;
+        } else {
+            Command::new("explorer")
+                .arg(&path_str)
+                .spawn()
+                .map_err(|error| {
+                    AppError::new("INTERNAL", "无法打开资源管理器").with_details(error.to_string())
+                })?;
+        }
     }
 
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        let status = Command::new("xdg-open")
-            .arg(&dir)
-            .status()
-            .map_err(|error| {
-                AppError::new("INTERNAL", "无法打开文件管理器").with_details(error.to_string())
-            })?;
-        if !status.success() {
-            return Err(AppError::new("INTERNAL", "打开文件管理器失败"));
-        }
+        reveal_in_file_manager_linux(&target)?;
     }
 
     Ok(OkResult { ok: true })
 }
 
-/// 用本机编辑器打开目录（支持设置偏好：auto / cursor / vscode / custom）
+#[cfg(all(unix, not(target_os = "macos")))]
+fn reveal_in_file_manager_linux(target: &Path) -> Result<(), AppError> {
+    // 优先 FileManager1.ShowItems：多数桌面可打开并选中文件
+    if target.is_file() {
+        let uri = path_to_file_uri(target);
+        let status = Command::new("dbus-send")
+            .args([
+                "--session",
+                "--dest=org.freedesktop.FileManager1",
+                "--type=method_call",
+                "/org/freedesktop/FileManager1",
+                "org.freedesktop.FileManager1.ShowItems",
+                &format!("array:string:{uri}"),
+                "string:",
+            ])
+            .status();
+        if matches!(status, Ok(s) if s.success()) {
+            return Ok(());
+        }
+    }
+
+    let open_target = if target.is_file() {
+        target.parent().unwrap_or(target)
+    } else {
+        target
+    };
+    let status = Command::new("xdg-open")
+        .arg(open_target)
+        .status()
+        .map_err(|error| {
+            AppError::new("INTERNAL", "无法打开文件管理器").with_details(error.to_string())
+        })?;
+    if !status.success() {
+        return Err(AppError::new("INTERNAL", "打开文件管理器失败"));
+    }
+    Ok(())
+}
+
+/// 用本机编辑器打开文件或目录（支持设置偏好：auto / cursor / vscode / custom）
 pub fn open_in_editor(
     path: &str,
     preference: Option<&str>,
     custom_path: Option<&str>,
 ) -> Result<OkResult, AppError> {
-    let dir = normalize_existing_dir(path)?;
+    let target = normalize_existing_path(path)?;
+    // Windows 下去掉 `\\?\`，避免部分编辑器 CLI 无法打开
+    let target = PathBuf::from(path_for_shell(&target));
     let pref = preference.unwrap_or("auto");
 
     if pref == "custom" {
@@ -554,23 +636,87 @@ pub fn open_in_editor(
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .ok_or_else(|| AppError::new("INVALID_PATH", "请先在设置中填写自定义编辑器路径"))?;
-        open_custom_tool(custom, &dir)?;
+        open_custom_tool(custom, &target)?;
         return Ok(OkResult { ok: true });
     }
 
     #[cfg(target_os = "macos")]
     {
-        open_in_editor_macos(&dir, pref)?;
+        open_in_editor_macos(&target, pref)?;
     }
 
     #[cfg(target_os = "windows")]
     {
-        open_in_editor_windows(&dir, pref)?;
+        open_in_editor_windows(&target, pref)?;
     }
 
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        open_in_editor_linux(&dir, pref)?;
+        open_in_editor_linux(&target, pref)?;
+    }
+
+    Ok(OkResult { ok: true })
+}
+
+/// 将文本写入用户选定的绝对路径（导出等；不拼 shell）
+pub fn write_text_file(path: &str, contents: &str) -> Result<OkResult, AppError> {
+    let target = PathBuf::from(path.trim());
+    if path.trim().is_empty() || !target.is_absolute() {
+        return Err(AppError::new("INVALID_PATH", "须为绝对路径"));
+    }
+    if let Some(parent) = target.parent() {
+        if !parent.as_os_str().is_empty() && !parent.is_dir() {
+            return Err(AppError::new("INVALID_PATH", "目标目录不存在"));
+        }
+    }
+    fs::write(&target, contents.as_bytes()).map_err(|error| {
+        AppError::new("INTERNAL", "写入文件失败").with_details(error.to_string())
+    })?;
+    Ok(OkResult { ok: true })
+}
+
+/// 使用系统默认程序打开文件或目录
+pub fn open_with_default_app(path: &str) -> Result<OkResult, AppError> {
+    let target = normalize_existing_path(path)?;
+    let path_str = path_for_shell(&target);
+
+    #[cfg(target_os = "macos")]
+    {
+        let status = Command::new("open")
+            .arg(&path_str)
+            .status()
+            .map_err(|error| {
+                AppError::new("INTERNAL", "无法使用默认程序打开").with_details(error.to_string())
+            })?;
+        if !status.success() {
+            return Err(AppError::new("INTERNAL", "使用默认程序打开失败"));
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // `start "" <path>`：空标题避免路径被当成窗口标题；去掉 `\\?\`
+        let mut command = Command::new("cmd");
+        crate::process_cmd::configure_background_command(&mut command);
+        command
+            .args(["/C", "start", "", &path_str])
+            .spawn()
+            .map_err(|error| {
+                AppError::new("INTERNAL", "无法使用默认程序打开").with_details(error.to_string())
+            })?;
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let status = Command::new("xdg-open")
+            .arg(&path_str)
+            .status()
+            .map_err(|error| {
+                AppError::new("INTERNAL", "无法使用默认程序打开").with_details(error.to_string())
+            })?;
+        if !status.success() {
+            return Err(AppError::new("INTERNAL", "使用默认程序打开失败"));
+        }
     }
 
     Ok(OkResult { ok: true })

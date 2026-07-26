@@ -52,7 +52,9 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+
 import type { AgentConversation } from "@/types/ai";
+import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
 
 interface MultiAgentSidebarProps {
   conversations: readonly AgentConversation[];
@@ -139,17 +141,19 @@ function SortableConversationRow({
 }: SortableConversationRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: conversation.id });
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
+  const { menuOpen: contextMenuOpen, onOpenChange: onContextMenuOpenChange } =
+    useContextMenuOpen(() => onSelect(conversation.id));
 
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChange={onContextMenuOpenChange}>
       <ContextMenuTrigger asChild>
         <div
           ref={setNodeRef}
           className={cn(
             // min-w-0：否则 flex 子项按内容撑开，标题 truncate 不生效
             "group/row mx-1.5 flex min-w-0 items-center gap-0.5 rounded-md pr-0.5 transition-colors",
-            isActive
+            isActive || contextMenuOpen
               ? "bg-muted text-foreground"
               : "hover:bg-accent hover:text-foreground",
             isDragging && "opacity-40",
@@ -161,10 +165,10 @@ function SortableConversationRow({
           <ConversationRowChrome
             conversation={conversation}
             label={label}
-            isActive={isActive}
+            isActive={isActive || contextMenuOpen}
             onSelect={onSelect}
           />
-          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenu open={overflowMenuOpen} onOpenChange={setOverflowMenuOpen}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
@@ -175,7 +179,7 @@ function SortableConversationRow({
                     className={cn(
                       "text-muted-foreground size-6 shrink-0 rounded-md hover:bg-transparent",
                       "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
-                      menuOpen && "opacity-100",
+                      overflowMenuOpen && "opacity-100",
                     )}
                     aria-label={labels.more}
                     // 避免拖拽传感器抢走点击
