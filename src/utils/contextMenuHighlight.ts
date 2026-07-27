@@ -3,8 +3,7 @@ import { cloneElement, useState, type ReactElement } from "react";
 import { cn } from "@/lib/utils";
 
 /** 列表项右键打开时的默认高亮（对齐常见选中态） */
-export const CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS =
-  "bg-accent text-accent-foreground";
+export const CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS = "bg-accent text-accent-foreground";
 
 /** 历史提交行：高亮在 li > button 上（与选中态 primary/15 对齐） */
 export const CONTEXT_MENU_HISTORY_HIGHLIGHT_CLASS =

@@ -23,9 +23,7 @@ export function SettingsFieldHeading({
         {icon}
       </span>
       <p className="text-foreground text-xs font-medium">{children}</p>
-      {tip != null && tipAria ? (
-        <SettingsTip ariaLabel={tipAria}>{tip}</SettingsTip>
-      ) : null}
+      {tip != null && tipAria ? <SettingsTip ariaLabel={tipAria}>{tip}</SettingsTip> : null}
     </div>
   );
 }

@@ -37,7 +37,13 @@ import {
   ContextMenuSubContent,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -56,7 +62,7 @@ import { pickPrimaryRemoteUrl } from "@/services/git/git.remote";
 import { copyToClipboard } from "@/utils/clipboard";
 
 import { toUserMessage } from "@/types/error";
-import { Project } from "@/types/project";
+import type { Project } from "@/types/project";
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
 
@@ -93,7 +99,14 @@ interface TabChromeProps {
   closeLabel?: string;
 }
 
-function TabChrome({ tab, isActive, dragging = false, onSelect, onClose, closeLabel }: TabChromeProps) {
+function TabChrome({
+  tab,
+  isActive,
+  dragging = false,
+  onSelect,
+  onClose,
+  closeLabel,
+}: TabChromeProps) {
   return (
     <div
       className={cn(
@@ -123,7 +136,9 @@ function TabChrome({ tab, isActive, dragging = false, onSelect, onClose, closeLa
               type="button"
               className={cn(
                 "hover:bg-muted mr-1 inline-flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm",
-                isActive ? "opacity-70" : "opacity-0 group-hover:opacity-70 focus-visible:opacity-70",
+                isActive
+                  ? "opacity-70"
+                  : "opacity-0 group-hover:opacity-70 focus-visible:opacity-70",
               )}
               aria-label={closeLabel}
               onPointerDown={(event) => event.stopPropagation()}
@@ -142,16 +157,58 @@ function TabChrome({ tab, isActive, dragging = false, onSelect, onClose, closeLa
 }
 
 interface SortableRepoTabProps {
-  tab: TabDisplayItem; isActive: boolean; tabIndex: number; tabCount: number;
-  onSelect: (tabId: string) => void; onClose: (event: MouseEvent | KeyboardEvent, tabId: string) => void;
-  onCloseTab: (tabId: string) => void; onCloseOthers: (tabId: string) => void; onCloseLeft: (tabId: string) => void; onCloseRight: (tabId: string) => void;
-  onRemove: (project: Project) => void; onSetAlias: (project: Project) => void; onCopyRemote: (project: Project) => void; onCopyPath: (project: Project) => void;
-  closeLabel: string; labels: Record<"close" | "remove" | "closeMore" | "closeOthers" | "closeLeft" | "closeRight" | "setAlias" | "copy" | "copyRemote" | "copyPath", string>;
+  tab: TabDisplayItem;
+  isActive: boolean;
+  tabIndex: number;
+  tabCount: number;
+  onSelect: (tabId: string) => void;
+  onClose: (event: MouseEvent | KeyboardEvent, tabId: string) => void;
+  onCloseTab: (tabId: string) => void;
+  onCloseOthers: (tabId: string) => void;
+  onCloseLeft: (tabId: string) => void;
+  onCloseRight: (tabId: string) => void;
+  onRemove: (project: Project) => void;
+  onSetAlias: (project: Project) => void;
+  onCopyRemote: (project: Project) => void;
+  onCopyPath: (project: Project) => void;
+  closeLabel: string;
+  labels: Record<
+    | "close"
+    | "remove"
+    | "closeMore"
+    | "closeOthers"
+    | "closeLeft"
+    | "closeRight"
+    | "setAlias"
+    | "copy"
+    | "copyRemote"
+    | "copyPath",
+    string
+  >;
 }
 
 function SortableRepoTab(props: SortableRepoTabProps) {
-  const { tab, isActive, tabIndex, tabCount, onSelect, onClose, onCloseTab, onCloseOthers, onCloseLeft, onCloseRight, onRemove, onSetAlias, onCopyRemote, onCopyPath, closeLabel, labels } = props;
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tab.id });
+  const {
+    tab,
+    isActive,
+    tabIndex,
+    tabCount,
+    onSelect,
+    onClose,
+    onCloseTab,
+    onCloseOthers,
+    onCloseLeft,
+    onCloseRight,
+    onRemove,
+    onSetAlias,
+    onCopyRemote,
+    onCopyPath,
+    closeLabel,
+    labels,
+  } = props;
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: tab.id,
+  });
   const project = tab.project;
   const { menuOpen, onOpenChange } = useContextMenuOpen(() => onSelect(tab.id));
   return (
@@ -179,9 +236,18 @@ function SortableRepoTab(props: SortableRepoTabProps) {
         <ContextMenuSub>
           <ContextMenuSubTrigger disabled={tabCount <= 1}>{labels.closeMore}</ContextMenuSubTrigger>
           <ContextMenuSubContent className="min-w-40">
-            <ContextMenuItem disabled={tabCount <= 1} onSelect={() => onCloseOthers(tab.id)}>{labels.closeOthers}</ContextMenuItem>
-            <ContextMenuItem disabled={tabIndex === 0} onSelect={() => onCloseLeft(tab.id)}>{labels.closeLeft}</ContextMenuItem>
-            <ContextMenuItem disabled={tabIndex >= tabCount - 1} onSelect={() => onCloseRight(tab.id)}>{labels.closeRight}</ContextMenuItem>
+            <ContextMenuItem disabled={tabCount <= 1} onSelect={() => onCloseOthers(tab.id)}>
+              {labels.closeOthers}
+            </ContextMenuItem>
+            <ContextMenuItem disabled={tabIndex === 0} onSelect={() => onCloseLeft(tab.id)}>
+              {labels.closeLeft}
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={tabIndex >= tabCount - 1}
+              onSelect={() => onCloseRight(tab.id)}
+            >
+              {labels.closeRight}
+            </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>
         {project ? (
@@ -191,13 +257,21 @@ function SortableRepoTab(props: SortableRepoTabProps) {
             <ContextMenuSub>
               <ContextMenuSubTrigger>{labels.copy}</ContextMenuSubTrigger>
               <ContextMenuSubContent className="min-w-40">
-                <ContextMenuItem onSelect={() => onCopyRemote(project)}>{labels.copyRemote}</ContextMenuItem>
-                <ContextMenuItem onSelect={() => onCopyPath(project)}>{labels.copyPath}</ContextMenuItem>
+                <ContextMenuItem onSelect={() => onCopyRemote(project)}>
+                  {labels.copyRemote}
+                </ContextMenuItem>
+                <ContextMenuItem onSelect={() => onCopyPath(project)}>
+                  {labels.copyPath}
+                </ContextMenuItem>
               </ContextMenuSubContent>
             </ContextMenuSub>
-            <ContextMenuItem onSelect={() => onSetAlias(project)}>{labels.setAlias}</ContextMenuItem>
+            <ContextMenuItem onSelect={() => onSetAlias(project)}>
+              {labels.setAlias}
+            </ContextMenuItem>
             <ContextMenuSeparator />
-            <ContextMenuItem variant="destructive" onSelect={() => onRemove(project)}>{labels.remove}</ContextMenuItem>
+            <ContextMenuItem variant="destructive" onSelect={() => onRemove(project)}>
+              {labels.remove}
+            </ContextMenuItem>
           </>
         ) : null}
       </ContextMenuContent>
@@ -209,9 +283,7 @@ function SortableRepoTab(props: SortableRepoTabProps) {
 export function RepoTabBar() {
   const { t } = useTranslation();
   const { headerPaddingClass, isMacOverlay } = useWindowChromeLayout();
-  const dragProps = isMacOverlay
-    ? ({ "data-tauri-drag-region": true } as const)
-    : {};
+  const dragProps = isMacOverlay ? ({ "data-tauri-drag-region": true } as const) : {};
   const navigate = useNavigate();
   const location = useLocation();
   const tabEntries = useOpenTabsStore((state) => state.tabs);
@@ -298,9 +370,7 @@ export function RepoTabBar() {
       return;
     }
     const raf = window.requestAnimationFrame(() => {
-      const activeEl = tabScrollViewport.querySelector<HTMLElement>(
-        '[aria-current="page"]',
-      );
+      const activeEl = tabScrollViewport.querySelector<HTMLElement>('[aria-current="page"]');
       activeEl?.scrollIntoView({ block: "nearest", inline: "nearest" });
     });
     return () => window.cancelAnimationFrame(raf);
@@ -480,14 +550,14 @@ export function RepoTabBar() {
             </Tooltip>
             <div className="bg-border h-3.5 w-px shrink-0 self-center" aria-hidden="true" />
           </div>
-          <div
-            className="flex h-full min-w-0 items-center gap-1"
-            style={noDragStyle}
-          >
+          <div className="flex h-full min-w-0 items-center gap-1" style={noDragStyle}>
             {/* 主滚动用 shadcn ScrollArea：细滚动条、悬停/滚动时才显示，不再用裸 overflow-x-auto */}
             {/* 内容 h-12 与视口高度一致（表头已去掉占位边框），纵向不溢出，无需隐藏纵向滚动条 */}
             <ScrollArea ref={bindScrollArea} className="h-full min-w-0">
-              <SortableContext items={tabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
+              <SortableContext
+                items={tabs.map((tab) => tab.id)}
+                strategy={horizontalListSortingStrategy}
+              >
                 <div className="flex h-12 w-max items-center gap-1">
                   {tabs.map((tab, index) => (
                     <SortableRepoTab
@@ -545,10 +615,7 @@ export function RepoTabBar() {
             </Tooltip>
           </div>
           <div {...dragProps} className="h-full min-w-8 flex-1" />
-          <div
-            className="flex h-7 shrink-0 items-center pr-3"
-            style={noDragStyle}
-          >
+          <div className="flex h-7 shrink-0 items-center pr-3" style={noDragStyle}>
             <MultiAgentWindowButton
               label={t("multiAgent.openButton")}
               className="size-7 shrink-0"
@@ -602,9 +669,7 @@ export function RepoTabBar() {
               <Button
                 type="submit"
                 disabled={
-                  aliasBusy ||
-                  !aliasValue.trim() ||
-                  aliasValue.trim() === aliasTarget?.name
+                  aliasBusy || !aliasValue.trim() || aliasValue.trim() === aliasTarget?.name
                 }
               >
                 {aliasBusy ? <Spinner className="size-3.5" /> : null}

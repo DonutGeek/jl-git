@@ -6,7 +6,7 @@ import { DiffLineStats } from "@/components/git/DiffLineStats";
 import { RepositoryTreeRoot } from "@/components/git/RepositoryTreeRoot";
 import { cn } from "@/lib/utils";
 
-import { GitChangedFile } from "@/types/git";
+import type { GitChangedFile } from "@/types/git";
 import { gitStatusLetterClass } from "@/utils/gitStatusStyle";
 
 interface CommitFileTreeDirectory {
@@ -132,7 +132,9 @@ function CommitFileTreeNodes({
                   <span
                     className={cn(
                       "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
-                      node.file.status ? gitStatusLetterClass(node.file.status) : "text-transparent",
+                      node.file.status
+                        ? gitStatusLetterClass(node.file.status)
+                        : "text-transparent",
                     )}
                     aria-label={node.file.status || undefined}
                     aria-hidden={!node.file.status}
@@ -140,15 +142,16 @@ function CommitFileTreeNodes({
                     {node.file.status || "·"}
                   </span>
                 ) : null}
-                <MaterialFileIcon name={node.file.path} isDir={false} className="size-3.5 shrink-0" />
+                <MaterialFileIcon
+                  name={node.file.path}
+                  isDir={false}
+                  className="size-3.5 shrink-0"
+                />
                 <span className="min-w-0 flex-1 truncate font-mono text-xs">
                   {node.file.path.split("/").pop()}
                 </span>
                 {showLineStats ? (
-                  <DiffLineStats
-                    additions={node.file.additions}
-                    deletions={node.file.deletions}
-                  />
+                  <DiffLineStats additions={node.file.additions} deletions={node.file.deletions} />
                 ) : null}
               </div>
             </li>
@@ -165,9 +168,15 @@ function CommitFileTreeNodes({
               onClick={() => onToggleFolder(node.path)}
             >
               {open ? (
-                <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+                <ChevronDown
+                  className="text-muted-foreground size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
               ) : (
-                <ChevronRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+                <ChevronRight
+                  className="text-muted-foreground size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
               )}
               <MaterialFileIcon name={node.name} isDir className="size-3.5" />
               <span className="min-w-0 flex-1 truncate">{node.name}</span>

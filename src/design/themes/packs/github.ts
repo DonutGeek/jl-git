@@ -1,7 +1,4 @@
-import {
-  APP_THEME_GITHUB,
-  type AppThemePack,
-} from "@/design/themes/types";
+import { APP_THEME_GITHUB, type AppThemePack } from "@/design/themes/types";
 
 /**
  * GitHub — Primer 功能色（公开设计系统）

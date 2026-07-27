@@ -2,9 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tauri::State;
 
-use crate::db::{
-    self, ChatConversationRow, UpsertChatConversationInput,
-};
+use crate::db::{self, ChatConversationRow, UpsertChatConversationInput};
 use crate::error::AppError;
 
 #[derive(Serialize)]
@@ -39,8 +37,7 @@ pub async fn chat_list_conversations(
     scope: String,
     project_id: Option<String>,
 ) -> Result<ChatConversationListResult, AppError> {
-    let conversations =
-        db::list_chat_conversations(&pool, &scope, project_id.as_deref()).await?;
+    let conversations = db::list_chat_conversations(&pool, &scope, project_id.as_deref()).await?;
     Ok(ChatConversationListResult { conversations })
 }
 

@@ -44,9 +44,10 @@ describe("commitMatchesAuthor", () => {
 
 describe("toGitAuthorPatterns", () => {
   it("同时输出邮箱与姓名模式", () => {
-    expect(
-      toGitAuthorPatterns([{ name: "jingyue", email: "13223057509@163.com" }]),
-    ).toEqual(["13223057509@163\\.com", "jingyue"]);
+    expect(toGitAuthorPatterns([{ name: "jingyue", email: "13223057509@163.com" }])).toEqual([
+      "13223057509@163\\.com",
+      "jingyue",
+    ]);
   });
 });
 

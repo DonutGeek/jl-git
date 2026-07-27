@@ -16,11 +16,7 @@ function pathSeparator(repoPath: string, os?: AppOs): "\\" | "/" {
  * 将仓库相对路径拼为绝对路径。
  * 分隔符优先跟随 `repoPath` 风格，避免仅靠 UA 误判三端。
  */
-export function toAbsoluteRepoFilePath(
-  repoPath: string,
-  relativePath: string,
-  os?: AppOs,
-): string {
+export function toAbsoluteRepoFilePath(repoPath: string, relativePath: string, os?: AppOs): string {
   const base = repoPath.replace(/[/\\]+$/, "");
   const rel = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
   const sep = pathSeparator(base, os);

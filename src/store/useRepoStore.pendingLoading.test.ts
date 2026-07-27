@@ -21,11 +21,7 @@ import {
   endRepoPendingOp,
 } from "@/utils/repoPendingOps";
 
-import {
-  beginRepoSwitch,
-  restoreRepoSession,
-  useRepoStore,
-} from "./useRepoStore";
+import { beginRepoSwitch, restoreRepoSession, useRepoStore } from "./useRepoStore";
 
 const statusA: GitStatusResult = {
   branch: "main",
@@ -91,7 +87,7 @@ describe("useRepoStore 切仓后保留进行中 loading", () => {
   });
 
   it("A 提交未完成时切到 B 再切回 A，refreshStatus 后仍保持 loading", async () => {
-    let resolveCommit!: (id: string) => void;
+    let resolveCommit!: (_id: string) => void;
     const commitPromise = new Promise<string>((resolve) => {
       resolveCommit = resolve;
     });

@@ -59,9 +59,7 @@ export async function getAgentIdentity(): Promise<AgentIdentity> {
 }
 
 /** 保存简历插件联系信息。 */
-export async function setAgentIdentity(
-  identity: AgentIdentity,
-): Promise<AgentIdentity> {
+export async function setAgentIdentity(identity: AgentIdentity): Promise<AgentIdentity> {
   const next = normalizeIdentity(identity);
   const store = await getStore();
   await migrateLegacyStoreIfNeeded(store);

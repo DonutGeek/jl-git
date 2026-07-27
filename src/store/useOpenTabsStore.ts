@@ -2,8 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type OpenTab =
-  | { id: string; type: "new-tab" }
-  | { id: string; type: "repository"; projectId: string };
+  { id: string; type: "new-tab" } | { id: string; type: "repository"; projectId: string };
 
 interface OpenTabsState {
   /** 当前会话打开的标签（按打开顺序） */
@@ -92,9 +91,7 @@ function readLastActiveTabId(value: unknown, tabs: readonly OpenTab[]): string |
   if (!isRecord(value) || typeof value.lastActiveTabId !== "string") {
     return null;
   }
-  return tabs.some((tab) => tab.id === value.lastActiveTabId)
-    ? value.lastActiveTabId
-    : null;
+  return tabs.some((tab) => tab.id === value.lastActiveTabId) ? value.lastActiveTabId : null;
 }
 
 /** 标签对应主窗路由 */
@@ -169,14 +166,10 @@ export const useOpenTabsStore = create<OpenTabsState>()(
         }
 
         const nextTabs = tabs.filter((tab) => tab.id !== tabId);
-        const nextActive =
-          nextTabs[Math.min(index, nextTabs.length - 1)]?.id ?? null;
+        const nextActive = nextTabs[Math.min(index, nextTabs.length - 1)]?.id ?? null;
         set({
           tabs: nextTabs,
-          lastActiveTabId:
-            get().lastActiveTabId === tabId
-              ? nextActive
-              : get().lastActiveTabId,
+          lastActiveTabId: get().lastActiveTabId === tabId ? nextActive : get().lastActiveTabId,
         });
 
         return nextActive;
@@ -184,7 +177,10 @@ export const useOpenTabsStore = create<OpenTabsState>()(
 
       closeOtherTabs(keepId) {
         const { tabs } = get();
-        if (!tabs.some((tab) => tab.id === keepId) || (tabs.length === 1 && tabs[0]?.id === keepId)) {
+        if (
+          !tabs.some((tab) => tab.id === keepId) ||
+          (tabs.length === 1 && tabs[0]?.id === keepId)
+        ) {
           return;
         }
         set({ tabs: tabs.filter((tab) => tab.id === keepId), lastActiveTabId: keepId });

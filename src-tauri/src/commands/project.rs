@@ -36,16 +36,31 @@ pub struct PickDirectoryResult {
 pub struct RecentListResult {
     items: Vec<RecentProjectItem>,
 }
-#[derive(Serialize)] #[serde(rename_all = "camelCase")] pub struct WorkspaceListResult { workspaces: Vec<WorkspaceRow> }
-#[derive(Serialize)] #[serde(rename_all = "camelCase")] pub struct WorkspaceResult { workspace: WorkspaceRow }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceListResult {
+    workspaces: Vec<WorkspaceRow>,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceResult {
+    workspace: WorkspaceRow,
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WorkspaceOrderItem { id: String, sort_order: i64 }
+pub struct WorkspaceOrderItem {
+    id: String,
+    sort_order: i64,
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProjectOrderItem { id: String, workspace_id: Option<String>, sort_order: i64 }
+pub struct ProjectOrderItem {
+    id: String,
+    workspace_id: Option<String>,
+    sort_order: i64,
+}
 
 #[tauri::command]
 pub async fn project_list(
@@ -82,10 +97,7 @@ pub async fn project_touch_opened(
 }
 
 #[tauri::command]
-pub async fn project_remove(
-    pool: State<'_, SqlitePool>,
-    id: String,
-) -> Result<OkResult, AppError> {
+pub async fn project_remove(pool: State<'_, SqlitePool>, id: String) -> Result<OkResult, AppError> {
     db::remove_project(&pool, &id).await?;
 
     Ok(OkResult { ok: true })
@@ -110,8 +122,24 @@ pub async fn project_update(
 pub fn project_profile_snapshot(path: String) -> Result<ProjectProfileSnapshot, AppError> {
     project_profile::collect_snapshot(&path)
 }
-#[tauri::command] pub async fn workspace_list(pool: State<'_, SqlitePool>) -> Result<WorkspaceListResult, AppError> { Ok(WorkspaceListResult { workspaces: db::list_workspaces(&pool).await? }) }
-#[tauri::command] pub async fn workspace_create(pool: State<'_, SqlitePool>, name: String, parent_id: Option<String>, icon: Option<String>, color: Option<String>) -> Result<WorkspaceResult, AppError> { Ok(WorkspaceResult { workspace: db::create_workspace(&pool, name, parent_id, icon, color).await? }) }
+#[tauri::command]
+pub async fn workspace_list(pool: State<'_, SqlitePool>) -> Result<WorkspaceListResult, AppError> {
+    Ok(WorkspaceListResult {
+        workspaces: db::list_workspaces(&pool).await?,
+    })
+}
+#[tauri::command]
+pub async fn workspace_create(
+    pool: State<'_, SqlitePool>,
+    name: String,
+    parent_id: Option<String>,
+    icon: Option<String>,
+    color: Option<String>,
+) -> Result<WorkspaceResult, AppError> {
+    Ok(WorkspaceResult {
+        workspace: db::create_workspace(&pool, name, parent_id, icon, color).await?,
+    })
+}
 #[tauri::command]
 pub async fn workspace_update(
     pool: State<'_, SqlitePool>,
@@ -125,14 +153,39 @@ pub async fn workspace_update(
         workspace: db::update_workspace(&pool, &id, name, parent_id, icon, color).await?,
     })
 }
-#[tauri::command] pub async fn workspace_delete(pool: State<'_, SqlitePool>, id: String) -> Result<OkResult, AppError> { db::delete_workspace(&pool, &id).await?; Ok(OkResult { ok: true }) }
 #[tauri::command]
-pub async fn workspace_reorder(pool: State<'_, SqlitePool>, workspaces: Vec<WorkspaceOrderItem>, projects: Vec<ProjectOrderItem>) -> Result<OkResult, AppError> {
+pub async fn workspace_delete(
+    pool: State<'_, SqlitePool>,
+    id: String,
+) -> Result<OkResult, AppError> {
+    db::delete_workspace(&pool, &id).await?;
+    Ok(OkResult { ok: true })
+}
+#[tauri::command]
+pub async fn workspace_reorder(
+    pool: State<'_, SqlitePool>,
+    workspaces: Vec<WorkspaceOrderItem>,
+    projects: Vec<ProjectOrderItem>,
+) -> Result<OkResult, AppError> {
     db::reorder_projects_and_workspaces(
         &pool,
-        workspaces.into_iter().map(|item| db::WorkspaceOrderItem { id: item.id, sort_order: item.sort_order }).collect(),
-        projects.into_iter().map(|item| db::ProjectOrderItem { id: item.id, workspace_id: item.workspace_id, sort_order: item.sort_order }).collect(),
-    ).await?;
+        workspaces
+            .into_iter()
+            .map(|item| db::WorkspaceOrderItem {
+                id: item.id,
+                sort_order: item.sort_order,
+            })
+            .collect(),
+        projects
+            .into_iter()
+            .map(|item| db::ProjectOrderItem {
+                id: item.id,
+                workspace_id: item.workspace_id,
+                sort_order: item.sort_order,
+            })
+            .collect(),
+    )
+    .await?;
     Ok(OkResult { ok: true })
 }
 

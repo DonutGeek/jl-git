@@ -45,13 +45,7 @@ interface ImagePaneProps {
   borderClassName?: string;
 }
 
-function ImagePane({
-  src,
-  alt,
-  showCheckerboard,
-  emptyText,
-  borderClassName,
-}: ImagePaneProps) {
+function ImagePane({ src, alt, showCheckerboard, emptyText, borderClassName }: ImagePaneProps) {
   return (
     // 背景打在外层铺满整栏；ScrollArea 只负责滚动，避免内容不够高时底部露黑
     <div
@@ -102,9 +96,7 @@ export function MediaFilePreview({
 }: MediaFilePreviewProps) {
   const { t } = useTranslation();
   const [showBackground, setShowBackground] = useState(false);
-  const statusBorderClass = statusCode
-    ? gitStatusBorderClass(statusCode, { conflict })
-    : undefined;
+  const statusBorderClass = statusCode ? gitStatusBorderClass(statusCode, { conflict }) : undefined;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [oldMedia, setOldMedia] = useState<GitFileMedia | null>(null);

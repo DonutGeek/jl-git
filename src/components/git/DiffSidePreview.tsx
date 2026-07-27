@@ -153,11 +153,7 @@ export function DiffSidePreview({
   );
 }
 
-function resolveColor(
-  element: HTMLElement,
-  cssVar: string,
-  fallback: string,
-): string {
+function resolveColor(element: HTMLElement, cssVar: string, fallback: string): string {
   const probe = document.createElement("span");
   probe.style.color = `var(${cssVar})`;
   probe.style.display = "none";

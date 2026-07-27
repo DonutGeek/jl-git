@@ -1,18 +1,9 @@
 import type { Monaco } from "@monaco-editor/react";
 
-import {
-  isDocumentDark,
-  withAlpha,
-} from "@/design/themes/color-utils";
-import {
-  getAppThemePack,
-  usesNativeDesignTokens,
-} from "@/design/themes/registry";
+import { isDocumentDark, withAlpha } from "@/design/themes/color-utils";
+import { getAppThemePack, usesNativeDesignTokens } from "@/design/themes/registry";
 import type { AppThemeChrome, AppThemeId } from "@/design/themes/types";
-import {
-  applyJlGitMonacoTheme,
-  forceMonacoThemeRepaint,
-} from "@/design/monaco.theme";
+import { applyJlGitMonacoTheme, forceMonacoThemeRepaint } from "@/design/monaco.theme";
 
 export interface AppMonacoTokenRule {
   token: string;
@@ -28,10 +19,7 @@ function monacoForeground(hex: string): string {
  * Monaco standalone 识别的是 token 前缀，不是 VS Code 的完整 TextMate scope。
  * 这里覆盖各语言都会稳定产出的核心类别，未命中的继续继承 Monaco 基础主题。
  */
-export function getAppMonacoSyntaxRules(
-  themeId: AppThemeId,
-  dark: boolean,
-): AppMonacoTokenRule[] {
+export function getAppMonacoSyntaxRules(themeId: AppThemeId, dark: boolean): AppMonacoTokenRule[] {
   const pack = getAppThemePack(themeId);
   const syntax = dark ? pack.syntax?.dark : pack.syntax?.light;
   if (!syntax) {
@@ -131,10 +119,7 @@ export function applyAppMonacoTheme(
       "editorGutter.background": background,
       "editor.lineHighlightBackground": withAlpha(selection, lineAlpha),
       "editor.selectionBackground": withAlpha(selection, selectionAlpha),
-      "editor.inactiveSelectionBackground": withAlpha(
-        selection,
-        selectionAlpha * 0.55,
-      ),
+      "editor.inactiveSelectionBackground": withAlpha(selection, selectionAlpha * 0.55),
       "editor.findMatchBackground": selection,
       "editor.findMatchHighlightBackground": withAlpha(selection, 0.65),
       "editorWidget.background": surface,
@@ -146,10 +131,7 @@ export function applyAppMonacoTheme(
       "editorSuggestWidget.background": surface,
       "editorSuggestWidget.foreground": foreground,
       "editorSuggestWidget.selectedBackground": muted,
-      "editorBracketMatch.background": withAlpha(
-        selection,
-        0.35 + contrast * 0.3,
-      ),
+      "editorBracketMatch.background": withAlpha(selection, 0.35 + contrast * 0.3),
       "editorBracketMatch.border": border,
       "editorIndentGuide.background1": withAlpha(border, 0.6),
       "editorIndentGuide.activeBackground1": mutedForeground,

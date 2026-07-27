@@ -36,11 +36,7 @@ pub fn system_open_terminal(
     preference: Option<String>,
     custom_path: Option<String>,
 ) -> Result<OkResult, AppError> {
-    system::open_terminal(
-        &path,
-        preference.as_deref(),
-        custom_path.as_deref(),
-    )
+    system::open_terminal(&path, preference.as_deref(), custom_path.as_deref())
 }
 
 /// 在文件管理器中显示文件或目录
@@ -56,11 +52,7 @@ pub fn system_open_in_editor(
     preference: Option<String>,
     custom_path: Option<String>,
 ) -> Result<OkResult, AppError> {
-    system::open_in_editor(
-        &path,
-        preference.as_deref(),
-        custom_path.as_deref(),
-    )
+    system::open_in_editor(&path, preference.as_deref(), custom_path.as_deref())
 }
 
 /// 使用系统默认程序打开文件或目录

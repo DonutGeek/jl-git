@@ -37,10 +37,7 @@ export const DEFAULT_UTILITY_MODEL = "deepseek-v4-flash";
  * @see https://api-docs.deepseek.com/zh-cn/guides/thinking_mode
  * @see https://api-docs.deepseek.com/zh-cn/quick_start/pricing
  */
-const THINKING_CAPABLE_MODEL_IDS = new Set<string>([
-  "deepseek-v4-pro",
-  "deepseek-v4-flash",
-]);
+const THINKING_CAPABLE_MODEL_IDS = new Set<string>(["deepseek-v4-pro", "deepseek-v4-flash"]);
 
 /** 当前选中模型是否展示「深度思考」开关 */
 export function modelSupportsThinking(modelId: string): boolean {
@@ -80,11 +77,7 @@ export async function fetchDeepSeekModels(): Promise<DeepSeekModelInfo[]> {
 
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
-      throw mapDeepSeekHttpError(
-        response.status,
-        payload,
-        i18n.t("ai.errors.modelsFetchFailed"),
-      );
+      throw mapDeepSeekHttpError(response.status, payload, i18n.t("ai.errors.modelsFetchFailed"));
     }
 
     return parseModelsPayload(payload);
@@ -105,14 +98,8 @@ export async function fetchDeepSeekModels(): Promise<DeepSeekModelInfo[]> {
  * 读取鲸灵已选模型。
  * 传入 availableIds 时：优先本地已存且仍可用，否则优先 DEFAULT，再否则取列表首项；无列表则空串。
  */
-export function readAgentModelId(
-  availableIds?: readonly string[],
-): string {
-  return readStoredModelId(
-    AGENT_MODEL_STORAGE_KEY,
-    DEFAULT_AGENT_MODEL,
-    availableIds,
-  );
+export function readAgentModelId(availableIds?: readonly string[]): string {
+  return readStoredModelId(AGENT_MODEL_STORAGE_KEY, DEFAULT_AGENT_MODEL, availableIds);
 }
 
 export function writeAgentModelId(modelId: string): void {
@@ -123,14 +110,8 @@ export function writeAgentModelId(modelId: string): void {
  * 读取「生成提交信息」所用模型。
  * 有列表时优先本地已存且仍可用，否则优先 `DEFAULT_UTILITY_MODEL`，再否则列表首项。
  */
-export function readCommitModelId(
-  availableIds?: readonly string[],
-): string {
-  return readStoredModelId(
-    COMMIT_MODEL_STORAGE_KEY,
-    DEFAULT_UTILITY_MODEL,
-    availableIds,
-  );
+export function readCommitModelId(availableIds?: readonly string[]): string {
+  return readStoredModelId(COMMIT_MODEL_STORAGE_KEY, DEFAULT_UTILITY_MODEL, availableIds);
 }
 
 export function writeCommitModelId(modelId: string): void {

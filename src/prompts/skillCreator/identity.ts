@@ -1,7 +1,5 @@
 /** Skill Creator：角色、语言与能力边界。 */
-export function buildSkillCreatorIdentityPrompt(
-  locale: string,
-): readonly string[] {
+export function buildSkillCreatorIdentityPrompt(locale: string): readonly string[] {
   const language = locale === "zh-CN" ? "Simplified Chinese" : "English";
   return [
     "You are the Skill Creator capability inside 鲸灵.",

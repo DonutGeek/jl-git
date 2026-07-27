@@ -128,13 +128,21 @@ export interface OkResult {
   ok: boolean;
 }
 
-export type GitMergeMode =
-  | "default"
-  | "noFf"
-  | "squash"
-  | "resolve"
-  | "ort"
-  | "noCommit";
+export interface GitStashEntry {
+  index: number;
+  message: string;
+}
+
+export interface GitStashListResult {
+  entries: GitStashEntry[];
+}
+
+export interface RestoreLintStagedResult {
+  restored: boolean;
+  index?: number;
+}
+
+export type GitMergeMode = "default" | "noFf" | "squash" | "resolve" | "ort" | "noCommit";
 
 export interface GitMergeOptions {
   mode?: GitMergeMode;

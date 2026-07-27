@@ -43,20 +43,17 @@ export function resolveMaterialIconId(name: string, isDir: boolean): string {
 }
 
 /** Vite 将 SVG 打成 URL；eager 建表便于按 id 查找 */
-const iconUrlByPath = import.meta.glob(
-  "../../node_modules/material-icon-theme/icons/*.svg",
-  {
-    eager: true,
-    query: "?url",
-    import: "default",
-  },
-) as Record<string, string>;
+const iconUrlByPath = import.meta.glob("../../node_modules/material-icon-theme/icons/*.svg", {
+  eager: true,
+  query: "?url",
+  import: "default",
+});
 
 const iconUrlById = new Map<string, string>();
 
 for (const [path, url] of Object.entries(iconUrlByPath)) {
   const file = path.split("/").pop();
-  if (!file?.endsWith(".svg")) {
+  if (!file?.endsWith(".svg") || typeof url !== "string") {
     continue;
   }
   iconUrlById.set(file.slice(0, -4), url);

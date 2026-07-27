@@ -1,23 +1,20 @@
 import { save, open } from "@tauri-apps/plugin-dialog";
 
-import { clearPersistedAgentIdentity, invalidateAgentIdentityStore } from "@/services/agent/agent.identity";
+import {
+  clearPersistedAgentIdentity,
+  invalidateAgentIdentityStore,
+} from "@/services/agent/agent.identity";
 import {
   clearPersistedAgentPluginPrefs,
   invalidateAgentPluginsStore,
 } from "@/services/agent/agent.plugins";
-import {
-  clearPersistedAiApiKeys,
-  invalidateAiSettingsStore,
-} from "@/services/ai/ai.settings";
+import { clearPersistedAiApiKeys, invalidateAiSettingsStore } from "@/services/ai/ai.settings";
 import {
   clearPersistedGitIdentityAccounts,
   invalidateGitIdentityAccountsStore,
 } from "@/services/git/git.accounts";
 import { invokeCommand } from "@/services/invoke";
-import {
-  clearPersistedSshKeys,
-  invalidateSshKeysStore,
-} from "@/services/ssh/ssh.keys";
+import { clearPersistedSshKeys, invalidateSshKeysStore } from "@/services/ssh/ssh.keys";
 
 export type AppDataClearModule =
   | "agent_chats"
@@ -83,9 +80,7 @@ export function collectLocalStorageSnapshot(): Record<string, string> {
 }
 
 /** 将备份中的 localStorage 写回 */
-export function applyLocalStorageSnapshot(
-  snapshot: Record<string, string>,
-): void {
+export function applyLocalStorageSnapshot(snapshot: Record<string, string>): void {
   for (const [key, value] of Object.entries(snapshot)) {
     if (typeof value === "string") {
       window.localStorage.setItem(key, value);
@@ -133,27 +128,16 @@ export async function reveal(target: "dir" | "database"): Promise<void> {
 
 export async function clearModule(module: AppDataClearModule): Promise<void> {
   const clearsUiPrefs =
-    module === "ui_prefs" ||
-    module === "all_app_data" ||
-    module === "factory_reset";
+    module === "ui_prefs" || module === "all_app_data" || module === "factory_reset";
   const clearsOpenTabs =
-    module === "open_tabs" ||
-    module === "all_app_data" ||
-    module === "factory_reset";
+    module === "open_tabs" || module === "all_app_data" || module === "factory_reset";
   const clearsGitAccounts =
-    module === "git_accounts" ||
-    module === "all_app_data" ||
-    module === "factory_reset";
+    module === "git_accounts" || module === "all_app_data" || module === "factory_reset";
   const clearsAiSecrets =
-    module === "ai_secrets" ||
-    module === "all_app_data" ||
-    module === "factory_reset";
+    module === "ai_secrets" || module === "all_app_data" || module === "factory_reset";
   const clearsAgentIdentity =
-    module === "multi_agent_identity" ||
-    module === "all_app_data" ||
-    module === "factory_reset";
-  const clearsAllStores =
-    module === "all_app_data" || module === "factory_reset";
+    module === "multi_agent_identity" || module === "all_app_data" || module === "factory_reset";
+  const clearsAllStores = module === "all_app_data" || module === "factory_reset";
 
   if (clearsUiPrefs) {
     clearUiPrefsLocalStorage();

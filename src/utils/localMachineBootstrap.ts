@@ -23,10 +23,7 @@ export async function applyLocalMachineBootstrap(): Promise<void> {
 
 async function runBootstrap(): Promise<void> {
   // 并行：身份与 SSH 互不依赖
-  const results = await Promise.allSettled([
-    ensureGitIdentityBootstrapped(),
-    syncLocalSshKeys(),
-  ]);
+  const results = await Promise.allSettled([ensureGitIdentityBootstrapped(), syncLocalSshKeys()]);
 
   for (const result of results) {
     if (result.status === "rejected") {

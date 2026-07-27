@@ -8,10 +8,7 @@ import { RESUME_WRITING_PROMPT } from "@/prompts/resume/writing";
  * 按「身份 → 宿主安全 → 工作流 → 权限 → 成稿契约 → 仓库画像」组装简历技能提示。
  * 与鲸灵通用对话 / Git commit prompt 完全隔离。
  */
-export function buildResumeSystemPrompt(
-  locale: string,
-  projectContext: string,
-): string {
+export function buildResumeSystemPrompt(locale: string, projectContext: string): string {
   const parts: string[] = [
     ...buildResumeIdentityPrompt(locale),
     "",

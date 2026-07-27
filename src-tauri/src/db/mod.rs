@@ -179,12 +179,10 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
             .unwrap_or(false)
     });
     if !has_project_icon {
-        sqlx::query(
-            "ALTER TABLE projects ADD COLUMN icon TEXT NOT NULL DEFAULT 'folder-git-2'",
-        )
-        .execute(pool)
-        .await
-        .map_err(to_db_error)?;
+        sqlx::query("ALTER TABLE projects ADD COLUMN icon TEXT NOT NULL DEFAULT 'folder-git-2'")
+            .execute(pool)
+            .await
+            .map_err(to_db_error)?;
     }
     // `code` 是旧版本未启用的占位默认值；统一映射到产品当前的 FolderGit2 图标。
     sqlx::query(
@@ -210,9 +208,23 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
             .await
             .map_err(to_db_error)?;
     }
-    for (column, definition) in [("icon", "TEXT NOT NULL DEFAULT 'folder'"), ("color", "TEXT NOT NULL DEFAULT 'blue'")] {
-        let exists = workspace_columns.iter().any(|item| item.try_get::<String, _>("name").map(|name| name == column).unwrap_or(false));
-        if !exists { sqlx::query(&format!("ALTER TABLE workspaces ADD COLUMN {column} {definition}")).execute(pool).await.map_err(to_db_error)?; }
+    for (column, definition) in [
+        ("icon", "TEXT NOT NULL DEFAULT 'folder'"),
+        ("color", "TEXT NOT NULL DEFAULT 'blue'"),
+    ] {
+        let exists = workspace_columns.iter().any(|item| {
+            item.try_get::<String, _>("name")
+                .map(|name| name == column)
+                .unwrap_or(false)
+        });
+        if !exists {
+            sqlx::query(&format!(
+                "ALTER TABLE workspaces ADD COLUMN {column} {definition}"
+            ))
+            .execute(pool)
+            .await
+            .map_err(to_db_error)?;
+        }
     }
 
     sqlx::query(
@@ -363,7 +375,9 @@ pub async fn update_project(
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
     let description = description.map(normalize_description);
-    let icon = icon.map(|value| normalize_project_icon(Some(value))).transpose()?;
+    let icon = icon
+        .map(|value| normalize_project_icon(Some(value)))
+        .transpose()?;
     if name.is_none() && workspace_id.is_none() && description.is_none() && icon.is_none() {
         return Err(AppError::new("VALIDATION", "没有可更新的项目字段"));
     }
@@ -462,7 +476,9 @@ pub async fn update_workspace(
     icon: Option<String>,
     color: Option<String>,
 ) -> Result<WorkspaceRow, AppError> {
-    let name = name.map(|value| value.trim().to_string()).filter(|value| !value.is_empty());
+    let name = name
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
     if name.is_none() && parent_id.is_none() && icon.is_none() && color.is_none() {
         return Err(AppError::new("VALIDATION", "没有可更新的分组字段"));
     }
@@ -484,12 +500,14 @@ pub async fn update_workspace(
             if cursor == id {
                 return Err(AppError::new("VALIDATION", "不能将分组移动到其子分组下"));
             }
-            current = sqlx::query_scalar::<_, Option<String>>("SELECT parent_id FROM workspaces WHERE id = ?1")
-                .bind(&cursor)
-                .fetch_optional(pool)
-                .await
-                .map_err(to_db_error)?
-                .flatten();
+            current = sqlx::query_scalar::<_, Option<String>>(
+                "SELECT parent_id FROM workspaces WHERE id = ?1",
+            )
+            .bind(&cursor)
+            .fetch_optional(pool)
+            .await
+            .map_err(to_db_error)?
+            .flatten();
         }
     }
 
@@ -574,11 +592,12 @@ pub async fn reorder_projects_and_workspaces(
             return Err(AppError::new("NOT_FOUND", "项目不存在"));
         }
         if let Some(workspace_id) = &project.workspace_id {
-            let workspace_exists = sqlx::query_scalar::<_, i64>("SELECT COUNT(1) FROM workspaces WHERE id = ?1")
-                .bind(workspace_id)
-                .fetch_one(&mut *transaction)
-                .await
-                .map_err(to_db_error)?;
+            let workspace_exists =
+                sqlx::query_scalar::<_, i64>("SELECT COUNT(1) FROM workspaces WHERE id = ?1")
+                    .bind(workspace_id)
+                    .fetch_one(&mut *transaction)
+                    .await
+                    .map_err(to_db_error)?;
             if workspace_exists == 0 {
                 return Err(AppError::new("NOT_FOUND", "目标分组不存在"));
             }
@@ -595,14 +614,16 @@ pub async fn reorder_projects_and_workspaces(
             .map_err(to_db_error)?;
     }
     for project in projects {
-        sqlx::query("UPDATE projects SET workspace_id = ?1, sort_order = ?2, updated_at = ?3 WHERE id = ?4")
-            .bind(&project.workspace_id)
-            .bind(project.sort_order)
-            .bind(&timestamp)
-            .bind(&project.id)
-            .execute(&mut *transaction)
-            .await
-            .map_err(to_db_error)?;
+        sqlx::query(
+            "UPDATE projects SET workspace_id = ?1, sort_order = ?2, updated_at = ?3 WHERE id = ?4",
+        )
+        .bind(&project.workspace_id)
+        .bind(project.sort_order)
+        .bind(&timestamp)
+        .bind(&project.id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(to_db_error)?;
     }
 
     transaction.commit().await.map_err(to_db_error)?;
@@ -942,7 +963,10 @@ mod tests {
                 .map(|column| column.try_get::<String, _>("name").expect("列名应存在"))
                 .collect::<Vec<_>>();
 
-            assert!(column_names.contains(&"icon".to_string()), "项目表应支持图标");
+            assert!(
+                column_names.contains(&"icon".to_string()),
+                "项目表应支持图标"
+            );
         });
     }
 
@@ -961,9 +985,18 @@ mod tests {
                 .map(|column| column.try_get::<String, _>("name").expect("列名应存在"))
                 .collect::<Vec<_>>();
 
-            assert!(column_names.contains(&"parent_id".to_string()), "分组表应支持父分组 ID");
-            assert!(column_names.contains(&"icon".to_string()), "分组表应支持图标");
-            assert!(column_names.contains(&"color".to_string()), "分组表应支持颜色");
+            assert!(
+                column_names.contains(&"parent_id".to_string()),
+                "分组表应支持父分组 ID"
+            );
+            assert!(
+                column_names.contains(&"icon".to_string()),
+                "分组表应支持图标"
+            );
+            assert!(
+                column_names.contains(&"color".to_string()),
+                "分组表应支持颜色"
+            );
         });
     }
 
@@ -976,9 +1009,15 @@ mod tests {
             let root = create_workspace(&pool, "业务".to_string(), None, None, None)
                 .await
                 .expect("根分组应可创建");
-            let child = create_workspace(&pool, "小程序".to_string(), Some(root.id.clone()), None, None)
-                .await
-                .expect("子分组应可创建");
+            let child = create_workspace(
+                &pool,
+                "小程序".to_string(),
+                Some(root.id.clone()),
+                None,
+                None,
+            )
+            .await
+            .expect("子分组应可创建");
 
             assert_eq!(child.parent_id.as_deref(), Some(root.id.as_str()));
         });
@@ -999,8 +1038,8 @@ mod tests {
                 None,
                 None,
             )
-                .await
-                .expect("Git 仓库应可登记");
+            .await
+            .expect("Git 仓库应可登记");
             assert_eq!(first.icon, "folder-git-2");
             let second = add_project(
                 &pool,
@@ -1096,32 +1135,66 @@ mod tests {
             reorder_projects_and_workspaces(
                 &pool,
                 vec![
-                    WorkspaceOrderItem { id: second_workspace.id.clone(), sort_order: 0 },
-                    WorkspaceOrderItem { id: first_workspace.id.clone(), sort_order: 1 },
+                    WorkspaceOrderItem {
+                        id: second_workspace.id.clone(),
+                        sort_order: 0,
+                    },
+                    WorkspaceOrderItem {
+                        id: first_workspace.id.clone(),
+                        sort_order: 1,
+                    },
                 ],
                 vec![
-                    ProjectOrderItem { id: "project-b".to_string(), workspace_id: Some(second_workspace.id.clone()), sort_order: 0 },
-                    ProjectOrderItem { id: "project-a".to_string(), workspace_id: Some(second_workspace.id.clone()), sort_order: 1 },
+                    ProjectOrderItem {
+                        id: "project-b".to_string(),
+                        workspace_id: Some(second_workspace.id.clone()),
+                        sort_order: 0,
+                    },
+                    ProjectOrderItem {
+                        id: "project-a".to_string(),
+                        workspace_id: Some(second_workspace.id.clone()),
+                        sort_order: 1,
+                    },
                 ],
             )
             .await
             .expect("重排应成功");
 
             let workspaces = list_workspaces(&pool).await.expect("分组应可查询");
-            let projects = list_projects(&pool, Some(&second_workspace.id)).await.expect("项目应可查询");
+            let projects = list_projects(&pool, Some(&second_workspace.id))
+                .await
+                .expect("项目应可查询");
             assert_eq!(workspaces[0].id, second_workspace.id);
-            assert_eq!(projects.iter().map(|project| project.id.as_str()).collect::<Vec<_>>(), ["project-b", "project-a"]);
+            assert_eq!(
+                projects
+                    .iter()
+                    .map(|project| project.id.as_str())
+                    .collect::<Vec<_>>(),
+                ["project-b", "project-a"]
+            );
 
             let error = reorder_projects_and_workspaces(
                 &pool,
                 vec![],
-                vec![ProjectOrderItem { id: "missing".to_string(), workspace_id: None, sort_order: 0 }],
+                vec![ProjectOrderItem {
+                    id: "missing".to_string(),
+                    workspace_id: None,
+                    sort_order: 0,
+                }],
             )
             .await
             .expect_err("不存在的项目应失败");
             assert_eq!(error.code, "NOT_FOUND");
-            let projects_after_error = list_projects(&pool, Some(&second_workspace.id)).await.expect("项目应可查询");
-            assert_eq!(projects_after_error.iter().map(|project| project.id.as_str()).collect::<Vec<_>>(), ["project-b", "project-a"]);
+            let projects_after_error = list_projects(&pool, Some(&second_workspace.id))
+                .await
+                .expect("项目应可查询");
+            assert_eq!(
+                projects_after_error
+                    .iter()
+                    .map(|project| project.id.as_str())
+                    .collect::<Vec<_>>(),
+                ["project-b", "project-a"]
+            );
         });
     }
 }

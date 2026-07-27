@@ -2,10 +2,7 @@
  * Git：分支名称生成的系统提示。
  * 与提交信息 / 鲸灵 Agent / 简历插件隔离。
  */
-export function buildBranchNameSystemPrompt(
-  locale: string,
-  prefix: string,
-): string {
+export function buildBranchNameSystemPrompt(locale: string, prefix: string): string {
   const languageHint =
     locale === "zh-CN"
       ? "The user detail may be in Chinese; translate the meaning into an English kebab-case slug."

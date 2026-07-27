@@ -671,9 +671,7 @@ pub async fn git_commit(
         .map(|commit_id| GitCommitResult { commit_id })
     })
     .await
-    .map_err(|error| {
-        AppError::new("INTERNAL", "commit 任务失败").with_details(error.to_string())
-    })?
+    .map_err(|error| AppError::new("INTERNAL", "commit 任务失败").with_details(error.to_string()))?
 }
 
 /// 仅修改 HEAD 提交信息（须为当前 HEAD；不改 tree）
@@ -715,9 +713,7 @@ pub async fn git_clone(
         })
     })
     .await
-    .map_err(|error| {
-        AppError::new("INTERNAL", "clone 任务失败").with_details(error.to_string())
-    })?
+    .map_err(|error| AppError::new("INTERNAL", "clone 任务失败").with_details(error.to_string()))?
 }
 
 /// 检查更新：fetch 远端（默认 origin），在阻塞线程池执行以免卡住 UI
@@ -737,9 +733,7 @@ pub async fn git_fetch(
         })
     })
     .await
-    .map_err(|error| {
-        AppError::new("INTERNAL", "fetch 任务失败").with_details(error.to_string())
-    })?
+    .map_err(|error| AppError::new("INTERNAL", "fetch 任务失败").with_details(error.to_string()))?
 }
 
 /// 更新：pull 远端（默认 origin + 当前分支，或跟随 upstream）
@@ -768,9 +762,7 @@ pub async fn git_pull(
         })
     })
     .await
-    .map_err(|error| {
-        AppError::new("INTERNAL", "pull 任务失败").with_details(error.to_string())
-    })?
+    .map_err(|error| AppError::new("INTERNAL", "pull 任务失败").with_details(error.to_string()))?
 }
 
 /// 推送到远端（阻塞线程池 + 超时）
@@ -803,9 +795,7 @@ pub async fn git_push(
         })
     })
     .await
-    .map_err(|error| {
-        AppError::new("INTERNAL", "push 任务失败").with_details(error.to_string())
-    })?
+    .map_err(|error| AppError::new("INTERNAL", "push 任务失败").with_details(error.to_string()))?
 }
 
 /// 撤销最近提交：`git reset --mixed HEAD~1`（变更回到工作区）
@@ -902,12 +892,7 @@ pub fn git_read_worktree_file(
     encoding: Option<String>,
 ) -> Result<GitWorktreeFileResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    conflict::read_worktree_file(
-        &repo_path,
-        &file_path,
-        max_bytes,
-        encoding.as_deref(),
-    )
+    conflict::read_worktree_file(&repo_path, &file_path, max_bytes, encoding.as_deref())
 }
 
 /// 写入工作区文件；可选 stage 标记已解决
@@ -1015,12 +1000,7 @@ pub async fn git_branch_create(
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "createBranch", || {
-            branch::create_branch(
-                &repo_path,
-                &trimmed,
-                start.as_deref(),
-                do_checkout,
-            )?;
+            branch::create_branch(&repo_path, &trimmed, start.as_deref(), do_checkout)?;
             Ok(OkResult { ok: true })
         })
     })
@@ -1132,24 +1112,15 @@ fn checkout_ref(repo_path: &std::path::Path, target: &str) -> Result<(), AppErro
             if branch::local_branch_exists(repo_path, local_name)? {
                 branch::checkout_local_branch(repo_path, local_name)?;
             } else {
-                runner::run_git(
-                    repo_path,
-                    &["switch", "-c", local_name, "--track", target],
-                )?;
-                runner::run_git(
-                    repo_path,
-                    &["submodule", "update", "--init", "--recursive"],
-                )?;
+                runner::run_git(repo_path, &["switch", "-c", local_name, "--track", target])?;
+                runner::run_git(repo_path, &["submodule", "update", "--init", "--recursive"])?;
             }
             return Ok(());
         }
     }
 
     runner::run_git(repo_path, &["checkout", "--progress", target, "--"])?;
-    runner::run_git(
-        repo_path,
-        &["submodule", "update", "--init", "--recursive"],
-    )?;
+    runner::run_git(repo_path, &["submodule", "update", "--init", "--recursive"])?;
     Ok(())
 }
 
@@ -1165,6 +1136,31 @@ fn remote_tracking_parts(candidate: &str) -> Option<(&str, &str)> {
 fn resolve_repo_path(path: &str) -> Result<PathBuf, AppError> {
     let path = normalize_existing_dir(path)?;
     require_git_toplevel(&path)
+}
+
+#[tauri::command]
+pub fn git_stash_list(path: String) -> Result<crate::git::stash::GitStashListResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    crate::git::stash::list_stash(&repo_path)
+}
+
+#[tauri::command]
+pub fn git_stash_apply(path: String, index: Option<u32>) -> Result<OkResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    let index = index.unwrap_or(0);
+    crate::git::stash::apply_stash(&repo_path, index)?;
+    Ok(OkResult { ok: true })
+}
+
+/// 检测并恢复 lint-staged 残留的 automatic backup（进程闪退后的救场入口）
+#[tauri::command]
+pub fn git_restore_lint_staged_backup(
+    path: String,
+) -> Result<crate::git::stash::RestoreLintStagedResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    Ok(crate::git::stash::try_restore_lint_staged_backup(
+        &repo_path,
+    ))
 }
 
 fn is_tracked_path(repo_path: &PathBuf, relative: &str) -> Result<bool, AppError> {

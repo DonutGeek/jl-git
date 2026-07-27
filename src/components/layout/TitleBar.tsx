@@ -1,4 +1,5 @@
-import { ReactNode, type CSSProperties } from "react";
+import type { ReactNode } from "react";
+import { type CSSProperties } from "react";
 
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 import { cn } from "@/lib/utils";
@@ -17,9 +18,7 @@ const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
  */
 export function TitleBar({ left, right, className }: TitleBarProps) {
   const { isMacOverlay } = useWindowChromeLayout();
-  const dragProps = isMacOverlay
-    ? ({ "data-tauri-drag-region": true } as const)
-    : {};
+  const dragProps = isMacOverlay ? ({ "data-tauri-drag-region": true } as const) : {};
 
   return (
     <header

@@ -9,18 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { gitService } from "@/services/git";
 import { useRepoNavStore } from "@/store/useRepoNavStore";
 
 import { toUserMessage } from "@/types/error";
-import { FsEntry } from "@/types/git";
+import type { FsEntry } from "@/types/git";
 
 type BrowserViewMode = "grid" | "list";
 
@@ -75,11 +71,7 @@ function fileNameInDir(path: string | null, dir: string): string | null {
 }
 
 /** 工作区主区：可编辑路径 + 网格/列表浏览；单击选中，双击进入目录 */
-export function WorkspaceBrowser({
-  repoPath,
-  repoName,
-  active = true,
-}: WorkspaceBrowserProps) {
+export function WorkspaceBrowser({ repoPath, repoName, active = true }: WorkspaceBrowserProps) {
   const { t } = useTranslation();
   const workspacePreview = useRepoNavStore((state) => state.workspacePreview);
   const openWorkspacePreview = useRepoNavStore((state) => state.openWorkspacePreview);
@@ -99,8 +91,7 @@ export function WorkspaceBrowser({
 
   const previewPath = workspacePreview?.path.replace(/\\/g, "/") ?? null;
   // 预览中或目录浏览选中文件时，面包屑末段显示文件名
-  const crumbFileName =
-    previewPath?.split("/").pop() ?? fileNameInDir(selectedPath, relative);
+  const crumbFileName = previewPath?.split("/").pop() ?? fileNameInDir(selectedPath, relative);
   /** 非根目录，或面包屑正聚焦某文件（未预览）：显示「..」 */
   const showParentEntry = relative !== "" || Boolean(crumbFileName && !previewPath);
 
@@ -282,7 +273,10 @@ export function WorkspaceBrowser({
             <span className="text-muted-foreground shrink-0 text-xs leading-none">
               {t("repo.pathLabel")}
             </span>
-            <span className="text-muted-foreground/60 shrink-0 text-xs leading-none" aria-hidden="true">
+            <span
+              className="text-muted-foreground/60 shrink-0 text-xs leading-none"
+              aria-hidden="true"
+            >
               |
             </span>
             <Input
@@ -301,7 +295,10 @@ export function WorkspaceBrowser({
             <span className="text-muted-foreground/80 shrink-0 px-0.5 text-xs leading-none">
               {t("repo.pathLabel")}
             </span>
-            <span className="text-muted-foreground/60 shrink-0 text-xs leading-none" aria-hidden="true">
+            <span
+              className="text-muted-foreground/60 shrink-0 text-xs leading-none"
+              aria-hidden="true"
+            >
               |
             </span>
             <nav
@@ -456,7 +453,11 @@ export function WorkspaceBrowser({
                         )}
                         onClick={(event) => handleEntryClick(event, entry)}
                       >
-                        <MaterialFileIcon name={entry.name} isDir={entry.isDir} className="size-10" />
+                        <MaterialFileIcon
+                          name={entry.name}
+                          isDir={entry.isDir}
+                          className="size-10"
+                        />
                         <span className="line-clamp-2 w-full break-all text-xs leading-tight">
                           {entry.name}
                         </span>

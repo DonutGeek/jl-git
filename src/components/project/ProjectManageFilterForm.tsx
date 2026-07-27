@@ -27,10 +27,7 @@ import {
 
 interface ProjectManageFilterFormProps {
   draft: ManageFilters;
-  onDraftChange: <K extends keyof ManageFilters>(
-    key: K,
-    value: ManageFilters[K],
-  ) => void;
+  onDraftChange: <K extends keyof ManageFilters>(key: K, value: ManageFilters[K]) => void;
   onSubmit: () => void;
   onReset: () => void;
   disabled?: boolean;
@@ -187,9 +184,7 @@ export function ProjectManageFilterForm({
         <FilterField label={t("projectManager.manageSort")}>
           <SelectMenu
             value={draft.sortBy}
-            onChange={(value) =>
-              onDraftChange("sortBy", value as ManageSortBy)
-            }
+            onChange={(value) => onDraftChange("sortBy", value as ManageSortBy)}
             ariaLabel={t("projectManager.manageSort")}
             disabled={disabled}
             size="sm"
@@ -203,9 +198,7 @@ export function ProjectManageFilterForm({
             <FilterField label={t("projectManager.manageFilterDirty")}>
               <SelectMenu
                 value={draft.dirty}
-                onChange={(value) =>
-                  onDraftChange("dirty", value as ManageDirtyFilter)
-                }
+                onChange={(value) => onDraftChange("dirty", value as ManageDirtyFilter)}
                 ariaLabel={t("projectManager.manageFilterDirty")}
                 disabled={disabled}
                 size="sm"
@@ -217,9 +210,7 @@ export function ProjectManageFilterForm({
             <FilterField label={t("projectManager.manageFilterSync")}>
               <SelectMenu
                 value={draft.sync}
-                onChange={(value) =>
-                  onDraftChange("sync", value as ManageSyncFilter)
-                }
+                onChange={(value) => onDraftChange("sync", value as ManageSyncFilter)}
                 ariaLabel={t("projectManager.manageFilterSync")}
                 disabled={disabled}
                 size="sm"
@@ -231,9 +222,7 @@ export function ProjectManageFilterForm({
             <div className="flex items-center justify-end">{actions}</div>
           </>
         ) : (
-          <div className="flex items-center justify-end md:col-span-3">
-            {actions}
-          </div>
+          <div className="flex items-center justify-end md:col-span-3">{actions}</div>
         )}
       </div>
     </form>
@@ -255,10 +244,7 @@ function FilterField({
       // 覆盖官方 horizontal 的 label flex-auto，避免标题被撑开留下大块空白
       className="w-full min-w-0 gap-2 [&>[data-slot=field-label]]:flex-none"
     >
-      <FieldLabel
-        htmlFor={htmlFor}
-        className="text-muted-foreground w-14 shrink-0 text-xs"
-      >
+      <FieldLabel htmlFor={htmlFor} className="text-muted-foreground w-14 shrink-0 text-xs">
         {label}
       </FieldLabel>
       <div className="min-w-0 flex-1">{children}</div>

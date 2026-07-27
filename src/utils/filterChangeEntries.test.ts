@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { GitStatusEntry } from "@/types/git";
+import type { GitStatusEntry } from "@/types/git";
 
 import { filterChangeEntries } from "./filterChangeEntries";
 

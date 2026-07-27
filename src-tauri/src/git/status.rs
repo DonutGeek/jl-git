@@ -38,7 +38,12 @@ pub struct GitStatusEntry {
     pub modified_at: Option<i64>,
 }
 
-fn empty_entry(path: String, index_status: String, worktree_status: String, renamed_from: Option<String>) -> GitStatusEntry {
+fn empty_entry(
+    path: String,
+    index_status: String,
+    worktree_status: String,
+    renamed_from: Option<String>,
+) -> GitStatusEntry {
     GitStatusEntry {
         path,
         index_status,
@@ -256,7 +261,12 @@ fn parse_renamed_entry(line: &str) -> Option<GitStatusEntry> {
     let path = path_parts.next()?.to_string();
     let renamed_from = path_parts.next().map(str::to_string);
 
-    Some(empty_entry(path, index_status, worktree_status, renamed_from))
+    Some(empty_entry(
+        path,
+        index_status,
+        worktree_status,
+        renamed_from,
+    ))
 }
 
 fn parse_unmerged_entry(line: &str) -> Option<GitStatusEntry> {

@@ -1,10 +1,7 @@
 import { toast } from "sonner";
 
 import i18n from "@/i18n";
-import {
-  getDeepSeekApiKeysUrl,
-  getDeepSeekTopUpUrl,
-} from "@/services/ai/ai.balance";
+import { getDeepSeekApiKeysUrl, getDeepSeekTopUpUrl } from "@/services/ai/ai.balance";
 import { openExternalUrl } from "@/services/system/open-url";
 import { isAppError, isRecord, toUserMessage, type AppError } from "@/types/error";
 
@@ -97,10 +94,7 @@ export function toastAiFailure(error: unknown, fallbackMessage: string): void {
   toast.error(message);
 }
 
-function resolveDeepSeekError(
-  status: number,
-  payload: unknown,
-): DeepSeekMappedError | null {
+function resolveDeepSeekError(status: number, payload: unknown): DeepSeekMappedError | null {
   // 文案命中优先于状态码，避免偶发非标准 status
   if (isDeepSeekBalanceFailure(status, payload)) {
     return {

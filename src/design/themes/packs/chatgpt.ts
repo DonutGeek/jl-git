@@ -1,7 +1,4 @@
-import {
-  APP_THEME_CHATGPT,
-  type AppThemePack,
-} from "@/design/themes/types";
+import { APP_THEME_CHATGPT, type AppThemePack } from "@/design/themes/types";
 
 /**
  * ChatGPT

@@ -8,10 +8,7 @@ import {
   buildResumeIdentityRequest,
   extractDeclaredResumeAuthors,
 } from "@/services/agent/agent.resumeIdentity";
-import {
-  formatJlgitMetaBlock,
-  toGitAuthorPatterns,
-} from "@/services/agent/agent.profile";
+import { formatJlgitMetaBlock, toGitAuthorPatterns } from "@/services/agent/agent.profile";
 import { buildAgentSystemPrompt } from "@/prompts/agent";
 import { buildResumeSystemPrompt } from "@/prompts/resume";
 import { buildSkillCreatorSystemPrompt } from "@/prompts/skillCreator";
@@ -29,12 +26,7 @@ import i18n from "@/i18n";
 import { isRecord, type AppError } from "@/types/error";
 import type { AgentChatMessage } from "@/types/ai";
 import type { AgentJlgitMeta } from "@/types/agent";
-import type {
-  GitBranch,
-  GitCommitDetail,
-  GitCommitSummary,
-  GitStatusResult,
-} from "@/types/git";
+import type { GitBranch, GitCommitDetail, GitCommitSummary, GitStatusResult } from "@/types/git";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
 const AGENT_REQUEST_TIMEOUT_MS = 150_000;
@@ -90,9 +82,7 @@ export async function streamAgentReply({
 
   const skillMode = getAgentSkillMode(messages);
   const resumeMode = skillMode === "resume";
-  const resumeAuthors = resumeMode
-    ? extractDeclaredResumeAuthors(messages)
-    : [];
+  const resumeAuthors = resumeMode ? extractDeclaredResumeAuthors(messages) : [];
   if (resumeMode && resumeAuthors.length === 0) {
     onDelta(buildResumeIdentityRequest(locale));
     return;
@@ -133,12 +123,7 @@ export async function streamAgentReply({
         model: modelId,
         stream: true,
         // 成稿类技能略高；通用 Git 问答更克制
-        temperature:
-          skillMode === "resume"
-            ? 0.55
-            : skillMode === "skill-creator"
-              ? 0.45
-              : 0.3,
+        temperature: skillMode === "resume" ? 0.55 : skillMode === "skill-creator" ? 0.45 : 0.3,
         ...(enableThinking
           ? {
               thinking: { type: "enabled" },
@@ -164,11 +149,7 @@ export async function streamAgentReply({
 
     if (!response.ok) {
       const payload = await readResponseJson(response);
-      throw mapDeepSeekHttpError(
-        response.status,
-        payload,
-        i18n.t("agent.replyFailed"),
-      );
+      throw mapDeepSeekHttpError(response.status, payload, i18n.t("agent.replyFailed"));
     }
     if (!response.body) {
       throw appError("INTERNAL", i18n.t("agent.replyFailed"));
@@ -194,46 +175,41 @@ async function buildRepositoryContext(
   jlgitMeta?: AgentJlgitMeta,
 ): Promise<string> {
   const question = messages[messages.length - 1]?.content ?? "";
-  const selectedBranches = messages[messages.length - 1]?.mentions
-    ?.filter((mention) => mention.type === "branch")
-    .map((mention) => mention.name) ?? [];
+  const selectedBranches =
+    messages[messages.length - 1]?.mentions
+      ?.filter((mention) => mention.type === "branch")
+      .map((mention) => mention.name) ?? [];
   const resumeAuthorPatterns = toGitAuthorPatterns(resumeAuthors);
   const resumeMode = resumeAuthorPatterns.length > 0;
-  const needFileTree =
-    resumeMode || forceFileTree || needsFileTreeContext(question);
+  const needFileTree = resumeMode || forceFileTree || needsFileTreeContext(question);
   const needWorkingTreePatches = needsWorkingTreePatchContext(question);
 
-  const [
-    statusResult,
-    branchesResult,
-    logResult,
-    oldestAuthorCommitResult,
-    treeResult,
-  ] = await Promise.allSettled([
-    getStatus(repoPath),
-    listBranches(repoPath, true),
-    getLog(
-      repoPath,
+  const [statusResult, branchesResult, logResult, oldestAuthorCommitResult, treeResult] =
+    await Promise.allSettled([
+      getStatus(repoPath),
+      listBranches(repoPath, true),
+      getLog(
+        repoPath,
+        resumeMode
+          ? {
+              limit: RESUME_LOG_LIMIT,
+              all: true,
+              authors: resumeAuthorPatterns,
+            }
+          : { limit: AGENT_LOG_LIMIT },
+      ),
       resumeMode
-        ? {
-            limit: RESUME_LOG_LIMIT,
+        ? getLog(repoPath, {
+            limit: 1,
             all: true,
+            reverse: true,
             authors: resumeAuthorPatterns,
-          }
-        : { limit: AGENT_LOG_LIMIT },
-    ),
-    resumeMode
-      ? getLog(repoPath, {
-          limit: 1,
-          all: true,
-          reverse: true,
-          authors: resumeAuthorPatterns,
-        })
-      : Promise.resolve({ commits: [] as GitCommitSummary[], hasMore: false }),
-    needFileTree
-      ? listTree(repoPath, "HEAD")
-      : Promise.resolve({ paths: [] as string[], truncated: false }),
-  ]);
+          })
+        : Promise.resolve({ commits: [] as GitCommitSummary[], hasMore: false }),
+      needFileTree
+        ? listTree(repoPath, "HEAD")
+        : Promise.resolve({ paths: [] as string[], truncated: false }),
+    ]);
 
   const sections = [
     jlgitMeta ? formatJlgitMetaBlock(jlgitMeta) : `repoPath: ${repoPath}`,
@@ -241,8 +217,7 @@ async function buildRepositoryContext(
       ? [
           "userDeclaredGitAuthors:",
           ...resumeAuthors.map(
-            (author) =>
-              `- ${author.name.trim() || "—"} <${author.email.trim() || "—"}>`,
+            (author) => `- ${author.name.trim() || "—"} <${author.email.trim() || "—"}>`,
           ),
           "Only commits matched by these user-declared filters are personal contribution evidence.",
         ].join("\n")
@@ -251,27 +226,17 @@ async function buildRepositoryContext(
     formatBranchesContext(branchesResult),
     formatLogContext(
       logResult,
-      resumeMode
-        ? "Author-matched commits across all refs"
-        : "Recent commits on HEAD",
+      resumeMode ? "Author-matched commits across all refs" : "Recent commits on HEAD",
     ),
-    resumeMode
-      ? formatResumeInvolvementContext(logResult, oldestAuthorCommitResult)
-      : null,
+    resumeMode ? formatResumeInvolvementContext(logResult, oldestAuthorCommitResult) : null,
     needFileTree ? formatTreeContext(treeResult) : null,
     selectedBranches.length > 0
       ? `User-selected branch references: ${selectedBranches.join(", ")}.`
       : null,
   ];
 
-  if (
-    needWorkingTreePatches &&
-    statusResult.status === "fulfilled"
-  ) {
-    const workingTreePatches = await readWorkingTreePatches(
-      repoPath,
-      statusResult.value,
-    );
+  if (needWorkingTreePatches && statusResult.status === "fulfilled") {
+    const workingTreePatches = await readWorkingTreePatches(repoPath, statusResult.value);
     if (workingTreePatches) {
       sections.push(workingTreePatches);
     }
@@ -294,13 +259,20 @@ async function buildRepositoryContext(
   }
 
   if (logResult.status === "fulfilled") {
-    const commitContext = await buildCommitContext(repoPath, question, messages, logResult.value.commits);
+    const commitContext = await buildCommitContext(
+      repoPath,
+      question,
+      messages,
+      logResult.value.commits,
+    );
     if (commitContext) {
       sections.push(commitContext);
     }
   }
 
-  return redactSecrets(sections.filter((section): section is string => section !== null).join("\n\n"));
+  return redactSecrets(
+    sections.filter((section): section is string => section !== null).join("\n\n"),
+  );
 }
 
 function formatResumeInvolvementContext(
@@ -319,9 +291,8 @@ function formatResumeInvolvementContext(
   const latestAt = recent.value.commits[0]?.authoredAt ?? null;
   const oldestAt =
     oldest.status === "fulfilled"
-      ? oldest.value.commits[0]?.authoredAt ?? null
-      : recent.value.commits[recent.value.commits.length - 1]?.authoredAt ??
-        null;
+      ? (oldest.value.commits[0]?.authoredAt ?? null)
+      : (recent.value.commits[recent.value.commits.length - 1]?.authoredAt ?? null);
   const start = formatResumeMonth(oldestAt);
   const end = formatResumeMonth(latestAt);
   return [
@@ -359,7 +330,7 @@ function formatStatusContext(result: PromiseSettledResult<GitStatusResult>): str
   const omitted = status.entries.length - changes.length;
   return [
     "Repository status:",
-    `- Current ref: ${status.detached ? "detached HEAD" : status.branch ?? "unknown"}`,
+    `- Current ref: ${status.detached ? "detached HEAD" : (status.branch ?? "unknown")}`,
     `- Upstream: ${status.upstream ?? "none"}; ahead ${status.ahead}, behind ${status.behind}`,
     `- Working tree changes (${status.entries.length}):`,
     ...(changes.length > 0 ? changes : ["  - clean"]),
@@ -411,7 +382,8 @@ function formatLogContext(
     return `${title}: unavailable.`;
   }
   const commits = result.value.commits.map(
-    (commit) => `- ${commit.shortId} ${commit.subject} (${commit.authorName}, ${commit.authoredAt})`,
+    (commit) =>
+      `- ${commit.shortId} ${commit.subject} (${commit.authorName}, ${commit.authoredAt})`,
   );
   return [
     `${title}:`,
@@ -512,8 +484,10 @@ function findMentionedCommit(
 
   const references = extractCommitReferences(messages);
   for (const reference of references) {
-    const matched = commits.filter((commit) =>
-      commit.id.toLowerCase().startsWith(reference) || commit.shortId.toLowerCase().startsWith(reference),
+    const matched = commits.filter(
+      (commit) =>
+        commit.id.toLowerCase().startsWith(reference) ||
+        commit.shortId.toLowerCase().startsWith(reference),
     );
     if (matched.length === 1) {
       return matched[0];
@@ -584,9 +558,7 @@ async function readWorkingTreePatches(
     return [`Patch (${side}) for ${target.path}:\n${diff.patch}${suffix}`];
   });
 
-  return patches.length > 0
-    ? ["Selected working-tree patches:", ...patches].join("\n\n")
-    : null;
+  return patches.length > 0 ? ["Selected working-tree patches:", ...patches].join("\n\n") : null;
 }
 
 function isLatestCommitQuestion(question: string): boolean {
@@ -642,10 +614,15 @@ function formatCommitDetail(detail: GitCommitDetail): string {
 }
 
 function shouldIncludeCommitPatches(question: string): boolean {
-  return /(?:主要.*(?:干什么|做了什么)|具体.*(?:改|内容)|怎么改|diff|差异|实现|逻辑|代码)/i.test(question);
+  return /(?:主要.*(?:干什么|做了什么)|具体.*(?:改|内容)|怎么改|diff|差异|实现|逻辑|代码)/i.test(
+    question,
+  );
 }
 
-async function readCommitPatches(repoPath: string, detail: GitCommitDetail): Promise<string | null> {
+async function readCommitPatches(
+  repoPath: string,
+  detail: GitCommitDetail,
+): Promise<string | null> {
   const firstParent = detail.diffs[0];
   if (!firstParent) {
     return null;

@@ -142,10 +142,7 @@ export function DiskSpaceTooltip({ current, volumes }: DiskSpaceTooltipProps) {
         return (
           <div
             key={space.path}
-            className={cn(
-              "space-y-1 rounded-md px-1.5 py-1",
-              isCurrent && "bg-background/20",
-            )}
+            className={cn("space-y-1 rounded-md px-1.5 py-1", isCurrent && "bg-background/20")}
           >
             <div className="flex items-center gap-2">
               <p className="min-w-0 flex-1 truncate font-mono text-[11px]">{space.path}</p>
@@ -179,14 +176,8 @@ export function DiskSpaceTooltip({ current, volumes }: DiskSpaceTooltipProps) {
           {t("statusBar.diskVolumeCount", { count: ordered.length })}
         </p>
       </div>
-      {needsScroll ? (
-        <ScrollArea className="h-48 pr-1">{list}</ScrollArea>
-      ) : (
-        list
-      )}
-      <p className="text-background/70 text-[10px] leading-snug">
-        {t("statusBar.diskMultiHint")}
-      </p>
+      {needsScroll ? <ScrollArea className="h-48 pr-1">{list}</ScrollArea> : list}
+      <p className="text-background/70 text-[10px] leading-snug">{t("statusBar.diskMultiHint")}</p>
     </div>
   );
 }

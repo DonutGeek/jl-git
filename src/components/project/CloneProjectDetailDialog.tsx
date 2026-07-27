@@ -121,12 +121,7 @@ export function CloneProjectDetailDialog({
         />
 
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={saving}
-            onClick={onFinished}
-          >
+          <Button type="button" variant="outline" disabled={saving} onClick={onFinished}>
             {t("cloneRepo.detailSkip")}
           </Button>
           <Button

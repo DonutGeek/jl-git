@@ -70,12 +70,7 @@ function StatusIcon({ status, className }: { status: OpLogEntry["status"]; class
   if (status === "error") {
     return <XCircle className={cn("text-destructive size-4", className)} aria-hidden />;
   }
-  return (
-    <Spinner
-      className={cn("text-muted-foreground size-4", className)}
-      aria-hidden
-    />
-  );
+  return <Spinner className={cn("text-muted-foreground size-4", className)} aria-hidden />;
 }
 
 function OpLogRow({ entry }: { entry: OpLogEntry }) {
@@ -89,9 +84,7 @@ function OpLogRow({ entry }: { entry: OpLogEntry }) {
     if (!expanded || !detailScrollRef.current) {
       return;
     }
-    const viewport = detailScrollRef.current.querySelector(
-      "[data-radix-scroll-area-viewport]",
-    );
+    const viewport = detailScrollRef.current.querySelector("[data-radix-scroll-area-viewport]");
     if (viewport instanceof HTMLElement) {
       viewport.scrollTop = viewport.scrollHeight;
     }
@@ -164,18 +157,12 @@ function OpLogRow({ entry }: { entry: OpLogEntry }) {
           <span className="min-w-0 flex-1" aria-hidden />
         )}
         <span className="text-muted-foreground shrink-0 tabular-nums">
-          {entry.status === "running"
-            ? t("opLog.running")
-            : formatDuration(entry.elapsedMs)}
+          {entry.status === "running" ? t("opLog.running") : formatDuration(entry.elapsedMs)}
         </span>
       </div>
 
       {expanded && hasDetail ? (
-        <ScrollArea
-          ref={detailScrollRef}
-          type="always"
-          className="bg-muted/30 max-h-56"
-        >
+        <ScrollArea ref={detailScrollRef} type="always" className="bg-muted/30 max-h-56">
           <pre className="text-muted-foreground px-3 py-2 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
             {detailText}
             {entry.error && !detailText.includes(entry.error) ? (
@@ -209,10 +196,7 @@ export function OpLogPanel() {
   const repoPath = useRepoStore((state) => state.repoPath);
   const { viewport, bindScrollArea } = useScrollAreaViewport();
 
-  const entries = useMemo(
-    () => selectRepoEntries(byRepo, repoPath),
-    [byRepo, repoPath],
-  );
+  const entries = useMemo(() => selectRepoEntries(byRepo, repoPath), [byRepo, repoPath]);
   const latest = selectLatestEntry(entries);
   const isRunning = latest?.status === "running";
 
@@ -247,14 +231,7 @@ export function OpLogPanel() {
       return;
     }
     virtualizer.scrollToIndex(entries.length - 1, { align: "end" });
-  }, [
-    panelOpen,
-    entries.length,
-    latest?.id,
-    latest?.status,
-    latest?.lines.length,
-    virtualizer,
-  ]);
+  }, [panelOpen, entries.length, latest?.id, latest?.status, latest?.lines.length, virtualizer]);
 
   if (!panelOpen) {
     return null;
@@ -282,9 +259,7 @@ export function OpLogPanel() {
         {/* 标题区不展示 loading；进度只在子日志行内体现 */}
         <div className="border-border flex h-8 shrink-0 items-center gap-2 border-b px-2">
           <ScrollText className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-          <span className="min-w-0 flex-1 truncate text-xs font-medium">
-            {t("opLog.title")}
-          </span>
+          <span className="min-w-0 flex-1 truncate text-xs font-medium">{t("opLog.title")}</span>
           <Button
             type="button"
             variant="ghost"

@@ -8,9 +8,7 @@ describe("鲸灵 Git 原生 Token 覆写", () => {
   it("默认色板不注入任何近似 HEX", () => {
     const chrome = chromeFromPreset(APP_THEME_JINGLING_GIT, true);
 
-    expect(
-      getNativeAppThemeTokenOverrides(APP_THEME_JINGLING_GIT, chrome, true),
-    ).toEqual({});
+    expect(getNativeAppThemeTokenOverrides(APP_THEME_JINGLING_GIT, chrome, true)).toEqual({});
   });
 
   it("只覆写用户实际修改的颜色，不改变原生背景与卡片", () => {
@@ -21,11 +19,7 @@ describe("鲸灵 Git 原生 Token 覆写", () => {
       sidebar: "#363636",
     };
 
-    const overrides = getNativeAppThemeTokenOverrides(
-      APP_THEME_JINGLING_GIT,
-      chrome,
-      true,
-    );
+    const overrides = getNativeAppThemeTokenOverrides(APP_THEME_JINGLING_GIT, chrome, true);
 
     expect(overrides).toMatchObject({
       "--muted-foreground": "#C9C9C9",
@@ -45,9 +39,7 @@ describe("鲸灵 Git 原生 Token 覆写", () => {
       gitModified: "#123456",
     };
 
-    expect(
-      getNativeAppThemeTokenOverrides(APP_THEME_JINGLING_GIT, chrome, false),
-    ).toEqual({
+    expect(getNativeAppThemeTokenOverrides(APP_THEME_JINGLING_GIT, chrome, false)).toEqual({
       "--git-modified": "#123456",
       "--chart-3": "#123456",
       "--workspace-blue": "#123456",

@@ -28,11 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import type { ProjectManageGitSnapshot } from "@/hooks/useProjectManageGitProbe";
@@ -98,21 +94,13 @@ export function ProjectManageTable({
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="min-w-36">
-                  {t("projectManager.manageColName")}
-                </TableHead>
-                <TableHead className="w-28">
-                  {t("projectManager.manageColGroup")}
-                </TableHead>
-                <TableHead className="min-w-40">
-                  {t("projectManager.manageColPath")}
-                </TableHead>
+                <TableHead className="min-w-36">{t("projectManager.manageColName")}</TableHead>
+                <TableHead className="w-28">{t("projectManager.manageColGroup")}</TableHead>
+                <TableHead className="min-w-40">{t("projectManager.manageColPath")}</TableHead>
                 <TableHead className="min-w-36 max-w-48">
                   {t("projectManager.manageColBranch")}
                 </TableHead>
-                <TableHead className="min-w-36">
-                  {t("projectManager.manageColRemote")}
-                </TableHead>
+                <TableHead className="min-w-36">{t("projectManager.manageColRemote")}</TableHead>
                 <TableHead className="w-36 text-right">
                   {t("projectManager.manageColActions")}
                 </TableHead>
@@ -144,8 +132,7 @@ export function ProjectManageTable({
                 rows.map((project) => {
                   const snapshot = snapshots.get(project.id);
                   const groupLabel = project.workspaceId
-                    ? (workspaceNameById.get(project.workspaceId) ??
-                      t("projectManager.ungrouped"))
+                    ? (workspaceNameById.get(project.workspaceId) ?? t("projectManager.ungrouped"))
                     : t("projectManager.ungrouped");
                   const remote = snapshot?.remoteUrl
                     ? parseRemoteRepository(snapshot.remoteUrl)
@@ -166,10 +153,7 @@ export function ProjectManageTable({
                             className="hover:text-primary flex max-w-full min-w-0 cursor-pointer items-center gap-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
                             onClick={() => onOpenProject(project.id)}
                           >
-                            <ProjectIcon
-                              name={project.icon}
-                              className="size-4 shrink-0"
-                            />
+                            <ProjectIcon name={project.icon} className="size-4 shrink-0" />
                             <span className="truncate font-medium underline-offset-2 hover:underline">
                               {project.name}
                             </span>
@@ -233,10 +217,7 @@ export function ProjectManageTable({
                             disabled={disabled}
                             onClick={() => onOpenSettings(project)}
                           >
-                            <SquarePen
-                              className="size-3.5"
-                              aria-hidden="true"
-                            />
+                            <SquarePen className="size-3.5" aria-hidden="true" />
                           </IconAction>
                           <IconAction
                             label={t("projectManager.deleteProject")}
@@ -309,9 +290,7 @@ export function ProjectManageTable({
                     }}
                   />
                 </TooltipTrigger>
-                <TooltipContent>
-                  {t("projectManager.managePrevPage")}
-                </TooltipContent>
+                <TooltipContent>{t("projectManager.managePrevPage")}</TooltipContent>
               </Tooltip>
             </PaginationItem>
             {pageItems.map((item, index) =>
@@ -351,8 +330,7 @@ export function ProjectManageTable({
                     aria-disabled={currentPage >= totalPages || disabled}
                     className={cn(
                       "size-9 p-0 [&>span]:hidden",
-                      currentPage >= totalPages &&
-                        "pointer-events-none opacity-50",
+                      currentPage >= totalPages && "pointer-events-none opacity-50",
                     )}
                     onClick={(event) => {
                       event.preventDefault();
@@ -362,9 +340,7 @@ export function ProjectManageTable({
                     }}
                   />
                 </TooltipTrigger>
-                <TooltipContent>
-                  {t("projectManager.manageNextPage")}
-                </TooltipContent>
+                <TooltipContent>{t("projectManager.manageNextPage")}</TooltipContent>
               </Tooltip>
             </PaginationItem>
           </PaginationContent>
@@ -396,9 +372,7 @@ function GitCell({ snapshot }: { snapshot?: ProjectManageGitSnapshot }) {
     );
   }
 
-  const label = snapshot.detached
-    ? t("projectManager.manageDetached")
-    : (snapshot.branch ?? "—");
+  const label = snapshot.detached ? t("projectManager.manageDetached") : (snapshot.branch ?? "—");
 
   // Badge 默认 justify-center，长文案会被左右裁切；左对齐并由内层 truncate
   return (
@@ -432,10 +406,7 @@ function IconAction({
           type="button"
           variant="ghost"
           size="icon"
-          className={cn(
-            "size-7",
-            destructive && "text-destructive hover:text-destructive",
-          )}
+          className={cn("size-7", destructive && "text-destructive hover:text-destructive")}
           disabled={disabled}
           aria-label={label}
           onClick={onClick}

@@ -2,15 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import {
-  TruncateStartPath,
-  TRUNCATE_BUDGET_ATTR,
-} from "@/components/common/TruncateStartPath";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TruncateStartPath, TRUNCATE_BUDGET_ATTR } from "@/components/common/TruncateStartPath";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toUserMessage } from "@/types/error";
 import { copyToClipboard } from "@/utils/clipboard";

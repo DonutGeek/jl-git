@@ -31,10 +31,15 @@ const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
 
 import { useProjectStore } from "@/store/useProjectStore";
 import { useRepoNavStore } from "@/store/useRepoNavStore";
-import { hasRepoSession, restoreRepoSession, beginRepoSwitch, useRepoStore } from "@/store/useRepoStore";
+import {
+  hasRepoSession,
+  restoreRepoSession,
+  beginRepoSwitch,
+  useRepoStore,
+} from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
-import { Project } from "@/types/project";
+import type { Project } from "@/types/project";
 
 const SIDEBAR_MAIN_SPLIT_KEY = "jlgit:split:sidebar-main";
 /** 目录树、分支与 Agent 共用的侧栏最小可拖拽宽度。 */
@@ -90,9 +95,7 @@ interface RepoPageProps {
 export function RepoPage({ projectId, active }: RepoPageProps) {
   const { t } = useTranslation();
   const { isMacOverlay } = useWindowChromeLayout();
-  const dragProps = isMacOverlay
-    ? ({ "data-tauri-drag-region": true } as const)
-    : {};
+  const dragProps = isMacOverlay ? ({ "data-tauri-drag-region": true } as const) : {};
 
   const findById = useProjectStore((state) => state.findById);
   const loadProjects = useProjectStore((state) => state.loadProjects);
@@ -252,8 +255,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
           });
 
           const hydrated = useRepoStore.getState();
-          const canSoftRefresh =
-            hydrated.repoPath === target.path && hydrated.branches.length > 0;
+          const canSoftRefresh = hydrated.repoPath === target.path && hydrated.branches.length > 0;
 
           if (canSoftRefresh) {
             void refreshStatus().catch((refreshError) => {
@@ -278,7 +280,6 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       cancelled = true;
       window.cancelAnimationFrame(raf);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 随 projectId / active
   }, [projectId, active]);
 
   useEffect(() => {
@@ -345,7 +346,6 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       return;
     }
     handleMainViewChange("workspace");
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅响应预览请求 nonce
   }, [workspacePreview]);
 
   if (bootstrapping && !project) {
@@ -380,7 +380,9 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
     <aside data-jlgit-sidebar="" className="h-full min-h-0 overflow-hidden">
       {sidebarView === "files" ? <FileTree key={project.path} repoPath={project.path} /> : null}
       {sidebarView === "branches" ? <BranchList /> : null}
-      {sidebarView === "tags" ? <TagList onSelectTag={() => handleMainViewChange("history")} /> : null}
+      {sidebarView === "tags" ? (
+        <TagList onSelectTag={() => handleMainViewChange("history")} />
+      ) : null}
       {sidebarView === "agent" ? (
         <AgentChatPanel projectId={project.id} repoPath={project.path} />
       ) : null}
@@ -455,11 +457,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <RepoToolbar
-        project={project}
-        mainView={mainView}
-        onMainViewChange={handleMainViewChange}
-      />
+      <RepoToolbar project={project} mainView={mainView} onMainViewChange={handleMainViewChange} />
 
       <div className="relative flex min-h-0 flex-1">
         <div className="relative flex min-h-0 min-w-0 flex-1">

@@ -257,9 +257,8 @@ mod tests {
     #[test]
     fn parses_remote_tags_from_ls_remote() {
         // --refs 已去除 ^{} 行，这里仅验证常规行解析
-        let tags = parse_remote_tags(
-            "abc123\trefs/tags/v1.0.0\ndef456\trefs/tags/v1.1.0\n\tbad-line\n",
-        );
+        let tags =
+            parse_remote_tags("abc123\trefs/tags/v1.0.0\ndef456\trefs/tags/v1.1.0\n\tbad-line\n");
 
         assert_eq!(
             tags,

@@ -27,7 +27,6 @@ import {
 import { usePanelRef } from "react-resizable-panels";
 import { toast } from "sonner";
 
-
 import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
 import { TRUNCATE_BUDGET_ATTR } from "@/components/common/TruncateStartPath";
 import { CommitAuthorAvatars } from "@/components/git/CommitAuthorAvatars";
@@ -46,18 +45,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { cn } from "@/lib/utils";
 
@@ -67,7 +58,7 @@ import { useRepoStore } from "@/store/useRepoStore";
 import { openBranchHistoryWindow } from "@/services/window/historyWindows";
 
 import { toUserMessage } from "@/types/error";
-import { GitCommitSummary, GitLogOrder } from "@/types/git";
+import type { GitCommitSummary, GitLogOrder } from "@/types/git";
 
 import { copyToClipboard } from "@/utils/clipboard";
 
@@ -115,7 +106,11 @@ const DEFAULT_HISTORY_VIEW_PREFS: HistoryViewPrefs = {
 function readHistoryGraphWidth(): number {
   try {
     const value = Number(localStorage.getItem(HISTORY_GRAPH_WIDTH_STORAGE_KEY));
-    if (Number.isFinite(value) && value >= HISTORY_GRAPH_MIN_WIDTH && value <= HISTORY_GRAPH_MAX_WIDTH) {
+    if (
+      Number.isFinite(value) &&
+      value >= HISTORY_GRAPH_MIN_WIDTH &&
+      value <= HISTORY_GRAPH_MAX_WIDTH
+    ) {
       return value;
     }
   } catch {
@@ -218,9 +213,7 @@ function CopyableHash({ fullId }: CopyableHashProps) {
           {displayHash}
         </span>
       </TooltipTrigger>
-      <TooltipContent>
-        {copied ? t("repo.copySuccess") : t("repo.copy")}
-      </TooltipContent>
+      <TooltipContent>{copied ? t("repo.copySuccess") : t("repo.copy")}</TooltipContent>
     </Tooltip>
   );
 }
@@ -344,9 +337,7 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
   const branchSlot = branchLabel ? (
     <span
       className={branchSlotClassName}
-      {...(!expandBranchNames
-        ? { [TRUNCATE_BUDGET_ATTR]: true as const }
-        : {})}
+      {...(!expandBranchNames ? { [TRUNCATE_BUDGET_ATTR]: true as const } : {})}
     >
       {branchLabel}
     </span>
@@ -359,10 +350,7 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
       alreadyPushed={alreadyPushed}
       onMenuOpen={() => onSelect(commit.id)}
     >
-      <li
-        className={cn("border-0", className)}
-        style={{ height: HISTORY_ROW_HEIGHT_PX, ...style }}
-      >
+      <li className={cn("border-0", className)} style={{ height: HISTORY_ROW_HEIGHT_PX, ...style }}>
         <button
           type="button"
           role="option"
@@ -381,10 +369,7 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
           <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
             {/* 仅 tip 行显示空心圆；非 tip 不占位，避免出现「圈下面一整列空白」 */}
             {isTip ? (
-              <Circle
-                className="text-primary size-3 shrink-0 stroke-[2.5]"
-                aria-hidden="true"
-              />
+              <Circle className="text-primary size-3 shrink-0 stroke-[2.5]" aria-hidden="true" />
             ) : null}
             {branchOnLeft ? branchSlot : null}
             <span className={subjectClassName} title={commit.subject}>
@@ -499,8 +484,7 @@ export function HistoryList() {
     return tip || null;
   }, [branches]);
   /** ahead=0 且有上游时，改写 HEAD 需确认（可能已推送） */
-  const alreadyPushed =
-    (status?.ahead ?? 0) <= 0 && Boolean(status?.upstream);
+  const alreadyPushed = (status?.ahead ?? 0) <= 0 && Boolean(status?.upstream);
   /** 历史范围下拉：本地在上 + origin/ 远端（此前误只列本地） */
   const historyScopeBranches = useMemo(() => {
     const byName = (left: (typeof branches)[number], right: (typeof branches)[number]) =>
@@ -557,15 +541,10 @@ export function HistoryList() {
     }
 
     const stillValid =
-      selectedCommitId != null &&
-      commits.some((commit) => commit.id === selectedCommitId);
+      selectedCommitId != null && commits.some((commit) => commit.id === selectedCommitId);
 
     if (stillValid) {
-      if (
-        selectedCommitDetail?.id !== selectedCommitId &&
-        !detailLoading &&
-        selectedCommitId
-      ) {
+      if (selectedCommitDetail?.id !== selectedCommitId && !detailLoading && selectedCommitId) {
         void selectCommit(selectedCommitId).catch((error: unknown) => {
           toast.error(toUserMessage(error));
         });
@@ -579,14 +558,7 @@ export function HistoryList() {
         toast.error(toUserMessage(error));
       });
     }
-  }, [
-    commits,
-    detailLoading,
-    loading,
-    selectCommit,
-    selectedCommitDetail?.id,
-    selectedCommitId,
-  ]);
+  }, [commits, detailLoading, loading, selectCommit, selectedCommitDetail?.id, selectedCommitId]);
 
   const authors = useMemo(() => {
     const names = new Set<string>();
@@ -641,7 +613,7 @@ export function HistoryList() {
   const dateFilterExhausted =
     datePreset !== "all" &&
     commits.length > 0 &&
-    !matchesDate(commits[commits.length - 1]!, datePreset);
+    !matchesDate(commits[commits.length - 1], datePreset);
 
   /** 作者/关键词等：连续翻页未增加可见行则停止 */
   const [filterLoadExhausted, setFilterLoadExhausted] = useState(false);
@@ -705,7 +677,13 @@ export function HistoryList() {
   }, [commits.length, filteredCommits, historyViewport]);
 
   const handleLoadMore = useCallback(async (): Promise<void> => {
-    if (!hasMore || loading || loadingMoreRef.current || dateFilterExhausted || filterLoadExhausted) {
+    if (
+      !hasMore ||
+      loading ||
+      loadingMoreRef.current ||
+      dateFilterExhausted ||
+      filterLoadExhausted
+    ) {
       return;
     }
 
@@ -834,10 +812,7 @@ export function HistoryList() {
     setViewPrefs((prev) => {
       const next = { ...prev, showMergeCommits: value };
       try {
-        localStorage.setItem(
-          HISTORY_VIEW_PREFS_STORAGE_KEY,
-          JSON.stringify(next),
-        );
+        localStorage.setItem(HISTORY_VIEW_PREFS_STORAGE_KEY, JSON.stringify(next));
       } catch {
         /* ignore */
       }
@@ -845,8 +820,7 @@ export function HistoryList() {
     });
   }
 
-  const isCurrentBranchScope =
-    currentBranchLogRef != null && logRef === currentBranchLogRef;
+  const isCurrentBranchScope = currentBranchLogRef != null && logRef === currentBranchLogRef;
   const branchLabel =
     logRef == null
       ? t("repo.historyAllBranches")
@@ -938,7 +912,9 @@ export function HistoryList() {
                       });
                     }}
                   >
-                    <span className="min-w-0 flex-1 truncate">{t("repo.historyCurrentBranch")}</span>
+                    <span className="min-w-0 flex-1 truncate">
+                      {t("repo.historyCurrentBranch")}
+                    </span>
                     {isCurrentBranchScope ? (
                       <Check className="size-3.5 shrink-0" aria-hidden="true" />
                     ) : null}
@@ -954,7 +930,9 @@ export function HistoryList() {
                     }}
                   >
                     <span className="min-w-0 flex-1 truncate">{t("repo.historyAllBranches")}</span>
-                    {logRef == null ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                    {logRef == null ? (
+                      <Check className="size-3.5 shrink-0" aria-hidden="true" />
+                    ) : null}
                   </DropdownMenuItem>
                 ) : null}
                 {filteredScopeBranches.map((branch) => (
@@ -1063,13 +1041,17 @@ export function HistoryList() {
                 {showAllAuthorsItem ? (
                   <DropdownMenuItem onSelect={() => setAuthor(null)}>
                     <span className="min-w-0 flex-1 truncate">{t("repo.historyAuthorAll")}</span>
-                    {author == null ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                    {author == null ? (
+                      <Check className="size-3.5 shrink-0" aria-hidden="true" />
+                    ) : null}
                   </DropdownMenuItem>
                 ) : null}
                 {filteredAuthors.map((name) => (
                   <DropdownMenuItem key={name} onSelect={() => setAuthor(name)}>
                     <span className="min-w-0 flex-1 truncate">{name}</span>
-                    {author === name ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                    {author === name ? (
+                      <Check className="size-3.5 shrink-0" aria-hidden="true" />
+                    ) : null}
                   </DropdownMenuItem>
                 ))}
                 {!showAllAuthorsItem && filteredAuthors.length === 0 ? (
@@ -1108,7 +1090,9 @@ export function HistoryList() {
             ).map(([value, label]) => (
               <DropdownMenuItem key={value} onSelect={() => setDatePreset(value)}>
                 <span className="min-w-0 flex-1">{label}</span>
-                {datePreset === value ? <Check className="size-3.5 shrink-0" aria-hidden="true" /> : null}
+                {datePreset === value ? (
+                  <Check className="size-3.5 shrink-0" aria-hidden="true" />
+                ) : null}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -1254,9 +1238,7 @@ export function HistoryList() {
                         projectId: project.id,
                         ref: logRef,
                       }).catch((error: unknown) => {
-                        toast.error(
-                          toUserMessage(error) || t("repo.historyOpenInNewWindowFailed"),
-                        );
+                        toast.error(toUserMessage(error) || t("repo.historyOpenInNewWindowFailed"));
                       });
                     }}
                   >
@@ -1283,17 +1265,12 @@ export function HistoryList() {
                 />
                 <div className="space-y-1">
                   <p className="text-sm font-medium">{t("repo.history")}</p>
-                  <p className="text-muted-foreground max-w-sm text-xs">
-                    {t("repo.historyEmpty")}
-                  </p>
+                  <p className="text-muted-foreground max-w-sm text-xs">{t("repo.historyEmpty")}</p>
                 </div>
               </div>
             ) : (
               <div className="flex h-full min-h-[12rem] flex-col items-center justify-center gap-3 px-6 text-center">
-                <SearchX
-                  className="text-muted-foreground size-10 opacity-50"
-                  aria-hidden="true"
-                />
+                <SearchX className="text-muted-foreground size-10 opacity-50" aria-hidden="true" />
                 <div className="space-y-1">
                   <p className="text-sm font-medium">{t("repo.historyNoMatch")}</p>
                   <p className="text-muted-foreground max-w-sm text-xs">
@@ -1352,11 +1329,7 @@ export function HistoryList() {
                   >
                     <div
                       className="min-w-full"
-                      style={
-                        graphContentWidth > 0
-                          ? { width: graphContentWidth }
-                          : undefined
-                      }
+                      style={graphContentWidth > 0 ? { width: graphContentWidth } : undefined}
                     >
                       <HistoryGraph
                         commits={filteredCommits}
@@ -1374,11 +1347,7 @@ export function HistoryList() {
 
             <ResizableHandle className={RESIZABLE_HANDLE_CLASSNAME} />
 
-            <ResizablePanel
-              id="commits"
-              minSize="300px"
-              className="relative min-h-0 min-w-0"
-            >
+            <ResizablePanel id="commits" minSize="300px" className="relative min-h-0 min-w-0">
               <ScrollArea
                 ref={bindScrollArea}
                 // Radix viewport 内层 display:table 会撑开宽度导致 truncate 失效；在用法处覆盖，不改 ui/scroll-area
@@ -1405,9 +1374,7 @@ export function HistoryList() {
                     const isTip =
                       currentBranch != null &&
                       refs.some(
-                        (ref) =>
-                          ref === currentBranch ||
-                          ref.endsWith(`&${currentBranch}`),
+                        (ref) => ref === currentBranch || ref.endsWith(`&${currentBranch}`),
                       );
                     const isHead =
                       (headTipShortId != null &&
@@ -1415,10 +1382,7 @@ export function HistoryList() {
                           commit.id.startsWith(headTipShortId))) ||
                       (status?.detached === true &&
                         (commit.refs ?? []).some(
-                          (ref) =>
-                            ref === "HEAD" ||
-                            ref.endsWith("&HEAD") ||
-                            ref.includes("HEAD"),
+                          (ref) => ref === "HEAD" || ref.endsWith("&HEAD") || ref.includes("HEAD"),
                         ));
 
                     return (

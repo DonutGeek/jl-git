@@ -57,10 +57,7 @@ export function RingGauge({
               cy={size / 2}
               r={radius}
               fill="none"
-              className={cn(
-                "transition-[stroke-dashoffset] duration-500",
-                toneClassName,
-              )}
+              className={cn("transition-[stroke-dashoffset] duration-500", toneClassName)}
               stroke="currentColor"
               strokeWidth={stroke}
               strokeLinecap="round"
@@ -161,13 +158,7 @@ interface MeterBarProps {
   icon: ReactNode;
 }
 
-export function MeterBar({
-  label,
-  valueLabel,
-  progress,
-  toneClassName,
-  icon,
-}: MeterBarProps) {
+export function MeterBar({ label, valueLabel, progress, toneClassName, icon }: MeterBarProps) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
@@ -177,16 +168,11 @@ export function MeterBar({
           </span>
           {label}
         </span>
-        <span className="text-foreground font-mono text-xs tabular-nums">
-          {valueLabel}
-        </span>
+        <span className="text-foreground font-mono text-xs tabular-nums">{valueLabel}</span>
       </div>
       <div className="bg-muted h-1.5 overflow-hidden rounded-full">
         <div
-          className={cn(
-            "h-full rounded-full transition-[width] duration-500",
-            toneClassName,
-          )}
+          className={cn("h-full rounded-full transition-[width] duration-500", toneClassName)}
           style={{ width: `${clamp01(progress) * 100}%` }}
         />
       </div>

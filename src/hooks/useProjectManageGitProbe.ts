@@ -87,7 +87,7 @@ async function runPool<T>(
       while (next < items.length) {
         const index = next;
         next += 1;
-        await worker(items[index]!);
+        await worker(items[index]);
       }
     }),
   );
@@ -104,9 +104,9 @@ export function useProjectManageGitProbe(
   snapshots: ReadonlyMap<string, ProjectManageGitSnapshot>;
   lites: ReadonlyMap<string, ManageGitProbeLite>;
 } {
-  const [snapshots, setSnapshots] = useState<
-    Map<string, ProjectManageGitSnapshot>
-  >(() => new Map());
+  const [snapshots, setSnapshots] = useState<Map<string, ProjectManageGitSnapshot>>(
+    () => new Map(),
+  );
   const cacheRef = useRef(new Map<string, ProjectManageGitSnapshot>());
   const generationRef = useRef(0);
   const lastRefreshRef = useRef(0);

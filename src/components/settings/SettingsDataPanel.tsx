@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Database,
   FolderOpen,
@@ -82,9 +76,7 @@ export function SettingsDataPanel() {
   const [factoryResetOpen, setFactoryResetOpen] = useState(false);
 
   const clearAgentChats = useAgentChatStore((state) => state.clearAllConversations);
-  const clearMultiAgentChats = useMultiAgentStore(
-    (state) => state.clearAllConversations,
-  );
+  const clearMultiAgentChats = useMultiAgentStore((state) => state.clearAllConversations);
   const resetToFreshStartup = useOpenTabsStore((state) => state.resetToFreshStartup);
   const loadProjects = useProjectStore((state) => state.loadProjects);
   const loadRecent = useProjectStore((state) => state.loadRecent);
@@ -237,9 +229,7 @@ export function SettingsDataPanel() {
           </div>
         </div>
         <div className="min-w-0 space-y-3 px-6">
-          {pathsError ? (
-            <p className="text-destructive text-xs">{pathsError}</p>
-          ) : null}
+          {pathsError ? <p className="text-destructive text-xs">{pathsError}</p> : null}
           <SettingsPreferenceGroup>
             <PathRow
               icon={<FolderOpen />}
@@ -281,12 +271,8 @@ export function SettingsDataPanel() {
               <Item key={target.id} size="sm" className="rounded-none">
                 <ItemMedia variant="icon">{target.icon}</ItemMedia>
                 <ItemContent>
-                  <ItemTitle className="text-foreground text-xs">
-                    {target.title}
-                  </ItemTitle>
-                  <ItemDescription className="text-xs">
-                    {target.description}
-                  </ItemDescription>
+                  <ItemTitle className="text-foreground text-xs">{target.title}</ItemTitle>
+                  <ItemDescription className="text-xs">{target.description}</ItemDescription>
                 </ItemContent>
                 <ItemActions>
                   <Button
@@ -415,11 +401,7 @@ export function SettingsDataPanel() {
             <DialogDescription>{pendingClear?.confirm}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setPendingClear(null)}
-            >
+            <Button type="button" variant="outline" onClick={() => setPendingClear(null)}>
               {t("agent.editCancel")}
             </Button>
             <Button
@@ -440,16 +422,10 @@ export function SettingsDataPanel() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t("settings.dataImportConfirmTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("settings.dataImportConfirm")}
-            </DialogDescription>
+            <DialogDescription>{t("settings.dataImportConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setImportConfirmOpen(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setImportConfirmOpen(false)}>
               {t("agent.editCancel")}
             </Button>
             <Button
@@ -470,16 +446,10 @@ export function SettingsDataPanel() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t("settings.dataFactoryResetConfirmTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("settings.dataFactoryResetConfirm")}
-            </DialogDescription>
+            <DialogDescription>{t("settings.dataFactoryResetConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setFactoryResetOpen(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => setFactoryResetOpen(false)}>
               {t("agent.editCancel")}
             </Button>
             <Button

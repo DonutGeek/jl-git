@@ -60,9 +60,7 @@ export function createBranchHistoryWindowTarget(
 }
 
 /** 创建或聚焦文件历史窗口。 */
-export async function openFileHistoryWindow(
-  options: OpenFileHistoryWindowOptions,
-): Promise<void> {
+export async function openFileHistoryWindow(options: OpenFileHistoryWindowOptions): Promise<void> {
   await openOrFocusWindow(createFileHistoryWindowTarget(options), "文件历史");
 }
 
@@ -73,10 +71,7 @@ export async function openBranchHistoryWindow(
   await openOrFocusWindow(createBranchHistoryWindowTarget(options), "分支历史");
 }
 
-async function openOrFocusWindow(
-  target: HistoryWindowTarget,
-  title: string,
-): Promise<void> {
+async function openOrFocusWindow(target: HistoryWindowTarget, title: string): Promise<void> {
   const existing = await WebviewWindow.getByLabel(target.label);
   if (existing) {
     await existing.show();

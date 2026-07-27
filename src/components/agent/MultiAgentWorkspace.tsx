@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { flushSync } from "react-dom";
 import { Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -38,10 +31,7 @@ import {
   streamJinglingReply,
 } from "@/services/ai";
 import { toastAiFailure } from "@/services/ai/ai.httpError";
-import {
-  isExplicitResumeSkillRequest,
-  isResumeSkillTurn,
-} from "@/services/ai/ai.skillMode";
+import { isExplicitResumeSkillRequest, isResumeSkillTurn } from "@/services/ai/ai.skillMode";
 import {
   disableAgentPlugin,
   filterEnabledAgentPlugins,
@@ -67,11 +57,7 @@ import {
   useMultiAgentStore,
 } from "@/store/useMultiAgentStore";
 import { toUserMessage } from "@/types/error";
-import type {
-  AgentChatMessage,
-  AgentConversation,
-  AgentMention,
-} from "@/types/ai";
+import type { AgentChatMessage, AgentConversation, AgentMention } from "@/types/ai";
 import type { AgentProjectProfile } from "@/types/agent";
 import type { Project, Workspace } from "@/types/project";
 
@@ -119,12 +105,8 @@ export function MultiAgentWorkspace() {
 
   const [draftMarkup, setDraftMarkup] = useState("");
   const [draftPlainText, setDraftPlainText] = useState("");
-  const [draftMentions, setDraftMentions] = useState<readonly AgentMention[]>(
-    [],
-  );
-  const [replyingConversationId, setReplyingConversationId] = useState<
-    string | null
-  >(null);
+  const [draftMentions, setDraftMentions] = useState<readonly AgentMention[]>([]);
+  const [replyingConversationId, setReplyingConversationId] = useState<string | null>(null);
   const [composerPadPx, setComposerPadPx] = useState(COMPOSER_PAD_FALLBACK_PX);
   /** 与单仓一致：默认开启深度思考 */
   const [thinkingEnabled, setThinkingEnabled] = useState(true);
@@ -132,12 +114,7 @@ export function MultiAgentWorkspace() {
   const [mainView, setMainView] = useState<"chat" | "plugins">("chat");
   /** 已卸载插件 id（软隐藏） */
   const [disabledPluginIds, setDisabledPluginIds] = useState<string[]>([]);
-  const {
-    models,
-    modelId,
-    setModelId,
-    loading: modelsLoading,
-  } = useAgentModel();
+  const { models, modelId, setModelId, loading: modelsLoading } = useAgentModel();
   const modelOptions = useMemo(
     () =>
       models.map((model) => ({
@@ -154,44 +131,28 @@ export function MultiAgentWorkspace() {
   const profilesLoading = useMultiAgentStore((state) => state.profilesLoading);
   const profilesError = useMultiAgentStore((state) => state.profilesError);
   const conversations = useMultiAgentStore((state) => state.conversations);
-  const activeConversationId = useMultiAgentStore(
-    (state) => state.activeConversationId,
-  );
-  const activeConversation =
-    conversations.find((item) => item.id === activeConversationId) ?? null;
+  const activeConversationId = useMultiAgentStore((state) => state.activeConversationId);
+  const activeConversation = conversations.find((item) => item.id === activeConversationId) ?? null;
   const messages = activeConversation?.messages ?? [];
   /** 仅当前查看的会话正在生成时，才显示停止/禁用发送 */
   const isReplying =
-    replyingConversationId != null &&
-    replyingConversationId === activeConversationId;
+    replyingConversationId != null && replyingConversationId === activeConversationId;
   const setProfilesLoading = useMultiAgentStore((state) => state.setProfilesLoading);
   const setProfiles = useMultiAgentStore((state) => state.setProfiles);
-  const hydrateConversations = useMultiAgentStore(
-    (state) => state.hydrateConversations,
-  );
-  const ensureDefaultConversation = useMultiAgentStore(
-    (state) => state.ensureDefaultConversation,
-  );
+  const hydrateConversations = useMultiAgentStore((state) => state.hydrateConversations);
+  const ensureDefaultConversation = useMultiAgentStore((state) => state.ensureDefaultConversation);
   const createConversation = useMultiAgentStore((state) => state.createConversation);
-  const setActiveConversation = useMultiAgentStore(
-    (state) => state.setActiveConversation,
-  );
+  const setActiveConversation = useMultiAgentStore((state) => state.setActiveConversation);
   const deleteConversation = useMultiAgentStore((state) => state.deleteConversation);
   const renameConversation = useMultiAgentStore((state) => state.renameConversation);
-  const setConversationPinned = useMultiAgentStore(
-    (state) => state.setConversationPinned,
-  );
-  const reorderConversations = useMultiAgentStore(
-    (state) => state.reorderConversations,
-  );
+  const setConversationPinned = useMultiAgentStore((state) => state.setConversationPinned);
+  const reorderConversations = useMultiAgentStore((state) => state.reorderConversations);
   const appendMessage = useMultiAgentStore((state) => state.appendMessage);
   const updateMessage = useMultiAgentStore((state) => state.updateMessage);
   const removeMessage = useMultiAgentStore((state) => state.removeMessage);
   const resetConversation = useMultiAgentStore((state) => state.resetConversation);
 
-  async function persistConversation(
-    conversation: AgentConversation,
-  ): Promise<void> {
+  async function persistConversation(conversation: AgentConversation): Promise<void> {
     try {
       await upsertChatConversation({
         scope: "agent_global",
@@ -213,9 +174,7 @@ export function MultiAgentWorkspace() {
   }
 
   async function persistOrder(): Promise<void> {
-    const orderedIds = useMultiAgentStore
-      .getState()
-      .conversations.map((item) => item.id);
+    const orderedIds = useMultiAgentStore.getState().conversations.map((item) => item.id);
     if (orderedIds.length === 0) {
       return;
     }
@@ -307,8 +266,7 @@ export function MultiAgentWorkspace() {
     const isStaleGreeting = messages.every(
       (message) =>
         message.role === "assistant" &&
-        (/已扫描\s*\d+/.test(message.content) ||
-          /Scanned\s+\d+/.test(message.content)),
+        (/已扫描\s*\d+/.test(message.content) || /Scanned\s+\d+/.test(message.content)),
     );
     if (!isStaleGreeting) {
       return;
@@ -386,16 +344,10 @@ export function MultiAgentWorkspace() {
   }, []);
 
   function markupToPlain(markup: string): string {
-    return markup.replace(
-      /@\[([^\]]+)\]\([^)]+\)/g,
-      (_full, name: string) => `@${name}`,
-    );
+    return markup.replace(/@\[([^\]]+)\]\([^)]+\)/g, (_full, name: string) => `@${name}`);
   }
 
-  function applyPluginDraft(
-    plugin: AgentPluginDefinition,
-    markup: string,
-  ): void {
+  function applyPluginDraft(plugin: AgentPluginDefinition, markup: string): void {
     const display = t(plugin.mentionDisplayKey);
     setDraftMarkup(markup);
     setDraftPlainText(markupToPlain(markup));
@@ -404,9 +356,7 @@ export function MultiAgentWorkspace() {
   }
 
   function ensureEmptyConversationForTry(): void {
-    const empty = conversations.find(
-      (conversation) => conversation.messages.length === 0,
-    );
+    const empty = conversations.find((conversation) => conversation.messages.length === 0);
     if (empty) {
       if (empty.id !== activeConversationId) {
         abortReplySession();
@@ -422,11 +372,7 @@ export function MultiAgentWorkspace() {
   function handleInsertPlugin(plugin: AgentPluginDefinition): void {
     setMainView("chat");
     const display = t(plugin.mentionDisplayKey);
-    const nextMarkup = appendAgentMentionMarkup(
-      draftMarkup,
-      display,
-      plugin.mentionId,
-    );
+    const nextMarkup = appendAgentMentionMarkup(draftMarkup, display, plugin.mentionId);
     setDraftMarkup(nextMarkup);
     setDraftPlainText(markupToPlain(nextMarkup));
     setDraftMentions((prev) => {
@@ -454,12 +400,8 @@ export function MultiAgentWorkspace() {
     void (async () => {
       try {
         await disableAgentPlugin(plugin.id);
-        setDisabledPluginIds((prev) =>
-          prev.includes(plugin.id) ? prev : [...prev, plugin.id],
-        );
-        toast.success(
-          t("agent.pluginUninstalled", { name: t(plugin.titleKey) }),
-        );
+        setDisabledPluginIds((prev) => (prev.includes(plugin.id) ? prev : [...prev, plugin.id]));
+        toast.success(t("agent.pluginUninstalled", { name: t(plugin.titleKey) }));
       } catch (error: unknown) {
         console.error(error);
         toast.error(toUserMessage(error) || t("agent.pluginUninstallFailed"));
@@ -471,10 +413,7 @@ export function MultiAgentWorkspace() {
     authors: ReadonlyArray<{ name: string; email: string }>,
   ): Promise<AgentProjectProfile[]> {
     const authorsKey = authors
-      .map(
-        (author) =>
-          `${author.name.trim().toLowerCase()}<${author.email.trim().toLowerCase()}>`,
-      )
+      .map((author) => `${author.name.trim().toLowerCase()}<${author.email.trim().toLowerCase()}>`)
       .sort()
       .join("|");
     const cached = resumeProfilesCacheRef.current;
@@ -492,11 +431,7 @@ export function MultiAgentWorkspace() {
       profileSourcesRef.current = sources;
     }
 
-    const next = await buildAgentProfiles(
-      sources.projects,
-      authors,
-      sources.workspaces,
-    );
+    const next = await buildAgentProfiles(sources.projects, authors, sources.workspaces);
     resumeProfilesCacheRef.current = { authorsKey, profiles: next };
     return next;
   }
@@ -530,12 +465,8 @@ export function MultiAgentWorkspace() {
 
     const allProfiles = useMultiAgentStore.getState().profiles;
     const resumeMode = isResumeSkillTurn(history);
-    const resumeAuthors = resumeMode
-      ? extractDeclaredResumeAuthors(history)
-      : [];
-    const resumeRequest = [...history]
-      .reverse()
-      .find(isExplicitResumeSkillRequest);
+    const resumeAuthors = resumeMode ? extractDeclaredResumeAuthors(history) : [];
+    const resumeRequest = [...history].reverse().find(isExplicitResumeSkillRequest);
     const targetContent =
       resumeRequest && resumeRequest.id !== lastUser.id
         ? `${resumeRequest.content}\n${trimmed}`
@@ -621,18 +552,15 @@ export function MultiAgentWorkspace() {
         targetMentions,
       );
       // 未锁定单仓时禁止 enrich，避免普通问答或项目列表请求全量拉 diff。
-      const shouldEnrich =
-        options.enrich !== false && explicitTargets.length > 0;
+      const shouldEnrich = options.enrich !== false && explicitTargets.length > 0;
       if (explicitTargets.length === 1) {
-        lastTargetProjectIdRef.current = explicitTargets[0]!.projectId;
+        lastTargetProjectIdRef.current = explicitTargets[0].projectId;
       }
 
       let profilesForStream = contextProfiles;
       if (shouldEnrich) {
         const withCode = await enrichProfilesWithCodeEvidence(explicitTargets);
-        const enrichedById = new Map(
-          withCode.map((profile) => [profile.projectId, profile]),
-        );
+        const enrichedById = new Map(withCode.map((profile) => [profile.projectId, profile]));
         profilesForStream = contextProfiles.map(
           (profile) => enrichedById.get(profile.projectId) ?? profile,
         );
@@ -683,11 +611,7 @@ export function MultiAgentWorkspace() {
       });
 
       if (options.notifySkipped === true) {
-        const followUp = buildSkippedProjectsFollowUp(
-          sourceProfiles,
-          resumeAuthors,
-          t,
-        );
+        const followUp = buildSkippedProjectsFollowUp(sourceProfiles, resumeAuthors, t);
         if (followUp) {
           appendMessage(conversationId, {
             id: nextMessageId(),
@@ -701,9 +625,7 @@ export function MultiAgentWorkspace() {
       const current = getMultiAgentMessages(conversationId).find(
         (message) => message.id === assistantId,
       );
-      const hasPartial = Boolean(
-        current?.content.trim() || current?.reasoningContent?.trim(),
-      );
+      const hasPartial = Boolean(current?.content.trim() || current?.reasoningContent?.trim());
       if (controller.signal.aborted) {
         if (hasPartial) {
           settleReasoningDuration();
@@ -730,10 +652,7 @@ export function MultiAgentWorkspace() {
     }
   }
 
-  async function sendUserContent(
-    content: string,
-    options: SendResumeOptions = {},
-  ): Promise<void> {
+  async function sendUserContent(content: string, options: SendResumeOptions = {}): Promise<void> {
     const conversationId = useMultiAgentStore.getState().activeConversationId;
     const trimmed = content.trim();
     if (!trimmed || !conversationId || isReplying || profilesLoading) {
@@ -788,18 +707,13 @@ export function MultiAgentWorkspace() {
 
     await continueResumeFromHistory(conversationId, history, {
       projectIds:
-        lastTargetProjectIdRef.current != null
-          ? [lastTargetProjectIdRef.current]
-          : undefined,
+        lastTargetProjectIdRef.current != null ? [lastTargetProjectIdRef.current] : undefined,
       enrich: true,
       notifySkipped: false,
     });
   }
 
-  async function handleEditUserMessage(
-    messageId: string,
-    content: string,
-  ): Promise<void> {
+  async function handleEditUserMessage(messageId: string, content: string): Promise<void> {
     const conversationId = useMultiAgentStore.getState().activeConversationId;
     if (!conversationId || isReplying || profilesLoading) {
       return;
@@ -822,9 +736,7 @@ export function MultiAgentWorkspace() {
 
     await continueResumeFromHistory(conversationId, history, {
       projectIds:
-        lastTargetProjectIdRef.current != null
-          ? [lastTargetProjectIdRef.current]
-          : undefined,
+        lastTargetProjectIdRef.current != null ? [lastTargetProjectIdRef.current] : undefined,
       enrich: true,
       notifySkipped: false,
     });
@@ -848,20 +760,9 @@ export function MultiAgentWorkspace() {
     const resumeRequest = isResumeSkillTurn(historyWithProbe)
       ? [...historyWithProbe].reverse().find(isExplicitResumeSkillRequest)
       : undefined;
-    const allProjectsIntent = resumeRequest
-      ? `${resumeRequest.content}\n${text}`
-      : text;
-    const intentMentions = [
-      ...(resumeRequest?.mentions ?? []),
-      ...draftMentions,
-    ];
-    if (
-      shouldDraftAllProjectsSequentially(
-        allProjectsIntent,
-        intentMentions,
-        profiles,
-      )
-    ) {
+    const allProjectsIntent = resumeRequest ? `${resumeRequest.content}\n${text}` : text;
+    const intentMentions = [...(resumeRequest?.mentions ?? []), ...draftMentions];
+    if (shouldDraftAllProjectsSequentially(allProjectsIntent, intentMentions, profiles)) {
       await draftAllProjectsSequentially(text, draftMentions);
       return;
     }
@@ -884,8 +785,7 @@ export function MultiAgentWorkspace() {
       replySessionRef.current.controller.abort();
     }
 
-    const content =
-      userContent?.trim() || t("multiAgent.quickDraftAllPrompt");
+    const content = userContent?.trim() || t("multiAgent.quickDraftAllPrompt");
     const resumeMention: AgentMention = {
       type: "plugin",
       id: "resume",
@@ -961,7 +861,7 @@ export function MultiAgentWorkspace() {
         if (controller.signal.aborted) {
           break;
         }
-        const profile = targets[index]!;
+        const profile = targets[index];
         lastTargetProjectIdRef.current = profile.projectId;
 
         updateMessage(conversationId, progressId, {
@@ -1111,11 +1011,7 @@ export function MultiAgentWorkspace() {
           createdAt: new Date().toISOString(),
         });
 
-        const followUp = buildSkippedProjectsFollowUp(
-          resumeProfiles,
-          resumeAuthors,
-          t,
-        );
+        const followUp = buildSkippedProjectsFollowUp(resumeProfiles, resumeAuthors, t);
         if (followUp) {
           appendMessage(conversationId, {
             id: nextMessageId(),
@@ -1150,7 +1046,6 @@ export function MultiAgentWorkspace() {
     abortReplySession();
   }
 
-
   return (
     <main className="bg-background text-foreground flex h-screen min-h-0 w-full flex-col overflow-hidden">
       <AppWindowHeader heightClassName="h-11" className="gap-2">
@@ -1180,9 +1075,7 @@ export function MultiAgentWorkspace() {
             setMainView("chat");
             clearDraft();
             // 已有空会话时只切过去，避免叠多个空会话
-            const empty = conversations.find(
-              (conversation) => conversation.messages.length === 0,
-            );
+            const empty = conversations.find((conversation) => conversation.messages.length === 0);
             if (empty) {
               setActiveConversation(empty.id);
               return;
@@ -1309,9 +1202,7 @@ function resolveTargetProfiles(
 
   const mentionedIds = new Set(
     (mentions ?? [])
-      .filter((item): item is Extract<AgentMention, { type: "project" }> =>
-        item.type === "project",
-      )
+      .filter((item): item is Extract<AgentMention, { type: "project" }> => item.type === "project")
       .map((item) => item.id),
   );
   if (mentionedIds.size > 0) {
@@ -1356,10 +1247,7 @@ function shouldDraftAllProjectsSequentially(
   return allHint && resumeHint;
 }
 
-type ResumeTranslate = (
-  key: string,
-  options?: Record<string, string | number>,
-) => string;
+type ResumeTranslate = (key: string, options?: Record<string, string | number>) => string;
 
 /** 根据画像汇总「无更改记录 / 扫描失败」未生成清单，作为第二条助手消息 */
 function buildSkippedProjectsFollowUp(
@@ -1389,14 +1277,10 @@ function buildSkippedProjectsFollowUp(
 
   const parts: string[] = [];
   if (noCommits.length > 0) {
-    parts.push(
-      t("multiAgent.skippedNoCommits", { names: noCommits.join("、") }),
-    );
+    parts.push(t("multiAgent.skippedNoCommits", { names: noCommits.join("、") }));
   }
   if (failed.length > 0) {
-    parts.push(
-      t("multiAgent.skippedScanFailed", { names: failed.join("、") }),
-    );
+    parts.push(t("multiAgent.skippedScanFailed", { names: failed.join("、") }));
   }
   if (parts.length === 0) {
     return null;

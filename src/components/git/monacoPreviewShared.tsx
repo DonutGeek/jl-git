@@ -2,11 +2,7 @@ import { useEffect, useState, type ReactNode, type RefCallback } from "react";
 import type { DiffOnMount } from "@monaco-editor/react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 /**
@@ -192,17 +188,13 @@ export function languageFromPath(filePath: string): string {
 }
 
 export function readMonoFont(): string {
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue("--font-mono")
-    .trim();
+  const value = getComputedStyle(document.documentElement).getPropertyValue("--font-mono").trim();
   return value || "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 }
 
 /** 非等宽：走界面 sans token */
 export function readSansFont(): string {
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue("--font-sans")
-    .trim();
+  const value = getComputedStyle(document.documentElement).getPropertyValue("--font-sans").trim();
   return value || "ui-sans-serif, system-ui, sans-serif";
 }
 
@@ -265,9 +257,7 @@ export function navigateDiffHunk(
     if (currentIndex >= 0) {
       targetIndex = currentIndex + 1;
     } else {
-      targetIndex = changes.findIndex(
-        (change) => change.modifiedStartLineNumber > currentLine,
-      );
+      targetIndex = changes.findIndex((change) => change.modifiedStartLineNumber > currentLine);
     }
   } else if (currentIndex >= 0) {
     targetIndex = currentIndex - 1;
@@ -297,9 +287,7 @@ export function navigateDiffHunk(
 }
 
 /** 差异加载完成后定位到文件中的首个差异块。 */
-export function revealFirstDiffHunk(
-  editor: Parameters<DiffOnMount>[0],
-): void {
+export function revealFirstDiffHunk(editor: Parameters<DiffOnMount>[0]): void {
   const firstChange = editor.getLineChanges()?.[0];
   if (!firstChange) {
     return;

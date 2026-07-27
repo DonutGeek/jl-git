@@ -1,4 +1,4 @@
-import { GitBranch } from "@/types/git";
+import type { GitBranch } from "@/types/git";
 
 /** 分支树节点：按分支名中的 "/" 拆分形成的层级结构 */
 export interface BranchTreeNode {

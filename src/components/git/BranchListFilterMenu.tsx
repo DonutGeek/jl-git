@@ -8,11 +8,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_BRANCH_LIST_PREFS,
@@ -27,10 +23,7 @@ interface BranchListFilterMenuProps {
 }
 
 /** 侧栏分支排序菜单（仅升序 / 降序，按名称） */
-export function BranchListFilterMenu({
-  prefs,
-  onChange,
-}: BranchListFilterMenuProps) {
+export function BranchListFilterMenu({ prefs, onChange }: BranchListFilterMenuProps) {
   const { t } = useTranslation();
   const modified = !isBranchListPrefsDefault(prefs);
 

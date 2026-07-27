@@ -8,11 +8,7 @@ import {
   findWorkspaceTreeLabel,
 } from "@/utils/workspaceOptions";
 
-function workspace(
-  id: string,
-  name: string,
-  parentId: string | null = null,
-): Workspace {
+function workspace(id: string, name: string, parentId: string | null = null): Workspace {
   return {
     id,
     parentId,
@@ -59,11 +55,7 @@ describe("buildWorkspaceTree", () => {
 describe("collectWorkspaceSubtreeIds", () => {
   it("包含自身与全部子孙", () => {
     const ids = collectWorkspaceSubtreeIds(
-      [
-        workspace("a", "工作"),
-        workspace("b", "前端", "a"),
-        workspace("c", "组件", "b"),
-      ],
+      [workspace("a", "工作"), workspace("b", "前端", "a"), workspace("c", "组件", "b")],
       "a",
     );
     expect([...ids].sort()).toEqual(["a", "b", "c"]);
@@ -71,10 +63,7 @@ describe("collectWorkspaceSubtreeIds", () => {
 });
 
 describe("findWorkspaceTreeLabel / collectWorkspaceAncestorIds", () => {
-  const tree = buildWorkspaceTree([
-    workspace("a", "工作"),
-    workspace("b", "前端", "a"),
-  ]);
+  const tree = buildWorkspaceTree([workspace("a", "工作"), workspace("b", "前端", "a")]);
 
   it("查找标签", () => {
     expect(findWorkspaceTreeLabel(tree, "b")).toBe("前端");

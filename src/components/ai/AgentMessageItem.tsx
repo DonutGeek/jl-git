@@ -169,10 +169,7 @@ export function AgentMessageItem({
           ) : null}
           {message.content ? (
             isUser ? (
-              <AgentUserMessageContent
-                content={message.content}
-                mentions={message.mentions}
-              />
+              <AgentUserMessageContent content={message.content} mentions={message.mentions} />
             ) : (
               <AgentRichMessage
                 {...parseAgentMessage(message.content)}
@@ -218,9 +215,7 @@ export function AgentMessageItem({
               <TooltipContent>{t("agent.editMessage")}</TooltipContent>
             </Tooltip>
           ) : null}
-          {message.content.trim() ? (
-            <AgentMessageCopyButton content={message.content} />
-          ) : null}
+          {message.content.trim() ? <AgentMessageCopyButton content={message.content} /> : null}
           {canRegenerate ? (
             <Tooltip>
               <TooltipTrigger asChild>

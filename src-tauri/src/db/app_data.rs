@@ -94,7 +94,10 @@ pub fn apply_pending_database(app_data_dir: &Path) -> Result<(), AppError> {
 pub fn resolve_paths(app_data_dir: &Path) -> AppDataPaths {
     AppDataPaths {
         app_data_dir: app_data_dir.to_string_lossy().into_owned(),
-        database_path: app_data_dir.join(DB_FILE_NAME).to_string_lossy().into_owned(),
+        database_path: app_data_dir
+            .join(DB_FILE_NAME)
+            .to_string_lossy()
+            .into_owned(),
     }
 }
 
@@ -289,8 +292,10 @@ fn reset_store_file(app_data_dir: &Path, file_name: &str) -> Result<(), AppError
     match fs::remove_file(&path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(AppError::new("IO", format!("无法重置 {file_name}"))
-            .with_details(error.to_string())),
+        Err(error) => {
+            Err(AppError::new("IO", format!("无法重置 {file_name}"))
+                .with_details(error.to_string()))
+        }
     }
 }
 
@@ -313,9 +318,8 @@ pub async fn export_backup(
 
     let temp_dir = app_data_dir.join(".backup-export-tmp");
     let _ = fs::remove_dir_all(&temp_dir);
-    fs::create_dir_all(&temp_dir).map_err(|error| {
-        AppError::new("IO", "无法创建临时目录").with_details(error.to_string())
-    })?;
+    fs::create_dir_all(&temp_dir)
+        .map_err(|error| AppError::new("IO", "无法创建临时目录").with_details(error.to_string()))?;
 
     let temp_db = temp_dir.join(DB_FILE_NAME);
     let temp_db_str = temp_db.to_string_lossy().replace('\'', "''");
@@ -338,14 +342,12 @@ pub async fn export_backup(
         AppError::new("INTERNAL", "无法序列化 localStorage").with_details(error.to_string())
     })?;
 
-    let file = File::create(&dest).map_err(|error| {
-        AppError::new("IO", "无法创建备份文件").with_details(error.to_string())
-    })?;
+    let file = File::create(&dest)
+        .map_err(|error| AppError::new("IO", "无法创建备份文件").with_details(error.to_string()))?;
     let mut zip = ZipWriter::new(file);
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
-    zip.start_file("manifest.json", options)
-        .map_err(zip_err)?;
+    zip.start_file("manifest.json", options).map_err(zip_err)?;
     zip.write_all(&manifest_bytes).map_err(io_err)?;
 
     zip.start_file(DB_FILE_NAME, options).map_err(zip_err)?;
@@ -392,9 +394,9 @@ pub fn import_backup(
     })?;
 
     let manifest: BackupManifest = {
-        let mut entry = archive.by_name("manifest.json").map_err(|_| {
-            AppError::new("VALIDATION", "备份缺少 manifest.json")
-        })?;
+        let mut entry = archive
+            .by_name("manifest.json")
+            .map_err(|_| AppError::new("VALIDATION", "备份缺少 manifest.json"))?;
         let mut buf = String::new();
         entry.read_to_string(&mut buf).map_err(io_err)?;
         serde_json::from_str(&buf).map_err(|error| {

@@ -65,11 +65,7 @@ export function GitIdentityAvatar({
       title={name ?? email ?? undefined}
     >
       {showImage ? (
-        <AvatarImage
-          src={remoteUrl!}
-          alt=""
-          onError={() => setImageFailed(true)}
-        />
+        <AvatarImage src={remoteUrl!} alt="" onError={() => setImageFailed(true)} />
       ) : null}
       <AvatarFallback className={cn(shapeClassName, compact && "text-[9px]")}>
         <User className={cn(compact ? "size-2.5" : "size-3.5")} aria-hidden="true" />

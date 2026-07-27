@@ -33,10 +33,10 @@ export function hasActiveAdvancedGitFilters(
   }
   return Boolean(
     filters.grep.trim() ||
-      filters.path.trim() ||
-      filters.since ||
-      filters.until ||
-      filters.author.trim(),
+    filters.path.trim() ||
+    filters.since ||
+    filters.until ||
+    filters.author.trim(),
   );
 }
 
@@ -65,10 +65,7 @@ export function isAdvancedPathSuspicious(path: string): boolean {
 /** 转为 git_log 可选字段（空项省略） */
 export function historyAdvancedToLogOptions(
   filters: HistoryAdvancedFilters | null | undefined,
-): Pick<
-  GitLogOptions,
-  "grep" | "path" | "since" | "until" | "authors" | "noMerges"
-> {
+): Pick<GitLogOptions, "grep" | "path" | "since" | "until" | "authors" | "noMerges"> {
   if (!filters) {
     return {};
   }

@@ -19,8 +19,6 @@ describe("buildCommitMessageExportFileName", () => {
   });
 
   it("标题为空时回退 shortId", () => {
-    expect(buildCommitMessageExportFileName("   ", "2d425358")).toBe(
-      "2d425358.txt",
-    );
+    expect(buildCommitMessageExportFileName("   ", "2d425358")).toBe("2d425358.txt");
   });
 });

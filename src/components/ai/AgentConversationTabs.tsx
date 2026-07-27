@@ -1,10 +1,4 @@
-import {
-  useMemo,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-  type MouseEvent,
-} from "react";
+import { useMemo, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
 import {
   closestCenter,
   DndContext,
@@ -15,11 +9,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import {
-  horizontalListSortingStrategy,
-  SortableContext,
-  useSortable,
-} from "@dnd-kit/sortable";
+import { horizontalListSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { AtSign, Pin, SquarePen, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -169,11 +159,10 @@ function SortableConversationTab({
   onPin,
   labels,
 }: SortableConversationTabProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: conversation.id });
-  const { menuOpen, onOpenChange } = useContextMenuOpen(() =>
-    onSelect(conversation.id),
-  );
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: conversation.id,
+  });
+  const { menuOpen, onOpenChange } = useContextMenuOpen(() => onSelect(conversation.id));
 
   return (
     <ContextMenu onOpenChange={onOpenChange}>
@@ -200,9 +189,7 @@ function SortableConversationTab({
         <ContextMenuItem onSelect={() => onRename(conversation.id)}>
           {labels.rename}
         </ContextMenuItem>
-        <ContextMenuItem
-          onSelect={() => onPin(conversation.id, !conversation.pinned)}
-        >
+        <ContextMenuItem onSelect={() => onPin(conversation.id, !conversation.pinned)}>
           {conversation.pinned ? labels.unpin : labels.pin}
         </ContextMenuItem>
         <ContextMenuSeparator />
@@ -235,9 +222,7 @@ export function AgentConversationTabs({
   const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const labels = useMemo(
     () => ({
@@ -415,11 +400,7 @@ export function AgentConversationTabs({
               />
             </Field>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setRenameTargetId(null)}
-              >
+              <Button type="button" variant="outline" onClick={() => setRenameTargetId(null)}>
                 {t("agent.editCancel")}
               </Button>
               <Button type="submit" disabled={renameValue.trim().length === 0}>
@@ -450,11 +431,7 @@ export function AgentConversationTabs({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setPendingDeleteId(null)}
-            >
+            <Button type="button" variant="outline" onClick={() => setPendingDeleteId(null)}>
               {t("agent.editCancel")}
             </Button>
             <Button type="button" variant="destructive" onClick={confirmDelete}>

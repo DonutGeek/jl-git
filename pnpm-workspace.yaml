@@ -1,2 +1,17 @@
+# Keep dependency lifecycle scripts denied by default.
+# esbuild is the only reviewed build script required by the current Vite toolchain.
 allowBuilds:
   esbuild: true
+
+# Delay newly published packages to reduce supply-chain exposure.
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+minimumReleaseAgeIgnoreMissingTime: false
+blockExoticSubdeps: true
+strictDepBuilds: true
+engineStrict: true
+nodeVersion: 22.22.1
+
+# ESLint allows this patch release and it removes the obsolete rimraf/glob chain.
+overrides:
+  flat-cache: 4.0.1

@@ -1,8 +1,7 @@
 import type { AgentMention } from "@/types/ai";
 
 export type AgentMessageMentionSegment =
-  | { type: "text"; value: string }
-  | { type: "mention"; mention: AgentMention };
+  { type: "text"; value: string } | { type: "mention"; mention: AgentMention };
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -33,10 +32,7 @@ function findBareMentionInSlice(
       return null;
     }
     const before = index === 0 ? undefined : slice[index - 1];
-    const after =
-      index + name.length >= slice.length
-        ? undefined
-        : slice[index + name.length];
+    const after = index + name.length >= slice.length ? undefined : slice[index + name.length];
     if (isBoundaryChar(before) && isBoundaryChar(after)) {
       return { index, length: name.length };
     }
@@ -45,10 +41,7 @@ function findBareMentionInSlice(
   return null;
 }
 
-function findMentionInSlice(
-  slice: string,
-  name: string,
-): { index: number; length: number } | null {
+function findMentionInSlice(slice: string, name: string): { index: number; length: number } | null {
   if (!name) {
     return null;
   }
@@ -88,17 +81,13 @@ export function splitContentByMentions(
 
     const slice = content.slice(cursor);
     for (let i = 0; i < remaining.length; i += 1) {
-      const mention = remaining[i]!;
+      const mention = remaining[i];
       const hit = findMentionInSlice(slice, mention.name);
       if (!hit) {
         continue;
       }
       const absIndex = cursor + hit.index;
-      if (
-        !best ||
-        absIndex < best.index ||
-        (absIndex === best.index && hit.length > best.length)
-      ) {
+      if (!best || absIndex < best.index || (absIndex === best.index && hit.length > best.length)) {
         best = {
           index: absIndex,
           length: hit.length,

@@ -1,11 +1,4 @@
-import {
-  BriefcaseBusiness,
-  Box,
-  Code2,
-  Folder,
-  Layers3,
-  type LucideIcon,
-} from "lucide-react";
+import { BriefcaseBusiness, Box, Code2, Folder, Layers3, type LucideIcon } from "lucide-react";
 
 import type { WorkspaceColor, WorkspaceIcon } from "@/types/project";
 
@@ -55,8 +48,5 @@ export const WORKSPACE_COLOR_OPTIONS: ReadonlyArray<{
 ];
 
 export function workspaceIconComponent(icon: WorkspaceIcon): LucideIcon {
-  return (
-    WORKSPACE_ICON_OPTIONS.find((option) => option.value === icon)?.Icon ??
-    Folder
-  );
+  return WORKSPACE_ICON_OPTIONS.find((option) => option.value === icon)?.Icon ?? Folder;
 }

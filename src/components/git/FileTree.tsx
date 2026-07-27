@@ -1,26 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  ChevronDown,
-  ChevronRight,
-  RefreshCw,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  FileTreeContextMenu,
-  type FileTreeMutation,
-} from "@/components/git/FileTreeContextMenu";
+import { FileTreeContextMenu, type FileTreeMutation } from "@/components/git/FileTreeContextMenu";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { gitService } from "@/services/git";
@@ -28,7 +17,7 @@ import { useRepoNavStore } from "@/store/useRepoNavStore";
 import { useRepoStore } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
-import { FsEntry } from "@/types/git";
+import type { FsEntry } from "@/types/git";
 
 interface FileTreeProps {
   repoPath: string;
@@ -73,11 +62,9 @@ function TreeNode({
   const rowRef = useRef<HTMLButtonElement | null>(null);
 
   const filterLower = filter.trim().toLowerCase();
-  const selfMatch =
-    filterLower.length === 0 || entry.name.toLowerCase().includes(filterLower);
+  const selfMatch = filterLower.length === 0 || entry.name.toLowerCase().includes(filterLower);
   // 过滤时：目录若自身不匹配，仍可能因子孙匹配而显示（懒加载限制下仅匹配已加载层）
-  const hidden =
-    filterLower.length > 0 && !selfMatch && !entry.isDir;
+  const hidden = filterLower.length > 0 && !selfMatch && !entry.isDir;
 
   useEffect(() => {
     if (selected && rowRef.current) {
@@ -126,17 +113,16 @@ function TreeNode({
             isOpen ? (
               <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
             ) : (
-              <ChevronRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+              <ChevronRight
+                className="text-muted-foreground size-3.5 shrink-0"
+                aria-hidden="true"
+              />
             )
           ) : (
             <span className="size-3.5 shrink-0" aria-hidden="true" />
           )}
 
-          <MaterialFileIcon
-            name={entry.name}
-            isDir={entry.isDir}
-            className="size-3.5"
-          />
+          <MaterialFileIcon name={entry.name} isDir={entry.isDir} className="size-3.5" />
 
           <span className="min-w-0 flex-1 truncate text-xs">{entry.name}</span>
         </Button>
@@ -183,16 +169,12 @@ export function FileTree({ repoPath }: FileTreeProps) {
   const fileTreeReveal = useRepoNavStore((state) => state.fileTreeReveal);
   const openWorkspacePreview = useRepoNavStore((state) => state.openWorkspacePreview);
   const clearWorkspacePreview = useRepoNavStore((state) => state.clearWorkspacePreview);
-  const workspacePreviewPath = useRepoNavStore(
-    (state) => state.workspacePreview?.path ?? null,
-  );
+  const workspacePreviewPath = useRepoNavStore((state) => state.workspacePreview?.path ?? null);
   const refreshStatus = useRepoStore((state) => state.refreshStatus);
 
   const [filter, setFilter] = useState("");
   const [rootEntries, setRootEntries] = useState<FsEntry[]>([]);
-  const [childrenCache, setChildrenCache] = useState<Map<string, FsEntry[]>>(
-    () => new Map(),
-  );
+  const [childrenCache, setChildrenCache] = useState<Map<string, FsEntry[]>>(() => new Map());
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(() => new Set());
@@ -405,8 +387,7 @@ export function FileTree({ repoPath }: FileTreeProps) {
     filterLower.length === 0
       ? rootEntries
       : rootEntries.filter(
-          (entry) =>
-            entry.name.toLowerCase().includes(filterLower) || entry.isDir,
+          (entry) => entry.name.toLowerCase().includes(filterLower) || entry.isDir,
         );
 
   return (
@@ -429,11 +410,7 @@ export function FileTree({ repoPath }: FileTreeProps) {
                   void handleRefresh();
                 }}
               >
-                {refreshing ? (
-                  <Spinner className="size-3.5" />
-                ) : (
-                  <RefreshCw aria-hidden="true" />
-                )}
+                {refreshing ? <Spinner className="size-3.5" /> : <RefreshCw aria-hidden="true" />}
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t("repo.refresh")}</TooltipContent>

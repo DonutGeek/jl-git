@@ -10,12 +10,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
 
 if (args[0] === "dev") {
-  args.splice(
-    1,
-    0,
-    "--config",
-    path.join("src-tauri", "tauri.conf.dev.json"),
-  );
+  args.splice(1, 0, "--config", path.join("src-tauri", "tauri.conf.dev.json"));
 }
 
 const child = spawn("pnpm", ["exec", "tauri", ...args], {

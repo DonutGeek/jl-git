@@ -7,7 +7,7 @@ export function repoNameFromCloneUrl(url: string): string {
   const withoutGit = trimmed.replace(/\.git$/i, "");
   const segments = withoutGit.split(/[/\\:]/).filter(Boolean);
   const last = segments[segments.length - 1] ?? "";
-  const safe = last.replace(/[^\w.\-]+/g, "-").replace(/^-+|-+$/g, "");
+  const safe = last.replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "");
   return safe || "repository";
 }
 

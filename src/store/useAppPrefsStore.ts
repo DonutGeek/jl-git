@@ -116,10 +116,7 @@ export function getActiveThemeChrome(
 }
 
 function applyActiveTheme(
-  state: Pick<
-    AppPrefsState,
-    "appThemeId" | "themeChromeLight" | "themeChromeDark"
-  >,
+  state: Pick<AppPrefsState, "appThemeId" | "themeChromeLight" | "themeChromeDark">,
 ): void {
   applyAppThemeToDocument(state.appThemeId, getActiveThemeChrome(state));
 }
@@ -219,14 +216,8 @@ export const useAppPrefsStore = create<AppPrefsState>()(
         const state = get();
         const dark = isDocumentDarkNow();
         const current = getActiveThemeChrome(state);
-        const merged = normalizeAppThemeChrome(
-          { ...current, ...patch },
-          state.appThemeId,
-          dark,
-        );
-        const next = dark
-          ? { themeChromeDark: merged }
-          : { themeChromeLight: merged };
+        const merged = normalizeAppThemeChrome({ ...current, ...patch }, state.appThemeId, dark);
+        const next = dark ? { themeChromeDark: merged } : { themeChromeLight: merged };
         set(next);
         applyActiveTheme({ ...state, ...next });
         notifyGlobalPreferenceChange("app-prefs");
@@ -321,9 +312,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
           state.editorThemeId = DEFAULT_APP_THEME_ID;
         }
         if (version < 5) {
-          const id = normalizeAppThemeId(
-            state.appThemeId ?? state.editorThemeId,
-          );
+          const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
           Object.assign(state, applyThemePack(id));
           if (state.editorChromeLight && !state.themeChromeLight) {
             state.themeChromeLight = state.editorChromeLight;
@@ -339,8 +328,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
             .trim()
             .toUpperCase();
           const lookedLikeFalseJingling =
-            id === DEFAULT_APP_THEME_ID &&
-            (darkBg === "#181818" || darkBg === "#0D1117");
+            id === DEFAULT_APP_THEME_ID && (darkBg === "#181818" || darkBg === "#0D1117");
           if (lookedLikeFalseJingling) {
             id = DEFAULT_APP_THEME_ID;
           }
@@ -364,9 +352,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
           }
         }
         if (version < 10) {
-          state.activityBarOrder = normalizeActivityBarOrder(
-            state.activityBarOrder,
-          );
+          state.activityBarOrder = normalizeActivityBarOrder(state.activityBarOrder);
         }
         if (version < 11) {
           const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
@@ -395,33 +381,15 @@ export const useAppPrefsStore = create<AppPrefsState>()(
         if (!state) {
           return;
         }
-        state.clientFont = migrateFontId(
-          state.clientFont,
-          LEGACY_CLIENT_FONT,
-          DEFAULT_APP_FONT,
-        );
-        state.editorFont = migrateFontId(
-          state.editorFont,
-          LEGACY_EDITOR_FONT,
-          DEFAULT_APP_FONT,
-        );
+        state.clientFont = migrateFontId(state.clientFont, LEGACY_CLIENT_FONT, DEFAULT_APP_FONT);
+        state.editorFont = migrateFontId(state.editorFont, LEGACY_EDITOR_FONT, DEFAULT_APP_FONT);
         const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
         state.appThemeId = id;
         state.editorThemeId = id;
-        state.themeChromeLight = normalizeAppThemeChrome(
-          state.themeChromeLight,
-          id,
-          false,
-        );
-        state.themeChromeDark = normalizeAppThemeChrome(
-          state.themeChromeDark,
-          id,
-          true,
-        );
+        state.themeChromeLight = normalizeAppThemeChrome(state.themeChromeLight, id, false);
+        state.themeChromeDark = normalizeAppThemeChrome(state.themeChromeDark, id, true);
         state.startupTabsMode = normalizeStartupTabsMode(state.startupTabsMode);
-        state.activityBarOrder = normalizeActivityBarOrder(
-          state.activityBarOrder,
-        );
+        state.activityBarOrder = normalizeActivityBarOrder(state.activityBarOrder);
         applyAppFonts(state.clientFont, state.editorFont);
         applyActiveTheme(state);
       },

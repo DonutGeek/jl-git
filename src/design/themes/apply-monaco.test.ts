@@ -47,14 +47,8 @@ describe("应用主题 Monaco 语法色", () => {
 
     expect(light.length).toBeGreaterThanOrEqual(20);
     expect(dark.length).toBe(light.length);
-    expect(light.every((rule) => /^[0-9A-F]{6}$/.test(rule.foreground))).toBe(
-      true,
-    );
-    expect(dark.every((rule) => /^[0-9A-F]{6}$/.test(rule.foreground))).toBe(
-      true,
-    );
-    expect(foregroundFor(light, "keyword")).not.toBe(
-      foregroundFor(dark, "keyword"),
-    );
+    expect(light.every((rule) => /^[0-9A-F]{6}$/.test(rule.foreground))).toBe(true);
+    expect(dark.every((rule) => /^[0-9A-F]{6}$/.test(rule.foreground))).toBe(true);
+    expect(foregroundFor(light, "keyword")).not.toBe(foregroundFor(dark, "keyword"));
   });
 });

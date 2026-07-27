@@ -1,14 +1,6 @@
 import { useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Copy,
-  ExternalLink,
-  FolderOpen,
-  Link,
-  SquarePen,
-  Terminal,
-  Trash2,
-} from "lucide-react";
+import { Copy, ExternalLink, FolderOpen, Link, SquarePen, Terminal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
@@ -41,10 +33,7 @@ import { useProjectStore } from "@/store/useProjectStore";
 import { toUserMessage } from "@/types/error";
 import type { Project } from "@/types/project";
 import { copyToClipboard } from "@/utils/clipboard";
-import {
-  useContextMenuOpen,
-  withContextMenuHighlight,
-} from "@/utils/contextMenuHighlight";
+import { useContextMenuOpen, withContextMenuHighlight } from "@/utils/contextMenuHighlight";
 import { deferUi } from "@/utils/deferUi";
 import { revealInFileManagerLabel } from "@/utils/platformLabels";
 
@@ -78,9 +67,7 @@ export function ProjectContextMenu({
 
   async function handleCopyRemote(): Promise<void> {
     try {
-      const remoteUrl = pickPrimaryRemoteUrl(
-        await gitService.listRemotes(project.path),
-      );
+      const remoteUrl = pickPrimaryRemoteUrl(await gitService.listRemotes(project.path));
       if (!remoteUrl) {
         toast.message(t("repo.tabCopyRemoteEmpty"));
         return;
@@ -117,9 +104,7 @@ export function ProjectContextMenu({
     setDeleting(true);
     try {
       await removeProject(project.id);
-      toast.success(
-        t("projectManager.deleteProjectSuccess", { name: project.name }),
-      );
+      toast.success(t("projectManager.deleteProjectSuccess", { name: project.name }));
       setDeleteOpen(false);
       onRemoved?.();
     } catch (error) {
@@ -136,10 +121,7 @@ export function ProjectContextMenu({
           {withContextMenuHighlight(children, menuOpen)}
         </ContextMenuTrigger>
         <ContextMenuContent className="min-w-48">
-          <ContextMenuItem
-            disabled={disabled}
-            onSelect={() => onOpenProject(project.id)}
-          >
+          <ContextMenuItem disabled={disabled} onSelect={() => onOpenProject(project.id)}>
             <FolderOpen aria-hidden="true" />
             {t("projectManager.openProject")}
           </ContextMenuItem>
@@ -158,17 +140,11 @@ export function ProjectContextMenu({
               {t("common.copy")}
             </ContextMenuSubTrigger>
             <ContextMenuSubContent className="min-w-44">
-              <ContextMenuItem
-                disabled={disabled}
-                onSelect={() => void handleCopyRemote()}
-              >
+              <ContextMenuItem disabled={disabled} onSelect={() => void handleCopyRemote()}>
                 <Link aria-hidden="true" />
                 {t("projectManager.copyRemote")}
               </ContextMenuItem>
-              <ContextMenuItem
-                disabled={disabled}
-                onSelect={() => void handleCopyPath()}
-              >
+              <ContextMenuItem disabled={disabled} onSelect={() => void handleCopyPath()}>
                 <Copy aria-hidden="true" />
                 {t("projectManager.copyLocalPath")}
               </ContextMenuItem>
@@ -178,9 +154,7 @@ export function ProjectContextMenu({
           <ContextMenuItem
             disabled={disabled}
             onSelect={() =>
-              void runSystemOpen(() =>
-                systemOpenService.revealInFileManager(project.path),
-              )
+              void runSystemOpen(() => systemOpenService.revealInFileManager(project.path))
             }
           >
             <FolderOpen aria-hidden="true" />
@@ -188,22 +162,14 @@ export function ProjectContextMenu({
           </ContextMenuItem>
           <ContextMenuItem
             disabled={disabled}
-            onSelect={() =>
-              void runSystemOpen(() =>
-                systemOpenService.openTerminal(project.path),
-              )
-            }
+            onSelect={() => void runSystemOpen(() => systemOpenService.openTerminal(project.path))}
           >
             <Terminal aria-hidden="true" />
             {t("repo.openInTerminal")}
           </ContextMenuItem>
           <ContextMenuItem
             disabled={disabled}
-            onSelect={() =>
-              void runSystemOpen(() =>
-                systemOpenService.openInEditor(project.path),
-              )
-            }
+            onSelect={() => void runSystemOpen(() => systemOpenService.openInEditor(project.path))}
           >
             <ExternalLink aria-hidden="true" />
             {t("repo.openInEditor")}
@@ -220,29 +186,19 @@ export function ProjectContextMenu({
         </ContextMenuContent>
       </ContextMenu>
 
-      <ProjectSettingsDialog
-        project={project}
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-      />
+      <ProjectSettingsDialog project={project} open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("projectManager.deleteProjectTitle")}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t("projectManager.deleteProjectTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("projectManager.deleteProjectQuestion", { name: project.name })}
-              <span className="mt-2 block">
-                {t("projectManager.deleteProjectHint")}
-              </span>
+              <span className="mt-2 block">{t("projectManager.deleteProjectHint")}</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>
-              {t("common.cancel")}
-            </AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               disabled={deleting}

@@ -109,9 +109,9 @@ pub fn ssh_key_generate(
             "-t",
             "ed25519",
             "-f",
-            private_path.to_str().ok_or_else(|| {
-                AppError::new("VALIDATION", "密钥路径无效")
-            })?,
+            private_path
+                .to_str()
+                .ok_or_else(|| AppError::new("VALIDATION", "密钥路径无效"))?,
             "-N",
             &input.passphrase,
             "-C",
@@ -146,9 +146,9 @@ pub fn ssh_key_change_passphrase(
     input: SshKeyChangePassphraseInput,
 ) -> Result<SshKeyChangePassphraseResult, AppError> {
     let private_path = ensure_private_key_in_ssh_dir(&app, &input.path)?;
-    let path_str = private_path.to_str().ok_or_else(|| {
-        AppError::new("VALIDATION", "密钥路径无效")
-    })?;
+    let path_str = private_path
+        .to_str()
+        .ok_or_else(|| AppError::new("VALIDATION", "密钥路径无效"))?;
 
     // 参数数组调用，禁止 shell；口令仅作 -P/-N 入参
     let mut command = Command::new("ssh-keygen");
@@ -197,11 +197,7 @@ pub fn ssh_key_delete(
     let public_path = PathBuf::from(format!("{}.pub", private_path.display()));
     // 公钥路径同样限制在 ~/.ssh 内
     if public_path.exists() {
-        let _ = resolve_key_path_in_ssh_dir(
-            &app,
-            public_path.to_str().unwrap_or_default(),
-            true,
-        )?;
+        let _ = resolve_key_path_in_ssh_dir(&app, public_path.to_str().unwrap_or_default(), true)?;
     }
 
     remove_file_if_exists(&private_path)?;
@@ -408,9 +404,8 @@ fn remove_file_if_exists(path: &Path) -> Result<(), AppError> {
     if !path.is_file() {
         return Err(AppError::new("VALIDATION", "拒绝删除非普通文件"));
     }
-    fs::remove_file(path).map_err(|error| {
-        AppError::new("IO", "删除密钥文件失败").with_details(error.to_string())
-    })
+    fs::remove_file(path)
+        .map_err(|error| AppError::new("IO", "删除密钥文件失败").with_details(error.to_string()))
 }
 
 fn sanitize_key_stem(name: &str) -> String {
@@ -465,18 +460,14 @@ fn resolve_public_path(path: &Path) -> Result<PathBuf, AppError> {
 }
 
 fn read_public_key_file(path: &Path) -> Result<String, AppError> {
-    let content = fs::read_to_string(path).map_err(|error| {
-        AppError::new("IO", "无法读取公钥文件").with_details(error.to_string())
-    })?;
+    let content = fs::read_to_string(path)
+        .map_err(|error| AppError::new("IO", "无法读取公钥文件").with_details(error.to_string()))?;
     let line = content
         .lines()
         .map(str::trim)
         .find(|line| !line.is_empty() && !line.starts_with('#'))
         .ok_or_else(|| AppError::new("VALIDATION", "公钥文件为空"))?;
-    if !(line.starts_with("ssh-")
-        || line.starts_with("ecdsa-")
-        || line.starts_with("sk-"))
-    {
+    if !(line.starts_with("ssh-") || line.starts_with("ecdsa-") || line.starts_with("sk-")) {
         return Err(AppError::new("VALIDATION", "不是有效的 SSH 公钥"));
     }
     Ok(line.to_string())

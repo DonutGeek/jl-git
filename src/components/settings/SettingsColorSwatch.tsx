@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useId,
-  useState,
-  type KeyboardEvent,
-  type PointerEvent,
-} from "react";
+import { useEffect, useId, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Check, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -52,9 +46,7 @@ export function SettingsColorSwatch({
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(hex);
   const [hue, setHue] = useState(() => hexToHsv(hex).hue);
-  const [saturation, setSaturation] = useState(
-    () => hexToHsv(hex).saturation,
-  );
+  const [saturation, setSaturation] = useState(() => hexToHsv(hex).saturation);
   const [brightness, setBrightness] = useState(() => hexToHsv(hex).value);
 
   useEffect(() => {
@@ -72,11 +64,7 @@ export function SettingsColorSwatch({
     }
   };
 
-  const applyHsv = (
-    nextHue: number,
-    nextSaturation: number,
-    nextBrightness: number,
-  ): void => {
+  const applyHsv = (nextHue: number, nextSaturation: number, nextBrightness: number): void => {
     setHue(nextHue);
     setSaturation(nextSaturation);
     setBrightness(nextBrightness);
@@ -92,27 +80,18 @@ export function SettingsColorSwatch({
     return true;
   };
 
-  const updateColorField = (
-    event: PointerEvent<HTMLDivElement>,
-  ): void => {
+  const updateColorField = (event: PointerEvent<HTMLDivElement>): void => {
     const rect = event.currentTarget.getBoundingClientRect();
     const nextSaturation = Math.round(
       Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * 100,
     );
     const nextBrightness = Math.round(
-      (1 -
-        Math.min(
-          1,
-          Math.max(0, (event.clientY - rect.top) / rect.height),
-        )) *
-        100,
+      (1 - Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height))) * 100,
     );
     applyHsv(hue, nextSaturation, nextBrightness);
   };
 
-  const handleColorFieldKeyDown = (
-    event: KeyboardEvent<HTMLDivElement>,
-  ): void => {
+  const handleColorFieldKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     const step = event.shiftKey ? 5 : 1;
     let nextSaturation = saturation;
     let nextBrightness = brightness;
@@ -229,9 +208,7 @@ export function SettingsColorSwatch({
 
         <div className="mt-3 space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground text-[11px]">
-              {t("settings.themeHue")}
-            </span>
+            <span className="text-muted-foreground text-[11px]">{t("settings.themeHue")}</span>
             <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
               {Math.round(hue)}°
             </span>
@@ -276,9 +253,7 @@ export function SettingsColorSwatch({
                 style={{ backgroundColor: presetHex }}
                 aria-hidden
               />
-              <span className="font-mono text-[10px] tabular-nums">
-                {presetHex}
-              </span>
+              <span className="font-mono text-[10px] tabular-nums">{presetHex}</span>
             </div>
           </div>
         </div>
@@ -307,18 +282,13 @@ export function SettingsColorSwatch({
                   applyHex(color);
                 }}
               >
-                {selected ? (
-                  <Check className="absolute inset-1 size-4" aria-hidden />
-                ) : null}
+                {selected ? <Check className="absolute inset-1 size-4" aria-hidden /> : null}
               </Button>
             );
           })}
         </div>
 
-        <Field
-          className="mt-3 gap-1.5"
-          data-invalid={!normalizeHexColor(draft, "") || undefined}
-        >
+        <Field className="mt-3 gap-1.5" data-invalid={!normalizeHexColor(draft, "") || undefined}>
           <FieldLabel htmlFor={inputId} className="text-muted-foreground text-[11px]">
             {t("settings.themeHexValue")}
           </FieldLabel>

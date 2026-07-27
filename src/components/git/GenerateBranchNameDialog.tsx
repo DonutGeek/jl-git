@@ -1,11 +1,5 @@
-import {
-  ChangeEvent,
-  DragEvent,
-  FormEvent,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import type { ChangeEvent, DragEvent, FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileUp, X } from "lucide-react";
 import { toast } from "sonner";
@@ -21,19 +15,15 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { useAppPrefsStore } from "@/store/useAppPrefsStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
 
 import { generateBranchName, toastAiFailure } from "@/services/ai";
+import type { BranchAttachment } from "@/utils/branchAttachment";
 import {
-  BranchAttachment,
   BranchAttachmentError,
   MAX_ATTACHMENT_TEXT_TOTAL,
   MAX_BRANCH_ATTACHMENTS,
@@ -83,8 +73,7 @@ export function GenerateBranchNameDialog({
   }, [open]);
 
   const busy = generating || parsing;
-  const canSubmit =
-    (detail.trim().length > 0 || attachments.length > 0) && !busy;
+  const canSubmit = (detail.trim().length > 0 || attachments.length > 0) && !busy;
   const canAddMore = attachments.length < MAX_BRANCH_ATTACHMENTS && !busy;
 
   function handleOpenChange(next: boolean): void {
@@ -101,9 +90,7 @@ export function GenerateBranchNameDialog({
 
     const room = MAX_BRANCH_ATTACHMENTS - attachments.length;
     if (room <= 0) {
-      toast.error(
-        t("repo.aiBranchAttachmentLimit", { count: MAX_BRANCH_ATTACHMENTS }),
-      );
+      toast.error(t("repo.aiBranchAttachmentLimit", { count: MAX_BRANCH_ATTACHMENTS }));
       return;
     }
 
@@ -125,8 +112,7 @@ export function GenerateBranchNameDialog({
     });
     try {
       let budget =
-        MAX_ATTACHMENT_TEXT_TOTAL -
-        attachments.reduce((sum, item) => sum + item.text.length, 0);
+        MAX_ATTACHMENT_TEXT_TOTAL - attachments.reduce((sum, item) => sum + item.text.length, 0);
       const next: BranchAttachment[] = [];
       for (const file of accepted) {
         try {
@@ -149,9 +135,7 @@ export function GenerateBranchNameDialog({
     }
   }
 
-  async function handleFilesSelected(
-    event: ChangeEvent<HTMLInputElement>,
-  ): Promise<void> {
+  async function handleFilesSelected(event: ChangeEvent<HTMLInputElement>): Promise<void> {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
     await ingestFiles(files);
@@ -191,9 +175,7 @@ export function GenerateBranchNameDialog({
     dragDepthRef.current = 0;
     setDragOver(false);
     if (!canAddMore) {
-      toast.error(
-        t("repo.aiBranchAttachmentLimit", { count: MAX_BRANCH_ATTACHMENTS }),
-      );
+      toast.error(t("repo.aiBranchAttachmentLimit", { count: MAX_BRANCH_ATTACHMENTS }));
       return;
     }
     const files = Array.from(event.dataTransfer.files ?? []);
@@ -245,9 +227,7 @@ export function GenerateBranchNameDialog({
         >
           <FieldGroup className="gap-4">
             <Field>
-              <FieldLabel htmlFor="ai-branch-detail">
-                {t("repo.aiBranchDetail")}
-              </FieldLabel>
+              <FieldLabel htmlFor="ai-branch-detail">{t("repo.aiBranchDetail")}</FieldLabel>
               <Textarea
                 id="ai-branch-detail"
                 value={detail}
@@ -286,9 +266,7 @@ export function GenerateBranchNameDialog({
                     canAddMore
                       ? "hover:border-primary/50 hover:bg-muted/40 cursor-pointer"
                       : "cursor-not-allowed opacity-60",
-                    dragOver && canAddMore
-                      ? "border-primary bg-primary/5"
-                      : null,
+                    dragOver && canAddMore ? "border-primary bg-primary/5" : null,
                   )}
                   onClick={() => {
                     if (canAddMore) {
@@ -312,10 +290,7 @@ export function GenerateBranchNameDialog({
                   {parsing ? (
                     <Spinner className="size-4" />
                   ) : (
-                    <FileUp
-                      className="text-muted-foreground size-4"
-                      aria-hidden="true"
-                    />
+                    <FileUp className="text-muted-foreground size-4" aria-hidden="true" />
                   )}
                   <div className="text-muted-foreground text-xs leading-relaxed">
                     <p>
@@ -340,9 +315,7 @@ export function GenerateBranchNameDialog({
                       >
                         <span className="min-w-0 flex-1 truncate font-mono text-xs">
                           {item.name}
-                          {item.truncated
-                            ? ` ${t("repo.aiBranchAttachmentTruncated")}`
-                            : ""}
+                          {item.truncated ? ` ${t("repo.aiBranchAttachmentTruncated")}` : ""}
                         </span>
                         <Tooltip delayDuration={300}>
                           <TooltipTrigger asChild>

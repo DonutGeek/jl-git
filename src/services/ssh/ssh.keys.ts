@@ -68,10 +68,7 @@ export async function listSshKeys(): Promise<SshKeyRecord[]> {
 }
 
 /** 生成新密钥（可选口令）；登记公钥与私钥路径 */
-export async function createSshKey(
-  name: string,
-  passphrase: string,
-): Promise<SshKeyRecord[]> {
+export async function createSshKey(name: string, passphrase: string): Promise<SshKeyRecord[]> {
   const trimmedName = name.trim();
   if (!trimmedName) {
     throw new Error(i18n.t("settings.sshNameRequired"));
@@ -108,13 +105,9 @@ export async function scanLocalSshKeys(): Promise<SshKeyScanResult> {
 export async function syncLocalSshKeys(): Promise<SyncLocalSshKeysResult> {
   const scan = await scanLocalSshKeys();
   const existing = await listSshKeys();
-  const knownPaths = new Set(
-    existing.map((item) => normalizePathKey(item.privateKeyPath)),
-  );
+  const knownPaths = new Set(existing.map((item) => normalizePathKey(item.privateKeyPath)));
 
-  const fresh = scan.keys.filter(
-    (item) => !knownPaths.has(normalizePathKey(item.privateKeyPath)),
-  );
+  const fresh = scan.keys.filter((item) => !knownPaths.has(normalizePathKey(item.privateKeyPath)));
   if (fresh.length === 0) {
     return {
       keys: existing,
@@ -137,10 +130,7 @@ export async function syncLocalSshKeys(): Promise<SyncLocalSshKeysResult> {
   ];
 
   for (const material of fresh) {
-    const shouldEnable =
-      !hadAny &&
-      !hasEnabled &&
-      material.name.toLowerCase() === preferredName;
+    const shouldEnable = !hadAny && !hasEnabled && material.name.toLowerCase() === preferredName;
     next.push({
       id: crypto.randomUUID(),
       name: material.name,
@@ -194,9 +184,7 @@ export async function importSshKeyFromDisk(): Promise<SshKeyRecord[] | null> {
   const keys = await listSshKeys();
   if (
     keys.some(
-      (item) =>
-        normalizePathKey(item.privateKeyPath) ===
-        normalizePathKey(material.privateKeyPath),
+      (item) => normalizePathKey(item.privateKeyPath) === normalizePathKey(material.privateKeyPath),
     )
   ) {
     throw new Error(i18n.t("settings.sshKeyDuplicate"));
@@ -237,10 +225,7 @@ export async function deleteSshKey(id: string): Promise<SshKeyRecord[]> {
 }
 
 /** 启用密钥时自动禁用其它项，避免同时存在多个启用密钥。 */
-export async function setSshKeyEnabled(
-  id: string,
-  enabled: boolean,
-): Promise<SshKeyRecord[]> {
+export async function setSshKeyEnabled(id: string, enabled: boolean): Promise<SshKeyRecord[]> {
   const keys = await listSshKeys();
   const next = keys.map((item) => ({
     ...item,
@@ -262,16 +247,13 @@ export async function changeSshKeyPassphrase(
     throw new Error(i18n.t("settings.sshKeyNotFound"));
   }
 
-  const result = await invokeCommand<{ hasPassphrase: boolean }>(
-    "ssh_key_change_passphrase",
-    {
-      input: {
-        path: target.privateKeyPath,
-        oldPassphrase,
-        newPassphrase,
-      },
+  const result = await invokeCommand<{ hasPassphrase: boolean }>("ssh_key_change_passphrase", {
+    input: {
+      path: target.privateKeyPath,
+      oldPassphrase,
+      newPassphrase,
     },
-  );
+  });
 
   const next = keys.map((item) =>
     item.id === id ? { ...item, hasPassphrase: result.hasPassphrase } : item,
@@ -286,10 +268,7 @@ async function appendKey(record: SshKeyRecord): Promise<SshKeyRecord[]> {
     throw new Error(i18n.t("settings.sshKeyDuplicate"));
   }
   // 新增默认启用：关掉其它项
-  const next = [
-    ...keys.map((item) => ({ ...item, enabled: false })),
-    record,
-  ];
+  const next = [...keys.map((item) => ({ ...item, enabled: false })), record];
   await saveKeys(next);
   return next;
 }

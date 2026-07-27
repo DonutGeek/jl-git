@@ -76,16 +76,12 @@ function formatGitCmd(args: string[]): string {
   return `git ${args.join(" ")}`;
 }
 
-function formatCmdStartLine(
-  event: Extract<GitOpEvent, { kind: "cmdStart" }>,
-): OpLogLine {
+function formatCmdStartLine(event: Extract<GitOpEvent, { kind: "cmdStart" }>): OpLogLine {
   return { text: `[${event.startedAt}]开始: ${formatGitCmd(event.args)}` };
 }
 
 /** cmd 完成：输出 + 完成/失败（开始行已由 cmdStart 写入） */
-function formatCmdFinishLines(
-  event: Extract<GitOpEvent, { kind: "cmd" }>,
-): OpLogLine[] {
+function formatCmdFinishLines(event: Extract<GitOpEvent, { kind: "cmd" }>): OpLogLine[] {
   const cmd = formatGitCmd(event.args);
   const seconds = (event.elapsedMs / 1000).toFixed(3);
   const lines: OpLogLine[] = [];
@@ -133,9 +129,7 @@ function upsertEntry(list: OpLogEntry[], entry: OpLogEntry): OpLogEntry[] {
 }
 
 /** 仅展开一条：优先 running，否则各仓库最新一条（列表末尾） */
-function pickDefaultExpanded(
-  byRepo: Record<string, OpLogEntry[]>,
-): Record<string, boolean> {
+function pickDefaultExpanded(byRepo: Record<string, OpLogEntry[]>): Record<string, boolean> {
   for (const list of Object.values(byRepo)) {
     const running = list.find((entry) => entry.status === "running");
     if (running) {

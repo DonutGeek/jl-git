@@ -9,19 +9,9 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import {
-  AtSign,
-  MoreHorizontal,
-  Pin,
-  SquarePen,
-  Trash2,
-} from "lucide-react";
+import { AtSign, MoreHorizontal, Pin, SquarePen, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -139,11 +129,13 @@ function SortableConversationRow({
   onPin,
   labels,
 }: SortableConversationRowProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: conversation.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: conversation.id,
+  });
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
-  const { menuOpen: contextMenuOpen, onOpenChange: onContextMenuOpenChange } =
-    useContextMenuOpen(() => onSelect(conversation.id));
+  const { menuOpen: contextMenuOpen, onOpenChange: onContextMenuOpenChange } = useContextMenuOpen(
+    () => onSelect(conversation.id),
+  );
 
   return (
     <ContextMenu onOpenChange={onContextMenuOpenChange}>
@@ -200,9 +192,7 @@ function SortableConversationRow({
               <DropdownMenuItem onSelect={() => onRename(conversation.id)}>
                 {labels.rename}
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => onPin(conversation.id, !conversation.pinned)}
-              >
+              <DropdownMenuItem onSelect={() => onPin(conversation.id, !conversation.pinned)}>
                 {conversation.pinned ? labels.unpin : labels.pin}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -222,9 +212,7 @@ function SortableConversationRow({
         <ContextMenuItem onSelect={() => onRename(conversation.id)}>
           {labels.rename}
         </ContextMenuItem>
-        <ContextMenuItem
-          onSelect={() => onPin(conversation.id, !conversation.pinned)}
-        >
+        <ContextMenuItem onSelect={() => onPin(conversation.id, !conversation.pinned)}>
           {conversation.pinned ? labels.unpin : labels.pin}
         </ContextMenuItem>
         <ContextMenuSeparator />
@@ -259,9 +247,7 @@ export function MultiAgentSidebar({
   const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const labels = useMemo(
     () => ({
@@ -345,9 +331,7 @@ export function MultiAgentSidebar({
                   {t("multiAgent.createConversation")}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="right">
-                {t("multiAgent.createConversation")}
-              </TooltipContent>
+              <TooltipContent side="right">{t("multiAgent.createConversation")}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -364,9 +348,7 @@ export function MultiAgentSidebar({
                   {t("multiAgent.openPlugins")}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="right">
-                {t("multiAgent.openPluginsHint")}
-              </TooltipContent>
+              <TooltipContent side="right">{t("multiAgent.openPluginsHint")}</TooltipContent>
             </Tooltip>
           </div>
 
@@ -398,10 +380,7 @@ export function MultiAgentSidebar({
                       key={conversation.id}
                       conversation={conversation}
                       label={conversationLabel(conversation)}
-                      isActive={
-                        !pluginsActive &&
-                        conversation.id === activeConversationId
-                      }
+                      isActive={!pluginsActive && conversation.id === activeConversationId}
                       canDelete={canDelete}
                       onSelect={onSelect}
                       onDelete={requestDelete}
@@ -419,9 +398,7 @@ export function MultiAgentSidebar({
                   <ConversationRowChrome
                     conversation={draggingConversation}
                     label={conversationLabel(draggingConversation)}
-                    isActive={
-                      draggingConversation.id === activeConversationId
-                    }
+                    isActive={draggingConversation.id === activeConversationId}
                     dragging
                     onSelect={() => undefined}
                   />
@@ -459,11 +436,7 @@ export function MultiAgentSidebar({
               />
             </Field>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setRenameTargetId(null)}
-              >
+              <Button type="button" variant="outline" onClick={() => setRenameTargetId(null)}>
                 {t("agent.editCancel")}
               </Button>
               <Button type="submit" disabled={renameValue.trim().length === 0}>
@@ -494,11 +467,7 @@ export function MultiAgentSidebar({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setPendingDeleteId(null)}
-            >
+            <Button type="button" variant="outline" onClick={() => setPendingDeleteId(null)}>
               {t("agent.editCancel")}
             </Button>
             <Button type="button" variant="destructive" onClick={confirmDelete}>

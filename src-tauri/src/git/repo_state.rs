@@ -163,7 +163,8 @@ fn read_merge_theirs_label(repo_path: &Path, git_dir: &Path) -> Option<String> {
         }
     }
 
-    let short = runner::run_git_allow_nonzero(repo_path, &["rev-parse", "--short", "MERGE_HEAD"]).ok()?;
+    let short =
+        runner::run_git_allow_nonzero(repo_path, &["rev-parse", "--short", "MERGE_HEAD"]).ok()?;
     if short.code == 0 {
         let hash = short.stdout.trim();
         if !hash.is_empty() {
@@ -222,11 +223,9 @@ impl Default for ConflictSideMeta {
 
 /// 读取 tip 的短哈希 / 作者 / 时间（失败时返回空字段）
 fn read_tip_meta(repo_path: &Path, rev: &str) -> Option<ConflictSideMeta> {
-    let output = runner::run_git_allow_nonzero(
-        repo_path,
-        &["log", "-1", "--format=%h%n%an%n%aI", rev],
-    )
-    .ok()?;
+    let output =
+        runner::run_git_allow_nonzero(repo_path, &["log", "-1", "--format=%h%n%an%n%aI", rev])
+            .ok()?;
     if output.code != 0 {
         return None;
     }

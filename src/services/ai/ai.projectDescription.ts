@@ -67,11 +67,7 @@ export async function generateProjectDescription(
     });
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
-      throw mapDeepSeekHttpError(
-        response.status,
-        payload,
-        i18n.t("ai.errors.requestFailed"),
-      );
+      throw mapDeepSeekHttpError(response.status, payload, i18n.t("ai.errors.requestFailed"));
     }
 
     const content = readChoiceContent(payload);

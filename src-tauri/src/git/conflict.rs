@@ -31,7 +31,11 @@ pub struct OkResult {
 }
 
 /// 整文件采用 ours/theirs，并 `git add` 标记已解决。
-pub fn take_side(repo_path: &Path, file_path: &str, side: ConflictSide) -> Result<OkResult, AppError> {
+pub fn take_side(
+    repo_path: &Path,
+    file_path: &str,
+    side: ConflictSide,
+) -> Result<OkResult, AppError> {
     let file_path = file_path.trim();
     if file_path.is_empty() {
         return Err(AppError::new("VALIDATION", "缺少文件路径"));
@@ -42,10 +46,7 @@ pub fn take_side(repo_path: &Path, file_path: &str, side: ConflictSide) -> Resul
         ConflictSide::Ours => "--ours",
         ConflictSide::Theirs => "--theirs",
     };
-    runner::run_git(
-        repo_path,
-        &["checkout", which, "--", file_path],
-    )?;
+    runner::run_git(repo_path, &["checkout", which, "--", file_path])?;
     runner::run_git(repo_path, &["add", "--", file_path])?;
     Ok(OkResult { ok: true })
 }
@@ -144,15 +145,15 @@ fn resolve_under_repo(repo_path: &Path, file_path: &str) -> Result<std::path::Pa
             AppError::new("INVALID_PATH", "无法规范化文件路径").with_details(error.to_string())
         })?
     } else {
-        let parent = abs.parent().ok_or_else(|| {
-            AppError::new("VALIDATION", "非法文件路径")
-        })?;
+        let parent = abs
+            .parent()
+            .ok_or_else(|| AppError::new("VALIDATION", "非法文件路径"))?;
         let canon_parent = fs::canonicalize(parent).map_err(|error| {
             AppError::new("INVALID_PATH", "无法规范化父目录").with_details(error.to_string())
         })?;
-        let name = abs.file_name().ok_or_else(|| {
-            AppError::new("VALIDATION", "非法文件路径")
-        })?;
+        let name = abs
+            .file_name()
+            .ok_or_else(|| AppError::new("VALIDATION", "非法文件路径"))?;
         canon_parent.join(name)
     };
 

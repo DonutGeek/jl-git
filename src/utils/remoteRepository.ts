@@ -15,15 +15,11 @@ const PROVIDERS: Record<string, Exclude<RemoteProvider, "unknown">> = {
 
 function toRemoteUrl(value: string): URL | null {
   const sshMatch = value.match(/^[^@]+@([^:]+):(.+)$/);
-  const normalized = sshMatch
-    ? `ssh://${sshMatch[1]}/${sshMatch[2]}`
-    : value;
+  const normalized = sshMatch ? `ssh://${sshMatch[1]}/${sshMatch[2]}` : value;
 
   try {
     const parsed = new URL(normalized);
-    return ["http:", "https:", "ssh:"].includes(parsed.protocol)
-      ? parsed
-      : null;
+    return ["http:", "https:", "ssh:"].includes(parsed.protocol) ? parsed : null;
   } catch {
     return null;
   }

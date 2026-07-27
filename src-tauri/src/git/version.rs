@@ -31,12 +31,7 @@ pub fn probe(executable: Option<&str>) -> Result<GitVersionResult, AppError> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let version = stdout
-        .lines()
-        .next()
-        .unwrap_or("")
-        .trim()
-        .to_string();
+    let version = stdout.lines().next().unwrap_or("").trim().to_string();
     if version.is_empty() {
         return Err(AppError::git_not_found("Git 版本输出为空"));
     }

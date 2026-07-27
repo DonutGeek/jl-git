@@ -57,10 +57,21 @@ export interface Workspace {
 export type WorkspaceIcon = "folder" | "briefcase" | "code" | "layers" | "box";
 export type WorkspaceColor = "blue" | "green" | "orange" | "purple" | "red";
 
-export interface WorkspaceListResult { workspaces: Workspace[]; }
-export interface WorkspaceResult { workspace: Workspace; }
-export interface WorkspaceOrderItem { id: string; sortOrder: number; }
-export interface ProjectOrderItem { id: string; workspaceId: string | null; sortOrder: number; }
+export interface WorkspaceListResult {
+  workspaces: Workspace[];
+}
+export interface WorkspaceResult {
+  workspace: Workspace;
+}
+export interface WorkspaceOrderItem {
+  id: string;
+  sortOrder: number;
+}
+export interface ProjectOrderItem {
+  id: string;
+  workspaceId: string | null;
+  sortOrder: number;
+}
 
 export interface ProjectListResult {
   projects: Project[];

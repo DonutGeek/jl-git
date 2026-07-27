@@ -7,11 +7,7 @@ import {
 } from "@/services/agent/agent.resumeIdentity";
 import type { AgentChatMessage } from "@/types/ai";
 
-function message(
-  id: string,
-  role: AgentChatMessage["role"],
-  content: string,
-): AgentChatMessage {
+function message(id: string, role: AgentChatMessage["role"], content: string): AgentChatMessage {
   return {
     id,
     role,
@@ -22,19 +18,13 @@ function message(
 
 describe("parseDeclaredResumeAuthors", () => {
   it("解析用户主动声明的 Git 作者名与提交邮箱", () => {
-    expect(
-      parseDeclaredResumeAuthors(
-        "Git 作者名：DonutGeek；提交邮箱：Me@Example.com",
-      ),
-    ).toEqual([{ name: "DonutGeek", email: "me@example.com" }]);
+    expect(parseDeclaredResumeAuthors("Git 作者名：DonutGeek；提交邮箱：Me@Example.com")).toEqual([
+      { name: "DonutGeek", email: "me@example.com" },
+    ]);
   });
 
   it("支持多个 Name <email> 身份", () => {
-    expect(
-      parseDeclaredResumeAuthors(
-        "Alice <alice@example.com>, Bob <bob@example.com>",
-      ),
-    ).toEqual([
+    expect(parseDeclaredResumeAuthors("Alice <alice@example.com>, Bob <bob@example.com>")).toEqual([
       { name: "Alice", email: "alice@example.com" },
       { name: "Bob", email: "bob@example.com" },
     ]);

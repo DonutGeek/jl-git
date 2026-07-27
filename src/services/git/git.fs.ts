@@ -1,6 +1,6 @@
 import { invokeCommand } from "@/services/invoke";
 
-import {
+import type {
   FsCreateResult,
   FsFileSizeResult,
   FsListResult,
@@ -9,10 +9,7 @@ import {
 } from "@/types/git";
 
 /** 列出仓库内相对目录一层子项 */
-export async function listDir(
-  repoPath: string,
-  relative = "",
-): Promise<FsListResult> {
+export async function listDir(repoPath: string, relative = ""): Promise<FsListResult> {
   return invokeCommand<FsListResult>("fs_list_dir", {
     path: repoPath,
     relative: relative || null,
@@ -20,10 +17,7 @@ export async function listDir(
 }
 
 /** 读取仓库内相对文件大小（工作区优先；已删则回退 HEAD / index） */
-export async function getFileSize(
-  repoPath: string,
-  filePath: string,
-): Promise<FsFileSizeResult> {
+export async function getFileSize(repoPath: string, filePath: string): Promise<FsFileSizeResult> {
   return invokeCommand<FsFileSizeResult>("fs_file_size", {
     path: repoPath,
     filePath,
@@ -31,10 +25,7 @@ export async function getFileSize(
 }
 
 /** 删除仓库内相对文件或目录 */
-export async function removePath(
-  repoPath: string,
-  relative: string,
-): Promise<OkResult> {
+export async function removePath(repoPath: string, relative: string): Promise<OkResult> {
   return invokeCommand<OkResult>("fs_remove", {
     path: repoPath,
     relative,

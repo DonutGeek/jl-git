@@ -24,11 +24,7 @@ interface FileHistoryWorkspaceProps {
 }
 
 /** 文件历史子窗：左提交列表，右该文件相对父提交的差异。 */
-export function FileHistoryWorkspace({
-  project,
-  filePath,
-  initialRef,
-}: FileHistoryWorkspaceProps) {
+export function FileHistoryWorkspace({ project, filePath, initialRef }: FileHistoryWorkspaceProps) {
   const { t } = useTranslation();
   const [commits, setCommits] = useState<GitCommitSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);

@@ -24,14 +24,11 @@ import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
 import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
 
-import { toUserMessage } from "@/types/error";
-import { GitCommitSummary, GitStatusEntry } from "@/types/git";
+import { isAppError, isRecord, toUserMessage } from "@/types/error";
+import type { GitCommitSummary, GitStatusEntry } from "@/types/git";
 import { isStagedChangeEntry } from "@/utils/gitConflict";
 import { hasConfiguredGitIdentity } from "@/utils/gitIdentity";
-import {
-  isPushRejectedError,
-  toastPushError,
-} from "@/utils/gitPushError";
+import { isPushRejectedError, toastPushError } from "@/utils/gitPushError";
 
 /** 提交信息历史展示最近几条标题；选择后填入完整提交文案。 */
 const COMMIT_MESSAGE_HISTORY_LIMIT = 5;
@@ -76,10 +73,7 @@ async function loadFullCommitMessage(
 }
 
 /** 已暂存（含未 demote 的冲突）；提交仍由 conflictCount 拦截 */
-function isStagedEntry(
-  entry: GitStatusEntry,
-  demotedConflictPaths: ReadonlySet<string>,
-): boolean {
+function isStagedEntry(entry: GitStatusEntry, demotedConflictPaths: ReadonlySet<string>): boolean {
   return isStagedChangeEntry(entry, demotedConflictPaths);
 }
 
@@ -103,9 +97,7 @@ export function CommitBox() {
   const commits = useRepoStore((state) => state.commits);
   const repoPath = useRepoStore((state) => state.repoPath);
   const conflictCount = useRepoStore((state) => state.repoState?.conflictCount ?? 0);
-  const sequencerInProgress = useRepoStore((state) =>
-    Boolean(state.repoState?.merging),
-  );
+  const sequencerInProgress = useRepoStore((state) => Boolean(state.repoState?.merging));
   const demotedConflictPaths = useRepoStore((state) => state.demotedConflictPaths);
   const defaultPushAfterCommit = useAppPrefsStore((state) => state.pushAfterCommit);
   const openSettingsDrawer = useSettingsDrawerStore((state) => state.openDrawer);
@@ -128,16 +120,12 @@ export function CommitBox() {
     setPushAfterCommit(defaultPushAfterCommit);
   }, [defaultPushAfterCommit]);
 
-  const demotedSet = useMemo(
-    () => new Set(demotedConflictPaths),
-    [demotedConflictPaths],
-  );
+  const demotedSet = useMemo(() => new Set(demotedConflictPaths), [demotedConflictPaths]);
   const stagedCount =
     status?.entries.filter((entry) => isStagedEntry(entry, demotedSet)).length ?? 0;
   // working：提交/撤销等仓库操作；生成文案用 isGenerating，不禁用「推送到远程」
   const working = loading || busy;
-  const canGenerateCommitMessage =
-    hasApiKey && stagedCount > 0 && !working && !isGenerating;
+  const canGenerateCommitMessage = hasApiKey && stagedCount > 0 && !working && !isGenerating;
   const hasIdentity = hasConfiguredGitIdentity(identity);
   const isDetached = Boolean(status?.detached);
   // 待提交为空不可提交；合并进行中且冲突已清时可提交以结束合并；无 Git 身份不可提交
@@ -211,15 +199,11 @@ export function CommitBox() {
     }
 
     // 右侧放得下则贴输入框右侧；否则放到左侧，避免贴边后预览再被裁切
-    const spaceRight =
-      window.innerWidth - HISTORY_VIEWPORT_PADDING - (rect.right + 8);
+    const spaceRight = window.innerWidth - HISTORY_VIEWPORT_PADDING - (rect.right + 8);
     const preferRight = spaceRight >= HISTORY_POPOVER_WIDTH;
     const left = preferRight
       ? rect.right + 8
-      : Math.max(
-          HISTORY_VIEWPORT_PADDING,
-          rect.left - HISTORY_POPOVER_WIDTH - 8,
-        );
+      : Math.max(HISTORY_VIEWPORT_PADDING, rect.left - HISTORY_POPOVER_WIDTH - 8);
 
     // 可用高度：输入框顶到视口底；不够时上移，避免底部被裁切
     const spaceBelow = window.innerHeight - HISTORY_VIEWPORT_PADDING - rect.top;
@@ -294,8 +278,7 @@ export function CommitBox() {
         await commit();
 
         if (pushAfterCommit) {
-          const needsPublish =
-            Boolean(status?.branch) && !status?.detached && !status?.upstream;
+          const needsPublish = Boolean(status?.branch) && !status?.detached && !status?.upstream;
           try {
             await push(
               needsPublish && status?.branch
@@ -328,7 +311,16 @@ export function CommitBox() {
         }
       });
     } catch (error) {
-      toast.error(toUserMessage(error));
+      const message = toUserMessage(error);
+      const detailLines: string[] = [];
+      if (isAppError(error) && error.details && error.details.trim() !== message) {
+        detailLines.push(...error.details.trim().split("\n").filter(Boolean).slice(0, 6));
+      }
+      if (isRecord(error) && error.restoredLintStagedBackup === true) {
+        detailLines.push(t("repo.lintStagedRestored"));
+      }
+      const details = detailLines.length > 0 ? detailLines.join("\n") : undefined;
+      toast.error(message, details ? { description: details } : undefined);
     } finally {
       setBusy(false);
       setIsCommitting(false);
@@ -370,12 +362,11 @@ export function CommitBox() {
     }
   }
 
-  const identityLabel =
-    hasIdentity
-      ? t("repo.gitIdentity", {
-          name: identity?.name ?? identity?.email ?? "",
-        })
-      : t("repo.gitIdentityDefault");
+  const identityLabel = hasIdentity
+    ? t("repo.gitIdentity", {
+        name: identity?.name ?? identity?.email ?? "",
+      })
+    : t("repo.gitIdentityDefault");
 
   function openGitSettings(): void {
     openSettingsDrawer("git");
@@ -539,9 +530,7 @@ export function CommitBox() {
               <button
                 type="button"
                 className="inline-flex cursor-pointer rounded-md focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none"
-                aria-label={
-                  hasIdentity ? identityLabel : t("repo.errors.noGitIdentity")
-                }
+                aria-label={hasIdentity ? identityLabel : t("repo.errors.noGitIdentity")}
                 onClick={openGitSettings}
               >
                 <GitIdentityAvatar
@@ -574,9 +563,7 @@ export function CommitBox() {
                 </Button>
               </span>
             </TooltipTrigger>
-            {commitDisabledReason ? (
-              <TooltipContent>{commitDisabledReason}</TooltipContent>
-            ) : null}
+            {commitDisabledReason ? <TooltipContent>{commitDisabledReason}</TooltipContent> : null}
           </Tooltip>
         </div>
       </div>

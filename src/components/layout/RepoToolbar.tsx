@@ -39,11 +39,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useConflictOperationGuard } from "@/hooks/useConflictOperationGuard";
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 import { cn } from "@/lib/utils";
@@ -56,12 +52,9 @@ import { useRepoStore } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
 import type { GitBranch } from "@/types/git";
-import { Project } from "@/types/project";
+import type { Project } from "@/types/project";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
-import {
-  isPushRejectedError,
-  toastPushError,
-} from "@/utils/gitPushError";
+import { isPushRejectedError, toastPushError } from "@/utils/gitPushError";
 import { revealInFileManagerLabel as revealInFileManagerLabelForOs } from "@/utils/platformLabels";
 
 /**
@@ -71,9 +64,7 @@ function resolveDefaultCompareTarget(
   branches: readonly GitBranch[],
   currentBranch: string,
 ): string {
-  const local = branches.find(
-    (branch) => !branch.isRemote && branch.name === currentBranch,
-  );
+  const local = branches.find((branch) => !branch.isRemote && branch.name === currentBranch);
   const upstream = local?.upstream?.trim() ?? "";
   if (upstream) {
     return upstream;
@@ -99,9 +90,7 @@ interface RepoToolbarProps {
 export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbarProps) {
   const { t } = useTranslation();
   const { os, isMacOverlay } = useWindowChromeLayout();
-  const dragProps = isMacOverlay
-    ? ({ "data-tauri-drag-region": true } as const)
-    : {};
+  const dragProps = isMacOverlay ? ({ "data-tauri-drag-region": true } as const) : {};
   const revealInFileManagerLabel = revealInFileManagerLabelForOs(os, t);
   const navigate = useNavigate();
 
@@ -123,8 +112,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
   const [pulling, setPulling] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [projectFilter, setProjectFilter] = useState("");
-  const { guard: guardWriteOp, dialog: conflictGuardDialog } =
-    useConflictOperationGuard();
+  const { guard: guardWriteOp, dialog: conflictGuardDialog } = useConflictOperationGuard();
 
   const changeCount = useMemo(() => {
     return status?.entries.length ?? 0;
@@ -132,19 +120,13 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
 
   const ahead = status?.ahead ?? 0;
   const behind = status?.behind ?? 0;
-  const localBranches = useMemo(
-    () => branches.filter((branch) => !branch.isRemote),
-    [branches],
-  );
+  const localBranches = useMemo(() => branches.filter((branch) => !branch.isRemote), [branches]);
   /** 下拉：本地在上；仅纳入 origin/ 开头的远端；组内按名称排序 */
   const menuBranches = useMemo(() => {
-    const byName = (left: GitBranch, right: GitBranch) =>
-      left.name.localeCompare(right.name);
+    const byName = (left: GitBranch, right: GitBranch) => left.name.localeCompare(right.name);
     const local = branches.filter((branch) => !branch.isRemote).sort(byName);
     const originRemote = branches
-      .filter(
-        (branch) => branch.isRemote && branch.name.startsWith("origin/"),
-      )
+      .filter((branch) => branch.isRemote && branch.name.startsWith("origin/"))
       .sort(byName);
     return [...local, ...originRemote];
   }, [branches]);
@@ -179,9 +161,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
       return sortedProjects;
     }
     return sortedProjects.filter(
-      (item) =>
-        item.name.toLowerCase().includes(query) ||
-        item.path.toLowerCase().includes(query),
+      (item) => item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query),
     );
   }, [sortedProjects, projectFilter]);
 
@@ -340,8 +320,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
   }
 
   function handleOpenBranchCompare(): void {
-    const currentBranch =
-      status?.branch ?? branches.find((branch) => branch.isCurrent)?.name;
+    const currentBranch = status?.branch ?? branches.find((branch) => branch.isCurrent)?.name;
     if (!currentBranch) {
       toast.error(t("repo.openBranchCompareNoBranch"));
       return;
@@ -442,14 +421,9 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
                     }}
                   >
                     <div className="flex w-full max-w-full min-w-0 items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate font-medium">
-                        {item.name}
-                      </span>
+                      <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
                       {item.id === project.id ? (
-                        <Check
-                          className="size-3.5 shrink-0"
-                          aria-hidden="true"
-                        />
+                        <Check className="size-3.5 shrink-0" aria-hidden="true" />
                       ) : null}
                     </div>
                     <span
@@ -642,16 +616,11 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
                 </span>
               </TooltipTrigger>
               <TooltipContent>
-                {ahead <= 0
-                  ? t("repo.pushNothing")
-                  : t("repo.unpushedCount", { count: ahead })}
+                {ahead <= 0 ? t("repo.pushNothing") : t("repo.unpushedCount", { count: ahead })}
               </TooltipContent>
             </Tooltip>
             <ContextMenuContent className="min-w-40">
-              <ContextMenuItem
-                disabled={ahead <= 0}
-                onSelect={handleUndoCommit}
-              >
+              <ContextMenuItem disabled={ahead <= 0} onSelect={handleUndoCommit}>
                 <RotateCcw className="size-3.5" aria-hidden="true" />
                 {t("repo.undoCommitMenu")}
               </ContextMenuItem>

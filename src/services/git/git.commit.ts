@@ -1,5 +1,5 @@
 import { invokeCommand } from "@/services/invoke";
-import { GitCommitOptions, GitCommitResult, OkResult } from "@/types/git";
+import type { GitCommitOptions, GitCommitResult, OkResult } from "@/types/git";
 
 export async function stage(repoPath: string, paths: string[]): Promise<void> {
   await invokeCommand<OkResult>("git_stage", { path: repoPath, paths });

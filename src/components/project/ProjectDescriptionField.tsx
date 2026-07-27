@@ -45,8 +45,7 @@ export function ProjectDescriptionField({
   const openSettingsDrawer = useSettingsDrawerStore((state) => state.openDrawer);
 
   const trimmedPath = repoPath.trim();
-  const canGenerate =
-    hasApiKey && trimmedPath.length > 0 && !disabled && !generating;
+  const canGenerate = hasApiKey && trimmedPath.length > 0 && !disabled && !generating;
 
   async function handleGenerate(): Promise<void> {
     if (!hasApiKey) {
@@ -85,9 +84,7 @@ export function ProjectDescriptionField({
 
   return (
     <Field>
-      <FieldLabel htmlFor={fieldId}>
-        {t("openRepo.detailLabel")}
-      </FieldLabel>
+      <FieldLabel htmlFor={fieldId}>{t("openRepo.detailLabel")}</FieldLabel>
       <div className="relative">
         <Textarea
           id={fieldId}

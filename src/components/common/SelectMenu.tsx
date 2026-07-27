@@ -1,17 +1,6 @@
-import {
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 export interface SelectMenuOption {
@@ -40,13 +29,7 @@ interface SelectMenuProps {
 }
 
 /** 宽度不够时切到短文案，够用时显示全文 */
-function AdaptiveTriggerLabel({
-  full,
-  short,
-}: {
-  full: string;
-  short: string;
-}) {
+function AdaptiveTriggerLabel({ full, short }: { full: string; short: string }) {
   const containerRef = useRef<HTMLSpanElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
   const [compact, setCompact] = useState(false);
@@ -73,11 +56,7 @@ function AdaptiveTriggerLabel({
   const text = compact ? short : full;
 
   return (
-    <span
-      ref={containerRef}
-      className="relative min-w-0 flex-1 truncate text-left"
-      title={full}
-    >
+    <span ref={containerRef} className="relative min-w-0 flex-1 truncate text-left" title={full}>
       <span
         ref={measureRef}
         className="invisible absolute top-0 left-0 whitespace-nowrap"
@@ -147,9 +126,7 @@ export function SelectMenu({
             className={compact ? "text-xs" : "text-sm"}
             style={option.style}
           >
-            {option.preview ? (
-              <span className="shrink-0">{option.preview}</span>
-            ) : null}
+            {option.preview ? <span className="shrink-0">{option.preview}</span> : null}
             <span className="min-w-0 flex-1 truncate">{option.label}</span>
           </SelectItem>
         ))}

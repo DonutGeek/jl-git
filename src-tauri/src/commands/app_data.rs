@@ -2,9 +2,7 @@ use serde::Deserialize;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
 
-use crate::db::{
-    self, AppDataExportInput, AppDataImportResult, AppDataPaths, AppDataUsage,
-};
+use crate::db::{self, AppDataExportInput, AppDataImportResult, AppDataPaths, AppDataUsage};
 use crate::error::AppError;
 
 #[derive(Deserialize)]

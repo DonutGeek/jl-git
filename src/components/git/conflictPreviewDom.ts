@@ -283,18 +283,12 @@ export function createConflictMarkerLabelWidgets(
   labels: ConflictMarkerLabels,
   idPrefix: string,
 ): MonacoContentWidget[] {
-  const oursParts = formatConflictMarkerLabelParts(
-    labels.oursKind,
-    labels.oursMeta,
-    { localSuffix: labels.oursLocalSuffix },
-  );
-  const theirsParts = formatConflictMarkerLabelParts(
-    labels.theirsKind,
-    labels.theirsMeta,
-  );
+  const oursParts = formatConflictMarkerLabelParts(labels.oursKind, labels.oursMeta, {
+    localSuffix: labels.oursLocalSuffix,
+  });
+  const theirsParts = formatConflictMarkerLabelParts(labels.theirsKind, labels.theirsMeta);
   // 估算行高，使 widget 与正文垂直对齐
-  const measured =
-    editor.getTopForLineNumber(2) - editor.getTopForLineNumber(1);
+  const measured = editor.getTopForLineNumber(2) - editor.getTopForLineNumber(1);
   const lineHeight = Math.max(14, measured > 0 ? measured : 18);
   const host = editor.getDomNode();
   const fontFamily = host

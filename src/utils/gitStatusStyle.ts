@@ -9,12 +9,7 @@
  */
 
 export type GitStatusColorToken =
-  | "added"
-  | "untracked"
-  | "deleted"
-  | "renamed"
-  | "modified"
-  | "conflict";
+  "added" | "untracked" | "deleted" | "renamed" | "modified" | "conflict";
 
 /** 将 porcelain 状态字规范为展示字母 */
 export function normalizeGitStatusLetter(status: string): string {
@@ -63,10 +58,7 @@ export function resolveGitStatusColorToken(
 }
 
 /** Tailwind 文字色（依赖 theme-map 中的 --color-git-*） */
-export function gitStatusLetterClass(
-  status: string,
-  options?: GitStatusColorOptions,
-): string {
+export function gitStatusLetterClass(status: string, options?: GitStatusColorOptions): string {
   const token = resolveGitStatusColorToken(status, options);
   if (token === "added") return "text-git-added";
   if (token === "untracked") return "text-git-untracked";
@@ -77,10 +69,7 @@ export function gitStatusLetterClass(
 }
 
 /** 图片预览等边框色，与状态字母同色 */
-export function gitStatusBorderClass(
-  status: string,
-  options?: GitStatusColorOptions,
-): string {
+export function gitStatusBorderClass(status: string, options?: GitStatusColorOptions): string {
   const token = resolveGitStatusColorToken(status, options);
   if (token === "added") return "border-git-added";
   if (token === "untracked") return "border-git-untracked";

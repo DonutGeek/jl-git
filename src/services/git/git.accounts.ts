@@ -130,9 +130,7 @@ export async function setGitIdentityAccountEnabled(
     throw new Error(i18n.t("settings.gitAccountNeedOneEnabled"));
   }
 
-  const next = accounts.map((item) =>
-    item.id === id ? { ...item, enabled: false } : item,
-  );
+  const next = accounts.map((item) => (item.id === id ? { ...item, enabled: false } : item));
   await saveAccounts(next);
   return next;
 }
@@ -166,9 +164,7 @@ export async function updateGitIdentityAccount(
 }
 
 /** 删除账号；删启用项时自动启用下一项并同步全局 config。 */
-export async function deleteGitIdentityAccount(
-  id: string,
-): Promise<GitIdentityAccount[]> {
+export async function deleteGitIdentityAccount(id: string): Promise<GitIdentityAccount[]> {
   const accounts = await listGitIdentityAccounts();
   const removing = accounts.find((item) => item.id === id);
   const next = accounts.filter((item) => item.id !== id);
@@ -205,9 +201,7 @@ export async function deleteGitIdentityAccount(
  * 列表为空且尚未播种时：读取全局 git identity，完整则写入一条启用账号。
  * 不写回 git config（只读导入）。本机尚无身份时不打播种标记，下次再试。
  */
-async function seedFromGlobalIdentityIfPossible(
-  store: LazyStore,
-): Promise<GitIdentityAccount[]> {
+async function seedFromGlobalIdentityIfPossible(store: LazyStore): Promise<GitIdentityAccount[]> {
   try {
     const identity = await getGlobalIdentity();
     if (!hasConfiguredGitIdentity(identity)) {

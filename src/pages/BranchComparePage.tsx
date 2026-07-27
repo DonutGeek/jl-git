@@ -70,7 +70,8 @@ export function BranchComparePage() {
   }, [request?.projectId, t]);
 
   if (loading) return <StatusMessage message={t("branchCompare.loading")} />;
-  if (error || !request || !project) return <StatusMessage message={error || t("branchCompare.projectNotFound")} />;
+  if (error || !request || !project)
+    return <StatusMessage message={error || t("branchCompare.projectNotFound")} />;
 
   return (
     <BranchCompareWorkspace
@@ -84,5 +85,9 @@ export function BranchComparePage() {
 }
 
 function StatusMessage({ message }: { message: string }) {
-  return <main className="bg-background text-muted-foreground flex h-screen items-center justify-center text-sm">{message}</main>;
+  return (
+    <main className="bg-background text-muted-foreground flex h-screen items-center justify-center text-sm">
+      {message}
+    </main>
+  );
 }

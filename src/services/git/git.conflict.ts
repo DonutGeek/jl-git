@@ -1,11 +1,6 @@
 import { invokeCommand } from "@/services/invoke";
 
-import type {
-  ConflictSide,
-  GitRepoState,
-  GitWorktreeFileResult,
-  OkResult,
-} from "@/types/git";
+import type { ConflictSide, GitRepoState, GitWorktreeFileResult, OkResult } from "@/types/git";
 
 /** 读取合并/变基进行中状态与冲突路径 */
 export async function getRepoState(repoPath: string): Promise<GitRepoState> {
@@ -56,10 +51,7 @@ export async function writeWorktreeFile(
 }
 
 /** 标记冲突已解决（git add） */
-export async function conflictMarkResolved(
-  repoPath: string,
-  filePath: string,
-): Promise<OkResult> {
+export async function conflictMarkResolved(repoPath: string, filePath: string): Promise<OkResult> {
   return invokeCommand<OkResult>("git_conflict_mark_resolved", {
     path: repoPath,
     filePath,

@@ -1,4 +1,4 @@
-import { ProjectOrderItem } from "@/types/project";
+import type { ProjectOrderItem } from "@/types/project";
 
 export interface ProjectGroupOrder {
   workspaceId: string | null;

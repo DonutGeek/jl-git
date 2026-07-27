@@ -39,9 +39,7 @@ function rgbToHex(rgb: string): string | null {
   const g = Math.round(Number(match[2]));
   const b = Math.round(Number(match[3]));
   const a = match[4] !== undefined ? Math.round(Number(match[4]) * 255) : null;
-  const hex = [r, g, b]
-    .map((n) => n.toString(16).padStart(2, "0"))
-    .join("");
+  const hex = [r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("");
   if (a !== null && a < 255) {
     return `#${hex}${a.toString(16).padStart(2, "0")}`;
   }

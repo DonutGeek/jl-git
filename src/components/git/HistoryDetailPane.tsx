@@ -38,11 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +47,7 @@ import { useRepoStore } from "@/store/useRepoStore";
 import { gitService } from "@/services/git";
 
 import { toUserMessage } from "@/types/error";
-import { GitChangedFile, GitCommitParentDiff, GitCommitSummary } from "@/types/git";
+import type { GitChangedFile, GitCommitParentDiff, GitCommitSummary } from "@/types/git";
 import { copyToClipboard } from "@/utils/clipboard";
 import { getPathBasename } from "@/utils/getPathBasename";
 import { gitStatusLetterClass } from "@/utils/gitStatusStyle";
@@ -411,9 +407,7 @@ function ParentDiffSection({
       return sourceFiles;
     }
     // 筛选后仍保持状态优先顺序
-    return sortChangedFiles(
-      sourceFiles.filter((file) => file.path.toLowerCase().includes(q)),
-    );
+    return sortChangedFiles(sourceFiles.filter((file) => file.path.toLowerCase().includes(q)));
   }, [sourceFiles, filter]);
 
   const treeFolderPaths = useMemo(() => getCommitFileTreeFolderPaths(visible), [visible]);
@@ -425,7 +419,6 @@ function ParentDiffSection({
     }
     setExpandedTreePaths(new Set(getCommitFileTreeFolderPaths(sourceFiles)));
     // 仅跟视图模式与数据源切换，避免筛选变化时打乱用户折叠
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sourceFiles 随 showAllFiles/allFiles/commit 变
   }, [view, showAllFiles, commitId, allFiles]);
 
   // 顶栏「全部展开 / 全部折叠」（只响应信号，不跟 filter 重跑）
@@ -438,7 +431,6 @@ function ParentDiffSection({
     } else {
       setExpandedTreePaths(new Set());
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅 nonce 触发
   }, [treeExpandSignal]);
 
   useEffect(() => {
@@ -511,9 +503,7 @@ function ParentDiffSection({
           )}
         >
           <FileDiff className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="shrink-0 tabular-nums">
-            {formatFileStatsParts(t, sectionSummary)}
-          </span>
+          <span className="shrink-0 tabular-nums">{formatFileStatsParts(t, sectionSummary)}</span>
         </div>
       ) : null}
 
@@ -730,7 +720,10 @@ export function HistoryDetailPane() {
   if (!selectedCommitId) {
     return (
       <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 px-6 text-center">
-        <GitCommitHorizontal className="text-muted-foreground size-10 opacity-50" aria-hidden="true" />
+        <GitCommitHorizontal
+          className="text-muted-foreground size-10 opacity-50"
+          aria-hidden="true"
+        />
         <div className="space-y-1">
           <p className="text-sm font-medium">{t("repo.commitDetailTitle")}</p>
           <p className="text-muted-foreground max-w-sm text-xs">{t("repo.commitDetailHint")}</p>
@@ -769,7 +762,8 @@ export function HistoryDetailPane() {
 
   // 顶栏统计对齐 git show / 参考客户端：只用第一父提交（勿把各 parent 文件相加）
   const firstSummary = summarizeFiles(detail.diffs[0]?.files ?? []);
-  const displayShortId = detail.id.slice(0, COMMIT_DETAIL_HASH_LEN) || detail.shortId.slice(0, COMMIT_DETAIL_HASH_LEN);
+  const displayShortId =
+    detail.id.slice(0, COMMIT_DETAIL_HASH_LEN) || detail.shortId.slice(0, COMMIT_DETAIL_HASH_LEN);
   const fullCommitId = detail.id;
   const commitMessage = [detail.subject, detail.body].filter(Boolean).join("\n\n");
 
@@ -845,9 +839,7 @@ export function HistoryDetailPane() {
                 {displayShortId}
               </button>
             </TooltipTrigger>
-            <TooltipContent>
-              {hashCopied ? t("repo.copySuccess") : t("repo.copy")}
-            </TooltipContent>
+            <TooltipContent>{hashCopied ? t("repo.copySuccess") : t("repo.copy")}</TooltipContent>
           </Tooltip>
         </p>
       </header>
@@ -891,17 +883,13 @@ export function HistoryDetailPane() {
         </div>
 
         <div className="space-y-1">
-          <p className="text-muted-foreground text-[11px] leading-none">
-            {t("repo.commitAuthor")}
-          </p>
+          <p className="text-muted-foreground text-[11px] leading-none">{t("repo.commitAuthor")}</p>
           <div className="flex items-start gap-2">
             <div className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md">
               <User className="size-3.5" aria-hidden="true" />
             </div>
             <div className="min-w-0 flex-1 space-y-0.5 pt-0.5">
-              <p className="truncate text-xs leading-tight font-medium">
-                {detail.authorName}
-              </p>
+              <p className="truncate text-xs leading-tight font-medium">{detail.authorName}</p>
               <p className="text-muted-foreground text-[11px] leading-tight tabular-nums">
                 {dayjs(detail.authoredAt).format("YYYY-MM-DD HH:mm:ss")}
               </p>
@@ -1058,7 +1046,9 @@ export function HistoryDetailPane() {
           </DialogHeader>
           <ScrollArea className="border-border max-h-[min(60vh,30rem)] rounded-md border">
             <div className="space-y-3 px-3 py-2.5">
-              <p className="wrap-break-word text-sm leading-relaxed font-semibold">{detail.subject}</p>
+              <p className="wrap-break-word text-sm leading-relaxed font-semibold">
+                {detail.subject}
+              </p>
               {detail.body ? (
                 <p className="text-muted-foreground whitespace-pre-wrap wrap-break-word text-xs leading-relaxed">
                   {detail.body}

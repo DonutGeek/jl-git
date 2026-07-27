@@ -8,10 +8,7 @@ interface AgentChatState {
   conversationsByProjectId: Readonly<Record<string, readonly AgentConversation[]>>;
   activeConversationIdByProjectId: Readonly<Record<string, string>>;
   /** 从 SQLite 灌入某项目的会话列表（覆盖内存） */
-  hydrateProject: (
-    projectId: string,
-    conversations: readonly AgentConversation[],
-  ) => void;
+  hydrateProject: (projectId: string, conversations: readonly AgentConversation[]) => void;
   /** 删除 Git 项目后清理内存中的鲸灵会话 */
   clearProject: (projectId: string) => void;
   /** 清空全部项目的鲸灵会话（设置清理） */
@@ -21,22 +18,10 @@ interface AgentChatState {
   ensureDefaultConversation: (projectId: string) => void;
   setActiveConversation: (projectId: string, conversationId: string) => void;
   deleteConversation: (projectId: string, conversationId: string) => void;
-  renameConversation: (
-    projectId: string,
-    conversationId: string,
-    title: string,
-  ) => void;
+  renameConversation: (projectId: string, conversationId: string, title: string) => void;
   /** 置顶 / 取消置顶；置顶时移到列表最前 */
-  setConversationPinned: (
-    projectId: string,
-    conversationId: string,
-    pinned: boolean,
-  ) => void;
-  reorderConversations: (
-    projectId: string,
-    activeId: string,
-    overId: string,
-  ) => void;
+  setConversationPinned: (projectId: string, conversationId: string, pinned: boolean) => void;
+  reorderConversations: (projectId: string, activeId: string, overId: string) => void;
   appendMessage: (projectId: string, conversationId: string, message: AgentChatMessage) => void;
   updateMessage: (
     projectId: string,
@@ -45,21 +30,13 @@ interface AgentChatState {
     update: Partial<
       Pick<
         AgentChatMessage,
-        | "content"
-        | "isStreaming"
-        | "createdAt"
-        | "reasoningContent"
-        | "reasoningDurationMs"
+        "content" | "isStreaming" | "createdAt" | "reasoningContent" | "reasoningDurationMs"
       >
     >,
   ) => void;
   removeMessage: (projectId: string, conversationId: string, messageId: string) => void;
   /** 保留 messageId 及之前的消息，删除其后全部 */
-  truncateMessagesAfter: (
-    projectId: string,
-    conversationId: string,
-    messageId: string,
-  ) => void;
+  truncateMessagesAfter: (projectId: string, conversationId: string, messageId: string) => void;
   /**
    * 编辑用户消息并截断其后：单次 set，避免只改文案却未删旧回复。
    * @returns 截断后的消息列表；未找到消息时返回 null
@@ -81,8 +58,7 @@ export const useAgentChatStore = create<AgentChatState>((set) => ({
     set((state) => {
       const previousActive = state.activeConversationIdByProjectId[projectId];
       const nextActive =
-        previousActive &&
-        conversations.some((conversation) => conversation.id === previousActive)
+        previousActive && conversations.some((conversation) => conversation.id === previousActive)
           ? previousActive
           : conversations[0]?.id;
       const nextActiveByProject = { ...state.activeConversationIdByProjectId };
@@ -204,7 +180,9 @@ export const useAgentChatStore = create<AgentChatState>((set) => ({
       if (index < 0 || conversations.length <= 1) {
         return state;
       }
-      const nextConversations = conversations.filter((conversation) => conversation.id !== conversationId);
+      const nextConversations = conversations.filter(
+        (conversation) => conversation.id !== conversationId,
+      );
       const activeConversationId = state.activeConversationIdByProjectId[projectId];
       const nextActiveConversationId =
         activeConversationId === conversationId
@@ -249,9 +227,7 @@ export const useAgentChatStore = create<AgentChatState>((set) => ({
   setConversationPinned(projectId, conversationId, pinned) {
     set((state) => {
       const conversations = state.conversationsByProjectId[projectId] ?? EMPTY_CONVERSATIONS;
-      const index = conversations.findIndex(
-        (conversation) => conversation.id === conversationId,
-      );
+      const index = conversations.findIndex((conversation) => conversation.id === conversationId);
       if (index < 0) {
         return state;
       }
@@ -321,7 +297,7 @@ export const useAgentChatStore = create<AgentChatState>((set) => ({
       const nextTitle =
         current.title || message.role !== "user"
           ? current.title
-          : message.content.split(/\r?\n/, 1)[0]?.trim().slice(0, 24) ?? "";
+          : (message.content.split(/\r?\n/, 1)[0]?.trim().slice(0, 24) ?? "");
       return {
         conversationsByProjectId: {
           ...state.conversationsByProjectId,
@@ -385,9 +361,7 @@ export const useAgentChatStore = create<AgentChatState>((set) => ({
             if (conversation.id !== conversationId) {
               return conversation;
             }
-            const index = conversation.messages.findIndex(
-              (message) => message.id === messageId,
-            );
+            const index = conversation.messages.findIndex((message) => message.id === messageId);
             if (index < 0) {
               return conversation;
             }
@@ -406,9 +380,7 @@ export const useAgentChatStore = create<AgentChatState>((set) => ({
     const createdAt = new Date().toISOString();
     set((state) => {
       const conversations = state.conversationsByProjectId[projectId] ?? EMPTY_CONVERSATIONS;
-      const target = conversations.find(
-        (conversation) => conversation.id === conversationId,
-      );
+      const target = conversations.find((conversation) => conversation.id === conversationId);
       if (!target) {
         return state;
       }
@@ -416,11 +388,11 @@ export const useAgentChatStore = create<AgentChatState>((set) => ({
       if (index < 0 || target.messages[index]?.role !== "user") {
         return state;
       }
-      nextMessages = target.messages.slice(0, index + 1).map((message, messageIndex) =>
-        messageIndex === index
-          ? { ...message, content, createdAt }
-          : message,
-      );
+      nextMessages = target.messages
+        .slice(0, index + 1)
+        .map((message, messageIndex) =>
+          messageIndex === index ? { ...message, content, createdAt } : message,
+        );
       return {
         conversationsByProjectId: {
           ...state.conversationsByProjectId,

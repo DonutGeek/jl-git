@@ -3,17 +3,9 @@ import { useTranslation } from "react-i18next";
 import { getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
 import { AppWindow, HardDrive, Layers } from "lucide-react";
 
-import {
-  clamp01,
-  MeterBar,
-  RingGauge,
-  Sparkline,
-} from "@/components/settings/SettingsPerfCharts";
+import { clamp01, MeterBar, RingGauge, Sparkline } from "@/components/settings/SettingsPerfCharts";
 import { getAppDataUsage } from "@/services/data/data.service";
-import {
-  getRuntimeStats,
-  type SystemRuntimeStats,
-} from "@/services/system/system.info";
+import { getRuntimeStats, type SystemRuntimeStats } from "@/services/system/system.info";
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 
 const RUNTIME_POLL_MS = 1000;
@@ -99,9 +91,7 @@ export function SettingsPerformancePanel() {
         const stats = statsResult.value;
         setRuntime(stats);
         setCpuHistory((prev) => pushHistory(prev, stats.cpuPercent));
-        setRssHistory((prev) =>
-          pushHistory(prev, stats.rssBytes / (1024 * 1024)),
-        );
+        setRssHistory((prev) => pushHistory(prev, stats.rssBytes / (1024 * 1024)));
       } else {
         console.warn("[SettingsPerformance] runtime stats failed", statsResult.error);
         setRuntime(null);
@@ -153,14 +143,11 @@ export function SettingsPerformancePanel() {
   const cpuLabel = runtime == null ? dash : `${runtime.cpuPercent.toFixed(1)}%`;
   const memoryLabel = runtime ? formatBytes(runtime.rssBytes) : dash;
   const uptimeLabel = runtime ? formatUptime(runtime.uptimeMs) : dash;
-  const threadLabel =
-    runtime?.threadCount != null ? String(runtime.threadCount) : null;
+  const threadLabel = runtime?.threadCount != null ? String(runtime.threadCount) : null;
   const dataLabel = dataBytes != null ? formatBytes(dataBytes) : dash;
 
   const cpuProgress = clamp01((runtime?.cpuPercent ?? 0) / 100);
-  const memoryProgress = clamp01(
-    (runtime?.rssBytes ?? 0) / MEMORY_GAUGE_CAP_BYTES,
-  );
+  const memoryProgress = clamp01((runtime?.rssBytes ?? 0) / MEMORY_GAUGE_CAP_BYTES);
   const dataProgress = clamp01((dataBytes ?? 0) / DATA_DIR_GAUGE_CAP_BYTES);
 
   return (
@@ -211,9 +198,7 @@ export function SettingsPerformancePanel() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="border-border flex flex-col items-center justify-center gap-1 rounded-lg border px-4 py-5">
-          <span className="text-muted-foreground text-xs">
-            {t("settings.perfUptime")}
-          </span>
+          <span className="text-muted-foreground text-xs">{t("settings.perfUptime")}</span>
           <span className="text-foreground font-mono text-2xl font-medium tracking-tight tabular-nums">
             {uptimeLabel}
           </span>
@@ -227,12 +212,8 @@ export function SettingsPerformancePanel() {
         <div className="border-border space-y-3 rounded-lg border px-4 py-4">
           {threadLabel != null ? (
             <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground text-xs">
-                {t("settings.perfThreads")}
-              </span>
-              <span className="text-foreground font-mono text-sm tabular-nums">
-                {threadLabel}
-              </span>
+              <span className="text-muted-foreground text-xs">{t("settings.perfThreads")}</span>
+              <span className="text-foreground font-mono text-sm tabular-nums">{threadLabel}</span>
             </div>
           ) : null}
           <MeterBar

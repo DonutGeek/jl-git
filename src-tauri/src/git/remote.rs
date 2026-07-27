@@ -329,11 +329,7 @@ fn parse_remote_verbose(stdout: &str) -> Vec<GitRemote> {
         }
     }
 
-    let mut names: Vec<String> = fetch_urls
-        .keys()
-        .chain(push_urls.keys())
-        .cloned()
-        .collect();
+    let mut names: Vec<String> = fetch_urls.keys().chain(push_urls.keys()).cloned().collect();
     names.sort();
     names.dedup();
 
@@ -378,9 +374,6 @@ upstream\thttps://github.com/upstream/app.git (push)
         assert_eq!(remotes[0].name, "origin");
         assert_eq!(remotes[0].fetch_url, "git@github.com:acme/app.git");
         assert_eq!(remotes[1].name, "upstream");
-        assert_eq!(
-            remotes[1].push_url,
-            "https://github.com/upstream/app.git"
-        );
+        assert_eq!(remotes[1].push_url, "https://github.com/upstream/app.git");
     }
 }

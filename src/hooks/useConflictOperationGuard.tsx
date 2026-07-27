@@ -2,10 +2,7 @@ import { useCallback, useState, type ReactNode } from "react";
 
 import { ConflictBlockedDialog } from "@/components/git/ConflictBlockedDialog";
 import { useRepoStore } from "@/store/useRepoStore";
-import {
-  hasUnresolvedConflicts,
-  isWriteOpBlocked,
-} from "@/utils/repoOperationGuard";
+import { hasUnresolvedConflicts, isWriteOpBlocked } from "@/utils/repoOperationGuard";
 
 type BlockReason = "conflict" | "inProgress";
 
@@ -33,13 +30,7 @@ export function useConflictOperationGuard(): {
     return false;
   }, [repoState]);
 
-  const dialog = (
-    <ConflictBlockedDialog
-      open={open}
-      onOpenChange={setOpen}
-      reason={reason}
-    />
-  );
+  const dialog = <ConflictBlockedDialog open={open} onOpenChange={setOpen} reason={reason} />;
 
   return { guard, blocked, dialog };
 }

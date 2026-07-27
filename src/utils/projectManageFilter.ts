@@ -14,9 +14,7 @@ export const MANAGE_SYNC_DIVERGED = "diverged";
 
 export type ManageSortBy = "lastOpened" | "name" | "path" | "createdAt";
 export type ManageDirtyFilter =
-  | typeof MANAGE_DIRTY_ALL
-  | typeof MANAGE_DIRTY_DIRTY
-  | typeof MANAGE_DIRTY_CLEAN;
+  typeof MANAGE_DIRTY_ALL | typeof MANAGE_DIRTY_DIRTY | typeof MANAGE_DIRTY_CLEAN;
 export type ManageSyncFilter =
   | typeof MANAGE_SYNC_ALL
   | typeof MANAGE_SYNC_AHEAD
@@ -55,10 +53,7 @@ function includesIgnoreCase(haystack: string, needle: string): boolean {
   return haystack.toLowerCase().includes(needle);
 }
 
-function matchesDirty(
-  probe: ManageGitProbeLite | undefined,
-  dirty: ManageDirtyFilter,
-): boolean {
+function matchesDirty(probe: ManageGitProbeLite | undefined, dirty: ManageDirtyFilter): boolean {
   if (dirty === MANAGE_DIRTY_ALL) {
     return true;
   }
@@ -71,10 +66,7 @@ function matchesDirty(
   return probe.dirtyCount === 0;
 }
 
-function matchesSync(
-  probe: ManageGitProbeLite | undefined,
-  sync: ManageSyncFilter,
-): boolean {
+function matchesSync(probe: ManageGitProbeLite | undefined, sync: ManageSyncFilter): boolean {
   if (sync === MANAGE_SYNC_ALL) {
     return true;
   }
@@ -119,11 +111,7 @@ function matchesGroup(project: Project, group: string): boolean {
   if (group === MANAGE_UNGROUPED && project.workspaceId != null) {
     return false;
   }
-  if (
-    group !== MANAGE_ALL_GROUPS &&
-    group !== MANAGE_UNGROUPED &&
-    project.workspaceId !== group
-  ) {
+  if (group !== MANAGE_ALL_GROUPS && group !== MANAGE_UNGROUPED && project.workspaceId !== group) {
     return false;
   }
   return true;
@@ -168,10 +156,7 @@ export function filterAndSortProjects(
 }
 
 /** 生成分页页码序列（含省略号占位） */
-export function buildManagePageItems(
-  current: number,
-  total: number,
-): Array<number | "ellipsis"> {
+export function buildManagePageItems(current: number, total: number): Array<number | "ellipsis"> {
   if (total <= 7) {
     return Array.from({ length: total }, (_, index) => index + 1);
   }

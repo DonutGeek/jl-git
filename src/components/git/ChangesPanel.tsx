@@ -1,4 +1,5 @@
-import { ReactNode, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import {
@@ -43,11 +44,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { cn } from "@/lib/utils";
 
@@ -56,7 +53,7 @@ import { useRepoStore } from "@/store/useRepoStore";
 import { gitService } from "@/services/git";
 
 import { toUserMessage } from "@/types/error";
-import { GitStatusEntry } from "@/types/git";
+import type { GitStatusEntry } from "@/types/git";
 import { filterChangeEntries } from "@/utils/filterChangeEntries";
 import { formatFileSize } from "@/utils/formatFileSize";
 import { getPathBasename } from "@/utils/getPathBasename";
@@ -65,10 +62,7 @@ import {
   isStagedChangeEntry,
   isUnstagedChangeEntry,
 } from "@/utils/gitConflict";
-import {
-  gitStatusLetterClass,
-  normalizeGitStatusLetter,
-} from "@/utils/gitStatusStyle";
+import { gitStatusLetterClass, normalizeGitStatusLetter } from "@/utils/gitStatusStyle";
 
 /** 稳定空数组：避免 selector 每次返回新 [] 触发 useSyncExternalStore 无限重渲染 */
 const EMPTY_ENTRIES: GitStatusEntry[] = [];
@@ -79,12 +73,7 @@ const CHANGE_VIRTUAL_OVERSCAN = 10;
 type ChangeSortMode = "default" | "status" | "name";
 
 /** 按增/改/删/重命名分类（与常见 Git 客户端一致） */
-type ChangeStatusCategory =
-  | "conflict"
-  | "added"
-  | "modified"
-  | "deleted"
-  | "renamed";
+type ChangeStatusCategory = "conflict" | "added" | "modified" | "deleted" | "renamed";
 
 /** 状态分类折叠集合的稳定空值 */
 const EMPTY_STATUS_COLLAPSED: ReadonlySet<ChangeStatusCategory> = new Set();
@@ -252,10 +241,7 @@ function flattenChangeDateGroupRows(
 }
 
 /** 已暂存：含默认待提交的冲突；demoted 冲突不算 */
-function isStagedEntry(
-  entry: GitStatusEntry,
-  demotedConflictPaths: ReadonlySet<string>,
-): boolean {
+function isStagedEntry(entry: GitStatusEntry, demotedConflictPaths: ReadonlySet<string>): boolean {
   return isStagedChangeEntry(entry, demotedConflictPaths);
 }
 
@@ -348,14 +334,9 @@ function ChangeRow({
   const showSize = (hovered || selected) && sizeLabel != null;
   const additions = side === "index" ? entry.indexAdditions : entry.worktreeAdditions;
   const deletions = side === "index" ? entry.indexDeletions : entry.worktreeDeletions;
-  const fullPath = entry.renamedFrom
-    ? `${entry.renamedFrom} → ${entry.path}`
-    : entry.path;
+  const fullPath = entry.renamedFrom ? `${entry.renamedFrom} → ${entry.path}` : entry.path;
   // 树形视图已展示父目录，叶子节点仅保留文件名，避免重复路径撑破列表。
-  const displayPath =
-    indentDepth == null
-      ? fullPath
-      : (entry.path.split("/").pop() ?? entry.path);
+  const displayPath = indentDepth == null ? fullPath : (entry.path.split("/").pop() ?? entry.path);
 
   const row = (
     <div
@@ -366,11 +347,7 @@ function ChangeRow({
         "group flex h-7 w-full min-w-0 cursor-pointer items-center gap-1 rounded-md px-2 transition-colors",
         selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
       )}
-      style={
-        indentDepth == null
-          ? undefined
-          : { paddingLeft: `${8 + indentDepth * 14}px` }
-      }
+      style={indentDepth == null ? undefined : { paddingLeft: `${8 + indentDepth * 14}px` }}
       onClick={() => onSelect(entry.path, side)}
       onDoubleClick={() => {
         if (!disabled && !conflictLocked) {
@@ -398,31 +375,19 @@ function ChangeRow({
       <span
         className={cn(
           "w-3.5 shrink-0 text-center font-mono text-[11px] leading-none font-semibold",
-          gitStatusLetterClass(
-            side === "index" ? entry.indexStatus : entry.worktreeStatus,
-            { conflict: isConflictEntry(entry) },
-          ),
+          gitStatusLetterClass(side === "index" ? entry.indexStatus : entry.worktreeStatus, {
+            conflict: isConflictEntry(entry),
+          }),
         )}
         aria-hidden="true"
       >
         {label}
       </span>
       {isConflictEntry(entry) ? (
-        <TriangleAlert
-          className="text-destructive size-3.5 shrink-0"
-          aria-hidden="true"
-        />
+        <TriangleAlert className="text-destructive size-3.5 shrink-0" aria-hidden="true" />
       ) : null}
-      <MaterialFileIcon
-        name={entry.path}
-        isDir={false}
-        className="size-3.5 shrink-0"
-      />
-      <TruncateStartPath
-        className="min-w-0 flex-1"
-        path={displayPath}
-        title={fullPath}
-      />
+      <MaterialFileIcon name={entry.path} isDir={false} className="size-3.5 shrink-0" />
+      <TruncateStartPath className="min-w-0 flex-1" path={displayPath} title={fullPath} />
 
       <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-0.5">
         {showLineStats ? (
@@ -451,9 +416,7 @@ function ChangeRow({
                     )
                   : [
                       "disabled:opacity-0 group-hover:disabled:opacity-50",
-                      selected
-                        ? "opacity-100"
-                        : "opacity-0 group-hover:opacity-100",
+                      selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
                     ],
               )}
               onClick={(event) => {
@@ -463,9 +426,7 @@ function ChangeRow({
                 }
               }}
               disabled={disabled || conflictLocked}
-              aria-label={
-                conflictLocked ? t("repo.conflictStageLocked") : toggleLabel
-              }
+              aria-label={conflictLocked ? t("repo.conflictStageLocked") : toggleLabel}
             >
               {side === "worktree" ? (
                 <ArrowDown aria-hidden="true" />
@@ -595,8 +556,7 @@ function ChangeGroup({
 }: ChangeGroupProps) {
   const isEmpty = entries.length === 0;
   const { viewport, bindScrollArea } = useScrollAreaViewport();
-  const collapsed =
-    collapsedStatusCategories ?? EMPTY_STATUS_COLLAPSED;
+  const collapsed = collapsedStatusCategories ?? EMPTY_STATUS_COLLAPSED;
   const collapsedDates = collapsedDateKeys ?? EMPTY_DATE_COLLAPSED;
 
   const visibleRows = useMemo((): ChangeVisibleRow[] => {
@@ -637,7 +597,7 @@ function ChangeGroup({
     getScrollElement: () => viewport,
     estimateSize: () => CHANGE_ROW_HEIGHT_PX,
     overscan: CHANGE_VIRTUAL_OVERSCAN,
-    getItemKey: (index) => changeRowKey(visibleRows[index]!, index),
+    getItemKey: (index) => changeRowKey(visibleRows[index], index),
   });
 
   /** 纯空态：无 Default 头可挂时才整区 EmptyState */
@@ -645,12 +605,7 @@ function ChangeGroup({
     view === "list" && isEmpty && !(showDefaultGroup && !groupByStatus && !groupByDate);
   /** Default 下为空：头下方再展示空提示 */
   const showEmptyUnderDefault =
-    view === "list" &&
-    isEmpty &&
-    showDefaultGroup &&
-    !groupByStatus &&
-    !groupByDate &&
-    groupOpen;
+    view === "list" && isEmpty && showDefaultGroup && !groupByStatus && !groupByDate && groupOpen;
 
   function renderRow(row: ChangeVisibleRow): ReactNode {
     if (row.kind === "default-header") {
@@ -702,8 +657,7 @@ function ChangeGroup({
               <ChevronRight className="size-3 shrink-0" aria-hidden="true" />
             )}
             <span className="truncate">
-              {statusCategoryLabel?.(row.category, row.count) ??
-                `${row.category} (${row.count})`}
+              {statusCategoryLabel?.(row.category, row.count) ?? `${row.category} (${row.count})`}
             </span>
           </button>
         </div>
@@ -724,8 +678,7 @@ function ChangeGroup({
               <ChevronRight className="size-3 shrink-0" aria-hidden="true" />
             )}
             <span className="truncate">
-              {dateGroupLabel?.(row.dateKey, row.count) ??
-                `${row.dateKey} (${row.count})`}
+              {dateGroupLabel?.(row.dateKey, row.count) ?? `${row.dateKey} (${row.count})`}
             </span>
           </button>
         </div>
@@ -752,10 +705,7 @@ function ChangeGroup({
         onToggle={onToggleEntry}
         disabled={disabled}
         toggleLabel={toggleLabelFor(row.entry.path)}
-        indented={
-          view === "list" &&
-          (showDefaultGroup || groupByStatus || groupByDate)
-        }
+        indented={view === "list" && (showDefaultGroup || groupByStatus || groupByDate)}
         indentDepth={view === "tree" && "depth" in row ? row.depth : undefined}
         showLineStats={showLineStats}
       />
@@ -866,12 +816,8 @@ export function ChangesPanel() {
   const repoPath = useRepoStore((state) => state.repoPath);
   const loading = useRepoStore((state) => state.loading);
   const selectedChange = useRepoStore((state) => state.selectedChange);
-  const conflictCount = useRepoStore(
-    (state) => state.repoState?.conflictCount ?? 0,
-  );
-  const demotedConflictPaths = useRepoStore(
-    (state) => state.demotedConflictPaths,
-  );
+  const conflictCount = useRepoStore((state) => state.repoState?.conflictCount ?? 0);
+  const demotedConflictPaths = useRepoStore((state) => state.demotedConflictPaths);
   const selectChange = useRepoStore((state) => state.selectChange);
   const stage = useRepoStore((state) => state.stage);
   const unstage = useRepoStore((state) => state.unstage);
@@ -886,9 +832,7 @@ export function ChangesPanel() {
   const [collapsedStatusCategories, setCollapsedStatusCategories] = useState(
     () => new Set<ChangeStatusCategory>(),
   );
-  const [collapsedDateKeys, setCollapsedDateKeys] = useState(
-    () => new Set<string>(),
-  );
+  const [collapsedDateKeys, setCollapsedDateKeys] = useState(() => new Set<string>());
   const [unstagedGroupOpen, setUnstagedGroupOpen] = useState(true);
   const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(() => new Set());
   const [searchOpen, setSearchOpen] = useState(false);
@@ -896,10 +840,7 @@ export function ChangesPanel() {
   const [mutating, setMutating] = useState(false);
 
   const activeSearchQuery = searchOpen ? searchQuery : "";
-  const demotedSet = useMemo(
-    () => new Set(demotedConflictPaths),
-    [demotedConflictPaths],
-  );
+  const demotedSet = useMemo(() => new Set(demotedConflictPaths), [demotedConflictPaths]);
   const unstagedEntries = useMemo(
     () =>
       sortChangeEntries(
@@ -933,10 +874,8 @@ export function ChangesPanel() {
     [stagedEntries, unstagedEntries],
   );
 
-  const unstagedSelectedPath =
-    selectedChange?.side === "worktree" ? selectedChange.path : null;
-  const stagedSelectedPath =
-    selectedChange?.side === "index" ? selectedChange.path : null;
+  const unstagedSelectedPath = selectedChange?.side === "worktree" ? selectedChange.path : null;
+  const stagedSelectedPath = selectedChange?.side === "index" ? selectedChange.path : null;
 
   async function runMutation(action: () => Promise<void>): Promise<void> {
     if (mutating) {
@@ -1018,10 +957,7 @@ export function ChangesPanel() {
     });
   }
 
-  function statusCategoryLabel(
-    category: ChangeStatusCategory,
-    count: number,
-  ): string {
+  function statusCategoryLabel(category: ChangeStatusCategory, count: number): string {
     const labels: Record<ChangeStatusCategory, string> = {
       conflict: t("repo.changesGroupConflict"),
       added: t("repo.changesGroupAdded"),
@@ -1034,9 +970,7 @@ export function ChangesPanel() {
 
   function dateGroupLabel(dateKey: string, count: number): string {
     const label =
-      dateKey === UNKNOWN_MODIFIED_DATE_KEY
-        ? t("repo.changesGroupUnknownDate")
-        : dateKey;
+      dateKey === UNKNOWN_MODIFIED_DATE_KEY ? t("repo.changesGroupUnknownDate") : dateKey;
     return `${label} (${count})`;
   }
 
@@ -1100,11 +1034,13 @@ export function ChangesPanel() {
               <TooltipContent>{t("repo.changesSort")}</TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="start" className="w-36">
-              {([
-                ["default", t("repo.changesSortDefault")],
-                ["status", t("repo.changesSortStatus")],
-                ["name", t("repo.changesSortName")],
-              ] as const).map(([mode, label]) => (
+              {(
+                [
+                  ["default", t("repo.changesSortDefault")],
+                  ["status", t("repo.changesSortStatus")],
+                  ["name", t("repo.changesSortName")],
+                ] as const
+              ).map(([mode, label]) => (
                 <DropdownMenuItem key={mode} onSelect={() => setSortMode(mode)}>
                   <span className="flex-1">{label}</span>
                   {sortMode === mode ? <Check className="size-3.5" aria-hidden="true" /> : null}
@@ -1299,10 +1235,7 @@ export function ChangesPanel() {
               selectedPath={unstagedSelectedPath}
               onSelectEntry={(path, side) => {
                 // 再次点击当前项则取消选中
-                if (
-                  selectedChange?.path === path &&
-                  selectedChange.side === side
-                ) {
+                if (selectedChange?.path === path && selectedChange.side === side) {
                   selectChange(null);
                   return;
                 }
@@ -1340,8 +1273,7 @@ export function ChangesPanel() {
               onAction={() => void handleUnstageAll()}
               actionDisabled={
                 busy ||
-                (stagedEntries.length > 0 &&
-                  stagedEntries.every((entry) => isConflictEntry(entry)))
+                (stagedEntries.length > 0 && stagedEntries.every((entry) => isConflictEntry(entry)))
               }
               groupByStatus={listGroupByStatus}
               collapsedStatusCategories={collapsedStatusCategories}
@@ -1356,10 +1288,7 @@ export function ChangesPanel() {
               side="index"
               selectedPath={stagedSelectedPath}
               onSelectEntry={(path, side) => {
-                if (
-                  selectedChange?.path === path &&
-                  selectedChange.side === side
-                ) {
+                if (selectedChange?.path === path && selectedChange.side === side) {
                   selectChange(null);
                   return;
                 }

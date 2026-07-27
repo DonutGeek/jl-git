@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -15,12 +8,7 @@ import { AgentConversationTabs } from "@/components/ai/AgentConversationTabs";
 import { AgentMessageList } from "@/components/ai/AgentMessageList";
 import { AgentCatalogPanel } from "@/components/ai/AgentCatalogPanel";
 import type { CompareBranchesAction } from "@/components/ai/AgentRichMessage";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAgentModel } from "@/hooks/useAgentModel";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import {
@@ -77,9 +65,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     if (!project) {
       return undefined;
     }
-    const groupNameById = new Map(
-      workspaces.map((workspace) => [workspace.id, workspace.name]),
-    );
+    const groupNameById = new Map(workspaces.map((workspace) => [workspace.id, workspace.name]));
     return buildJlgitMeta(project, groupNameById);
   }, [project, workspaces]);
   const composerRef = useRef<HTMLFormElement>(null);
@@ -93,22 +79,13 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   const conversationSequence = useRef(0);
   const [draftMarkup, setDraftMarkup] = useState("");
   const [draftPlainText, setDraftPlainText] = useState("");
-  const [draftMentions, setDraftMentions] = useState<readonly AgentMention[]>(
-    [],
-  );
+  const [draftMentions, setDraftMentions] = useState<readonly AgentMention[]>([]);
   const [pluginsOpen, setPluginsOpen] = useState(false);
-  const [replyingConversationId, setReplyingConversationId] = useState<
-    string | null
-  >(null);
+  const [replyingConversationId, setReplyingConversationId] = useState<string | null>(null);
   const [thinkingEnabled, setThinkingEnabled] = useState(true);
   const [composerPadPx, setComposerPadPx] = useState(COMPOSER_PAD_FALLBACK_PX);
   const [disabledPluginIds, setDisabledPluginIds] = useState<string[]>([]);
-  const {
-    models,
-    modelId,
-    setModelId,
-    loading: modelsLoading,
-  } = useAgentModel();
+  const { models, modelId, setModelId, loading: modelsLoading } = useAgentModel();
   const modelOptions = useMemo(
     () =>
       models.map((model) => ({
@@ -160,9 +137,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   );
   const hydrateProject = useAgentChatStore((state) => state.hydrateProject);
   const createConversation = useAgentChatStore((state) => state.createConversation);
-  const ensureDefaultConversation = useAgentChatStore(
-    (state) => state.ensureDefaultConversation,
-  );
+  const ensureDefaultConversation = useAgentChatStore((state) => state.ensureDefaultConversation);
   const setActiveConversation = useAgentChatStore((state) => state.setActiveConversation);
   const deleteConversation = useAgentChatStore((state) => state.deleteConversation);
   const renameConversation = useAgentChatStore((state) => state.renameConversation);
@@ -177,8 +152,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     null;
   const messages = activeConversation?.messages ?? EMPTY_MESSAGES;
   const isReplying =
-    replyingConversationId != null &&
-    replyingConversationId === activeConversation?.id;
+    replyingConversationId != null && replyingConversationId === activeConversation?.id;
 
   function abortReplySession(): void {
     replySessionRef.current?.controller.abort();
@@ -218,8 +192,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
           return;
         }
         ensureDefaultConversation(projectId);
-        const created =
-          useAgentChatStore.getState().conversationsByProjectId[projectId]?.[0];
+        const created = useAgentChatStore.getState().conversationsByProjectId[projectId]?.[0];
         if (created) {
           await persistConversation(created);
         }
@@ -245,9 +218,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     };
   }, []);
 
-  async function persistConversation(
-    conversation: AgentConversation,
-  ): Promise<void> {
+  async function persistConversation(conversation: AgentConversation): Promise<void> {
     try {
       await upsertChatConversation({
         scope: "agent",
@@ -263,8 +234,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   async function persistActiveConversation(conversationId: string): Promise<void> {
     const conversation = useAgentChatStore
       .getState()
-      .conversationsByProjectId[projectId]
-      ?.find((item) => item.id === conversationId);
+      .conversationsByProjectId[projectId]?.find((item) => item.id === conversationId);
     if (conversation) {
       await persistConversation(conversation);
     }
@@ -272,9 +242,8 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
 
   async function persistOrder(): Promise<void> {
     const orderedIds =
-      useAgentChatStore.getState().conversationsByProjectId[projectId]?.map(
-        (item) => item.id,
-      ) ?? [];
+      useAgentChatStore.getState().conversationsByProjectId[projectId]?.map((item) => item.id) ??
+      [];
     if (orderedIds.length === 0) {
       return;
     }
@@ -327,19 +296,12 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   }, []);
 
   function markupToPlain(markup: string): string {
-    return markup.replace(
-      /@\[([^\]]+)\]\([^)]+\)/g,
-      (_full, name: string) => `@${name}`,
-    );
+    return markup.replace(/@\[([^\]]+)\]\([^)]+\)/g, (_full, name: string) => `@${name}`);
   }
 
   function handleInsertPlugin(plugin: AgentPluginDefinition): void {
     const display = t(plugin.mentionDisplayKey);
-    const nextMarkup = appendAgentMentionMarkup(
-      draftMarkup,
-      display,
-      plugin.mentionId,
-    );
+    const nextMarkup = appendAgentMentionMarkup(draftMarkup, display, plugin.mentionId);
     setDraftMarkup(nextMarkup);
     setDraftPlainText(markupToPlain(nextMarkup));
     setDraftMentions((prev) => {
@@ -389,12 +351,8 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     void (async () => {
       try {
         await disableAgentPlugin(plugin.id);
-        setDisabledPluginIds((prev) =>
-          prev.includes(plugin.id) ? prev : [...prev, plugin.id],
-        );
-        toast.success(
-          t("agent.pluginUninstalled", { name: t(plugin.titleKey) }),
-        );
+        setDisabledPluginIds((prev) => (prev.includes(plugin.id) ? prev : [...prev, plugin.id]));
+        toast.success(t("agent.pluginUninstalled", { name: t(plugin.titleKey) }));
       } catch (error: unknown) {
         console.error(error);
         toast.error(toUserMessage(error) || t("agent.pluginUninstallFailed"));
@@ -587,8 +545,9 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     const currentMessages =
       useAgentChatStore
         .getState()
-        .conversationsByProjectId[projectId]
-        ?.find((conversation) => conversation.id === conversationId)?.messages ?? [];
+        .conversationsByProjectId[projectId]?.find(
+          (conversation) => conversation.id === conversationId,
+        )?.messages ?? [];
     const last = currentMessages[currentMessages.length - 1];
     if (!last || last.role !== "assistant" || last.isStreaming) {
       return;
@@ -607,10 +566,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     await streamAssistantForHistory(conversationId, historyForRequest);
   }
 
-  async function handleEditUserMessage(
-    messageId: string,
-    content: string,
-  ): Promise<void> {
+  async function handleEditUserMessage(messageId: string, content: string): Promise<void> {
     if (!activeConversation || isReplying) {
       return;
     }
@@ -623,12 +579,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     // 经 getState 调用，避免闭包拿到旧 action；单次 set 保证截断与改文案同事务
     const historyForRequest = useAgentChatStore
       .getState()
-      .editUserMessageAndTruncate(
-        projectId,
-        conversationId,
-        messageId,
-        trimmed,
-      );
+      .editUserMessageAndTruncate(projectId, conversationId, messageId, trimmed);
     if (!historyForRequest) {
       toast.error(t("agent.replyFailed"));
       return;
@@ -639,8 +590,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
   }
 
   async function handleDeleteConversation(conversationId: string): Promise<void> {
-    const before =
-      useAgentChatStore.getState().conversationsByProjectId[projectId] ?? [];
+    const before = useAgentChatStore.getState().conversationsByProjectId[projectId] ?? [];
     if (before.length <= 1) {
       return;
     }
@@ -743,9 +693,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
       <Dialog open={pluginsOpen} onOpenChange={setPluginsOpen}>
         <DialogContent className="flex max-h-[min(82vh,32rem)] flex-col gap-3 p-4 sm:max-w-[34rem]">
           <DialogHeader className="pr-8">
-            <DialogTitle className="text-base">
-              {t("agent.catalogSwitchAria")}
-            </DialogTitle>
+            <DialogTitle className="text-base">{t("agent.catalogSwitchAria")}</DialogTitle>
           </DialogHeader>
           <AgentCatalogPanel
             variant="compact"

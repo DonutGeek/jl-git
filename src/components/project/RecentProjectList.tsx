@@ -15,7 +15,7 @@ import { gitService, pickPrimaryRemoteUrl } from "@/services/git";
 import { openExternalUrl } from "@/services/system/open-url";
 import { useProjectStore } from "@/store/useProjectStore";
 
-import { Project, RecentItem } from "@/types/project";
+import type { Project, RecentItem } from "@/types/project";
 import { parseRemoteRepository } from "@/utils/remoteRepository";
 
 type RecentProjectRow = Project;
@@ -43,9 +43,7 @@ interface RecentProjectListProps {
 }
 
 /** 最近项目列表：单击选中，双击进入仓库 */
-export function RecentProjectList({
-  onOpenProject,
-}: RecentProjectListProps) {
+export function RecentProjectList({ onOpenProject }: RecentProjectListProps) {
   const { t } = useTranslation();
   const projects = useProjectStore((state) => state.projects);
   const recent = useProjectStore((state) => state.recent);
@@ -59,7 +57,12 @@ export function RecentProjectList({
   const rows = useMemo(() => mergeRecentProjects(recent, projects), [projects, recent]);
   const filteredRows = useMemo(() => {
     const query = filter.trim().toLowerCase();
-    return query ? rows.filter((item) => item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query)) : rows;
+    return query
+      ? rows.filter(
+          (item) =>
+            item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query),
+        )
+      : rows;
   }, [filter, rows]);
 
   function handleOpenProject(id: string): void {
@@ -118,7 +121,12 @@ export function RecentProjectList({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-start justify-between gap-4 pb-4">
         <div>
-          <div className="flex items-center gap-2"><h2 className="text-sm font-semibold">{t("dashboard.recentTitle")}</h2><Badge variant="secondary" className="px-1.5 py-0 text-[10px] tabular-nums">{t("dashboard.recentCount", { count: rows.length })}</Badge></div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold">{t("dashboard.recentTitle")}</h2>
+            <Badge variant="secondary" className="px-1.5 py-0 text-[10px] tabular-nums">
+              {t("dashboard.recentCount", { count: rows.length })}
+            </Badge>
+          </div>
           <p className="text-muted-foreground mt-0.5 text-xs">{t("dashboard.recentDescription")}</p>
         </div>
         <label className="relative block w-52">
@@ -143,9 +151,7 @@ export function RecentProjectList({
             {filteredRows.map((project) => {
               const isSelected = selectedId === project.id;
               const remoteUrl = remoteUrls[project.id];
-              const remote = remoteUrl
-                ? parseRemoteRepository(remoteUrl)
-                : null;
+              const remote = remoteUrl ? parseRemoteRepository(remoteUrl) : null;
 
               return (
                 <li key={project.id} role="option" aria-selected={isSelected}>
@@ -155,59 +161,55 @@ export function RecentProjectList({
                     onMenuOpen={() => setSelectedId(project.id)}
                   >
                     <button
-                        type="button"
-                        className={cn(
-                          // 勿加 overflow-hidden，否则会裁掉右侧圆角（看起来左右不一致）
-                          "focus-visible:ring-ring group relative flex w-full min-w-0 items-center gap-3 rounded-md px-3 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none",
-                          isSelected
-                            ? "bg-accent hover:bg-accent"
-                            : "hover:bg-accent/60",
-                        )}
-                        onClick={() => {
-                          // 再次点击已选项则取消选中
-                          setSelectedId((current) =>
-                            current === project.id ? null : project.id,
-                          );
-                        }}
-                        onDoubleClick={() => {
-                          handleOpenProject(project.id);
-                        }}
-                        onMouseEnter={() => void showRemoteUrl(project)}
-                        onMouseLeave={() => setHoveredId(null)}
-                        onFocus={() => void showRemoteUrl(project)}
-                        onBlur={() => setHoveredId(null)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" && isSelected) {
-                            event.preventDefault();
-                            handleOpenProject(project.id);
-                          }
-                        }}
-                      >
-                    <span
+                      type="button"
                       className={cn(
-                        "text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-md transition-colors",
-                        // 选中时略加深并加细边，避免与行底糊成一片，也不用强反差底色
-                        isSelected
-                          ? "bg-muted-foreground/12 ring-border/60 ring-1 ring-inset"
-                          : "bg-muted group-hover:bg-muted-foreground/10 group-focus-visible:bg-muted-foreground/10",
+                        // 勿加 overflow-hidden，否则会裁掉右侧圆角（看起来左右不一致）
+                        "focus-visible:ring-ring group relative flex w-full min-w-0 items-center gap-3 rounded-md px-3 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none",
+                        isSelected ? "bg-accent hover:bg-accent" : "hover:bg-accent/60",
                       )}
+                      onClick={() => {
+                        // 再次点击已选项则取消选中
+                        setSelectedId((current) => (current === project.id ? null : project.id));
+                      }}
+                      onDoubleClick={() => {
+                        handleOpenProject(project.id);
+                      }}
+                      onMouseEnter={() => void showRemoteUrl(project)}
+                      onMouseLeave={() => setHoveredId(null)}
+                      onFocus={() => void showRemoteUrl(project)}
+                      onBlur={() => setHoveredId(null)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && isSelected) {
+                          event.preventDefault();
+                          handleOpenProject(project.id);
+                        }
+                      }}
                     >
-                      <ProjectIcon name={project.icon} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-sm font-medium">{project.name}</span>
-                        {hoveredId === project.id && remote ? (
-                          <RemoteRepositoryLabel
-                            remote={remote}
-                            onOpen={(url) => void openRemoteUrl(url)}
-                          />
-                        ) : null}
+                      <span
+                        className={cn(
+                          "text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-md transition-colors",
+                          // 选中时略加深并加细边，避免与行底糊成一片，也不用强反差底色
+                          isSelected
+                            ? "bg-muted-foreground/12 ring-border/60 ring-1 ring-inset"
+                            : "bg-muted group-hover:bg-muted-foreground/10 group-focus-visible:bg-muted-foreground/10",
+                        )}
+                      >
+                        <ProjectIcon name={project.icon} />
                       </span>
-                      <span className="text-muted-foreground mt-0.5 block truncate text-xs">
-                        {project.path}
+                      <span className="min-w-0 flex-1">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="truncate text-sm font-medium">{project.name}</span>
+                          {hoveredId === project.id && remote ? (
+                            <RemoteRepositoryLabel
+                              remote={remote}
+                              onOpen={(url) => void openRemoteUrl(url)}
+                            />
+                          ) : null}
+                        </span>
+                        <span className="text-muted-foreground mt-0.5 block truncate text-xs">
+                          {project.path}
+                        </span>
                       </span>
-                    </span>
                     </button>
                   </ProjectContextMenu>
                 </li>

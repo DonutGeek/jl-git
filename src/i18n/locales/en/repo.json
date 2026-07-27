@@ -414,6 +414,7 @@
   "commitMessage": "Commit message",
   "commitMessageRequired": "Commit message (required)",
   "commitMessagePlaceholder": "Enter commit message",
+  "lintStagedRestored": "Restored unstaged changes hidden by the commit hook",
   "previewCommitMessage": "Preview commit message",
   "commitMessagePreview": "Commit message preview",
   "commitMessagePreviewDescription": "View the full commit message and copy it to the clipboard",

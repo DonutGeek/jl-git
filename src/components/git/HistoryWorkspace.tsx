@@ -99,10 +99,7 @@ export function HistoryWorkspace({
             </aside>
           }
           second={
-            <aside
-              className="h-full min-h-0 min-w-0 overflow-hidden"
-              data-history-detail-pane=""
-            >
+            <aside className="h-full min-h-0 min-w-0 overflow-hidden" data-history-detail-pane="">
               <HistoryDetailPane />
             </aside>
           }

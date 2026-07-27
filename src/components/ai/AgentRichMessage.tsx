@@ -85,7 +85,13 @@ export function AgentRichMessage({
               );
             },
             code: ({ children, className }) => (
-              <code className={className ? "block overflow-x-auto rounded bg-background/60 p-2" : "rounded bg-background/60 px-1 py-0.5"}>
+              <code
+                className={
+                  className
+                    ? "block overflow-x-auto rounded bg-background/60 p-2"
+                    : "rounded bg-background/60 px-1 py-0.5"
+                }
+              >
                 {children}
               </code>
             ),
@@ -113,9 +119,7 @@ export function AgentRichMessage({
             strong: ({ children }) => (
               <strong className="text-foreground font-semibold">{children}</strong>
             ),
-            ul: ({ children }) => (
-              <ul className="my-1.5 list-disc space-y-0.5 pl-4">{children}</ul>
-            ),
+            ul: ({ children }) => <ul className="my-1.5 list-disc space-y-0.5 pl-4">{children}</ul>,
             ol: ({ children }) => (
               <ol className="my-1.5 list-decimal space-y-0.5 pl-4">{children}</ol>
             ),

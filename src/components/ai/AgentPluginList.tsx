@@ -17,15 +17,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  AGENT_SKILLS,
-  type AgentPluginDefinition,
-} from "@/plugins/agent/registry";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { AGENT_SKILLS, type AgentPluginDefinition } from "@/plugins/agent/registry";
 import { cn } from "@/lib/utils";
 
 interface AgentPluginListProps {
@@ -51,13 +44,7 @@ interface PluginMoreMenuProps {
   compact?: boolean;
 }
 
-function OverflowDescription({
-  children,
-  className,
-}: {
-  children: string;
-  className: string;
-}) {
+function OverflowDescription({ children, className }: { children: string; className: string }) {
   const textRef = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
 
@@ -78,10 +65,7 @@ function OverflowDescription({
           {children}
         </span>
       </TooltipTrigger>
-      <TooltipContent
-        side="bottom"
-        className="w-max max-w-64 text-left text-wrap break-words"
-      >
+      <TooltipContent side="bottom" className="w-max max-w-64 text-left text-wrap break-words">
         {children}
       </TooltipContent>
     </Tooltip>
@@ -89,11 +73,7 @@ function OverflowDescription({
 }
 
 /** 三点菜单：点击或悬停打开；含立即试用 / 卸载 */
-function PluginMoreMenu({
-  onTry,
-  onUninstall,
-  compact = false,
-}: PluginMoreMenuProps) {
+function PluginMoreMenu({ onTry, onUninstall, compact = false }: PluginMoreMenuProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
@@ -143,10 +123,7 @@ function PluginMoreMenu({
               }}
               onPointerLeave={scheduleClose}
             >
-              <MoreHorizontal
-                className={compact ? "size-3.5" : "size-4"}
-                aria-hidden="true"
-              />
+              <MoreHorizontal className={compact ? "size-3.5" : "size-4"} aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
@@ -192,8 +169,7 @@ export function AgentPluginList({
   variant = "compact",
 }: AgentPluginListProps) {
   const { t } = useTranslation();
-  const [uninstallTarget, setUninstallTarget] =
-    useState<AgentPluginDefinition | null>(null);
+  const [uninstallTarget, setUninstallTarget] = useState<AgentPluginDefinition | null>(null);
 
   function handleTry(plugin: AgentPluginDefinition): void {
     if (onTry) {
@@ -251,9 +227,7 @@ export function AgentPluginList({
                       <span className="block truncate text-sm font-medium">
                         {t(plugin.titleKey)}
                       </span>
-                      <OverflowDescription
-                        className="text-muted-foreground block truncate text-xs leading-relaxed"
-                      >
+                      <OverflowDescription className="text-muted-foreground block truncate text-xs leading-relaxed">
                         {description}
                       </OverflowDescription>
                     </span>
@@ -271,10 +245,7 @@ export function AgentPluginList({
         </ul>
       ) : (
         <ul
-          className={cn(
-            "grid w-full min-w-0 grid-cols-2 gap-2 pr-2",
-            className,
-          )}
+          className={cn("grid w-full min-w-0 grid-cols-2 gap-2 pr-2", className)}
           aria-label={t("agent.pluginsAria")}
         >
           {plugins.map((plugin) => {
@@ -302,9 +273,7 @@ export function AgentPluginList({
                       <span className="text-foreground block truncate text-xs font-medium leading-4">
                         {t(plugin.titleKey)}
                       </span>
-                      <OverflowDescription
-                        className="text-muted-foreground block truncate text-[11px] leading-4"
-                      >
+                      <OverflowDescription className="text-muted-foreground block truncate text-[11px] leading-4">
                         {description}
                       </OverflowDescription>
                     </span>
@@ -343,18 +312,10 @@ export function AgentPluginList({
             })}
           </p>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setUninstallTarget(null)}
-            >
+            <Button type="button" variant="outline" onClick={() => setUninstallTarget(null)}>
               {t("common.cancel")}
             </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={confirmUninstall}
-            >
+            <Button type="button" variant="destructive" onClick={confirmUninstall}>
               {t("agent.pluginUninstallConfirm")}
             </Button>
           </DialogFooter>

@@ -31,11 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import { generateCommitMessage, toastAiFailure } from "@/services/ai";
@@ -91,8 +87,7 @@ export function HistoryCommitContextMenu({
   const [isGenerating, setIsGenerating] = useState(false);
   const writeBlocked = isWriteOpBlocked(repoState);
   const { menuOpen, onOpenChange } = useContextMenuOpen(onMenuOpen);
-  const canGenerate =
-    Boolean(repoPath) && hasApiKey && !loadingMessage && !saving && !isGenerating;
+  const canGenerate = Boolean(repoPath) && hasApiKey && !loadingMessage && !saving && !isGenerating;
 
   async function loadFullMessage(): Promise<string> {
     if (!repoPath) {
@@ -127,10 +122,7 @@ export function HistoryCommitContextMenu({
       const full = await loadFullMessage();
       const dest = await exportTextFile({
         contents: `${full}\n`,
-        defaultPath: buildCommitMessageExportFileName(
-          commit.subject,
-          commit.shortId,
-        ),
+        defaultPath: buildCommitMessageExportFileName(commit.subject, commit.shortId),
         filterName: t("repo.exportCommitMessageFilter"),
         extensions: ["txt"],
       });
@@ -220,11 +212,7 @@ export function HistoryCommitContextMenu({
     <>
       <ContextMenu onOpenChange={onOpenChange}>
         <ContextMenuTrigger asChild>
-          {withContextMenuHighlight(
-            children,
-            menuOpen,
-            CONTEXT_MENU_HISTORY_HIGHLIGHT_CLASS,
-          )}
+          {withContextMenuHighlight(children, menuOpen, CONTEXT_MENU_HISTORY_HIGHLIGHT_CLASS)}
         </ContextMenuTrigger>
         <ContextMenuContent className="min-w-48">
           <ContextMenuItem onSelect={() => void handleCopySha()}>
@@ -240,10 +228,7 @@ export function HistoryCommitContextMenu({
             {t("repo.exportCommitMessage")}
           </ContextMenuItem>
           <ContextMenuSeparator />
-          <ContextMenuItem
-            disabled={!isHead || writeBlocked}
-            onSelect={() => handleRequestEdit()}
-          >
+          <ContextMenuItem disabled={!isHead || writeBlocked} onSelect={() => handleRequestEdit()}>
             <PencilLine aria-hidden="true" />
             {t("repo.amendMessage")}
           </ContextMenuItem>
@@ -254,9 +239,7 @@ export function HistoryCommitContextMenu({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("repo.amendMessageTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("repo.amendMessagePushedHint")}
-            </AlertDialogDescription>
+            <AlertDialogDescription>{t("repo.amendMessagePushedHint")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
@@ -338,9 +321,7 @@ export function HistoryCommitContextMenu({
             </Button>
             <Button
               type="button"
-              disabled={
-                loadingMessage || saving || isGenerating || !message.trim()
-              }
+              disabled={loadingMessage || saving || isGenerating || !message.trim()}
               onClick={() => void handleSaveEdit()}
             >
               {saving ? t("common.loading") : t("repo.amendMessageSave")}

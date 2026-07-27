@@ -3,7 +3,16 @@ import { create } from "zustand";
 import { projectService, workspaceService } from "@/services/project";
 import { useAgentChatStore } from "@/store/useAgentChatStore";
 import { toUserMessage } from "@/types/error";
-import { AddProjectInput, Project, ProjectOrderItem, RecentItem, Workspace, WorkspaceColor, WorkspaceIcon, WorkspaceOrderItem } from "@/types/project";
+import type {
+  AddProjectInput,
+  Project,
+  ProjectOrderItem,
+  RecentItem,
+  Workspace,
+  WorkspaceColor,
+  WorkspaceIcon,
+  WorkspaceOrderItem,
+} from "@/types/project";
 
 interface ProjectStoreState {
   projects: Project[];
@@ -18,7 +27,12 @@ interface ProjectStoreActions {
   loadProjects: () => Promise<Project[]>;
   loadRecent: () => Promise<RecentItem[]>;
   loadWorkspaces: () => Promise<Workspace[]>;
-  createWorkspace: (name: string, parentId?: string, icon?: WorkspaceIcon, color?: WorkspaceColor) => Promise<Workspace>;
+  createWorkspace: (
+    name: string,
+    parentId?: string,
+    icon?: WorkspaceIcon,
+    color?: WorkspaceColor,
+  ) => Promise<Workspace>;
   updateWorkspace: (input: {
     id: string;
     name?: string;
@@ -34,7 +48,10 @@ interface ProjectStoreActions {
     description?: string | null;
     icon?: Project["icon"];
   }) => Promise<Project>;
-  reorderGroupedItems: (input: { workspaces: WorkspaceOrderItem[]; projects: ProjectOrderItem[] }) => Promise<void>;
+  reorderGroupedItems: (input: {
+    workspaces: WorkspaceOrderItem[];
+    projects: ProjectOrderItem[];
+  }) => Promise<void>;
   setCurrent: (project: Project | null) => void;
   addAndOpen: (
     input: Pick<AddProjectInput, "path" | "name" | "workspaceId" | "description" | "icon">,
@@ -97,8 +114,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
   },
 
-  async loadWorkspaces() { const workspaces = await workspaceService.list(); set({ workspaces }); return workspaces; },
-  async createWorkspace(name, parentId, icon, color) { const workspace = await workspaceService.create(name, parentId, icon, color); set((state) => ({ workspaces: [...state.workspaces, workspace] })); return workspace; },
+  async loadWorkspaces() {
+    const workspaces = await workspaceService.list();
+    set({ workspaces });
+    return workspaces;
+  },
+  async createWorkspace(name, parentId, icon, color) {
+    const workspace = await workspaceService.create(name, parentId, icon, color);
+    set((state) => ({ workspaces: [...state.workspaces, workspace] }));
+    return workspace;
+  },
   async updateWorkspace(input) {
     const workspace = await workspaceService.update(input);
     set((state) => ({
@@ -117,16 +142,28 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       ),
     }));
   },
-  async updateProject(input) { const project = await projectService.update(input); set((state) => ({ projects: upsertProject(state.projects, project), current: state.current?.id === project.id ? project : state.current })); return project; },
+  async updateProject(input) {
+    const project = await projectService.update(input);
+    set((state) => ({
+      projects: upsertProject(state.projects, project),
+      current: state.current?.id === project.id ? project : state.current,
+    }));
+    return project;
+  },
   async reorderGroupedItems(input) {
     await workspaceService.reorder(input);
     const workspaceOrder = new Map(input.workspaces.map((item) => [item.id, item.sortOrder]));
     const projectOrder = new Map(input.projects.map((item) => [item.id, item]));
     set((state) => ({
-      workspaces: state.workspaces.map((workspace) => ({ ...workspace, sortOrder: workspaceOrder.get(workspace.id) ?? workspace.sortOrder })),
+      workspaces: state.workspaces.map((workspace) => ({
+        ...workspace,
+        sortOrder: workspaceOrder.get(workspace.id) ?? workspace.sortOrder,
+      })),
       projects: state.projects.map((project) => {
         const order = projectOrder.get(project.id);
-        return order ? { ...project, workspaceId: order.workspaceId, sortOrder: order.sortOrder } : project;
+        return order
+          ? { ...project, workspaceId: order.workspaceId, sortOrder: order.sortOrder }
+          : project;
       }),
     }));
   },

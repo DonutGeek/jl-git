@@ -73,11 +73,7 @@ pub fn list_dir(repo_root: &Path, relative: &str) -> Result<FsListResult, AppErr
             format!("{relative}/{name}")
         };
 
-        entries.push(FsEntry {
-            name,
-            path,
-            is_dir,
-        });
+        entries.push(FsEntry { name, path, is_dir });
     }
 
     entries.sort_by(|a, b| match (a.is_dir, b.is_dir) {
@@ -181,9 +177,9 @@ pub fn rename(repo_root: &Path, from: &str, new_name: &str) -> Result<FsRenameRe
     let from_abs = resolve_existing_under_repo(repo_root, &from)?;
     reject_git_meta(repo_root, &from_abs)?;
 
-    let parent = from_abs.parent().ok_or_else(|| {
-        AppError::new("INVALID_PATH", "无法解析父目录")
-    })?;
+    let parent = from_abs
+        .parent()
+        .ok_or_else(|| AppError::new("INVALID_PATH", "无法解析父目录"))?;
     let to_abs = parent.join(&new_name);
     ensure_under_repo(repo_root, &to_abs)?;
 
@@ -281,15 +277,15 @@ fn ensure_under_repo(repo_root: &Path, path: &Path) -> Result<(), AppError> {
             AppError::new("INVALID_PATH", "无法规范化路径").with_details(error.to_string())
         })?
     } else {
-        let parent = path.parent().ok_or_else(|| {
-            AppError::new("INVALID_PATH", "无法解析父目录")
-        })?;
+        let parent = path
+            .parent()
+            .ok_or_else(|| AppError::new("INVALID_PATH", "无法解析父目录"))?;
         let parent_canonical = fs::canonicalize(parent).map_err(|error| {
             AppError::new("INVALID_PATH", "无法规范化父目录").with_details(error.to_string())
         })?;
-        let name = path.file_name().ok_or_else(|| {
-            AppError::new("INVALID_PATH", "非法路径")
-        })?;
+        let name = path
+            .file_name()
+            .ok_or_else(|| AppError::new("INVALID_PATH", "非法路径"))?;
         parent_canonical.join(name)
     };
 

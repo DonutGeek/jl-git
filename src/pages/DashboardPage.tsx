@@ -5,10 +5,7 @@ import { ProjectManager } from "@/components/project/ProjectManager";
 
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { useProjectStore } from "@/store/useProjectStore";
-import {
-  isStartupTabsApplied,
-  onStartupTabsApplied,
-} from "@/utils/startupTabsBootstrap";
+import { isStartupTabsApplied, onStartupTabsApplied } from "@/utils/startupTabsBootstrap";
 
 import { toUserMessage } from "@/types/error";
 
@@ -63,8 +60,7 @@ export function DashboardPage({ active = true }: DashboardPageProps) {
   const routeTabMatch = location.pathname.match(/^\/tab\/([^/]+)/);
   const routeNewTabId = routeTabMatch?.[1] ?? routeTabId ?? null;
   const isCurrentNewTab = Boolean(
-    routeNewTabId &&
-      tabs.some((tab) => tab.id === routeNewTabId && tab.type === "new-tab"),
+    routeNewTabId && tabs.some((tab) => tab.id === routeNewTabId && tab.type === "new-tab"),
   );
 
   useEffect(() => {

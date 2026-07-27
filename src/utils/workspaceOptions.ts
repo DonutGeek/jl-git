@@ -36,10 +36,7 @@ export function buildWorkspaceTree(
 
   function childrenOf(parentId: string | null): WorkspaceTreeNode[] {
     return workspaces
-      .filter(
-        (workspace) =>
-          workspace.parentId === parentId && !excludeIds.has(workspace.id),
-      )
+      .filter((workspace) => workspace.parentId === parentId && !excludeIds.has(workspace.id))
       .map((workspace) => ({
         value: workspace.id,
         label: workspace.name,
@@ -70,11 +67,7 @@ export function collectWorkspaceSubtreeIds(
   while (grew) {
     grew = false;
     for (const workspace of workspaces) {
-      if (
-        workspace.parentId &&
-        ids.has(workspace.parentId) &&
-        !ids.has(workspace.id)
-      ) {
+      if (workspace.parentId && ids.has(workspace.parentId) && !ids.has(workspace.id)) {
         ids.add(workspace.id);
         grew = true;
       }
@@ -110,10 +103,7 @@ export function collectWorkspaceAncestorIds(
     if (node.value === value) {
       return trail;
     }
-    const found = collectWorkspaceAncestorIds(node.children, value, [
-      ...trail,
-      node.value,
-    ]);
+    const found = collectWorkspaceAncestorIds(node.children, value, [...trail, node.value]);
     if (found) {
       return found;
     }

@@ -7,17 +7,9 @@ import { DatePicker } from "@/components/common/DatePicker";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toUserMessage } from "@/types/error";
 import {
@@ -135,9 +127,7 @@ export function HistoryAdvancedFilterPopover({
       <PopoverContent align="start" className="w-80 p-3">
         <div className="mb-3">
           <p className="text-sm font-medium">{t("repo.historyAdvancedFilter")}</p>
-          <p className="text-muted-foreground text-xs">
-            {t("repo.historyAdvancedHint")}
-          </p>
+          <p className="text-muted-foreground text-xs">{t("repo.historyAdvancedHint")}</p>
         </div>
 
         <div className="flex flex-col gap-3">
@@ -148,9 +138,7 @@ export function HistoryAdvancedFilterPopover({
             <Input
               id="history-adv-grep"
               value={draft.grep}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, grep: event.target.value }))
-              }
+              onChange={(event) => setDraft((prev) => ({ ...prev, grep: event.target.value }))}
               placeholder={t("repo.historyAdvancedGrepPlaceholder")}
               className="h-8 text-xs"
               disabled={busy}
@@ -165,9 +153,7 @@ export function HistoryAdvancedFilterPopover({
             <Input
               id="history-adv-path"
               value={draft.path}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, path: event.target.value }))
-              }
+              onChange={(event) => setDraft((prev) => ({ ...prev, path: event.target.value }))}
               placeholder={t("repo.historyAdvancedPathPlaceholder")}
               className="h-8 font-mono text-xs"
               disabled={busy}
@@ -175,9 +161,7 @@ export function HistoryAdvancedFilterPopover({
               aria-invalid={pathInvalid || undefined}
             />
             {pathInvalid ? (
-              <p className="text-destructive text-xs">
-                {t("repo.historyAdvancedPathInvalid")}
-              </p>
+              <p className="text-destructive text-xs">{t("repo.historyAdvancedPathInvalid")}</p>
             ) : null}
           </Field>
 
@@ -218,9 +202,7 @@ export function HistoryAdvancedFilterPopover({
             </Field>
           </div>
           {dateInvalid ? (
-            <p className="text-destructive text-xs">
-              {t("repo.historyAdvancedDateInvalid")}
-            </p>
+            <p className="text-destructive text-xs">{t("repo.historyAdvancedDateInvalid")}</p>
           ) : null}
 
           <Field>
@@ -230,9 +212,7 @@ export function HistoryAdvancedFilterPopover({
             <Input
               id="history-adv-author"
               value={draft.author}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, author: event.target.value }))
-              }
+              onChange={(event) => setDraft((prev) => ({ ...prev, author: event.target.value }))}
               placeholder={t("repo.historyAdvancedAuthorPlaceholder")}
               className="h-8 text-xs"
               disabled={busy}
@@ -241,10 +221,7 @@ export function HistoryAdvancedFilterPopover({
           </Field>
 
           <div className="flex items-center justify-between gap-2">
-            <FieldLabel
-              htmlFor="history-adv-merges"
-              className="text-xs font-normal"
-            >
+            <FieldLabel htmlFor="history-adv-merges" className="text-xs font-normal">
               {t("repo.historyAdvancedShowMerges")}
             </FieldLabel>
             <Switch

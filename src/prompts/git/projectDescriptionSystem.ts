@@ -2,8 +2,7 @@
  * 根据仓库 README / 清单文件生成项目简介的系统提示。
  */
 export function buildProjectDescriptionSystemPrompt(locale: string): string {
-  const language =
-    locale.toLowerCase().startsWith("zh") ? "简体中文" : "English";
+  const language = locale.toLowerCase().startsWith("zh") ? "简体中文" : "English";
 
   return [
     "你是软件项目简介助手。根据用户提供的仓库快照（目录名、README、package.json/Cargo.toml 等）写项目简介。",

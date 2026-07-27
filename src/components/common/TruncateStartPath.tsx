@@ -110,8 +110,7 @@ function readBudgetTextWidth(element: HTMLElement): number {
   const gap = Number.parseFloat(styles.columnGap || styles.gap || "0") || 0;
   reserved += gap * Math.max(0, shell.children.length - 1);
   reserved +=
-    (Number.parseFloat(styles.paddingLeft) || 0) +
-    (Number.parseFloat(styles.paddingRight) || 0);
+    (Number.parseFloat(styles.paddingLeft) || 0) + (Number.parseFloat(styles.paddingRight) || 0);
 
   return Math.max(0, Math.floor(budgetWidth - reserved - MEASURE_SAFETY_PX));
 }
@@ -144,8 +143,7 @@ export function TruncateStartPath({
     }
 
     const budget = element.closest(`[${TRUNCATE_BUDGET_ATTR}]`);
-    const observeTarget =
-      budget instanceof HTMLElement ? budget : element;
+    const observeTarget = budget instanceof HTMLElement ? budget : element;
 
     const update = (): void => {
       syncMeasureFont(element);

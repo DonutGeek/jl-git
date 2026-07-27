@@ -30,13 +30,9 @@ export interface GenerateBranchNameOptions {
  * 根据用户填写的详情与可选附件生成带前缀的短分支名。
  * 模型只提供建议，创建动作仍由用户在对话框中确认。
  */
-export async function generateBranchName(
-  options: GenerateBranchNameOptions,
-): Promise<string> {
+export async function generateBranchName(options: GenerateBranchNameOptions): Promise<string> {
   const detail = options.detail.trim();
-  const attachments = (options.attachments ?? []).filter(
-    (item) => item.text.trim().length > 0,
-  );
+  const attachments = (options.attachments ?? []).filter((item) => item.text.trim().length > 0);
   if (!detail && attachments.length === 0) {
     throw appError("VALIDATION", i18n.t("repo.aiBranchInputRequired"));
   }
@@ -76,11 +72,7 @@ export async function generateBranchName(
     });
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
-      throw mapDeepSeekHttpError(
-        response.status,
-        payload,
-        i18n.t("ai.errors.requestFailed"),
-      );
+      throw mapDeepSeekHttpError(response.status, payload, i18n.t("ai.errors.requestFailed"));
     }
 
     const content = readChoiceContent(payload);

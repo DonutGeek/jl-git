@@ -19,8 +19,7 @@ export function WorkspaceHost() {
 
   const repoMatch = location.pathname.match(/^\/repo\/([^/]+)/);
   const activeRepoId = repoMatch?.[1] ?? null;
-  const showDashboard =
-    location.pathname === "/" || location.pathname.startsWith("/tab/");
+  const showDashboard = location.pathname === "/" || location.pathname.startsWith("/tab/");
   const hasNewTab = tabs.some((tab) => tab.type === "new-tab");
 
   const openRepoIdsKey = useMemo(
@@ -58,10 +57,7 @@ export function WorkspaceHost() {
       )}
 
       {repoProjectId ? (
-        <div
-          className={cn("h-full", !repoVisible && "hidden")}
-          aria-hidden={!repoVisible}
-        >
+        <div className={cn("h-full", !repoVisible && "hidden")} aria-hidden={!repoVisible}>
           <RepoPage projectId={repoProjectId} active={repoVisible} />
         </div>
       ) : null}

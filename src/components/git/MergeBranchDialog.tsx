@@ -11,14 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
-import { GitMergeMode, GitMergeOptions } from "@/types/git";
+import type { GitMergeMode, GitMergeOptions } from "@/types/git";
 
 interface MergeBranchDialogProps {
   open: boolean;

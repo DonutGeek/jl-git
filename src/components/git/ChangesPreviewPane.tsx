@@ -5,11 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ConflictFilePreview,
   type ConflictFilePreviewHandle,
@@ -27,10 +23,7 @@ import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { GitDiffResult, GitStatusEntry } from "@/types/git";
 import { isConflictStatus } from "@/utils/gitConflict";
-import {
-  gitStatusLetterClass,
-  normalizeGitStatusLetter,
-} from "@/utils/gitStatusStyle";
+import { gitStatusLetterClass, normalizeGitStatusLetter } from "@/utils/gitStatusStyle";
 import { isImagePath } from "@/utils/mediaPath";
 import { DEFAULT_TEXT_ENCODING } from "@/utils/textEncodings";
 
@@ -53,9 +46,7 @@ export function ChangesPreviewPane() {
   const [error, setError] = useState<string | null>(null);
   const [conflictBusy, setConflictBusy] = useState(false);
 
-  const selectionKey = selectedChange
-    ? `${selectedChange.side}:${selectedChange.path}`
-    : "";
+  const selectionKey = selectedChange ? `${selectedChange.side}:${selectedChange.path}` : "";
 
   const handleConflictBusyChange = useCallback((busy: boolean) => {
     setConflictBusy(busy);
@@ -112,22 +103,16 @@ export function ChangesPreviewPane() {
         <FileText className="text-muted-foreground size-10 opacity-50" aria-hidden="true" />
         <div className="space-y-1">
           <p className="text-sm font-medium">{t("repo.diffPreviewTitle")}</p>
-          <p className="text-muted-foreground max-w-sm text-xs">
-            {t("repo.diffPreviewHint")}
-          </p>
+          <p className="text-muted-foreground max-w-sm text-xs">{t("repo.diffPreviewHint")}</p>
         </div>
       </div>
     );
   }
 
   const baseLabel =
-    selectedChange.side === "index"
-      ? t("repo.diffBaseStaged")
-      : t("repo.diffBaseUnstaged");
+    selectedChange.side === "index" ? t("repo.diffBaseStaged") : t("repo.diffBaseUnstaged");
   const localLabel =
-    selectedChange.side === "index"
-      ? t("repo.diffLocalStaged")
-      : t("repo.diffLocalUnstaged");
+    selectedChange.side === "index" ? t("repo.diffLocalStaged") : t("repo.diffLocalUnstaged");
 
   const statusEntry = entries.find((entry) => entry.path === selectedChange.path);
   const rawStatusCode = statusEntry
@@ -135,9 +120,7 @@ export function ChangesPreviewPane() {
       ? statusEntry.indexStatus
       : statusEntry.worktreeStatus
     : null;
-  const statusLetter = rawStatusCode
-    ? normalizeGitStatusLetter(rawStatusCode)
-    : null;
+  const statusLetter = rawStatusCode ? normalizeGitStatusLetter(rawStatusCode) : null;
   const statusConflict = statusEntry
     ? isConflictStatus(statusEntry.indexStatus, statusEntry.worktreeStatus)
     : false;
@@ -161,11 +144,7 @@ export function ChangesPreviewPane() {
                 aria-pressed={diffHidden}
                 onClick={() => setDiffHidden((prev) => !prev)}
               >
-                {diffHidden ? (
-                  <EyeOff aria-hidden="true" />
-                ) : (
-                  <Eye aria-hidden="true" />
-                )}
+                {diffHidden ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
               </Button>
             </TooltipTrigger>
             <TooltipContent align="center">
@@ -190,15 +169,8 @@ export function ChangesPreviewPane() {
             aria-label={t("repo.conflictWarning")}
           />
         ) : null}
-        <MaterialFileIcon
-          name={selectedChange.path}
-          isDir={false}
-          className="size-3.5 shrink-0"
-        />
-        <CopyablePathLabel
-          path={selectedChange.path}
-          className="hover:text-foreground min-w-0"
-        />
+        <MaterialFileIcon name={selectedChange.path} isDir={false} className="size-3.5 shrink-0" />
+        <CopyablePathLabel path={selectedChange.path} className="hover:text-foreground min-w-0" />
         {statusConflict ? (
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <Button
@@ -246,10 +218,7 @@ export function ChangesPreviewPane() {
         />
       ) : diffHidden ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-          <EyeOff
-            className="text-muted-foreground size-12 opacity-40"
-            aria-hidden="true"
-          />
+          <EyeOff className="text-muted-foreground size-12 opacity-40" aria-hidden="true" />
           <p className="text-muted-foreground text-sm">{t("repo.diffHide")}</p>
         </div>
       ) : (

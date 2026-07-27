@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 
-import { GitCommitSummary } from "@/types/git";
+import type { GitCommitSummary } from "@/types/git";
 
 import {
   computeHistoryGraphLayout,
@@ -70,12 +70,7 @@ function rowBottomY(rowIndex: number): number {
 }
 
 /** 竖轨 + 斜线（铁路观感）：同列竖直，跨列半行内直线斜接（约 45°） */
-function linkPath(
-  fromCol: number,
-  toCol: number,
-  y0: number,
-  y1: number,
-): string {
+function linkPath(fromCol: number, toCol: number, y0: number, y1: number): string {
   const x0 = laneX(fromCol);
   const x1 = laneX(toCol);
   return `M ${x0} ${y0} L ${x1} ${y1}`;
@@ -217,12 +212,7 @@ export const HistoryGraph = memo(function HistoryGraph({
                   fill="var(--background)"
                 />
               ) : (
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r={DOT_SIZE + maskPad}
-                  fill="var(--background)"
-                />
+                <circle cx={cx} cy={cy} r={DOT_SIZE + maskPad} fill="var(--background)" />
               )}
               {isMerge ? (
                 <rect
@@ -245,12 +235,7 @@ export const HistoryGraph = memo(function HistoryGraph({
                   strokeWidth={2}
                 />
               ) : (
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r={DOT_SIZE}
-                  fill="currentColor"
-                />
+                <circle cx={cx} cy={cy} r={DOT_SIZE} fill="currentColor" />
               )}
               <circle cx={cx} cy={cy} r={DOT_SIZE + 4} fill="transparent" />
             </g>

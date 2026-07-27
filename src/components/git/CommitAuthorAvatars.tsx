@@ -24,17 +24,14 @@ export function CommitAuthorAvatars({
   const people: GitCommitAuthor[] = [
     { name: authorName, email: authorEmail },
     ...coAuthors.filter(
-      (person) =>
-        person.email.trim().toLowerCase() !== authorEmail.trim().toLowerCase(),
+      (person) => person.email.trim().toLowerCase() !== authorEmail.trim().toLowerCase(),
     ),
   ];
 
   const visible = people.slice(0, MAX_VISIBLE);
   const overflow = people.length - visible.length;
   const title = people
-    .map((person) =>
-      person.email ? `${person.name} <${person.email}>` : person.name,
-    )
+    .map((person) => (person.email ? `${person.name} <${person.email}>` : person.name))
     .join("\n");
 
   return (
@@ -52,17 +49,12 @@ export function CommitAuthorAvatars({
             label={person.name}
             shape="rounded"
             compact
-            className={cn(
-              "border-background size-4 rounded-sm border-2",
-              index > 0 && "-ml-1.5",
-            )}
+            className={cn("border-background size-4 rounded-sm border-2", index > 0 && "-ml-1.5")}
           />
         ))}
       </div>
       {overflow > 0 ? (
-        <span className="text-muted-foreground ml-0.5 text-[10px] leading-none">
-          +{overflow}
-        </span>
+        <span className="text-muted-foreground ml-0.5 text-[10px] leading-none">+{overflow}</span>
       ) : null}
     </div>
   );

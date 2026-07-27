@@ -1,10 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import {
-  applyThemeToDocument,
-  type ThemeMode,
-} from "@/services/theme/theme.service";
+import { applyThemeToDocument, type ThemeMode } from "@/services/theme/theme.service";
 import { refreshAppThemeForColorMode } from "@/store/useAppPrefsStore";
 import {
   listenGlobalPreferenceChange,
@@ -35,8 +32,7 @@ export const useThemeStore = create<ThemeState>()(
       toggleDayNight() {
         const current = get().mode;
         const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        const effective =
-          current === "system" ? (prefersDark ? "dark" : "light") : current;
+        const effective = current === "system" ? (prefersDark ? "dark" : "light") : current;
         const next: ThemeMode = effective === "dark" ? "light" : "dark";
         applyThemeToDocument(next);
         refreshAppThemeForColorMode();

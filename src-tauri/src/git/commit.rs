@@ -111,7 +111,11 @@ pub fn commit(
         commit_args.push("--amend");
     }
     commit_args.extend_from_slice(&["-F", "-"]);
-    runner::run_git_with_stdin(repo_path, &commit_args, message.as_bytes())?;
+    // hook（lint-staged）失败或半途崩溃时，会留下 automatic backup；失败路径立即尝试还原
+    if let Err(error) = runner::run_git_with_stdin(repo_path, &commit_args, message.as_bytes()) {
+        let _ = crate::git::stash::try_restore_lint_staged_backup(repo_path);
+        return Err(error);
+    }
 
     let head = runner::run_git(repo_path, &["rev-parse", "HEAD"])?;
     Ok(head.stdout.trim().to_string())
@@ -135,17 +139,18 @@ pub fn amend_message(repo_path: &Path, rev: &str, message: &str) -> Result<Strin
     let head = runner::run_git(repo_path, &["rev-parse", "HEAD"])?;
     let target = runner::run_git(repo_path, &["rev-parse", rev])?;
     if head.stdout.trim() != target.stdout.trim() {
-        return Err(AppError::new(
-            "VALIDATION",
-            "只能修改当前 HEAD 提交的信息",
-        ));
+        return Err(AppError::new("VALIDATION", "只能修改当前 HEAD 提交的信息"));
     }
 
     runner::run_git_with_stdin(
         repo_path,
         &["commit", "--amend", "-F", "-"],
         message.as_bytes(),
-    )?;
+    )
+    .map_err(|error| {
+        let _ = crate::git::stash::try_restore_lint_staged_backup(repo_path);
+        error
+    })?;
 
     let next_head = runner::run_git(repo_path, &["rev-parse", "HEAD"])?;
     Ok(next_head.stdout.trim().to_string())

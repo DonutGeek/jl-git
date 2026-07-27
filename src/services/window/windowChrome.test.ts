@@ -4,9 +4,7 @@ import { resolveWindowHeaderPaddingClass } from "@/services/window/windowChrome"
 
 describe("resolveWindowHeaderPaddingClass", () => {
   it("macOS 普通窗口为交通灯保留空间", () => {
-    expect(resolveWindowHeaderPaddingClass("macos", false)).toBe(
-      "pl-[88px]",
-    );
+    expect(resolveWindowHeaderPaddingClass("macos", false)).toBe("pl-[88px]");
   });
 
   it("macOS 全屏窗口取消交通灯留位", () => {

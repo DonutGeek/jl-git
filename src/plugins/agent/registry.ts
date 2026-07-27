@@ -54,9 +54,7 @@ export const AGENT_EXTENSIONS: readonly AgentPluginDefinition[] = [
   ...AGENT_SKILLS,
 ];
 
-export function getAgentPluginByMentionId(
-  mentionId: string,
-): AgentPluginDefinition | undefined {
+export function getAgentPluginByMentionId(mentionId: string): AgentPluginDefinition | undefined {
   return AGENT_EXTENSIONS.find((item) => item.mentionId === mentionId);
 }
 

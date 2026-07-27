@@ -6,10 +6,7 @@ import { TreeSelect } from "@/components/common/TreeSelect";
 import { WorkspaceGroupDialog } from "@/components/project/WorkspaceGroupDialog";
 import { Button } from "@/components/ui/button";
 import { useProjectStore } from "@/store/useProjectStore";
-import {
-  buildWorkspaceTree,
-  findWorkspaceTreeLabel,
-} from "@/utils/workspaceOptions";
+import { buildWorkspaceTree, findWorkspaceTreeLabel } from "@/utils/workspaceOptions";
 
 interface WorkspaceSelectMenuProps {
   value: string;

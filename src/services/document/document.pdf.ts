@@ -12,10 +12,9 @@ export async function extractPdfText(data: ArrayBuffer): Promise<string> {
   const path = await join(await tempDir(), fileName);
   try {
     await writeFile(path, new Uint8Array(data));
-    const result = await invokeCommand<{ text: string }>(
-      "document_extract_pdf_text",
-      { input: { path } },
-    );
+    const result = await invokeCommand<{ text: string }>("document_extract_pdf_text", {
+      input: { path },
+    });
     return result.text ?? "";
   } finally {
     await remove(path).catch(() => undefined);

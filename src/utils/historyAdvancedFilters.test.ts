@@ -10,9 +10,7 @@ import {
 
 describe("historyAdvancedFilters", () => {
   it("空筛选无活跃 Git 条件", () => {
-    expect(hasActiveAdvancedGitFilters(EMPTY_HISTORY_ADVANCED_FILTERS)).toBe(
-      false,
-    );
+    expect(hasActiveAdvancedGitFilters(EMPTY_HISTORY_ADVANCED_FILTERS)).toBe(false);
   });
 
   it("隐藏合并提交不计入活跃高亮（合并开关属偏好，与注释一致）", () => {

@@ -31,17 +31,13 @@ interface StreamJinglingGlobalOptions {
   onReasoningDelta?: (content: string) => void;
 }
 
-export type StreamJinglingReplyOptions =
-  | StreamJinglingProjectOptions
-  | StreamJinglingGlobalOptions;
+export type StreamJinglingReplyOptions = StreamJinglingProjectOptions | StreamJinglingGlobalOptions;
 
 /**
  * 统一鲸灵流式入口：按 AgentHost 分发到单仓 / 多仓实现。
  * 单仓与多仓共用此 API，便于后续继续收敛 prompt / 工具面。
  */
-export async function streamJinglingReply(
-  options: StreamJinglingReplyOptions,
-): Promise<void> {
+export async function streamJinglingReply(options: StreamJinglingReplyOptions): Promise<void> {
   if (options.host === "global") {
     await streamMultiAgentReply({
       messages: options.messages,

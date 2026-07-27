@@ -44,10 +44,7 @@ import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { GitStatusEntry } from "@/types/git";
 import { copyToClipboard } from "@/utils/clipboard";
-import {
-  useContextMenuOpen,
-  withContextMenuHighlight,
-} from "@/utils/contextMenuHighlight";
+import { useContextMenuOpen, withContextMenuHighlight } from "@/utils/contextMenuHighlight";
 import { deferUi } from "@/utils/deferUi";
 import { isConflictEntry } from "@/utils/gitConflict";
 import { revealInFileManagerLabel } from "@/utils/platformLabels";
@@ -134,9 +131,7 @@ export function ChangeFileContextMenu({
   }
 
   function handleOpenHistory(): void {
-    const project = useProjectStore
-      .getState()
-      .projects.find((item) => item.path === repoPath);
+    const project = useProjectStore.getState().projects.find((item) => item.path === repoPath);
     if (!project) {
       toast.error(t("repo.diffOpenFileHistoryFailed"));
       return;
@@ -192,18 +187,14 @@ export function ChangeFileContextMenu({
             <ContextMenuSubContent className="min-w-44">
               <ContextMenuItem
                 disabled={disabled || busy}
-                onSelect={() =>
-                  void handleCopy(entry.path, "repo.copyRepoPathSuccess")
-                }
+                onSelect={() => void handleCopy(entry.path, "repo.copyRepoPathSuccess")}
               >
                 <Copy aria-hidden="true" />
                 {t("repo.copyRepoAbsolutePath")}
               </ContextMenuItem>
               <ContextMenuItem
                 disabled={disabled || busy}
-                onSelect={() =>
-                  void handleCopy(absolutePath, "repo.copyAbsolutePathSuccess")
-                }
+                onSelect={() => void handleCopy(absolutePath, "repo.copyAbsolutePathSuccess")}
               >
                 <Copy aria-hidden="true" />
                 {t("repo.copyAbsolutePath")}
@@ -211,10 +202,7 @@ export function ChangeFileContextMenu({
             </ContextMenuSubContent>
           </ContextMenuSub>
 
-          <ContextMenuItem
-            disabled={disabled || busy}
-            onSelect={() => handleOpenHistory()}
-          >
+          <ContextMenuItem disabled={disabled || busy} onSelect={() => handleOpenHistory()}>
             <History aria-hidden="true" />
             {t("repo.viewFileHistory")}
           </ContextMenuItem>
@@ -239,9 +227,7 @@ export function ChangeFileContextMenu({
           </ContextMenuItem>
           <ContextMenuItem
             disabled={disabled || busy || missing}
-            onSelect={() =>
-              void runAction(() => systemOpenService.openInEditor(absolutePath))
-            }
+            onSelect={() => void runAction(() => systemOpenService.openInEditor(absolutePath))}
           >
             <ExternalLink aria-hidden="true" />
             {t("repo.openInEditor")}

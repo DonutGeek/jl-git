@@ -19,12 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-} from "@/components/ui/field";
+import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -69,9 +64,7 @@ function SegmentedControl<T extends string>({
             aria-checked={selected}
             className={cn(
               "hover:bg-background/80 min-w-0 cursor-pointer rounded px-2 py-1 text-[11px] transition-colors",
-              selected
-                ? "bg-background text-foreground shadow-xs"
-                : "text-muted-foreground",
+              selected ? "bg-background text-foreground shadow-xs" : "text-muted-foreground",
             )}
             onClick={() => onChange(option.value)}
           >
@@ -125,10 +118,7 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
   }, [loadBranches, t]);
 
   const scopedBranches = useMemo(
-    () =>
-      branches.filter((branch) =>
-        scope === "local" ? !branch.isRemote : branch.isRemote,
-      ),
+    () => branches.filter((branch) => (scope === "local" ? !branch.isRemote : branch.isRemote)),
     [branches, scope],
   );
 
@@ -287,11 +277,7 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
             disabled={loading || refreshing}
             onClick={() => void handleRefresh()}
           >
-            {refreshing ? (
-              <Spinner className="size-3.5" />
-            ) : (
-              <RefreshCw aria-hidden="true" />
-            )}
+            {refreshing ? <Spinner className="size-3.5" /> : <RefreshCw aria-hidden="true" />}
           </Button>
         </div>
       </div>
@@ -320,9 +306,7 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
         <BranchManageTable
           branches={visibleBranches}
           sortDir={sortDir}
-          onToggleSort={() =>
-            setSortDir((prev) => (prev === "desc" ? "asc" : "desc"))
-          }
+          onToggleSort={() => setSortDir((prev) => (prev === "desc" ? "asc" : "desc"))}
           onDelete={openDelete}
           deletingName={deletingName}
           showTracking={scope === "local"}
@@ -343,10 +327,7 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
           </DialogHeader>
 
           <div className="flex gap-3">
-            <TriangleAlert
-              className="text-chart-4 mt-0.5 size-5 shrink-0"
-              aria-hidden="true"
-            />
+            <TriangleAlert className="text-chart-4 mt-0.5 size-5 shrink-0" aria-hidden="true" />
             <div className="min-w-0 flex-1 space-y-3">
               <div className="space-y-1">
                 <p className="text-foreground text-sm">
@@ -368,18 +349,14 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
                   <Checkbox
                     id="manage-delete-branch-remote"
                     checked={deleteRemoteAlso}
-                    onCheckedChange={(checked) =>
-                      setDeleteRemoteAlso(checked === true)
-                    }
+                    onCheckedChange={(checked) => setDeleteRemoteAlso(checked === true)}
                     disabled={deleteBusy}
                   />
                   <FieldContent>
                     <FieldLabel htmlFor="manage-delete-branch-remote">
                       {t("repo.deleteBranchRemoteCheckbox")}
                     </FieldLabel>
-                    <FieldDescription>
-                      {t("repo.deleteBranchRemoteHint")}
-                    </FieldDescription>
+                    <FieldDescription>{t("repo.deleteBranchRemoteHint")}</FieldDescription>
                   </FieldContent>
                 </Field>
               ) : null}

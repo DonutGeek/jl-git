@@ -56,11 +56,7 @@ export function GitRefPicker({
         className="max-h-64 w-[var(--radix-select-trigger-width)]"
       >
         {options.map((option) => (
-          <SelectItem
-            key={option.key}
-            value={option.value}
-            className="font-mono"
-          >
+          <SelectItem key={option.key} value={option.value} className="font-mono">
             {option.label}
           </SelectItem>
         ))}

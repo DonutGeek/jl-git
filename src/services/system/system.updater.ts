@@ -110,11 +110,7 @@ function toAppError(error: unknown, kind: "check" | "install"): AppError {
   }
   return {
     code: "INTERNAL",
-    message: i18n.t(
-      kind === "check"
-        ? "statusBar.updateCheckFailed"
-        : "statusBar.updateFailed",
-    ),
+    message: i18n.t(kind === "check" ? "statusBar.updateCheckFailed" : "statusBar.updateFailed"),
   };
 }
 

@@ -1,6 +1,6 @@
 import { invokeCommand } from "@/services/invoke";
 
-import {
+import type {
   GitFetchResult,
   GitPullResult,
   GitPushResult,
@@ -18,8 +18,7 @@ export async function listRemotes(repoPath: string): Promise<GitRemote[]> {
 
 /** 优先 origin 的 fetch URL，否则第一个远端 */
 export function pickPrimaryRemoteUrl(remotes: GitRemote[]): string | null {
-  const preferred =
-    remotes.find((remote) => remote.name === "origin") ?? remotes[0];
+  const preferred = remotes.find((remote) => remote.name === "origin") ?? remotes[0];
   if (!preferred) {
     return null;
   }
@@ -28,10 +27,7 @@ export function pickPrimaryRemoteUrl(remotes: GitRemote[]): string | null {
 }
 
 /** 检查更新：fetch 远端跟踪引用（默认 origin） */
-export async function fetch(
-  repoPath: string,
-  remote?: string,
-): Promise<GitFetchResult> {
+export async function fetch(repoPath: string, remote?: string): Promise<GitFetchResult> {
   return invokeCommand<GitFetchResult>("git_fetch", {
     path: repoPath,
     remote,
@@ -45,10 +41,7 @@ export interface GitPullOptions {
 }
 
 /** 更新：pull 远端到本地（默认 origin + 指定分支，或跟随 upstream） */
-export async function pull(
-  repoPath: string,
-  options?: GitPullOptions,
-): Promise<GitPullResult> {
+export async function pull(repoPath: string, options?: GitPullOptions): Promise<GitPullResult> {
   return invokeCommand<GitPullResult>("git_pull", {
     path: repoPath,
     remote: options?.remote,
@@ -65,10 +58,7 @@ export interface GitPushOptions {
 }
 
 /** 推送到远端（默认跟随 upstream） */
-export async function push(
-  repoPath: string,
-  options?: GitPushOptions,
-): Promise<GitPushResult> {
+export async function push(repoPath: string, options?: GitPushOptions): Promise<GitPushResult> {
   return invokeCommand<GitPushResult>("git_push", {
     path: repoPath,
     remote: options?.remote,

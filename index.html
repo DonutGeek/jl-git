@@ -40,9 +40,7 @@
           if (typeof boot.themeId === "string" && boot.themeId) {
             root.dataset.appTheme = boot.themeId;
           }
-          root.dataset.sidebarTranslucent = boot.sidebarTranslucent
-            ? "true"
-            : "false";
+          root.dataset.sidebarTranslucent = boot.sidebarTranslucent ? "true" : "false";
           if (boot.contrast != null) {
             root.dataset.appThemeContrast = String(boot.contrast);
           }
@@ -93,19 +91,13 @@
             transparent
           );
         border-radius: 9999px;
-        border-top-color: var(
-          --primary,
-          var(--foreground, hsl(0 0% 35%))
-        );
+        border-top-color: var(--primary, var(--foreground, hsl(0 0% 35%)));
         height: 18px;
         width: 18px;
       }
 
       html.dark #app-loading-spinner {
-        border-top-color: var(
-          --primary,
-          var(--foreground, hsl(0 0% 78%))
-        );
+        border-top-color: var(--primary, var(--foreground, hsl(0 0% 78%)));
       }
 
       @keyframes app-loading-spin {

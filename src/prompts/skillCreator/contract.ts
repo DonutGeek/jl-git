@@ -14,7 +14,7 @@ export const SKILL_CREATOR_CONTRACT_PROMPT = [
   "- Use one-level-deep references with explicit read conditions. Do not duplicate detailed material between SKILL.md and references.",
   "- Do not create README.md, installation guides, quick references, changelogs, process notes, TODOs, or placeholder files.",
   "agents/openai.yaml rules:",
-  '- Quote all string values and keep keys unquoted.',
+  "- Quote all string values and keep keys unquoted.",
   "- Include interface.display_name, interface.short_description, and interface.default_prompt.",
   "- Keep short_description between 25 and 64 characters.",
   "- Start default_prompt with a useful request that explicitly names the skill as $skill-name.",

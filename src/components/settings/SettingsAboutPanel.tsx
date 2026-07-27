@@ -9,10 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { getGitVersion } from "@/services/git/git.version";
 import { getAppInfo, type SystemAppInfo } from "@/services/system/system.info";
-import {
-  checkAppUpdate,
-  installPendingAppUpdate,
-} from "@/services/system/system.updater";
+import { checkAppUpdate, installPendingAppUpdate } from "@/services/system/system.updater";
 import { useAppUpdateStore } from "@/store/useAppUpdateStore";
 import { toUserMessage } from "@/types/error";
 
@@ -39,9 +36,7 @@ export function SettingsAboutPanel() {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [installingUpdate, setInstallingUpdate] = useState(false);
   const availableUpdate = useAppUpdateStore((state) => state.availableUpdate);
-  const setAvailableUpdate = useAppUpdateStore(
-    (state) => state.setAvailableUpdate,
-  );
+  const setAvailableUpdate = useAppUpdateStore((state) => state.setAvailableUpdate);
 
   async function handleCheckUpdate(): Promise<void> {
     if (checkingUpdate || installingUpdate) {
@@ -105,26 +100,24 @@ export function SettingsAboutPanel() {
   useEffect(() => {
     let cancelled = false;
 
-    void Promise.allSettled([
-      getAppInfo(),
-      getTauriVersion(),
-      getGitVersion(),
-    ]).then(([appResult, tauriResult, gitResult]) => {
-      if (cancelled) {
-        return;
-      }
-      if (appResult.status === "fulfilled") {
-        setAppInfo(appResult.value);
-      }
-      if (tauriResult.status === "fulfilled") {
-        setTauriVersion(tauriResult.value);
-      }
-      if (gitResult.status === "fulfilled") {
-        setGitVersion(gitResult.value.version);
-      } else {
-        setGitVersion(null);
-      }
-    });
+    void Promise.allSettled([getAppInfo(), getTauriVersion(), getGitVersion()]).then(
+      ([appResult, tauriResult, gitResult]) => {
+        if (cancelled) {
+          return;
+        }
+        if (appResult.status === "fulfilled") {
+          setAppInfo(appResult.value);
+        }
+        if (tauriResult.status === "fulfilled") {
+          setTauriVersion(tauriResult.value);
+        }
+        if (gitResult.status === "fulfilled") {
+          setGitVersion(gitResult.value.version);
+        } else {
+          setGitVersion(null);
+        }
+      },
+    );
 
     return () => {
       cancelled = true;
@@ -200,9 +193,7 @@ export function SettingsAboutPanel() {
             >
               {installingUpdate ? <Spinner className="size-3.5" /> : null}
               {t("settings.aboutUpdateInstall")}
-              <span className="font-mono tabular-nums">
-                v{availableUpdate.version}
-              </span>
+              <span className="font-mono tabular-nums">v{availableUpdate.version}</span>
             </Button>
           ) : null}
         </div>

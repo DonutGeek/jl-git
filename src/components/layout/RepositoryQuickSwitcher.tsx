@@ -17,11 +17,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { useProjectStore } from "@/store/useProjectStore";
 import {
@@ -35,9 +31,7 @@ interface RepositoryQuickSwitcherProps {
 }
 
 /** 活动栏仓库搜索：通过 shadcn Command 快速切换仓库或进入新标签页。 */
-export function RepositoryQuickSwitcher({
-  className,
-}: RepositoryQuickSwitcherProps) {
+export function RepositoryQuickSwitcher({ className }: RepositoryQuickSwitcherProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -45,28 +39,15 @@ export function RepositoryQuickSwitcher({
   const workspaces = useProjectStore((state) => state.workspaces);
   const currentProjectId = useProjectStore((state) => state.current?.id);
   const openNewTab = useOpenTabsStore((state) => state.openNewTab);
-  const openRepositoryTab = useOpenTabsStore(
-    (state) => state.openRepositoryTab,
-  );
-  const sortedProjects = useMemo(
-    () => sortProjectsForQuickSwitcher(projects),
-    [projects],
-  );
+  const openRepositoryTab = useOpenTabsStore((state) => state.openRepositoryTab);
+  const sortedProjects = useMemo(() => sortProjectsForQuickSwitcher(projects), [projects]);
   const workspaceNames = useMemo(
-    () =>
-      new Map(
-        workspaces.map((workspace) => [workspace.id, workspace.name] as const),
-      ),
+    () => new Map(workspaces.map((workspace) => [workspace.id, workspace.name] as const)),
     [workspaces],
   );
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: "search" });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: "search",
+  });
 
   function handleNewTab(): void {
     const tabId = openNewTab();
@@ -161,15 +142,10 @@ export function RepositoryQuickSwitcher({
                       key={project.id}
                       value={projectQuickSwitcherValue(project, workspaceName)}
                       className="min-w-0 items-start justify-start overflow-hidden py-2"
-                      aria-current={
-                        project.id === currentProjectId ? "page" : undefined
-                      }
+                      aria-current={project.id === currentProjectId ? "page" : undefined}
                       onSelect={() => handleProject(project.id)}
                     >
-                      <ProjectIcon
-                        name={project.icon}
-                        className="mt-0.5 shrink-0 self-start"
-                      />
+                      <ProjectIcon name={project.icon} className="mt-0.5 shrink-0 self-start" />
                       <span className="flex min-w-0 flex-1 flex-col items-stretch gap-0.5 overflow-hidden text-left">
                         <span className="flex min-w-0 items-center justify-start gap-1.5">
                           <span className="min-w-0 truncate text-left font-medium">

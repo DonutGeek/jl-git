@@ -29,9 +29,7 @@ export function AgentReasoningBlock({
   const [open, setOpen] = useState(thinking);
   const autoCollapsedRef = useRef(false);
   const durationSeconds =
-    durationMs != null && durationMs >= 0
-      ? Math.max(1, Math.round(durationMs / 1000))
-      : null;
+    durationMs != null && durationMs >= 0 ? Math.max(1, Math.round(durationMs / 1000)) : null;
 
   useEffect(() => {
     if (thinking) {
@@ -59,10 +57,7 @@ export function AgentReasoningBlock({
         onClick={() => setOpen((value) => !value)}
       >
         <ChevronRight
-          className={cn(
-            "size-3.5 shrink-0 transition-transform",
-            open && "rotate-90",
-          )}
+          className={cn("size-3.5 shrink-0 transition-transform", open && "rotate-90")}
           aria-hidden="true"
         />
         {thinking ? (

@@ -1,23 +1,13 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type MouseEvent,
-} from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { GitFork } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { toUserMessage } from "@/types/error";
 import { copyToClipboard } from "@/utils/clipboard";
-import { RemoteRepository } from "@/utils/remoteRepository";
+import type { RemoteRepository } from "@/utils/remoteRepository";
 
 interface RemoteRepositoryLabelProps {
   remote: RemoteRepository;
@@ -37,11 +27,7 @@ function stopAndOpen(
 }
 
 /** 远程仓库标签：单击复制 URL，双击打开托管页。 */
-export function RemoteRepositoryLabel({
-  remote,
-  onOpen,
-  className,
-}: RemoteRepositoryLabelProps) {
+export function RemoteRepositoryLabel({ remote, onOpen, className }: RemoteRepositoryLabelProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<number | null>(null);
@@ -71,9 +57,7 @@ export function RemoteRepositoryLabel({
 
   return (
     // 外层负责对齐与最大宽度；触发器 w-max，Tooltip 锚定可见内容中心
-    <div
-      className={cn("ml-auto inline-flex max-w-[46%] min-w-0 shrink-0", className)}
-    >
+    <div className={cn("ml-auto inline-flex max-w-[46%] min-w-0 shrink-0", className)}>
       <Tooltip open={copied ? true : undefined} delayDuration={200}>
         <TooltipTrigger asChild>
           <span

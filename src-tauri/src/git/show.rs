@@ -142,10 +142,7 @@ pub fn get_commit(repo_path: &Path, rev: &str) -> Result<GitShowResult, AppError
 pub fn get_commit_message(repo_path: &Path, rev: &str) -> Result<GitCommitMessageResult, AppError> {
     validate_git_ref(rev)?;
 
-    let output = runner::run_git(
-        repo_path,
-        &["log", "-1", "--no-patch", "--format=%B", rev],
-    )?;
+    let output = runner::run_git(repo_path, &["log", "-1", "--no-patch", "--format=%B", rev])?;
 
     Ok(GitCommitMessageResult {
         message: output.stdout.trim_end().to_string(),
@@ -156,10 +153,8 @@ pub fn get_commit_message(repo_path: &Path, rev: &str) -> Result<GitCommitMessag
 pub fn list_tree_paths(repo_path: &Path, rev: &str) -> Result<GitLsTreeResult, AppError> {
     validate_git_ref(rev)?;
 
-    let output = runner::run_git_allow_nonzero(
-        repo_path,
-        &["ls-tree", "-r", "--name-only", "-z", rev],
-    )?;
+    let output =
+        runner::run_git_allow_nonzero(repo_path, &["ls-tree", "-r", "--name-only", "-z", rev])?;
 
     if output.code != 0 {
         let message = output
@@ -268,10 +263,8 @@ pub fn change_size(repo_path: &Path, rev: &str) -> Result<GitCommitChangeSizeRes
         });
     }
 
-    let tree = runner::run_git_allow_nonzero(
-        repo_path,
-        &["ls-tree", "-r", "-l", "-z", &meta.commit.id],
-    )?;
+    let tree =
+        runner::run_git_allow_nonzero(repo_path, &["ls-tree", "-r", "-l", "-z", &meta.commit.id])?;
 
     if tree.code != 0 {
         let message = tree
@@ -322,11 +315,7 @@ fn parse_ls_tree_sizes_z(stdout: &str) -> std::collections::HashMap<String, u64>
 fn parse_show_meta(stdout: &str) -> Result<GitCommitDetail, AppError> {
     // body 可能含换行，用 \0 分隔前 6 段后剩余为 body
     let mut parts = stdout.splitn(7, '\0');
-    let id = parts
-        .next()
-        .unwrap_or("")
-        .trim()
-        .to_string();
+    let id = parts.next().unwrap_or("").trim().to_string();
     let short_id = parts.next().unwrap_or("").trim().to_string();
     let author_name = parts.next().unwrap_or("").trim().to_string();
     let authored_at = parts.next().unwrap_or("").trim().to_string();
@@ -341,10 +330,7 @@ fn parse_show_meta(stdout: &str) -> Result<GitCommitDetail, AppError> {
     let parents: Vec<String> = if parents_raw.is_empty() {
         Vec::new()
     } else {
-        parents_raw
-            .split_whitespace()
-            .map(str::to_string)
-            .collect()
+        parents_raw.split_whitespace().map(str::to_string).collect()
     };
     let parent_short_ids: Vec<String> = parents.iter().map(|p| abbreviate_id(p)).collect();
 
@@ -393,7 +379,15 @@ fn list_diff_files(
     attach_numstat(
         repo_path,
         &mut files,
-        &["diff-tree", "--no-commit-id", "--numstat", "-r", "-z", parent, commit],
+        &[
+            "diff-tree",
+            "--no-commit-id",
+            "--numstat",
+            "-r",
+            "-z",
+            parent,
+            commit,
+        ],
     )?;
     sort_changed_files(&mut files);
     Ok(truncate_changed_files(files))
@@ -494,7 +488,9 @@ fn attach_numstat(
 }
 
 /// 解析 `git diff-tree -z --numstat` / `git diff -z --numstat`：added\\tdeleted\\tpath\\0
-pub(crate) fn parse_numstat_z(stdout: &str) -> std::collections::HashMap<String, (Option<u32>, Option<u32>)> {
+pub(crate) fn parse_numstat_z(
+    stdout: &str,
+) -> std::collections::HashMap<String, (Option<u32>, Option<u32>)> {
     let mut map = std::collections::HashMap::new();
     for entry in stdout.split('\0').filter(|p| !p.is_empty()) {
         let mut cols = entry.splitn(3, '\t');
@@ -525,11 +521,7 @@ fn parse_name_status_z(stdout: &str) -> Vec<GitChangedFile> {
     let mut parts = stdout.split('\0').filter(|p| !p.is_empty()).peekable();
 
     while let Some(status_raw) = parts.next() {
-        let status_letter = status_raw
-            .chars()
-            .next()
-            .unwrap_or('M')
-            .to_string();
+        let status_letter = status_raw.chars().next().unwrap_or('M').to_string();
 
         if status_letter == "R" || status_letter == "C" {
             let _old = parts.next();

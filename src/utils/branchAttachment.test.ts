@@ -25,11 +25,9 @@ describe("getBranchAttachmentExtension / isAllowedBranchAttachmentName", () => {
 
 describe("parseBranchAttachmentFile", () => {
   it("解析纯文本并脱敏", async () => {
-    const file = new File(
-      ["需求：修复登录\napi_key=sk-abcdefghijklmnopqrstuvwxyz"],
-      "prd.txt",
-      { type: "text/plain" },
-    );
+    const file = new File(["需求：修复登录\napi_key=sk-abcdefghijklmnopqrstuvwxyz"], "prd.txt", {
+      type: "text/plain",
+    });
     const attachment = await parseBranchAttachmentFile(file);
     expect(attachment.name).toBe("prd.txt");
     expect(attachment.text).toContain("修复登录");
@@ -39,10 +37,7 @@ describe("parseBranchAttachmentFile", () => {
   });
 
   it("拒绝超大文件", async () => {
-    const file = new File(
-      [new Uint8Array(MAX_ATTACHMENT_BYTES + 1)],
-      "big.txt",
-    );
+    const file = new File([new Uint8Array(MAX_ATTACHMENT_BYTES + 1)], "big.txt");
     await expect(parseBranchAttachmentFile(file)).rejects.toMatchObject({
       code: "tooLarge",
     });

@@ -78,9 +78,7 @@ function findFocusedIndex(items: readonly ReactElement[]): number {
     };
     // react-mentions-ts 候选项是 memo 组件，焦点在 focused prop 上
     return (
-      props.focused === true ||
-      props["data-focused"] === "true" ||
-      props["aria-selected"] === true
+      props.focused === true || props["data-focused"] === "true" || props["aria-selected"] === true
     );
   });
 }
@@ -93,9 +91,7 @@ interface MentionSuggestionVirtualListProps {
  * Mentions 候选：ScrollArea + 虚拟列表。
  * 库的 SuggestionItem 不转发 style/ref，故用外层 div 承担定位与测高。
  */
-export function MentionSuggestionVirtualList({
-  children,
-}: MentionSuggestionVirtualListProps) {
+export function MentionSuggestionVirtualList({ children }: MentionSuggestionVirtualListProps) {
   const items = useMemo(() => extractSuggestionItems(children), [children]);
   const focusedIndex = useMemo(() => findFocusedIndex(items), [items]);
   const { viewport, bindScrollArea } = useScrollAreaViewport();
@@ -118,21 +114,14 @@ export function MentionSuggestionVirtualList({
 
   if (items.length === 0) {
     return (
-      <ScrollArea
-        className={scrollAreaClassName}
-        style={{ maxHeight: SUGGESTION_MAX_HEIGHT_PX }}
-      >
+      <ScrollArea className={scrollAreaClassName} style={{ maxHeight: SUGGESTION_MAX_HEIGHT_PX }}>
         {children}
       </ScrollArea>
     );
   }
 
-  const contentHeight =
-    virtualizer.getTotalSize() || items.length * SUGGESTION_ROW_ESTIMATE_PX;
-  const listHeight = Math.min(
-    SUGGESTION_MAX_HEIGHT_PX,
-    contentHeight + SUGGESTION_PAD_Y_PX,
-  );
+  const contentHeight = virtualizer.getTotalSize() || items.length * SUGGESTION_ROW_ESTIMATE_PX;
+  const listHeight = Math.min(SUGGESTION_MAX_HEIGHT_PX, contentHeight + SUGGESTION_PAD_Y_PX);
 
   return (
     <ScrollArea

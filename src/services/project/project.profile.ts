@@ -12,9 +12,7 @@ export interface ProjectProfileSnapshot {
 }
 
 /** 读取仓库根 README / 清单，供 AI 生成简介 */
-export async function getProjectProfileSnapshot(
-  path: string,
-): Promise<ProjectProfileSnapshot> {
+export async function getProjectProfileSnapshot(path: string): Promise<ProjectProfileSnapshot> {
   return invokeCommand<ProjectProfileSnapshot>("project_profile_snapshot", {
     path,
   });

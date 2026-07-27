@@ -23,21 +23,16 @@ export async function notifyProjectsChanged(): Promise<void> {
 export async function listenOpenProjectInMain(
   handler: (projectId: string) => void,
 ): Promise<() => void> {
-  const unlisten = await listen<OpenProjectInMainPayload>(
-    OPEN_PROJECT_IN_MAIN_EVENT,
-    (event) => {
-      const projectId = event.payload?.projectId?.trim();
-      if (projectId) {
-        handler(projectId);
-      }
-    },
-  );
+  const unlisten = await listen<OpenProjectInMainPayload>(OPEN_PROJECT_IN_MAIN_EVENT, (event) => {
+    const projectId = event.payload?.projectId?.trim();
+    if (projectId) {
+      handler(projectId);
+    }
+  });
   return unlisten;
 }
 
-export async function listenProjectsChanged(
-  handler: () => void,
-): Promise<() => void> {
+export async function listenProjectsChanged(handler: () => void): Promise<() => void> {
   const unlisten = await listen(PROJECTS_CHANGED_EVENT, () => {
     handler();
   });

@@ -58,9 +58,7 @@ export function AgentMessageCopyButton({ content }: AgentMessageCopyButtonProps)
           )}
         </button>
       </TooltipTrigger>
-      <TooltipContent>
-        {copied ? t("agent.copySuccess") : t("agent.copy")}
-      </TooltipContent>
+      <TooltipContent>{copied ? t("agent.copySuccess") : t("agent.copy")}</TooltipContent>
     </Tooltip>
   );
 }

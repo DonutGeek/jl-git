@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GitBranch as GitBranchIcon, Tag } from "lucide-react";
 import { toast } from "sonner";
@@ -27,10 +28,7 @@ import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/store/useRepoStore";
 import { listRemotes } from "@/services/git";
 import { toUserMessage } from "@/types/error";
-import {
-  filterAndSortBranches,
-  readBranchListPrefs,
-} from "@/utils/branchListPrefs";
+import { filterAndSortBranches, readBranchListPrefs } from "@/utils/branchListPrefs";
 import { filterAndSortTags, readTagListPrefs } from "@/utils/tagListPrefs";
 
 /** 内部键前缀，避免分支与标签同名冲突；提交时取 value（真实 ref） */
@@ -110,10 +108,7 @@ export function CreateTagDialog({
     void listRemotes(repoPath)
       .then((remotes) => {
         if (!active) return;
-        setRemote(
-          (remotes.find((item) => item.name === "origin") ?? remotes[0])?.name ??
-            null,
-        );
+        setRemote((remotes.find((item) => item.name === "origin") ?? remotes[0])?.name ?? null);
       })
       .catch((loadError: unknown) => {
         if (active) setError(toUserMessage(loadError));
@@ -160,8 +155,7 @@ export function CreateTagDialog({
     }
   }
 
-  const canSubmit =
-    !busy && name.trim().length > 0 && (lockedRef || selectedRef.trim().length > 0);
+  const canSubmit = !busy && name.trim().length > 0 && (lockedRef || selectedRef.trim().length > 0);
 
   function handleOpenChange(next: boolean): void {
     // 执行中禁止关闭，避免重复提交
@@ -187,10 +181,7 @@ export function CreateTagDialog({
                 <FieldLabel>{t("repo.tagBasedOn")}</FieldLabel>
                 <div className="border-border bg-muted/30 flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
                   {fixedRefIsTag ? (
-                    <Tag
-                      className="text-muted-foreground size-3.5 shrink-0"
-                      aria-hidden="true"
-                    />
+                    <Tag className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
                   ) : (
                     <GitBranchIcon
                       className="text-muted-foreground size-3.5 shrink-0"
@@ -202,9 +193,7 @@ export function CreateTagDialog({
               </Field>
             ) : (
               <Field>
-                <FieldLabel htmlFor="create-tag-base">
-                  {t("repo.tagBasedOn")}
-                </FieldLabel>
+                <FieldLabel htmlFor="create-tag-base">{t("repo.tagBasedOn")}</FieldLabel>
                 <GitRefPicker
                   id="create-tag-base"
                   value={selectedRef}
@@ -227,9 +216,7 @@ export function CreateTagDialog({
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="create-tag-message">
-                {t("repo.tagMessage")}
-              </FieldLabel>
+              <FieldLabel htmlFor="create-tag-message">{t("repo.tagMessage")}</FieldLabel>
               <Input
                 id="create-tag-message"
                 value={message}

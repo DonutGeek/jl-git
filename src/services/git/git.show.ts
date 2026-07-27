@@ -1,6 +1,6 @@
 import { invokeCommand } from "@/services/invoke";
 
-import {
+import type {
   GitCommitChangeSizeResult,
   GitCommitMessageResult,
   GitContainingBranchesResult,

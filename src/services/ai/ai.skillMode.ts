@@ -16,15 +16,11 @@ const SKILL_CREATOR_REQUEST_PATTERN =
 const SKILL_CREATOR_REVISION_PATTERN =
   /(?:修改|调整|优化|更新|补充|删掉|增加|重写).{0,20}(?:这个|上面|刚才|skill|技能|文件|规则)|(?:revise|update|improve|change|add|remove).{0,24}(?:skill|artifact|file|above|it)/i;
 
-export const SKILL_CREATOR_AWAITING_INPUT_MARKER =
-  "<!-- jlgit-skill-creator:awaiting-input -->";
-export const SKILL_CREATOR_ARTIFACT_MARKER =
-  "<!-- jlgit-skill-creator:artifact -->";
+export const SKILL_CREATOR_AWAITING_INPUT_MARKER = "<!-- jlgit-skill-creator:awaiting-input -->";
+export const SKILL_CREATOR_ARTIFACT_MARKER = "<!-- jlgit-skill-creator:artifact -->";
 
 /** 返回本轮唯一启用的内置技能；null 表示通用 Git Agent。 */
-export function getAgentSkillMode(
-  messages: readonly AgentChatMessage[],
-): AgentSkillMode {
+export function getAgentSkillMode(messages: readonly AgentChatMessage[]): AgentSkillMode {
   if (isResumeSkillTurn(messages)) {
     return "resume";
   }
@@ -38,12 +34,8 @@ export function getAgentSkillMode(
  * 是否进入简历技能：本轮用户消息显式 @简历，或明确要求生成简历/项目经历。
  * 普通 Git 问答不得因此走简历 system prompt。
  */
-export function isResumeSkillTurn(
-  messages: readonly AgentChatMessage[],
-): boolean {
-  const lastUser = [...messages]
-    .reverse()
-    .find((message) => message.role === "user");
+export function isResumeSkillTurn(messages: readonly AgentChatMessage[]): boolean {
+  const lastUser = [...messages].reverse().find((message) => message.role === "user");
   if (!lastUser) {
     return false;
   }
@@ -66,22 +58,16 @@ export function isResumeSkillTurn(
     .find((message) => message.role === "assistant");
   return Boolean(
     previousAssistant?.content.includes("## 项目经历") &&
-      RESUME_REVISION_PATTERN.test(lastUser.content),
+    RESUME_REVISION_PATTERN.test(lastUser.content),
   );
 }
 
 /** 显式 @简历或直接提出成稿请求。 */
-export function isExplicitResumeSkillRequest(
-  message: AgentChatMessage,
-): boolean {
+export function isExplicitResumeSkillRequest(message: AgentChatMessage): boolean {
   if (message.role !== "user") {
     return false;
   }
-  if (
-    message.mentions?.some(
-      (mention) => mention.type === "plugin" && mention.id === "resume",
-    )
-  ) {
+  if (message.mentions?.some((mention) => mention.type === "plugin" && mention.id === "resume")) {
     return true;
   }
   // 无 @ 时仅匹配明确成稿意图，避免普通叙述中的「简历」二字误触发。
@@ -89,12 +75,8 @@ export function isExplicitResumeSkillRequest(
 }
 
 /** 是否进入 Skill Creator；普通仓库中的 SKILL.md 问答不得误触发。 */
-export function isSkillCreatorTurn(
-  messages: readonly AgentChatMessage[],
-): boolean {
-  const lastUser = [...messages]
-    .reverse()
-    .find((message) => message.role === "user");
+export function isSkillCreatorTurn(messages: readonly AgentChatMessage[]): boolean {
+  const lastUser = [...messages].reverse().find((message) => message.role === "user");
   if (!lastUser) {
     return false;
   }
@@ -109,9 +91,7 @@ export function isSkillCreatorTurn(
   if (!previousAssistant) {
     return false;
   }
-  if (
-    previousAssistant.content.includes(SKILL_CREATOR_AWAITING_INPUT_MARKER)
-  ) {
+  if (previousAssistant.content.includes(SKILL_CREATOR_AWAITING_INPUT_MARKER)) {
     return true;
   }
   return (
@@ -121,17 +101,12 @@ export function isSkillCreatorTurn(
 }
 
 /** 显式 @技能创建，或直接要求创建/更新 Codex Skill。 */
-export function isExplicitSkillCreatorRequest(
-  message: AgentChatMessage,
-): boolean {
+export function isExplicitSkillCreatorRequest(message: AgentChatMessage): boolean {
   if (message.role !== "user") {
     return false;
   }
   if (
-    message.mentions?.some(
-      (mention) =>
-        mention.type === "plugin" && mention.id === "skill-creator",
-    )
+    message.mentions?.some((mention) => mention.type === "plugin" && mention.id === "skill-creator")
   ) {
     return true;
   }

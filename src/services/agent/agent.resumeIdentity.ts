@@ -2,11 +2,9 @@ import i18n from "@/i18n";
 import type { AgentAuthorFilter } from "@/services/agent/agent.profile";
 import type { AgentChatMessage } from "@/types/ai";
 
-export const RESUME_IDENTITY_REQUIRED_MARKER =
-  "<!-- jlgit-resume:identity-required -->";
+export const RESUME_IDENTITY_REQUIRED_MARKER = "<!-- jlgit-resume:identity-required -->";
 
-const EMAIL_PATTERN =
-  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const EMAIL_PATTERN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const NAME_EMAIL_PAIR_PATTERN =
   /(?:^|[\s,，;；])([^<>\n,，;；]{1,48})\s*<([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})>/gi;
 const AUTHOR_NAME_PATTERNS = [
@@ -24,9 +22,7 @@ export function buildResumeIdentityRequest(locale: string): string {
  * 只解析用户主动声明的 Git 作者名 / 提交邮箱。
  * 不读取当前仓库或全局 git config，也不把普通人名自动当成作者身份。
  */
-export function parseDeclaredResumeAuthors(
-  content: string,
-): AgentAuthorFilter[] {
+export function parseDeclaredResumeAuthors(content: string): AgentAuthorFilter[] {
   const paired: AgentAuthorFilter[] = [];
   const pairedEmails = new Set<string>();
 
@@ -50,9 +46,9 @@ export function parseDeclaredResumeAuthors(
     }
   }
 
-  const emails = [...new Set(
-    (content.match(EMAIL_PATTERN) ?? []).map((email) => email.toLowerCase()),
-  )].filter((email) => !pairedEmails.has(email));
+  const emails = [
+    ...new Set((content.match(EMAIL_PATTERN) ?? []).map((email) => email.toLowerCase())),
+  ].filter((email) => !pairedEmails.has(email));
 
   const declared = [...paired];
   const pairCount = Math.min(names.length, emails.length);
@@ -94,9 +90,7 @@ export function extractDeclaredResumeAuthors(
 }
 
 /** 上一条助手消息是否正在等待简历作者身份。 */
-export function hasPendingResumeIdentityRequest(
-  messages: readonly AgentChatMessage[],
-): boolean {
+export function hasPendingResumeIdentityRequest(messages: readonly AgentChatMessage[]): boolean {
   let lastUserIndex = -1;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     if (messages[index]?.role === "user") {
@@ -133,9 +127,7 @@ function hasIdentityDeclarationCue(content: string): boolean {
   );
 }
 
-function dedupeAuthors(
-  authors: readonly AgentAuthorFilter[],
-): AgentAuthorFilter[] {
+function dedupeAuthors(authors: readonly AgentAuthorFilter[]): AgentAuthorFilter[] {
   const seen = new Set<string>();
   const result: AgentAuthorFilter[] = [];
   for (const author of authors) {

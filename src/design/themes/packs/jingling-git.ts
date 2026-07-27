@@ -1,7 +1,4 @@
-import {
-  APP_THEME_JINGLING_GIT,
-  type AppThemePack,
-} from "@/design/themes/types";
+import { APP_THEME_JINGLING_GIT, type AppThemePack } from "@/design/themes/types";
 
 /**
  * 鲸灵 Git：默认沿用 tokens.css 原色（nativeTokens）。

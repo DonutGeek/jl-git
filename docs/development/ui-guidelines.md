@@ -151,6 +151,7 @@ ls src/components/ui | sed 's/\.tsx$//'
 | 必须 | `pnpm dlx shadcn@latest add <component>`（更新/恢复加 `--overwrite`） |
 | 禁止手写 | 不得在 `src/components/ui/` 手写、粘贴 registry、或用 Agent 工具仿造官方文件 |
 | 禁止私改 | 不得改 `ui/` 内样式/结构/导出；业务只组合引用 |
+| 禁止自动改写 | ESLint / Prettier / 编辑器 format-on-save 均不得改写该目录（见 [code-quality-tooling](code-quality-tooling.md)） |
 | CLI 失败 | 修环境后重试官方命令，**禁止**退化为手写落地 |
 
 ```bash

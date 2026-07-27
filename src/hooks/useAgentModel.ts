@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 
-import {
-  AI_API_KEYS_CHANGED_EVENT,
-  getAgentKey,
-} from "@/services/ai/ai.settings";
+import { AI_API_KEYS_CHANGED_EVENT, getAgentKey } from "@/services/ai/ai.settings";
 import {
   fetchDeepSeekModels,
   readAgentModelId,

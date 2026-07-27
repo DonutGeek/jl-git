@@ -6,6 +6,7 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[derive(Debug)]
 pub struct GitOutput {
     pub stdout: String,
     pub stderr: String,
@@ -32,8 +33,12 @@ pub fn run_git(cwd: &Path, args: &[&str]) -> Result<GitOutput, AppError> {
     ensure_success(args, output)
 }
 
+/// commit/push hook 可能刷屏；保留前缀供报错，超额丢弃以免整进程 OOM 闪退
+const CAPPED_STDIN_STDOUT_MAX_BYTES: usize = 256 * 1024;
+const CAPPED_STDIN_STDERR_MAX_BYTES: usize = 128 * 1024;
+
 /// 向 git 写入 stdin（update-index -z / commit -F -）
-/// 边写 stdin 边读 stdout/stderr，避免管道堵死
+/// 边写 stdin 边读 stdout/stderr，避免管道堵死；输出限长并继续排空，不 kill 子进程（让 hook 有机会收尾还原 stash）
 pub fn run_git_with_stdin(cwd: &Path, args: &[&str], stdin: &[u8]) -> Result<GitOutput, AppError> {
     let started = Instant::now();
     oplog::begin_command(args);
@@ -44,9 +49,10 @@ pub fn run_git_with_stdin(cwd: &Path, args: &[&str], stdin: &[u8]) -> Result<Git
         .spawn()
         .map_err(|error| AppError::git_not_found(error.to_string()))?;
 
-    let mut stdin_pipe = child.stdin.take().ok_or_else(|| {
-        AppError::new("GIT_FAILED", "无法打开 git stdin")
-    })?;
+    let mut stdin_pipe = child
+        .stdin
+        .take()
+        .ok_or_else(|| AppError::new("GIT_FAILED", "无法打开 git stdin"))?;
     let stdout_pipe = child.stdout.take();
     let stderr_pipe = child.stderr.take();
 
@@ -60,18 +66,18 @@ pub fn run_git_with_stdin(cwd: &Path, args: &[&str], stdin: &[u8]) -> Result<Git
     });
 
     let stdout_handle = thread::spawn(move || {
-        let mut buf = String::new();
-        if let Some(mut pipe) = stdout_pipe {
-            let _ = pipe.read_to_string(&mut buf);
+        if let Some(pipe) = stdout_pipe {
+            read_capped_and_drain(pipe, CAPPED_STDIN_STDOUT_MAX_BYTES)
+        } else {
+            String::new()
         }
-        buf
     });
     let stderr_handle = thread::spawn(move || {
-        let mut buf = String::new();
-        if let Some(mut pipe) = stderr_pipe {
-            let _ = pipe.read_to_string(&mut buf);
+        if let Some(pipe) = stderr_pipe {
+            read_capped_and_drain(pipe, CAPPED_STDIN_STDERR_MAX_BYTES)
+        } else {
+            String::new()
         }
-        buf
     });
 
     let status = child.wait().map_err(|error| {
@@ -89,6 +95,26 @@ pub fn run_git_with_stdin(cwd: &Path, args: &[&str], stdin: &[u8]) -> Result<Git
     };
     record(args, &git_output, started);
     ensure_success(args, git_output)
+}
+
+/// 读取最多 `max_bytes`，超出部分继续排空但不保留，避免管道堵死与内存暴涨
+fn read_capped_and_drain(mut pipe: impl Read, max_bytes: usize) -> String {
+    let max_bytes = max_bytes.max(1);
+    let mut kept = Vec::with_capacity(max_bytes.min(64 * 1024));
+    let mut chunk = [0_u8; 8_192];
+    loop {
+        let n = match pipe.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(_) => break,
+        };
+        if kept.len() < max_bytes {
+            let room = max_bytes - kept.len();
+            kept.extend_from_slice(&chunk[..n.min(room)]);
+        }
+        // 超额字节故意丢弃，继续读直到 EOF
+    }
+    String::from_utf8_lossy(&kept).into_owned()
 }
 
 pub fn run_git_allow_nonzero(cwd: &Path, args: &[&str]) -> Result<GitOutput, AppError> {
@@ -116,9 +142,10 @@ pub fn run_git_stdout_capped(
         .spawn()
         .map_err(|error| AppError::git_not_found(error.to_string()))?;
 
-    let mut stdout_pipe = child.stdout.take().ok_or_else(|| {
-        AppError::new("GIT_FAILED", "无法打开 git stdout")
-    })?;
+    let mut stdout_pipe = child
+        .stdout
+        .take()
+        .ok_or_else(|| AppError::new("GIT_FAILED", "无法打开 git stdout"))?;
     let stderr_pipe = child.stderr.take();
 
     let stderr_handle = thread::spawn(move || {
@@ -272,8 +299,30 @@ fn ensure_success(args: &[&str], output: GitOutput) -> Result<GitOutput, AppErro
         .with_details(combined));
     }
 
-    let message =
-        pick_error_message(&combined).unwrap_or_else(|| "git 命令失败".to_string());
+    // husky / git hook：优先抽出真正失败原因，避免只显示包装句
+    if lower.contains("husky")
+        || lower.contains("pre-commit")
+        || lower.contains("pre-push")
+        || lower.contains(".husky/")
+    {
+        let reason = pick_error_message(&combined)
+            .map(|line| truncate_chars(&line, 180))
+            .unwrap_or_else(|| "请根据仓库 hooks 输出排查（如 lint / 测试）".to_string());
+        let hook_name = if lower.contains("pre-push") {
+            "pre-push"
+        } else if lower.contains("pre-commit") {
+            "pre-commit"
+        } else {
+            "hook"
+        };
+        return Err(AppError::new(
+            "GIT_FAILED",
+            format!("Git {hook_name} 检查未通过：{reason}"),
+        )
+        .with_details(combined));
+    }
+
+    let message = pick_error_message(&combined).unwrap_or_else(|| "git 命令失败".to_string());
     Err(AppError::new("GIT_FAILED", message).with_details(combined))
 }
 
@@ -335,7 +384,23 @@ fn is_decorative_line(line: &str) -> bool {
         || trimmed.starts_with('│')
 }
 
+/// husky / npm 包装句：有「failed」但不是真正原因，挑错时应跳过
+fn is_hook_wrapper_line(line: &str) -> bool {
+    let lower = line.trim().to_lowercase();
+    lower.starts_with("husky -")
+        || lower.starts_with("husky:")
+        || (lower.starts_with("husky") && lower.contains("failed"))
+        || lower.starts_with("exit status")
+        || lower.starts_with("npm error")
+        || lower.contains("command failed with exit code")
+        || lower.starts_with("error command failed")
+        || lower.contains("script failed (code")
+}
+
 fn looks_like_error_line(line: &str) -> bool {
+    if is_hook_wrapper_line(line) {
+        return false;
+    }
     let lower = line.to_lowercase();
     lower.contains("error")
         || lower.contains("fatal")
@@ -345,8 +410,10 @@ fn looks_like_error_line(line: &str) -> bool {
         || lower.contains("subject-empty")
         || lower.contains("type-empty")
         || lower.contains("commitlint")
-        || lower.contains("exit status")
         || lower.contains("rejected")
+        || lower.contains("eslint")
+        || lower.contains("prettier")
+        || lower.contains("lint-staged")
 }
 
 fn pick_error_message(text: &str) -> Option<String> {
@@ -354,6 +421,7 @@ fn pick_error_message(text: &str) -> Option<String> {
         .lines()
         .map(str::trim)
         .filter(|line| !is_decorative_line(line))
+        .filter(|line| !is_hook_wrapper_line(line))
         .collect();
 
     if let Some(line) = lines.iter().rev().find(|line| looks_like_error_line(line)) {
@@ -361,6 +429,16 @@ fn pick_error_message(text: &str) -> Option<String> {
     }
 
     lines.last().map(|line| (*line).to_string())
+}
+
+fn truncate_chars(input: &str, max_chars: usize) -> String {
+    let count = input.chars().count();
+    if count <= max_chars {
+        return input.to_string();
+    }
+    let mut out: String = input.chars().take(max_chars.saturating_sub(1)).collect();
+    out.push('…');
+    out
 }
 
 fn run_git_allow_nonzero_timeout(
@@ -397,19 +475,20 @@ fn run_git_allow_nonzero_timeout(
     let stdout_pipe = child.stdout.take();
     let stderr_pipe = child.stderr.take();
 
+    // push/pull 的 hook（如 husky pre-push → pnpm check）可能刷屏；限长并排空
     let stdout_handle = thread::spawn(move || {
-        let mut buf = String::new();
-        if let Some(mut pipe) = stdout_pipe {
-            let _ = pipe.read_to_string(&mut buf);
+        if let Some(pipe) = stdout_pipe {
+            read_capped_and_drain(pipe, CAPPED_STDIN_STDOUT_MAX_BYTES)
+        } else {
+            String::new()
         }
-        buf
     });
     let stderr_handle = thread::spawn(move || {
-        let mut buf = String::new();
-        if let Some(mut pipe) = stderr_pipe {
-            let _ = pipe.read_to_string(&mut buf);
+        if let Some(pipe) = stderr_pipe {
+            read_capped_and_drain(pipe, CAPPED_STDIN_STDERR_MAX_BYTES)
+        } else {
+            String::new()
         }
-        buf
     });
 
     loop {
@@ -456,7 +535,7 @@ fn run_git_allow_nonzero_timeout(
 
 #[cfg(test)]
 mod tests {
-    use super::{pick_error_message, strip_ansi};
+    use super::{ensure_success, pick_error_message, strip_ansi, GitOutput};
 
     #[test]
     fn strips_csi_color_sequences() {
@@ -482,8 +561,36 @@ exit status 1
 ";
         assert_eq!(
             pick_error_message(text).as_deref(),
-            Some("exit status 1")
+            Some("✖   type may not be empty [type-empty]")
         );
+    }
+
+    #[test]
+    fn skips_husky_wrapper_and_keeps_real_reason() {
+        let text = "\
+[STARTED] Backing up original state...
+[COMPLETED] Running tasks for staged files...
+✖ eslint found 2 problems
+husky - pre-commit script failed (code 1)
+";
+        assert_eq!(
+            pick_error_message(text).as_deref(),
+            Some("✖ eslint found 2 problems")
+        );
+    }
+
+    #[test]
+    fn husky_failure_message_includes_reason() {
+        let output = GitOutput {
+            stdout: String::new(),
+            stderr: "✖ eslint found problems\nhusky - pre-commit script failed (code 1)\n"
+                .to_string(),
+            code: 1,
+        };
+        let err = ensure_success(&["commit", "-F", "-"], output).unwrap_err();
+        assert!(err.message.contains("pre-commit"));
+        assert!(err.message.contains("eslint"));
+        assert!(!err.message.contains("script failed (code 1)"));
     }
 
     #[test]

@@ -7,10 +7,7 @@ import {
 
 import type { Project } from "@/types/project";
 
-function project(
-  id: string,
-  overrides: Partial<Project> = {},
-): Project {
+function project(id: string, overrides: Partial<Project> = {}): Project {
   return {
     id,
     workspaceId: null,
@@ -35,11 +32,7 @@ describe("repositoryQuickSwitcher", () => {
       project("middle", { updatedAt: "2026-01-03T00:00:00.000Z" }),
     ]);
 
-    expect(result.map((item) => item.id)).toEqual([
-      "latest",
-      "middle",
-      "older",
-    ]);
+    expect(result.map((item) => item.id)).toEqual(["latest", "middle", "older"]);
   });
 
   it("搜索值同时包含仓库名称、所属分组与路径", () => {

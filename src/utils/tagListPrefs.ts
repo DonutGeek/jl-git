@@ -65,7 +65,7 @@ export function filterAndSortTags(
   nameFilter: string,
 ): GitTag[] {
   const query = nameFilter.trim().toLowerCase();
-  let next = query
+  const next = query
     ? tags.filter((tag) => {
         const haystack = `${tag.name} ${tag.message ?? ""}`.toLowerCase();
         return haystack.includes(query);

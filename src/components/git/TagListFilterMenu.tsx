@@ -8,11 +8,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_TAG_LIST_PREFS,
@@ -27,10 +23,7 @@ interface TagListFilterMenuProps {
 }
 
 /** 侧栏标签排序菜单（仅升序 / 降序，按名称） */
-export function TagListFilterMenu({
-  prefs,
-  onChange,
-}: TagListFilterMenuProps) {
+export function TagListFilterMenu({ prefs, onChange }: TagListFilterMenuProps) {
   const { t } = useTranslation();
   const modified = !isTagListPrefsDefault(prefs);
 
@@ -63,17 +56,13 @@ export function TagListFilterMenu({
       <DropdownMenuContent align="end" className="min-w-40">
         <DropdownMenuCheckboxItem
           checked={prefs.sort === "nameAsc"}
-          onCheckedChange={(checked) =>
-            setSort(checked ? "nameAsc" : DEFAULT_TAG_LIST_PREFS.sort)
-          }
+          onCheckedChange={(checked) => setSort(checked ? "nameAsc" : DEFAULT_TAG_LIST_PREFS.sort)}
         >
           {t("repo.sortAsc")}
         </DropdownMenuCheckboxItem>
         <DropdownMenuCheckboxItem
           checked={prefs.sort === "nameDesc"}
-          onCheckedChange={(checked) =>
-            setSort(checked ? "nameDesc" : DEFAULT_TAG_LIST_PREFS.sort)
-          }
+          onCheckedChange={(checked) => setSort(checked ? "nameDesc" : DEFAULT_TAG_LIST_PREFS.sort)}
         >
           {t("repo.sortDesc")}
         </DropdownMenuCheckboxItem>

@@ -11,13 +11,7 @@ export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 /** 全部附件抽取文本合计上限（与 staged diff 同量级） */
 export const MAX_ATTACHMENT_TEXT_TOTAL = 65_536;
 
-const ALLOWED_EXTENSIONS = new Set([
-  "md",
-  "markdown",
-  "txt",
-  "docx",
-  "pdf",
-]);
+const ALLOWED_EXTENSIONS = new Set(["md", "markdown", "txt", "docx", "pdf"]);
 
 export interface BranchAttachment {
   id: string;
@@ -27,17 +21,9 @@ export interface BranchAttachment {
 }
 
 export class BranchAttachmentError extends Error {
-  readonly code:
-    | "unsupported"
-    | "tooLarge"
-    | "empty"
-    | "pdfNoText"
-    | "parseFailed";
+  readonly code: "unsupported" | "tooLarge" | "empty" | "pdfNoText" | "parseFailed";
 
-  constructor(
-    code: BranchAttachmentError["code"],
-    message: string,
-  ) {
+  constructor(code: BranchAttachmentError["code"], message: string) {
     super(message);
     this.name = "BranchAttachmentError";
     this.code = code;
@@ -112,7 +98,9 @@ export async function parseBranchAttachmentFile(
     );
   }
 
-  const cleaned = redactSecrets(rawText).replace(/\u0000/g, "").trim();
+  const cleaned = redactSecrets(rawText)
+    .replace(/\u0000/g, "")
+    .trim();
   if (!cleaned) {
     throw new BranchAttachmentError(
       ext === "pdf" ? "pdfNoText" : "empty",
@@ -133,10 +121,7 @@ export async function parseBranchAttachmentFile(
   };
 }
 
-async function extractRawText(
-  ext: string,
-  buffer: ArrayBuffer,
-): Promise<string> {
+async function extractRawText(ext: string, buffer: ArrayBuffer): Promise<string> {
   if (ext === "md" || ext === "markdown" || ext === "txt") {
     return new TextDecoder("utf-8", { fatal: false }).decode(buffer);
   }

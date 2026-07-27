@@ -1,8 +1,4 @@
-import {
-  isDocumentDark,
-  normalizeContrast,
-  normalizeHexColor,
-} from "@/design/themes/color-utils";
+import { isDocumentDark, normalizeContrast, normalizeHexColor } from "@/design/themes/color-utils";
 import { APP_THEME_PACKS } from "@/design/themes/packs";
 import {
   APP_THEME_CLAUDE_CODE,
@@ -58,9 +54,7 @@ export function normalizeAppThemeId(value: unknown): AppThemeId {
 export const normalizeEditorThemeId = normalizeAppThemeId;
 
 export function getAppThemePack(themeId: AppThemeId): AppThemePack {
-  return (
-    APP_THEME_PACKS.find((pack) => pack.id === themeId) ?? APP_THEME_PACKS[0]
-  );
+  return APP_THEME_PACKS.find((pack) => pack.id === themeId) ?? APP_THEME_PACKS[0];
 }
 
 /** @deprecated 旧名 */
@@ -81,23 +75,16 @@ export function isAppThemeChromeAtPreset(
   return (
     APP_THEME_CHROME_COLOR_KEYS.every(
       (key) => chrome[key].toUpperCase() === preset[key].toUpperCase(),
-    ) &&
-    chrome.contrast === preset.contrast
+    ) && chrome.contrast === preset.contrast
   );
 }
 
-export function getPresetPalette(
-  themeId: AppThemeId,
-  dark = isDocumentDark(),
-): AppThemePalette {
+export function getPresetPalette(themeId: AppThemeId, dark = isDocumentDark()): AppThemePalette {
   const pack = getAppThemePack(themeId);
   return dark ? pack.dark : pack.light;
 }
 
-export function chromeFromPreset(
-  themeId: AppThemeId,
-  dark = isDocumentDark(),
-): AppThemeChrome {
+export function chromeFromPreset(themeId: AppThemeId, dark = isDocumentDark()): AppThemeChrome {
   const pack = getAppThemePack(themeId);
   const palette = dark ? pack.dark : pack.light;
   return {
@@ -122,10 +109,7 @@ export function normalizeAppThemeChrome(
     foreground: normalizeHexColor(value.foreground, base.foreground),
     surface: normalizeHexColor(value.surface, base.surface),
     muted: normalizeHexColor(value.muted, base.muted),
-    mutedForeground: normalizeHexColor(
-      value.mutedForeground,
-      base.mutedForeground,
-    ),
+    mutedForeground: normalizeHexColor(value.mutedForeground, base.mutedForeground),
     border: normalizeHexColor(value.border, base.border),
     sidebar: normalizeHexColor(value.sidebar, base.sidebar),
     selection: normalizeHexColor(value.selection, base.selection),

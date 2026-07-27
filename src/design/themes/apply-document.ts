@@ -1,12 +1,5 @@
-import {
-  contrastingForeground,
-  isDocumentDark,
-  withAlpha,
-} from "@/design/themes/color-utils";
-import {
-  chromeFromPreset,
-  usesNativeDesignTokens,
-} from "@/design/themes/registry";
+import { contrastingForeground, isDocumentDark, withAlpha } from "@/design/themes/color-utils";
+import { chromeFromPreset, usesNativeDesignTokens } from "@/design/themes/registry";
 import {
   DEFAULT_APP_THEME_ID,
   type AppThemeChrome,
@@ -184,9 +177,7 @@ export function getNativeAppThemeTokenOverrides(
   if (changed("sidebar") || chrome.translucentSidebar) {
     set(
       "--sidebar",
-      chrome.translucentSidebar
-        ? withAlpha(chrome.sidebar, dark ? 0.72 : 0.78)
-        : chrome.sidebar,
+      chrome.translucentSidebar ? withAlpha(chrome.sidebar, dark ? 0.72 : 0.78) : chrome.sidebar,
     );
   }
 
@@ -235,15 +226,10 @@ export function getNativeAppThemeTokenOverrides(
  * 鲸灵 Git 始终以 tokens.css 为底，只增量覆盖用户实际修改的项。
  * 其它主题按 chrome 写入完整主题包。
  */
-export function applyAppThemeToDocument(
-  themeId: AppThemeId,
-  chrome: AppThemeChrome,
-): void {
+export function applyAppThemeToDocument(themeId: AppThemeId, chrome: AppThemeChrome): void {
   const root = document.documentElement;
   root.dataset.appTheme = themeId;
-  root.dataset.sidebarTranslucent = chrome.translucentSidebar
-    ? "true"
-    : "false";
+  root.dataset.sidebarTranslucent = chrome.translucentSidebar ? "true" : "false";
   root.dataset.appThemeContrast = String(chrome.contrast);
 
   clearAppThemeTokenOverrides();
@@ -254,11 +240,7 @@ export function applyAppThemeToDocument(
     for (const [prop, value] of Object.entries(overrides)) {
       root.style.setProperty(prop, value);
     }
-    persistAppThemeBootSnapshot(
-      themeId,
-      chrome,
-      Object.keys(overrides).length === 0,
-    );
+    persistAppThemeBootSnapshot(themeId, chrome, Object.keys(overrides).length === 0);
     return;
   }
 
@@ -316,9 +298,7 @@ export function applyAppThemeToDocument(
   root.style.setProperty("--workspace-red", gitDeleted);
   root.style.setProperty(
     "--sidebar",
-    translucentSidebar
-      ? withAlpha(sidebar, dark ? 0.72 : 0.78)
-      : sidebar,
+    translucentSidebar ? withAlpha(sidebar, dark ? 0.72 : 0.78) : sidebar,
   );
   root.style.setProperty("--sidebar-foreground", foreground);
   root.style.setProperty("--sidebar-primary", accent);

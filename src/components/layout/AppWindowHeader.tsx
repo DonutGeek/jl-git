@@ -19,9 +19,7 @@ export function AppWindowHeader({
   heightClassName = "h-12",
 }: AppWindowHeaderProps) {
   const { headerPaddingClass, isMacOverlay } = useWindowChromeLayout();
-  const dragProps = isMacOverlay
-    ? ({ "data-tauri-drag-region": true } as const)
-    : {};
+  const dragProps = isMacOverlay ? ({ "data-tauri-drag-region": true } as const) : {};
 
   return (
     <header

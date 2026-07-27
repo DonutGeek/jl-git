@@ -147,5 +147,6 @@ try {
 
 ## 格式化
 
-- 前端：项目统一的 formatter/linter 配置（落地后以仓库配置为准）
+- 前端：ESLint + Prettier + Husky，见 [code-quality-tooling](code-quality-tooling.md)
+- `src/components/ui/**` 不参与格式化改写
 - PR 不夹带全文件无关格式化

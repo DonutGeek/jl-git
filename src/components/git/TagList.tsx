@@ -40,12 +40,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-} from "@/components/ui/field";
+import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -132,10 +127,7 @@ export function TagList({ onSelectTag }: TagListProps) {
     [filter, listPrefs, tags],
   );
 
-  const localNames = useMemo(
-    () => new Set(tags.map((tag) => tag.name)),
-    [tags],
-  );
+  const localNames = useMemo(() => new Set(tags.map((tag) => tag.name)), [tags]);
   const remoteNameSet = useMemo(
     () => new Set((remoteTags ?? []).map((tag) => tag.name)),
     [remoteTags],
@@ -151,9 +143,7 @@ export function TagList({ onSelectTag }: TagListProps) {
     const keyword = filter.trim().toLowerCase();
     return remoteTags
       .filter((tag) => !localNames.has(tag.name))
-      .filter(
-        (tag) => !keyword || tag.name.toLowerCase().includes(keyword),
-      )
+      .filter((tag) => !keyword || tag.name.toLowerCase().includes(keyword))
       .sort((a, b) => b.name.localeCompare(a.name));
   }, [filter, localNames, remoteTags]);
 
@@ -191,8 +181,7 @@ export function TagList({ onSelectTag }: TagListProps) {
   }, [filtered, localOpen, remoteKnown, remoteNameSet, remoteOnly, remoteOpen]);
 
   const isEmpty = tags.length === 0 && remoteOnly.length === 0;
-  const noMatch =
-    !isEmpty && filtered.length === 0 && remoteOnly.length === 0;
+  const noMatch = !isEmpty && filtered.length === 0 && remoteOnly.length === 0;
 
   const { viewport, bindScrollArea } = useScrollAreaViewport();
   const virtualizer = useVirtualizer({
@@ -246,8 +235,7 @@ export function TagList({ onSelectTag }: TagListProps) {
   }
 
   // 本地标签存在于远端时，才展示「同时从远端删除」勾选
-  const deleteHasRemote =
-    deleteTarget?.scope === "local" && deleteTarget.onRemote;
+  const deleteHasRemote = deleteTarget?.scope === "local" && deleteTarget.onRemote;
 
   async function confirmDelete(): Promise<void> {
     if (!deleteTarget || deleteBusy) {
@@ -403,9 +391,7 @@ export function TagList({ onSelectTag }: TagListProps) {
             description={t("repo.tagsEmptyDescription")}
           />
         ) : noMatch ? (
-          <p className="text-muted-foreground px-2 py-3 text-xs">
-            {t("repo.tagsNoMatch")}
-          </p>
+          <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.tagsNoMatch")}</p>
         ) : (
           <div
             className="relative w-full min-w-0"
@@ -451,9 +437,7 @@ export function TagList({ onSelectTag }: TagListProps) {
                       onRemote={row.onRemote}
                       onSelect={() => void select(row.tag.name)}
                       onCheckout={() => void checkoutTag(row.tag.name)}
-                      onCreateBranch={() =>
-                        deferUi(() => setCreateBranchFrom(row.tag.name))
-                      }
+                      onCreateBranch={() => deferUi(() => setCreateBranchFrom(row.tag.name))}
                       onCreateTag={() =>
                         deferUi(() => {
                           setCreateTagFrom(row.tag.name);
@@ -531,10 +515,7 @@ export function TagList({ onSelectTag }: TagListProps) {
             </DialogTitle>
           </DialogHeader>
           <div className="flex gap-3">
-            <TriangleAlert
-              className="text-chart-4 mt-0.5 size-5 shrink-0"
-              aria-hidden="true"
-            />
+            <TriangleAlert className="text-chart-4 mt-0.5 size-5 shrink-0" aria-hidden="true" />
             <div className="min-w-0 flex-1 space-y-3">
               <div className="space-y-1">
                 <p className="text-foreground text-sm">
@@ -562,18 +543,14 @@ export function TagList({ onSelectTag }: TagListProps) {
                   <Checkbox
                     id="delete-tag-remote"
                     checked={deleteRemoteAlso}
-                    onCheckedChange={(checked) =>
-                      setDeleteRemoteAlso(checked === true)
-                    }
+                    onCheckedChange={(checked) => setDeleteRemoteAlso(checked === true)}
                     disabled={deleteBusy}
                   />
                   <FieldContent>
                     <FieldLabel htmlFor="delete-tag-remote">
                       {t("repo.deleteTagRemoteCheckbox")}
                     </FieldLabel>
-                    <FieldDescription>
-                      {t("repo.deleteTagRemoteCheckboxHint")}
-                    </FieldDescription>
+                    <FieldDescription>{t("repo.deleteTagRemoteCheckboxHint")}</FieldDescription>
                   </FieldContent>
                 </Field>
               ) : null}
@@ -670,10 +647,7 @@ function TagRow({
               {busy ? (
                 <Spinner className="size-3 shrink-0" />
               ) : (
-                <Tag
-                  className="text-muted-foreground shrink-0"
-                  aria-hidden="true"
-                />
+                <Tag className="text-muted-foreground shrink-0" aria-hidden="true" />
               )}
               <span className="min-w-0 flex-1 truncate">{tag.name}</span>
               {showUnpushed ? (
@@ -684,10 +658,7 @@ function TagRow({
             </Button>
           </TooltipTrigger>
         </ContextMenuTrigger>
-        <TooltipContent
-          side="right"
-          className="max-w-xs space-y-0.5 text-left whitespace-normal"
-        >
+        <TooltipContent side="right" className="max-w-xs space-y-0.5 text-left whitespace-normal">
           <p className="font-medium">
             {t("repo.tagName")}：<span className="font-mono">{tag.name}</span>
           </p>
@@ -696,9 +667,7 @@ function TagRow({
               {infoLabel}：{infoValue}
             </p>
           ) : null}
-          {showUnpushed ? (
-            <p className="text-background/80">{t("repo.tagUnpushed")}</p>
-          ) : null}
+          {showUnpushed ? <p className="text-background/80">{t("repo.tagUnpushed")}</p> : null}
         </TooltipContent>
       </Tooltip>
 
@@ -725,10 +694,7 @@ function TagRow({
           {t("repo.copyTagName")}
         </ContextMenuItem>
         {/* 已在远端则无需再推送，按状态禁用 */}
-        <ContextMenuItem
-          disabled={busy || (remoteKnown && onRemote)}
-          onSelect={onPushRemote}
-        >
+        <ContextMenuItem disabled={busy || (remoteKnown && onRemote)} onSelect={onPushRemote}>
           <Upload className="size-3.5" aria-hidden="true" />
           {t("repo.pushTagToRemote")}
         </ContextMenuItem>
@@ -756,13 +722,7 @@ interface RemoteTagRowProps {
 }
 
 /** 远端独有标签行：本地不存在，点击/菜单可拉取到本地 */
-function RemoteTagRow({
-  tag,
-  busy,
-  onFetch,
-  onCopyName,
-  onDeleteRemote,
-}: RemoteTagRowProps) {
+function RemoteTagRow({ tag, busy, onFetch, onCopyName, onDeleteRemote }: RemoteTagRowProps) {
   const { t } = useTranslation();
   const { menuOpen, onOpenChange } = useContextMenuOpen();
 
@@ -795,10 +755,7 @@ function RemoteTagRow({
             </Button>
           </TooltipTrigger>
         </ContextMenuTrigger>
-        <TooltipContent
-          side="right"
-          className="max-w-xs space-y-0.5 text-left whitespace-normal"
-        >
+        <TooltipContent side="right" className="max-w-xs space-y-0.5 text-left whitespace-normal">
           <p className="font-medium">
             {t("repo.tagName")}：<span className="font-mono">{tag.name}</span>
           </p>

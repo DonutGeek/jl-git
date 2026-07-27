@@ -1,7 +1,4 @@
-import {
-  APP_THEME_VSCODE,
-  type AppThemePack,
-} from "@/design/themes/types";
+import { APP_THEME_VSCODE, type AppThemePack } from "@/design/themes/types";
 
 /**
  * VS Code — 当前默认「Modern」主题色（非旧 Dark+）

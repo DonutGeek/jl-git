@@ -415,6 +415,7 @@
   "commitMessage": "提交信息",
   "commitMessageRequired": "提交信息（必填）",
   "commitMessagePlaceholder": "请输入提交信息",
+  "lintStagedRestored": "已自动恢复提交钩子隐藏的未暂存改动",
   "previewCommitMessage": "预览提交文案",
   "commitMessagePreview": "提交文案预览",
   "commitMessagePreviewDescription": "查看完整提交文案，并可复制到剪贴板",

@@ -40,7 +40,7 @@ function writeCargoVersion(relPath) {
   const original = readFileSync(filePath, "utf8");
   // 只改 [package] 段首个 version，不动依赖版本
   let replaced = false;
-  const next = original.replace(/^version\s*=\s*"[^"]+"/m, (match) => {
+  const next = original.replace(/^version\s*=\s*"[^"]+"/m, () => {
     replaced = true;
     return `version = "${version}"`;
   });

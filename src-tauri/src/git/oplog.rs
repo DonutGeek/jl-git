@@ -154,13 +154,7 @@ pub fn begin_command(args: &[&str]) {
 }
 
 /// 由 runner 在每次 git 结束后调用（无活动操作时为 no-op）
-pub fn record_command(
-    args: &[&str],
-    stdout: &str,
-    stderr: &str,
-    code: i32,
-    elapsed_ms: u64,
-) {
+pub fn record_command(args: &[&str], stdout: &str, stderr: &str, code: i32, elapsed_ms: u64) {
     CURRENT.with(|cell| {
         let binding = cell.borrow();
         let Some(ctx) = binding.as_ref() else {

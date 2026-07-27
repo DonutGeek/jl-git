@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useState } from "react";
+import type { FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -30,11 +31,7 @@ interface ProjectSettingsDialogProps {
 }
 
 /** 仓库编辑：右侧抽屉（与详情抽屉一致） */
-export function ProjectSettingsDialog({
-  project,
-  open,
-  onOpenChange,
-}: ProjectSettingsDialogProps) {
+export function ProjectSettingsDialog({ project, open, onOpenChange }: ProjectSettingsDialogProps) {
   const { t } = useTranslation();
   const updateProject = useProjectStore((state) => state.updateProject);
   const [name, setName] = useState(project.name);
@@ -108,20 +105,12 @@ export function ProjectSettingsDialog({
           <ScrollArea className="min-h-0 flex-1">
             <FieldGroup className="gap-4 p-4">
               <Field>
-                <FieldLabel htmlFor="project-settings-path">
-                  {t("openRepo.pathLabel")}
-                </FieldLabel>
-                <Input
-                  id="project-settings-path"
-                  value={project.path}
-                  readOnly
-                />
+                <FieldLabel htmlFor="project-settings-path">{t("openRepo.pathLabel")}</FieldLabel>
+                <Input id="project-settings-path" value={project.path} readOnly />
               </Field>
 
               <Field>
-                <FieldLabel htmlFor="project-settings-name">
-                  {t("openRepo.aliasLabel")}
-                </FieldLabel>
+                <FieldLabel htmlFor="project-settings-name">{t("openRepo.aliasLabel")}</FieldLabel>
                 <Input
                   id="project-settings-name"
                   value={name}
@@ -176,13 +165,8 @@ export function ProjectSettingsDialog({
             >
               {t("common.cancel")}
             </Button>
-            <Button
-              type="submit"
-              disabled={!name.trim() || saving || descriptionGenerating}
-            >
-              {saving
-                ? t("common.loading")
-                : t("projectManager.saveProjectSettings")}
+            <Button type="submit" disabled={!name.trim() || saving || descriptionGenerating}>
+              {saving ? t("common.loading") : t("projectManager.saveProjectSettings")}
             </Button>
           </SheetFooter>
         </form>

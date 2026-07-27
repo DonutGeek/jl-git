@@ -3,8 +3,7 @@ import type { ComponentProps } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
-interface DropdownMenuScrollAreaProps
-  extends Omit<ComponentProps<typeof ScrollArea>, "style"> {
+interface DropdownMenuScrollAreaProps extends Omit<ComponentProps<typeof ScrollArea>, "style"> {
   itemCount: number;
   /** 单行预估高度，默认与 DropdownMenuItem 的 32px 高度一致 */
   itemHeight?: number;
@@ -28,10 +27,7 @@ export function DropdownMenuScrollArea({
   children,
   ...props
 }: DropdownMenuScrollAreaProps) {
-  const contentHeight = Math.min(
-    Math.max(itemCount, 1) * itemHeight + 8,
-    maxHeight,
-  );
+  const contentHeight = Math.min(Math.max(itemCount, 1) * itemHeight + 8, maxHeight);
   const availableHeight =
     availableHeightOffset > 0
       ? `max(2.5rem, calc(var(--radix-dropdown-menu-content-available-height) - ${availableHeightOffset}px))`

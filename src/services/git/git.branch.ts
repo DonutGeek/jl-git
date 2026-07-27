@@ -1,5 +1,5 @@
 import { invokeCommand } from "@/services/invoke";
-import { GitBranchesResult, GitBranch, OkResult } from "@/types/git";
+import type { GitBranchesResult, GitBranch, OkResult } from "@/types/git";
 
 export interface CreateBranchOptions {
   checkout?: boolean;

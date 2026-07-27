@@ -95,10 +95,7 @@ export async function createAiApiKey(name: string, key: string): Promise<AiApiKe
 }
 
 /** 启用 Key 时会自动禁用其它 Key，避免 Agent 请求使用不确定的凭据。 */
-export async function setAiApiKeyEnabled(
-  id: string,
-  enabled: boolean,
-): Promise<AiApiKey[]> {
+export async function setAiApiKeyEnabled(id: string, enabled: boolean): Promise<AiApiKey[]> {
   const keys = await listAiApiKeys();
   const next = keys.map((item) => ({
     ...item,
@@ -213,9 +210,7 @@ function resolveInstruction(
 }
 
 /** 保存指定场景的 AI 文案约束；空内容会清除对应配置。 */
-export async function setAiInstructions(
-  instructions: Partial<AiInstructions>,
-): Promise<void> {
+export async function setAiInstructions(instructions: Partial<AiInstructions>): Promise<void> {
   const store = await getStore();
   const entries: Array<[key: string, value: string | undefined]> = [
     [COMMIT_INSTRUCTIONS, instructions.commit],

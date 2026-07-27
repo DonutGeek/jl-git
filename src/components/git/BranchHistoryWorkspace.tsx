@@ -17,10 +17,7 @@ interface BranchHistoryWorkspaceProps {
  * 分支历史子弹窗：灌入 repo store 后复用主界面 HistoryWorkspace，保证 UI 一致。
  * （每个 Tauri Webview 有独立 JS 运行时，不会与主窗 store 互相踩。）
  */
-export function BranchHistoryWorkspace({
-  project,
-  initialRef,
-}: BranchHistoryWorkspaceProps) {
+export function BranchHistoryWorkspace({ project, initialRef }: BranchHistoryWorkspaceProps) {
   const { t } = useTranslation();
   const loadAll = useRepoStore((state) => state.loadAll);
   const selectLogRef = useRepoStore((state) => state.selectLogRef);

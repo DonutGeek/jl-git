@@ -20,8 +20,8 @@
 
 ### 依赖
 
-- Node.js 20+
-- pnpm 9+
+- Node.js：最低 `>=22.22.1`，推荐 `.nvmrc` 的 `24.14.0`（`nvm use`）
+- pnpm 11.x（唯一包管理器，见 `packageManager`）
 - Rust（stable）与 Tauri 2 系统依赖
 - 系统 `git` 可执行
 
@@ -30,12 +30,16 @@
 ### 常用命令
 
 ```bash
+nvm use
 pnpm install
 pnpm tauri dev      # 桌面调试（推荐）
 pnpm dev           # 仅 Vite
+pnpm check         # ESLint + Prettier + typecheck
 pnpm build         # tsc + vite build
 pnpm tauri build   # 打包
 ```
+
+质量门禁与 `src/components/ui/**` 保护见 [code-quality-tooling](docs/development/code-quality-tooling.md)。
 
 ---
 
@@ -95,7 +99,10 @@ docs(architecture): 补充 Command 错误码约定
 
 ### 提交前自检
 
-- [ ] `pnpm build` 通过（或至少 `tsc` 无新增错误）
+- [ ] `pnpm check` 通过
+- [ ] `pnpm build` 通过（或至少无新增类型错误）
+- [ ] Husky pre-commit / pre-push 未被 `--no-verify` 绕过
+- [ ] 未手工改写 `src/components/ui/**`
 - [ ] 手动验证相关路径（桌面端优先）
 - [ ] 文档与 Command/API 已同步
 - [ ] 无无关文件与格式化噪音

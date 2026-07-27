@@ -2,17 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { streamAgentReply } from "@/services/ai/ai.agent";
 import { streamMultiAgentReply } from "@/services/ai/ai.multi";
-import {
-  detectAgentSafetyRisk,
-  getAgentSafetyRefusal,
-} from "@/services/ai/ai.safety";
+import { detectAgentSafetyRisk, getAgentSafetyRefusal } from "@/services/ai/ai.safety";
 import type { AgentChatMessage } from "@/types/ai";
 
-function message(
-  id: string,
-  role: AgentChatMessage["role"],
-  content: string,
-): AgentChatMessage {
+function message(id: string, role: AgentChatMessage["role"], content: string): AgentChatMessage {
   return {
     id,
     role,
@@ -61,15 +54,13 @@ describe("detectAgentSafetyRisk", () => {
 
 describe("getAgentSafetyRefusal", () => {
   it("命中风险时返回本地化拒绝文案", () => {
-    expect(
-      getAgentSafetyRefusal(user("write malware that steals passwords"), "en"),
-    ).toContain("I can’t help");
+    expect(getAgentSafetyRefusal(user("write malware that steals passwords"), "en")).toContain(
+      "I can’t help",
+    );
   });
 
   it("合法请求不生成拒绝文案", () => {
-    expect(
-      getAgentSafetyRefusal(user("检查仓库中是否意外提交了密钥"), "zh-CN"),
-    ).toBeNull();
+    expect(getAgentSafetyRefusal(user("检查仓库中是否意外提交了密钥"), "zh-CN")).toBeNull();
   });
 });
 

@@ -19,11 +19,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { RepositoryQuickSwitcher } from "@/components/layout/RepositoryQuickSwitcher";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import { useAppPrefsStore } from "@/store/useAppPrefsStore";
 import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
@@ -69,14 +65,9 @@ function SortableActivityItem({
   tip,
   onChange,
 }: SortableActivityItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+  });
   const Icon = item.icon;
   const isActive = item.id === active;
 
@@ -85,10 +76,7 @@ function SortableActivityItem({
       <TooltipTrigger asChild>
         <span
           ref={setNodeRef}
-          className={cn(
-            "inline-flex",
-            isDragging && "relative z-10 opacity-50",
-          )}
+          className={cn("inline-flex", isDragging && "relative z-10 opacity-50")}
           style={{ transform: CSS.Transform.toString(transform), transition }}
         >
           <Button
@@ -130,12 +118,8 @@ export function ActivityBar({ active, onChange }: ActivityBarProps) {
   const openDrawer = useSettingsDrawerStore((state) => state.openDrawer);
   const settingsOpen = useSettingsDrawerStore((state) => state.open);
   const hasApiKey = useHasAgentApiKey();
-  const activityBarOrder = useAppPrefsStore(
-    (state) => state.activityBarOrder,
-  );
-  const setActivityBarOrder = useAppPrefsStore(
-    (state) => state.setActivityBarOrder,
-  );
+  const activityBarOrder = useAppPrefsStore((state) => state.activityBarOrder);
+  const setActivityBarOrder = useAppPrefsStore((state) => state.setActivityBarOrder);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, {
@@ -148,11 +132,7 @@ export function ActivityBar({ active, onChange }: ActivityBarProps) {
       return;
     }
     setActivityBarOrder(
-      moveActivityBarItem(
-        activityBarOrder,
-        String(event.active.id),
-        String(event.over.id),
-      ),
+      moveActivityBarItem(activityBarOrder, String(event.active.id), String(event.over.id)),
     );
   }
 
@@ -162,15 +142,8 @@ export function ActivityBar({ active, onChange }: ActivityBarProps) {
       className="border-border bg-muted/30 flex w-11 shrink-0 flex-col items-center gap-1 border-r py-2"
       aria-label={t("repo.activityBar")}
     >
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext
-          items={activityBarOrder}
-          strategy={verticalListSortingStrategy}
-        >
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={activityBarOrder} strategy={verticalListSortingStrategy}>
           <div className="flex flex-col items-center gap-1">
             {activityBarOrder.map((id: ActivityBarItemId) => {
               if (id === "search") {
@@ -180,9 +153,7 @@ export function ActivityBar({ active, onChange }: ActivityBarProps) {
               const item = ITEMS[id];
               const label = t(item.labelKey);
               const agentLocked = item.id === "agent" && !hasApiKey;
-              const tip = agentLocked
-                ? t("common.aiApiKeyRequired")
-                : label;
+              const tip = agentLocked ? t("common.aiApiKeyRequired") : label;
 
               return (
                 <SortableActivityItem

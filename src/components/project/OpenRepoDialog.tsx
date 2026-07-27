@@ -1,4 +1,5 @@
-import { FormEvent, useState } from "react";
+import type { FormEvent } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FolderOpen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -23,10 +24,7 @@ import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { useProjectStore } from "@/store/useProjectStore";
 
 import { toUserMessage } from "@/types/error";
-import {
-  DEFAULT_PROJECT_ICON,
-  type ProjectIcon,
-} from "@/types/project";
+import { DEFAULT_PROJECT_ICON, type ProjectIcon } from "@/types/project";
 
 interface OpenRepoDialogProps {
   open: boolean;
@@ -66,8 +64,7 @@ export function OpenRepoDialog({
   const [picking, setPicking] = useState(false);
 
   const trimmedPath = path.trim();
-  const canSubmit =
-    !loading && !descriptionGenerating && trimmedPath.length > 0;
+  const canSubmit = !loading && !descriptionGenerating && trimmedPath.length > 0;
 
   function resetForm(): void {
     setPath("");
@@ -124,9 +121,7 @@ export function OpenRepoDialog({
         });
         handleOpenChange(false);
         onRegistered?.(project.id);
-        toast.success(
-          t("projectManager.manageRegisterSuccess", { name: project.name }),
-        );
+        toast.success(t("projectManager.manageRegisterSuccess", { name: project.name }));
         return;
       }
 
@@ -160,9 +155,7 @@ export function OpenRepoDialog({
         <form className="space-y-4" onSubmit={(event) => void handleSubmit(event)}>
           <FieldGroup className="gap-3">
             <Field>
-              <FieldLabel htmlFor="repo-path">
-              {t("openRepo.pathLabel")}
-              </FieldLabel>
+              <FieldLabel htmlFor="repo-path">{t("openRepo.pathLabel")}</FieldLabel>
               <div className="flex gap-2">
                 <Input
                   id="repo-path"
@@ -185,9 +178,7 @@ export function OpenRepoDialog({
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="repo-alias">
-              {t("openRepo.aliasLabel")}
-              </FieldLabel>
+              <FieldLabel htmlFor="repo-alias">{t("openRepo.aliasLabel")}</FieldLabel>
               <Input
                 id="repo-alias"
                 value={alias}
@@ -199,9 +190,7 @@ export function OpenRepoDialog({
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="open-repo-icon">
-                {t("projectManager.projectIcon")}
-              </FieldLabel>
+              <FieldLabel htmlFor="open-repo-icon">{t("projectManager.projectIcon")}</FieldLabel>
               <ProjectIconPicker
                 id="open-repo-icon"
                 value={icon}

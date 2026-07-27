@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Check,
@@ -30,8 +30,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-import { GitBranch } from "@/types/git";
-import { BranchTreeNode } from "@/utils/branchTree";
+import type { GitBranch } from "@/types/git";
+import type { BranchTreeNode } from "@/utils/branchTree";
 import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
 
 /** 分支行右键菜单动作 */
@@ -111,13 +111,7 @@ export function flattenBranchTreeRows(
 
     if (!collapsed) {
       rows.push(
-        ...flattenBranchTreeRows(
-          node.children,
-          treeId,
-          variant,
-          depth + 1,
-          collapsedPaths,
-        ),
+        ...flattenBranchTreeRows(node.children, treeId, variant, depth + 1, collapsedPaths),
       );
     }
   }
@@ -138,14 +132,7 @@ interface BranchGroupProps {
 /**
  * 本地/远端分组根节点：整行统一 hover，避免按钮与右侧 + 各亮一块。
  */
-export function BranchGroup({
-  icon,
-  label,
-  open,
-  onToggle,
-  trailing,
-  children,
-}: BranchGroupProps) {
+export function BranchGroup({ icon, label, open, onToggle, trailing, children }: BranchGroupProps) {
   return (
     <div>
       <div className="hover:bg-accent/60 group flex h-7 items-center rounded-md">
@@ -159,9 +146,7 @@ export function BranchGroup({
           ) : (
             <ChevronRight className="text-muted-foreground size-3 shrink-0" aria-hidden="true" />
           )}
-          <span className="[&_svg]:text-muted-foreground flex shrink-0 [&_svg]:size-3">
-            {icon}
-          </span>
+          <span className="[&_svg]:text-muted-foreground flex shrink-0 [&_svg]:size-3">{icon}</span>
           <span className="text-foreground min-w-0 flex-1 truncate">{label}</span>
         </button>
         {trailing ? (
@@ -287,8 +272,7 @@ export function BranchTree({
           );
         }
 
-        const published =
-          row.variant === "remote" ? true : (isPublished?.(row.branch) ?? true);
+        const published = row.variant === "remote" ? true : (isPublished?.(row.branch) ?? true);
         return (
           <li key={row.id}>
             <BranchLeaf
@@ -349,8 +333,7 @@ export function BranchLeaf({
   const canPush = isCurrent && !isRemote && published && aheadCount > 0 && !isDisabled;
   const canRename = !isRemote && !isDisabled;
   const canDelete = !isRemote && !isCurrent && !isDisabled;
-  const canCompareWithCurrent =
-    !isDisabled && contextActions.canCompareWithCurrent(branch);
+  const canCompareWithCurrent = !isDisabled && contextActions.canCompareWithCurrent(branch);
   const canMergeIntoCurrent =
     !isCurrent && !isDisabled && contextActions.canMergeIntoCurrent(branch);
   const hasTrackingBranch = !isRemote && Boolean(branch.upstream);
@@ -432,10 +415,7 @@ export function BranchLeaf({
       </Tooltip>
 
       <ContextMenuContent className="min-w-40">
-        <ContextMenuItem
-          disabled={!canCheckout}
-          onSelect={() => contextActions.onCheckout(branch)}
-        >
+        <ContextMenuItem disabled={!canCheckout} onSelect={() => contextActions.onCheckout(branch)}>
           <GitBranchIcon aria-hidden="true" />
           {t("repo.checkoutBranch")}
         </ContextMenuItem>
@@ -458,10 +438,7 @@ export function BranchLeaf({
           {t("repo.compareCurrentWithBranch")}
         </ContextMenuItem>
 
-        <ContextMenuItem
-          disabled={!canPull}
-          onSelect={() => contextActions.onPull(branch)}
-        >
+        <ContextMenuItem disabled={!canPull} onSelect={() => contextActions.onPull(branch)}>
           <Download aria-hidden="true" />
           {t("repo.pull")}
         </ContextMenuItem>
@@ -471,10 +448,7 @@ export function BranchLeaf({
             {t("repo.publishBranch")}
           </ContextMenuItem>
         ) : (
-          <ContextMenuItem
-            disabled={!canPush}
-            onSelect={() => contextActions.onPush(branch)}
-          >
+          <ContextMenuItem disabled={!canPush} onSelect={() => contextActions.onPush(branch)}>
             <Upload aria-hidden="true" />
             {t("repo.push")}
           </ContextMenuItem>
@@ -482,10 +456,7 @@ export function BranchLeaf({
 
         <ContextMenuSeparator />
 
-        <ContextMenuItem
-          disabled={!canRename}
-          onSelect={() => contextActions.onRename(branch)}
-        >
+        <ContextMenuItem disabled={!canRename} onSelect={() => contextActions.onRename(branch)}>
           <Pencil aria-hidden="true" />
           {t("repo.renameBranch")}
         </ContextMenuItem>

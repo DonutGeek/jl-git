@@ -6,9 +6,7 @@ export function hasUnresolvedConflicts(repoState: GitRepoState | null | undefine
 }
 
 /** 合并/变基/cherry-pick 进行中（含冲突已解决但未提交） */
-export function isRepoOperationInProgress(
-  repoState: GitRepoState | null | undefined,
-): boolean {
+export function isRepoOperationInProgress(repoState: GitRepoState | null | undefined): boolean {
   return Boolean(repoState?.merging);
 }
 

@@ -100,9 +100,7 @@ export function SettingsSshPanel() {
         }
         setKeys(synced.keys);
         if (synced.importedCount > 0) {
-          toast.success(
-            t("settings.sshScanImported", { count: synced.importedCount }),
-          );
+          toast.success(t("settings.sshScanImported", { count: synced.importedCount }));
         }
       } catch (error: unknown) {
         if (active) {
@@ -172,9 +170,7 @@ export function SettingsSshPanel() {
       const synced = await syncLocalSshKeys();
       setKeys(synced.keys);
       if (synced.importedCount > 0) {
-        toast.success(
-          t("settings.sshScanImported", { count: synced.importedCount }),
-        );
+        toast.success(t("settings.sshScanImported", { count: synced.importedCount }));
       } else if (synced.scannedCount > 0) {
         toast.success(t("settings.sshScanUpToDate"));
       } else {
@@ -218,17 +214,13 @@ export function SettingsSshPanel() {
 
   async function handleRevealFolder(key: SshKeyRecord): Promise<void> {
     try {
-      await systemOpenService.revealInFileManager(
-        parentDirectory(key.privateKeyPath),
-      );
+      await systemOpenService.revealInFileManager(parentDirectory(key.privateKeyPath));
     } catch (error) {
       toast.error(toUserMessage(error) || t("settings.sshRevealFailed"));
     }
   }
 
-  async function handleChangePassphrase(
-    event: FormEvent<HTMLFormElement>,
-  ): Promise<void> {
+  async function handleChangePassphrase(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!editingKey) {
       return;
@@ -240,16 +232,12 @@ export function SettingsSshPanel() {
     }
     setBusy(true);
     try {
-      setKeys(
-        await changeSshKeyPassphrase(editingKey.id, previous, newPassphrase),
-      );
+      setKeys(await changeSshKeyPassphrase(editingKey.id, previous, newPassphrase));
       setEditingKey(null);
       resetEditPassphraseForm();
       toast.success(t("settings.sshPassphraseUpdated"));
     } catch (error) {
-      toast.error(
-        toUserMessage(error) || t("settings.sshPassphraseChangeFailed"),
-      );
+      toast.error(toUserMessage(error) || t("settings.sshPassphraseChangeFailed"));
     } finally {
       setBusy(false);
     }
@@ -264,11 +252,7 @@ export function SettingsSshPanel() {
     try {
       setKeys(await deleteSshKey(pendingDeletion.id));
       setPendingDeletion(null);
-      toast.success(
-        deletingGenerated
-          ? t("settings.sshKeyDeleted")
-          : t("settings.sshKeyRemoved"),
-      );
+      toast.success(deletingGenerated ? t("settings.sshKeyDeleted") : t("settings.sshKeyRemoved"));
     } catch (error) {
       toast.error(toUserMessage(error) || t("settings.sshDeleteFailed"));
     } finally {
@@ -379,9 +363,7 @@ export function SettingsSshPanel() {
               ) : (
                 keys.map((key) => (
                   <TableRow key={key.id}>
-                    <TableCell
-                      className={cn(settingsTableCellClassName, "max-w-[8rem]")}
-                    >
+                    <TableCell className={cn(settingsTableCellClassName, "max-w-[8rem]")}>
                       <div className="flex min-w-0 items-center gap-1.5">
                         <Tooltip delayDuration={300}>
                           <TooltipTrigger asChild>
@@ -406,16 +388,12 @@ export function SettingsSshPanel() {
                                 <Lock className="size-3.5" aria-hidden="true" />
                               </span>
                             </TooltipTrigger>
-                            <TooltipContent>
-                              {t("settings.sshHasPassphrase")}
-                            </TooltipContent>
+                            <TooltipContent>{t("settings.sshHasPassphrase")}</TooltipContent>
                           </Tooltip>
                         ) : null}
                       </div>
                     </TableCell>
-                    <TableCell
-                      className={cn(settingsTableCellClassName, "max-w-[12rem]")}
-                    >
+                    <TableCell className={cn(settingsTableCellClassName, "max-w-[12rem]")}>
                       <Tooltip delayDuration={300}>
                         <TooltipTrigger asChild>
                           <button
@@ -430,9 +408,7 @@ export function SettingsSshPanel() {
                               className="block w-full min-w-0 overflow-hidden font-mono text-[11px] leading-5 whitespace-nowrap text-ellipsis underline-offset-2 group-hover/sshpath:underline"
                               style={{ direction: "rtl" }}
                             >
-                              <bdi style={{ direction: "ltr" }}>
-                                {key.privateKeyPath}
-                              </bdi>
+                              <bdi style={{ direction: "ltr" }}>{key.privateKeyPath}</bdi>
                             </span>
                           </button>
                         </TooltipTrigger>
@@ -444,9 +420,7 @@ export function SettingsSshPanel() {
                         </TooltipContent>
                       </Tooltip>
                     </TableCell>
-                    <TableCell
-                      className={cn(settingsTableCellClassName, "max-w-[12rem]")}
-                    >
+                    <TableCell className={cn(settingsTableCellClassName, "max-w-[12rem]")}>
                       <Tooltip delayDuration={300}>
                         <TooltipTrigger asChild>
                           <button
@@ -478,9 +452,7 @@ export function SettingsSshPanel() {
                           !key.enabled && "text-muted-foreground",
                         )}
                       >
-                        {key.enabled
-                          ? t("settings.sshKeyEnabled")
-                          : t("settings.sshKeyDisabled")}
+                        {key.enabled ? t("settings.sshKeyEnabled") : t("settings.sshKeyDisabled")}
                       </Badge>
                     </TableCell>
                     <TableCell className={settingsTableCellClassName}>
@@ -515,9 +487,7 @@ export function SettingsSshPanel() {
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            {key.enabled
-                              ? t("settings.disableSshKey")
-                              : t("settings.enableSshKey")}
+                            {key.enabled ? t("settings.disableSshKey") : t("settings.enableSshKey")}
                           </TooltipContent>
                         </Tooltip>
                         <Tooltip>
@@ -534,9 +504,7 @@ export function SettingsSshPanel() {
                               <Pencil aria-hidden="true" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.sshEditPassphrase")}
-                          </TooltipContent>
+                          <TooltipContent>{t("settings.sshEditPassphrase")}</TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -554,9 +522,7 @@ export function SettingsSshPanel() {
                               <FolderOpen aria-hidden="true" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>
-                            {t("settings.sshRevealFolder")}
-                          </TooltipContent>
+                          <TooltipContent>{t("settings.sshRevealFolder")}</TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -602,9 +568,7 @@ export function SettingsSshPanel() {
             </DialogHeader>
             <FieldGroup className="gap-4">
               <Field>
-                <FieldLabel htmlFor="ssh-key-name">
-                {t("settings.sshKeyName")}
-                </FieldLabel>
+                <FieldLabel htmlFor="ssh-key-name">{t("settings.sshKeyName")}</FieldLabel>
                 <Input
                   id="ssh-key-name"
                   className={settingsFieldClassName}
@@ -643,10 +607,7 @@ export function SettingsSshPanel() {
         }}
       >
         <DialogContent className="sm:max-w-md">
-          <form
-            className="space-y-6"
-            onSubmit={(event) => void handleChangePassphrase(event)}
-          >
+          <form className="space-y-6" onSubmit={(event) => void handleChangePassphrase(event)}>
             <DialogHeader>
               <DialogTitle>{t("settings.sshEditPassphraseTitle")}</DialogTitle>
               <DialogDescription>

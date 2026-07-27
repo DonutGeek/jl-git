@@ -4,13 +4,7 @@ import { CircleHelp } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** 设置标题旁说明：问号，悬停弹出 */
-export function SettingsTip({
-  ariaLabel,
-  children,
-}: {
-  ariaLabel: string;
-  children: ReactNode;
-}) {
+export function SettingsTip({ ariaLabel, children }: { ariaLabel: string; children: ReactNode }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>

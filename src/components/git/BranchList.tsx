@@ -1,14 +1,8 @@
-import { FormEvent, useMemo, useState, type ReactNode } from "react";
+import type { FormEvent } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Trans, useTranslation } from "react-i18next";
-import {
-  Cloud,
-  Monitor,
-  Plus,
-  RefreshCw,
-  Settings,
-  TriangleAlert,
-} from "lucide-react";
+import { Cloud, Monitor, Plus, RefreshCw, Settings, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -32,19 +26,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-} from "@/components/ui/field";
+import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useConflictOperationGuard } from "@/hooks/useConflictOperationGuard";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 
@@ -54,7 +39,7 @@ import { openBranchCompareWindow } from "@/services/window/branchCompareWindow";
 import { openBranchManageWindow } from "@/services/window/branchManageWindow";
 
 import { toUserMessage } from "@/types/error";
-import { GitBranch, GitMergeOptions } from "@/types/git";
+import type { GitBranch, GitMergeOptions } from "@/types/git";
 import {
   filterAndSortBranches,
   patchBranchListPrefs,
@@ -65,17 +50,13 @@ import { copyToClipboard } from "@/utils/clipboard";
 import { deferUi } from "@/utils/deferUi";
 import { buildBranchTree } from "@/utils/branchTree";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
-import {
-  isPushRejectedError,
-  toastPushError,
-} from "@/utils/gitPushError";
+import { isPushRejectedError, toastPushError } from "@/utils/gitPushError";
 
 const BRANCH_ROW_HEIGHT_PX = 28;
 const BRANCH_VIRTUAL_OVERSCAN = 12;
 
 type BranchListVisibleRow =
-  | { kind: "group"; id: "local" | "remote"; open: boolean }
-  | BranchVisibleRow;
+  { kind: "group"; id: "local" | "remote"; open: boolean } | BranchVisibleRow;
 
 /** 左栏：本地/远端分支树；单击选中，双击切换；右键菜单操作 */
 export function BranchList() {
@@ -113,8 +94,7 @@ export function BranchList() {
 
   const [mergeTarget, setMergeTarget] = useState<GitBranch | null>(null);
   const [mergeBusy, setMergeBusy] = useState(false);
-  const { guard: guardWriteOp, dialog: conflictGuardDialog } =
-    useConflictOperationGuard();
+  const { guard: guardWriteOp, dialog: conflictGuardDialog } = useConflictOperationGuard();
 
   const filteredBranches = useMemo(
     () => filterAndSortBranches(branches, listPrefs, filter),
@@ -563,20 +543,13 @@ export function BranchList() {
                   disabled={refreshing || loading}
                   onClick={() => void handleRefresh()}
                 >
-                  {refreshing ? (
-                    <Spinner className="size-3.5" />
-                  ) : (
-                    <RefreshCw aria-hidden="true" />
-                  )}
+                  {refreshing ? <Spinner className="size-3.5" /> : <RefreshCw aria-hidden="true" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{t("repo.refresh")}</TooltipContent>
             </Tooltip>
 
-            <BranchListFilterMenu
-              prefs={listPrefs}
-              onChange={handleListPrefsChange}
-            />
+            <BranchListFilterMenu prefs={listPrefs} onChange={handleListPrefsChange} />
 
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
@@ -616,10 +589,7 @@ export function BranchList() {
         ) : noMatch ? (
           <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.branchesNoMatch")}</p>
         ) : (
-          <div
-            className="relative w-full"
-            style={{ height: `${virtualizer.getTotalSize()}px` }}
-          >
+          <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const row = visibleRows[virtualItem.index];
               if (!row) {
@@ -698,9 +668,7 @@ export function BranchList() {
               <Button
                 type="submit"
                 disabled={
-                  renameBusy ||
-                  !renameValue.trim() ||
-                  renameValue.trim() === renameTarget?.name
+                  renameBusy || !renameValue.trim() || renameValue.trim() === renameTarget?.name
                 }
               >
                 {renameBusy ? <Spinner className="size-3.5" /> : null}
@@ -725,10 +693,7 @@ export function BranchList() {
           </DialogHeader>
 
           <div className="flex gap-3">
-            <TriangleAlert
-              className="text-chart-4 mt-0.5 size-5 shrink-0"
-              aria-hidden="true"
-            />
+            <TriangleAlert className="text-chart-4 mt-0.5 size-5 shrink-0" aria-hidden="true" />
             <div className="min-w-0 flex-1 space-y-3">
               <div className="space-y-1">
                 <p className="text-foreground text-sm">
@@ -750,18 +715,14 @@ export function BranchList() {
                   <Checkbox
                     id="delete-branch-remote"
                     checked={deleteRemoteAlso}
-                    onCheckedChange={(checked) =>
-                      setDeleteRemoteAlso(checked === true)
-                    }
+                    onCheckedChange={(checked) => setDeleteRemoteAlso(checked === true)}
                     disabled={deleteBusy}
                   />
                   <FieldContent>
                     <FieldLabel htmlFor="delete-branch-remote">
                       {t("repo.deleteBranchRemoteCheckbox")}
                     </FieldLabel>
-                    <FieldDescription>
-                      {t("repo.deleteBranchRemoteHint")}
-                    </FieldDescription>
+                    <FieldDescription>{t("repo.deleteBranchRemoteHint")}</FieldDescription>
                   </FieldContent>
                 </Field>
               ) : null}

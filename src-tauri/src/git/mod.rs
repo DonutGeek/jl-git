@@ -17,6 +17,7 @@ pub mod repo_state;
 pub mod reset;
 pub mod runner;
 pub mod show;
+pub mod stash;
 pub mod status;
 pub mod tag;
 pub mod version;

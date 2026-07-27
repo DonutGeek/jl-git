@@ -53,9 +53,10 @@ pub fn list_branches(repo_path: &Path, include_remote: bool) -> Result<Vec<GitBr
 
 /// 解析默认分支短名：优先 `origin/HEAD`，再回退本地是否存在 `main` / `master`
 fn resolve_default_branch_name(repo_path: &Path) -> Option<String> {
-    if let Ok(output) =
-        runner::run_git_allow_nonzero(repo_path, &["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"])
-    {
+    if let Ok(output) = runner::run_git_allow_nonzero(
+        repo_path,
+        &["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"],
+    ) {
         if output.code == 0 {
             if let Some(name) = parse_origin_head_target(&output.stdout) {
                 return Some(name);
@@ -194,10 +195,7 @@ pub fn checkout_local_branch(repo_path: &Path, name: &str) -> Result<(), AppErro
     // 分支名必须在 `--` 之前；`--` 后是 pathspec（参考：checkout --progress <branch> --）
     runner::run_git(repo_path, &["checkout", "--progress", name, "--"])?;
     // 无 submodule 时仍成功；有则与工作树对齐
-    runner::run_git(
-        repo_path,
-        &["submodule", "update", "--init", "--recursive"],
-    )?;
+    runner::run_git(repo_path, &["submodule", "update", "--init", "--recursive"])?;
     Ok(())
 }
 
@@ -225,13 +223,7 @@ pub fn delete_remote_branch(repo_path: &Path, remote: &str, name: &str) -> Resul
     let delete_refspec = format!(":{name}");
     runner::run_git_timeout(
         repo_path,
-        &[
-            "-c",
-            "protocol.version=2",
-            "push",
-            remote,
-            &delete_refspec,
-        ],
+        &["-c", "protocol.version=2", "push", remote, &delete_refspec],
         Duration::from_secs(180),
     )?;
     Ok(())

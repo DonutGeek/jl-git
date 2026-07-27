@@ -13,11 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ProjectManageToolbarProps {
   onOpenProject: (projectId: string) => void;
@@ -86,9 +82,7 @@ export function ProjectManageToolbar({
                 {t("projectManager.manageRefreshGit")}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              {t("projectManager.manageRefreshGitHint")}
-            </TooltipContent>
+            <TooltipContent>{t("projectManager.manageRefreshGitHint")}</TooltipContent>
           </Tooltip>
         </div>
       </div>
@@ -114,9 +108,7 @@ export function ProjectManageToolbar({
         <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
           <DialogHeader className="border-border shrink-0 border-b px-6 py-4">
             <DialogTitle>{t("projectManager.clone")}</DialogTitle>
-            <DialogDescription>
-              {t("projectManager.manageCloneDescription")}
-            </DialogDescription>
+            <DialogDescription>{t("projectManager.manageCloneDescription")}</DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-hidden px-6 py-4">
             <CloneRepoPanel

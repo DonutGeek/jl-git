@@ -20,10 +20,7 @@ interface ShortcutGroup {
 }
 
 function isMacPlatform(): boolean {
-  return (
-    typeof navigator !== "undefined" &&
-    /Macintosh|Mac OS X/.test(navigator.userAgent)
-  );
+  return typeof navigator !== "undefined" && /Macintosh|Mac OS X/.test(navigator.userAgent);
 }
 
 function ShortcutKeys({ keys }: { keys: string[] }) {
@@ -107,15 +104,10 @@ export function SettingsShortcutsPanel() {
       </p>
       {groups.map((group) => (
         <section key={group.id}>
-          <SettingsFieldHeading icon={group.icon}>
-            {t(group.labelKey)}
-          </SettingsFieldHeading>
+          <SettingsFieldHeading icon={group.icon}>{t(group.labelKey)}</SettingsFieldHeading>
           <SettingsPreferenceGroup>
             {group.shortcuts.map((shortcut) => (
-              <SettingsPreferenceRow
-                key={shortcut.labelKey}
-                label={t(shortcut.labelKey)}
-              >
+              <SettingsPreferenceRow key={shortcut.labelKey} label={t(shortcut.labelKey)}>
                 <ShortcutKeys keys={shortcut.keys} />
               </SettingsPreferenceRow>
             ))}

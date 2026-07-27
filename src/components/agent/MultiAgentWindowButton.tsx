@@ -3,11 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import { cn } from "@/lib/utils";
 import { openMultiAgentWindow } from "@/services/window/multiAgentWindow";
@@ -29,9 +25,7 @@ export function MultiAgentWindowButton({
 }: MultiAgentWindowButtonProps) {
   const { t } = useTranslation();
   const hasApiKey = useHasAgentApiKey();
-  const accessibleLabel = hasApiKey
-    ? label
-    : t("common.aiApiKeyRequired");
+  const accessibleLabel = hasApiKey ? label : t("common.aiApiKeyRequired");
 
   async function handleOpen(): Promise<void> {
     if (!hasApiKey) {

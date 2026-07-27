@@ -4,11 +4,7 @@ import { Tag } from "lucide-react";
 import { toast } from "sonner";
 
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { toUserMessage } from "@/types/error";
@@ -62,8 +58,7 @@ export function GitRefTag({
   children,
 }: GitRefTagProps) {
   const tipBody = tooltipContent ?? tooltip ?? label;
-  const hoverEnabled =
-    showHoverTooltip ?? (!expand || extraCount > 0);
+  const hoverEnabled = showHoverTooltip ?? (!expand || extraCount > 0);
   const richTooltip = tooltipContent != null;
   const extraLabel = extraCount > 0 ? ` +${extraCount}` : "";
 
@@ -78,9 +73,7 @@ export function GitRefTag({
         className="text-[11px] leading-none"
       />
       {extraCount > 0 ? (
-        <span className="shrink-0 text-[11px] leading-none whitespace-nowrap">
-          {extraLabel}
-        </span>
+        <span className="shrink-0 text-[11px] leading-none whitespace-nowrap">{extraLabel}</span>
       ) : null}
       {children}
     </>
@@ -138,11 +131,7 @@ interface CopyableGitRefTagProps {
 }
 
 /** 可点击复制的 ref 徽章（历史详情等）；默认全文，不受列表视图偏好控制 */
-export function CopyableGitRefTag({
-  refName,
-  expand = true,
-  className,
-}: CopyableGitRefTagProps) {
+export function CopyableGitRefTag({ refName, expand = true, className }: CopyableGitRefTagProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 

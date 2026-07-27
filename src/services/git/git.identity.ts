@@ -1,5 +1,5 @@
 import { invokeCommand } from "@/services/invoke";
-import { GitIdentity } from "@/types/git";
+import type { GitIdentity } from "@/types/git";
 
 export async function getIdentity(repoPath: string): Promise<GitIdentity> {
   return invokeCommand<GitIdentity>("git_identity", { path: repoPath });
@@ -19,4 +19,3 @@ export async function setGlobalIdentity(options: {
     email: options.email,
   });
 }
-

@@ -41,10 +41,7 @@ export function AgentCatalogPanel({
     skills.length > 0 && plugins.length === 0 ? "skills" : "plugins",
   );
 
-  const hint =
-    tab === "plugins"
-      ? t("agent.catalogPluginsHint")
-      : t("agent.catalogSkillsHint");
+  const hint = tab === "plugins" ? t("agent.catalogPluginsHint") : t("agent.catalogSkillsHint");
 
   const pluginsEmpty = tab === "plugins" && plugins.length === 0;
   const skillsEmpty = tab === "skills" && skills.length === 0;
@@ -74,21 +71,13 @@ export function AgentCatalogPanel({
           >
             <TabsTrigger
               value="plugins"
-              className={
-                variant === "gallery"
-                  ? "min-w-20 text-xs"
-                  : "min-w-16 px-2 text-xs"
-              }
+              className={variant === "gallery" ? "min-w-20 text-xs" : "min-w-16 px-2 text-xs"}
             >
               {t("agent.catalogTabPlugins")}
             </TabsTrigger>
             <TabsTrigger
               value="skills"
-              className={
-                variant === "gallery"
-                  ? "min-w-20 text-xs"
-                  : "min-w-16 px-2 text-xs"
-              }
+              className={variant === "gallery" ? "min-w-20 text-xs" : "min-w-16 px-2 text-xs"}
             >
               {t("agent.catalogTabSkills")}
             </TabsTrigger>
@@ -98,9 +87,7 @@ export function AgentCatalogPanel({
           <p
             className={cn(
               "text-muted-foreground",
-              variant === "gallery"
-                ? "text-xs leading-relaxed"
-                : "text-[11px] leading-4",
+              variant === "gallery" ? "text-xs leading-relaxed" : "text-[11px] leading-4",
             )}
           >
             {hint}

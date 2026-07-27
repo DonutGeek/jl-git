@@ -1,18 +1,9 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronRight, ChevronsUpDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -70,10 +61,7 @@ function collectAncestorIds(
       return trail;
     }
     if (node.children?.length) {
-      const found = collectAncestorIds(node.children, value, [
-        ...trail,
-        node.value,
-      ]);
+      const found = collectAncestorIds(node.children, value, [...trail, node.value]);
       if (found) {
         return found;
       }
@@ -82,10 +70,7 @@ function collectAncestorIds(
   return null;
 }
 
-function findNodeLabel(
-  nodes: readonly TreeSelectNode[],
-  value: string,
-): string | null {
+function findNodeLabel(nodes: readonly TreeSelectNode[], value: string): string | null {
   for (const node of nodes) {
     if (node.value === value) {
       return node.label;
@@ -172,13 +157,9 @@ function TreeRows({
                 )}
                 onClick={() => onSelect(node.value)}
               >
-                {nodeIcon ? (
-                  <span className="shrink-0">{nodeIcon}</span>
-                ) : null}
+                {nodeIcon ? <span className="shrink-0">{nodeIcon}</span> : null}
                 <span className="min-w-0 flex-1 truncate">{node.label}</span>
-                {selected ? (
-                  <Check className="size-4 shrink-0" aria-hidden="true" />
-                ) : null}
+                {selected ? <Check className="size-4 shrink-0" aria-hidden="true" /> : null}
               </button>
             </div>
             {hasChildren && expanded ? (
@@ -285,9 +266,7 @@ export function TreeSelect({
         >
           {displayLabel ?? (
             <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-              {triggerIcon ? (
-                <span className="shrink-0">{triggerIcon}</span>
-              ) : null}
+              {triggerIcon ? <span className="shrink-0">{triggerIcon}</span> : null}
               <span className="min-w-0 flex-1 truncate">{selectedLabel}</span>
             </span>
           )}
@@ -299,18 +278,11 @@ export function TreeSelect({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className={cn(
-          "w-[var(--radix-popover-trigger-width)] p-0",
-          contentClassName,
-        )}
+        className={cn("w-[var(--radix-popover-trigger-width)] p-0", contentClassName)}
       >
         {/* max-h + viewport h-auto：矮列表随内容收缩，多选项再滚动 */}
         <ScrollArea className="max-h-64 [&_[data-slot=scroll-area-viewport]]:h-auto [&_[data-slot=scroll-area-viewport]]:max-h-64">
-          <div
-            role="listbox"
-            aria-label={ariaLabel}
-            className="flex flex-col gap-0.5 p-1"
-          >
+          <div role="listbox" aria-label={ariaLabel} className="flex flex-col gap-0.5 p-1">
             {emptyOption ? (
               <button
                 type="button"
@@ -323,15 +295,9 @@ export function TreeSelect({
                 )}
                 onClick={() => handleSelect(emptyOption.value)}
               >
-                {emptyOption.icon ? (
-                  <span className="shrink-0">{emptyOption.icon}</span>
-                ) : null}
-                <span className="min-w-0 flex-1 truncate">
-                  {emptyOption.label}
-                </span>
-                {emptySelected ? (
-                  <Check className="size-4 shrink-0" aria-hidden="true" />
-                ) : null}
+                {emptyOption.icon ? <span className="shrink-0">{emptyOption.icon}</span> : null}
+                <span className="min-w-0 flex-1 truncate">{emptyOption.label}</span>
+                {emptySelected ? <Check className="size-4 shrink-0" aria-hidden="true" /> : null}
               </button>
             ) : null}
 

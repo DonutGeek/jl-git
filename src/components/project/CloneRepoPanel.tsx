@@ -1,4 +1,5 @@
-import { FormEvent, useState } from "react";
+import type { FormEvent } from "react";
+import { useState } from "react";
 import { FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -8,12 +9,7 @@ import { ProjectIconPicker } from "@/components/project/ProjectIconPicker";
 import { WorkspaceSelectMenu } from "@/components/project/WorkspaceSelectMenu";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Field,
-  FieldContent,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
+import { Field, FieldContent, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -21,10 +17,7 @@ import { cloneRepository } from "@/services/git/git.clone";
 import { projectService } from "@/services/project";
 import { useProjectStore } from "@/store/useProjectStore";
 import { toUserMessage } from "@/types/error";
-import {
-  DEFAULT_PROJECT_ICON,
-  type ProjectIcon as ProjectIconName,
-} from "@/types/project";
+import { DEFAULT_PROJECT_ICON, type ProjectIcon as ProjectIconName } from "@/types/project";
 import {
   joinCloneDestPath,
   repoNameFromCloneUrl,
@@ -44,10 +37,7 @@ interface PendingDetailSession {
 }
 
 /** 新标签页「克隆」：仓库地址 + 存放路径，布局对齐「打开」表单 */
-export function CloneRepoPanel({
-  onOpenProject,
-  disabled = false,
-}: CloneRepoPanelProps) {
+export function CloneRepoPanel({ onOpenProject, disabled = false }: CloneRepoPanelProps) {
   const { t } = useTranslation();
   const addAndOpen = useProjectStore((state) => state.addAndOpen);
   const addProject = useProjectStore((state) => state.addProject);
@@ -63,9 +53,7 @@ export function CloneRepoPanel({
   const [workspaceId, setWorkspaceId] = useState("");
   const [cloning, setCloning] = useState(false);
   const [picking, setPicking] = useState(false);
-  const [pendingDetail, setPendingDetail] = useState<PendingDetailSession | null>(
-    null,
-  );
+  const [pendingDetail, setPendingDetail] = useState<PendingDetailSession | null>(null);
 
   const busy = cloning || picking || pendingDetail !== null || disabled;
   const canSubmit = !busy && url.trim().length > 0 && path.trim().length > 0;
@@ -113,10 +101,7 @@ export function CloneRepoPanel({
       if (!selected) {
         return;
       }
-      const name =
-        suggestedRepoName ||
-        repoNameFromCloneUrl(url) ||
-        "repository";
+      const name = suggestedRepoName || repoNameFromCloneUrl(url) || "repository";
       setSuggestedRepoName(name);
       setPath(joinCloneDestPath(selected, name));
       if (!aliasEdited) {
@@ -169,10 +154,7 @@ export function CloneRepoPanel({
       };
 
       // 勾选「克隆后填写详情」时先只登记，避免弹窗前就切到仓库
-      const project =
-        openAfter && !wantDetail
-          ? await addAndOpen(input)
-          : await addProject(input);
+      const project = openAfter && !wantDetail ? await addAndOpen(input) : await addProject(input);
 
       resetForm();
 
@@ -216,9 +198,7 @@ export function CloneRepoPanel({
         >
           <FieldGroup className="gap-4">
             <Field>
-              <FieldLabel htmlFor="clone-repo-url">
-                {t("cloneRepo.urlLabel")}
-              </FieldLabel>
+              <FieldLabel htmlFor="clone-repo-url">{t("cloneRepo.urlLabel")}</FieldLabel>
               <Input
                 id="clone-repo-url"
                 value={url}
@@ -231,9 +211,7 @@ export function CloneRepoPanel({
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="clone-repo-path">
-                {t("cloneRepo.pathLabel")}
-              </FieldLabel>
+              <FieldLabel htmlFor="clone-repo-path">{t("cloneRepo.pathLabel")}</FieldLabel>
               <div className="flex gap-2">
                 <Input
                   id="clone-repo-path"
@@ -257,9 +235,7 @@ export function CloneRepoPanel({
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="clone-repo-alias">
-                {t("openRepo.aliasLabel")}
-              </FieldLabel>
+              <FieldLabel htmlFor="clone-repo-alias">{t("openRepo.aliasLabel")}</FieldLabel>
               <Input
                 id="clone-repo-alias"
                 value={alias}
@@ -272,9 +248,7 @@ export function CloneRepoPanel({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="clone-repo-icon">
-                  {t("projectManager.projectIcon")}
-                </FieldLabel>
+                <FieldLabel htmlFor="clone-repo-icon">{t("projectManager.projectIcon")}</FieldLabel>
                 <ProjectIconPicker
                   id="clone-repo-icon"
                   value={projectIcon}
@@ -298,9 +272,7 @@ export function CloneRepoPanel({
               <Checkbox
                 id="clone-fill-detail"
                 checked={fillDetailAfterClone}
-                onCheckedChange={(checked) =>
-                  setFillDetailAfterClone(checked === true)
-                }
+                onCheckedChange={(checked) => setFillDetailAfterClone(checked === true)}
                 disabled={busy}
               />
               <FieldContent>

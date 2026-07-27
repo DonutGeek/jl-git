@@ -1,5 +1,5 @@
 import { invokeCommand } from "@/services/invoke";
-import { GitLogOptions, GitLogOrder, GitLogResult } from "@/types/git";
+import type { GitLogOptions, GitLogOrder, GitLogResult } from "@/types/git";
 import {
   historyAdvancedToLogOptions,
   type HistoryAdvancedFilters,
@@ -25,10 +25,7 @@ export function buildHistoryLogOptions(options: {
   return { skip, limit, all: true, order: orderOpt, ...advancedOpts };
 }
 
-export async function getLog(
-  repoPath: string,
-  options?: GitLogOptions,
-): Promise<GitLogResult> {
+export async function getLog(repoPath: string, options?: GitLogOptions): Promise<GitLogResult> {
   return invokeCommand<GitLogResult>("git_log", {
     path: repoPath,
     skip: options?.skip,

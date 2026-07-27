@@ -33,9 +33,8 @@ pub async fn document_extract_pdf_text(
 }
 
 fn extract_pdf_text_blocking(path: &Path) -> Result<ExtractPdfTextResult, AppError> {
-    let meta = std::fs::metadata(path).map_err(|_| {
-        AppError::new("NOT_FOUND", "找不到临时 PDF 文件")
-    })?;
+    let meta =
+        std::fs::metadata(path).map_err(|_| AppError::new("NOT_FOUND", "找不到临时 PDF 文件"))?;
     if !meta.is_file() {
         return Err(AppError::new("VALIDATION", "路径不是文件"));
     }
@@ -46,16 +45,13 @@ fn extract_pdf_text_blocking(path: &Path) -> Result<ExtractPdfTextResult, AppErr
         return Err(AppError::new("VALIDATION", "PDF 文件为空"));
     }
 
-    let data = std::fs::read(path).map_err(|_| {
-        AppError::new("INTERNAL", "读取临时 PDF 失败")
-    })?;
+    let data = std::fs::read(path).map_err(|_| AppError::new("INTERNAL", "读取临时 PDF 失败"))?;
     if !looks_like_pdf(&data) {
         return Err(AppError::new("VALIDATION", "不是有效的 PDF 文件"));
     }
 
-    let text = pdf_extract::extract_text_from_mem(&data).map_err(|error| {
-        AppError::new("INTERNAL", format!("无法解析 PDF：{error}"))
-    })?;
+    let text = pdf_extract::extract_text_from_mem(&data)
+        .map_err(|error| AppError::new("INTERNAL", format!("无法解析 PDF：{error}")))?;
 
     Ok(ExtractPdfTextResult { text })
 }
@@ -76,10 +72,7 @@ fn validate_temp_pdf_path(raw: &str) -> Result<PathBuf, AppError> {
         .and_then(|name| name.to_str())
         .unwrap_or("");
     if !file_name.starts_with("jlgit-pdf-") || !file_name.to_ascii_lowercase().ends_with(".pdf") {
-        return Err(AppError::new(
-            "VALIDATION",
-            "仅允许解析应用写入的临时 PDF",
-        ));
+        return Err(AppError::new("VALIDATION", "仅允许解析应用写入的临时 PDF"));
     }
 
     let temp_root = std::env::temp_dir()
@@ -89,10 +82,7 @@ fn validate_temp_pdf_path(raw: &str) -> Result<PathBuf, AppError> {
         .canonicalize()
         .map_err(|_| AppError::new("NOT_FOUND", "找不到临时 PDF 文件"))?;
     if !canonical.starts_with(&temp_root) {
-        return Err(AppError::new(
-            "VALIDATION",
-            "PDF 路径必须位于系统临时目录",
-        ));
+        return Err(AppError::new("VALIDATION", "PDF 路径必须位于系统临时目录"));
     }
 
     Ok(canonical)
@@ -100,7 +90,5 @@ fn validate_temp_pdf_path(raw: &str) -> Result<PathBuf, AppError> {
 
 fn looks_like_pdf(data: &[u8]) -> bool {
     let head = data.len().min(1024);
-    data[..head]
-        .windows(5)
-        .any(|window| window == b"%PDF-")
+    data[..head].windows(5).any(|window| window == b"%PDF-")
 }

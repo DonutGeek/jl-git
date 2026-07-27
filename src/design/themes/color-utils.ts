@@ -58,16 +58,10 @@ export function hexToHsv(hex: string): HsvColor {
   };
 }
 
-export function hsvToHex(
-  hue: number,
-  saturation: number,
-  value: number,
-): string {
-  const normalizedHue = ((Number.isFinite(hue) ? hue : 0) % 360 + 360) % 360;
-  const normalizedSaturation =
-    clamp(Number.isFinite(saturation) ? saturation : 0, 0, 100) / 100;
-  const normalizedValue =
-    clamp(Number.isFinite(value) ? value : 0, 0, 100) / 100;
+export function hsvToHex(hue: number, saturation: number, value: number): string {
+  const normalizedHue = (((Number.isFinite(hue) ? hue : 0) % 360) + 360) % 360;
+  const normalizedSaturation = clamp(Number.isFinite(saturation) ? saturation : 0, 0, 100) / 100;
+  const normalizedValue = clamp(Number.isFinite(value) ? value : 0, 0, 100) / 100;
   const chroma = normalizedValue * normalizedSaturation;
   const segment = normalizedHue / 60;
   const secondary = chroma * (1 - Math.abs((segment % 2) - 1));
@@ -130,8 +124,7 @@ export function mixToward(from: string, toward: string, amount: number): string 
   };
   const [r1, g1, b1] = parse(from);
   const [r2, g2, b2] = parse(toward);
-  const toHex = (n: number) =>
-    Math.round(n).toString(16).padStart(2, "0").toUpperCase();
+  const toHex = (n: number) => Math.round(n).toString(16).padStart(2, "0").toUpperCase();
   return `#${toHex(r1 + (r2 - r1) * t)}${toHex(g1 + (g2 - g1) * t)}${toHex(b1 + (b2 - b1) * t)}`;
 }
 

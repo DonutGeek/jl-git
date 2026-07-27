@@ -4,11 +4,7 @@ import { CalendarIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 export interface DatePickerProps {
@@ -64,8 +60,7 @@ export function DatePicker({
 }: DatePickerProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const resolvedPlaceholder =
-    placeholder ?? t("common.datePickerPlaceholder");
+  const resolvedPlaceholder = placeholder ?? t("common.datePickerPlaceholder");
   const selected = parseYmd(value);
 
   return (
@@ -85,9 +80,7 @@ export function DatePicker({
           )}
         >
           <CalendarIcon className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
-          <span className="min-w-0 truncate">
-            {value ?? resolvedPlaceholder}
-          </span>
+          <span className="min-w-0 truncate">{value ?? resolvedPlaceholder}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent

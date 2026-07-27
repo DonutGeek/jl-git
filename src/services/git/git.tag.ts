@@ -1,6 +1,6 @@
 import { invokeCommand } from "@/services/invoke";
 
-import {
+import type {
   GitCreateTagOptions,
   GitRemoteTag,
   GitRemoteTagsResult,
@@ -14,10 +14,7 @@ export async function listTags(repoPath: string): Promise<GitTagsResult> {
 }
 
 /** 查询远端标签列表（联网，ls-remote） */
-export async function listRemoteTags(
-  repoPath: string,
-  remote: string,
-): Promise<GitRemoteTag[]> {
+export async function listRemoteTags(repoPath: string, remote: string): Promise<GitRemoteTag[]> {
   const result = await invokeCommand<GitRemoteTagsResult>("git_tags_remote", {
     path: repoPath,
     remote,
@@ -57,11 +54,7 @@ export async function deleteTag(repoPath: string, name: string): Promise<void> {
 }
 
 /** 推送单个标签到指定远端 */
-export async function pushTag(
-  repoPath: string,
-  name: string,
-  remote: string,
-): Promise<void> {
+export async function pushTag(repoPath: string, name: string, remote: string): Promise<void> {
   await invokeCommand<OkResult>("git_tag_push", {
     path: repoPath,
     name,

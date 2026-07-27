@@ -12,10 +12,7 @@ export function applyThemeToDocument(mode: ThemeMode): void {
   root.style.colorScheme = dark ? "dark" : "light";
 }
 
-export function resolveEffective(
-  mode: ThemeMode,
-  systemPrefersDark: boolean,
-): "light" | "dark" {
+export function resolveEffective(mode: ThemeMode, systemPrefersDark: boolean): "light" | "dark" {
   if (mode === "system") {
     return systemPrefersDark ? "dark" : "light";
   }

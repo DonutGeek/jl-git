@@ -27,11 +27,7 @@ export function rewriteParentsForVisibleCommits(
   const visibleIndex = new Map(visible.map((commit, index) => [commit.id, index]));
   const byId = new Map(topology.map((commit) => [commit.id, commit]));
 
-  function resolveParent(
-    parentId: string,
-    rowIndex: number,
-    selfId: string,
-  ): string | null {
+  function resolveParent(parentId: string, rowIndex: number, selfId: string): string | null {
     const stack = [parentId];
     const seen = new Set<string>();
 

@@ -26,18 +26,14 @@ interface PersistedChatConversation {
   messages: PersistedChatMessage[];
 }
 
-function mentionsToJson(
-  mentions: readonly AgentMention[] | undefined,
-): string | null {
+function mentionsToJson(mentions: readonly AgentMention[] | undefined): string | null {
   if (!mentions || mentions.length === 0) {
     return null;
   }
   return JSON.stringify(mentions);
 }
 
-function mentionsFromJson(
-  value: string | null | undefined,
-): readonly AgentMention[] | undefined {
+function mentionsFromJson(value: string | null | undefined): readonly AgentMention[] | undefined {
   if (!value?.trim()) {
     return undefined;
   }
@@ -80,12 +76,8 @@ function toAgentMessage(row: PersistedChatMessage): AgentChatMessage {
     role: row.role === "user" ? "user" : "assistant",
     content: row.content,
     createdAt: row.createdAt,
-    ...(row.reasoningContent
-      ? { reasoningContent: row.reasoningContent }
-      : {}),
-    ...(row.reasoningDurationMs != null
-      ? { reasoningDurationMs: row.reasoningDurationMs }
-      : {}),
+    ...(row.reasoningContent ? { reasoningContent: row.reasoningContent } : {}),
+    ...(row.reasoningDurationMs != null ? { reasoningDurationMs: row.reasoningDurationMs } : {}),
     ...(mentions ? { mentions } : {}),
   };
 }

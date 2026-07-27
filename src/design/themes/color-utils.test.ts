@@ -13,13 +13,10 @@ describe("主题色转换", () => {
     expect(hexToHsv(hex)).toEqual(expected);
   });
 
-  it.each(["#D97757", "#1A3D2A", "#4493F8", "#A3A3A3"])(
-    "常用主题色 %s 往返转换保持一致",
-    (hex) => {
-      const hsv = hexToHsv(hex);
-      expect(hsvToHex(hsv.hue, hsv.saturation, hsv.value)).toBe(hex);
-    },
-  );
+  it.each(["#D97757", "#1A3D2A", "#4493F8", "#A3A3A3"])("常用主题色 %s 往返转换保持一致", (hex) => {
+    const hsv = hexToHsv(hex);
+    expect(hsvToHex(hsv.hue, hsv.saturation, hsv.value)).toBe(hex);
+  });
 
   it("会规范化色相并约束饱和度与明度", () => {
     expect(hsvToHex(360, 100, 100)).toBe("#FF0000");

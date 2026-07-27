@@ -173,7 +173,11 @@ pub async fn migrate_chat_tables(pool: &SqlitePool) -> Result<(), AppError> {
 fn validate_scope_project(scope: &str, project_id: Option<&str>) -> Result<(), AppError> {
     match scope {
         CHAT_SCOPE_AGENT => {
-            if project_id.map(str::trim).filter(|id| !id.is_empty()).is_none() {
+            if project_id
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .is_none()
+            {
                 return Err(AppError::new("VALIDATION", "鲸灵会话必须绑定项目 ID"));
             }
             Ok(())
@@ -343,7 +347,10 @@ pub async fn upsert_chat_conversation(
             .await
             .map_err(to_db_error)?
         };
-        max_row.try_get::<i64, _>("max_order").map_err(to_db_error)? + 1
+        max_row
+            .try_get::<i64, _>("max_order")
+            .map_err(to_db_error)?
+            + 1
     };
 
     sqlx::query(

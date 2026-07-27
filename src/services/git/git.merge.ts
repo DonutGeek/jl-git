@@ -1,5 +1,5 @@
 import { invokeCommand } from "@/services/invoke";
-import { GitMergeOptions, GitMergeResult } from "@/types/git";
+import type { GitMergeOptions, GitMergeResult } from "@/types/git";
 
 export async function merge(
   repoPath: string,

@@ -4,8 +4,9 @@ import i18n from "@/i18n";
 import { gitService } from "@/services/git";
 import { ensureGitIdentityBootstrapped } from "@/services/git/git.accounts";
 import { buildHistoryLogOptions } from "@/services/git/git.log";
-import { AppError, toUserMessage } from "@/types/error";
-import {
+import type { AppError } from "@/types/error";
+import { toUserMessage } from "@/types/error";
+import type {
   GitBranch,
   GitCommitDetail,
   GitCommitSummary,
@@ -34,15 +35,8 @@ import {
   EMPTY_HISTORY_ADVANCED_FILTERS,
   type HistoryAdvancedFilters,
 } from "@/utils/historyAdvancedFilters";
-import {
-  beginRepoPendingOp,
-  endRepoPendingOp,
-  hasRepoPendingOp,
-} from "@/utils/repoPendingOps";
-import {
-  hasUnresolvedConflicts,
-  isWriteOpBlocked,
-} from "@/utils/repoOperationGuard";
+import { beginRepoPendingOp, endRepoPendingOp, hasRepoPendingOp } from "@/utils/repoPendingOps";
+import { hasUnresolvedConflicts, isWriteOpBlocked } from "@/utils/repoOperationGuard";
 
 /** 仓库身份为空时，再走一遍启动播种/写回全局，然后重读 */
 async function resolveRepoIdentity(repoPath: string): Promise<GitIdentity> {
@@ -183,15 +177,10 @@ function saveRepoSession(repoPath: string, state: RepoStoreState): void {
   const existing = repoSessionCache.get(repoPath);
   // 避免 refreshStatus 等局部刷新把空分支列表写回，污染切标签会话缓存
   const branches =
-    state.branches.length > 0 || !existing?.branches.length
-      ? state.branches
-      : existing.branches;
-  const tags =
-    state.tags.length > 0 || !existing?.tags.length ? state.tags : existing.tags;
+    state.branches.length > 0 || !existing?.branches.length ? state.branches : existing.branches;
+  const tags = state.tags.length > 0 || !existing?.tags.length ? state.tags : existing.tags;
   const rawCommits =
-    state.commits.length > 0 || !existing?.commits.length
-      ? state.commits
-      : existing.commits;
+    state.commits.length > 0 || !existing?.commits.length ? state.commits : existing.commits;
   const { commits, capped } = applyLogCommits([], rawCommits, true);
 
   if (repoSessionCache.has(repoPath)) {
@@ -221,10 +210,7 @@ function saveRepoSession(repoPath: string, state: RepoStoreState): void {
 }
 
 /** 后台操作完成时写回会话缓存（当前展示的不是该仓） */
-function patchRepoSession(
-  repoPath: string,
-  patch: Partial<RepoSessionSnapshot>,
-): void {
+function patchRepoSession(repoPath: string, patch: Partial<RepoSessionSnapshot>): void {
   const existing = repoSessionCache.get(repoPath);
   if (!existing) {
     return;
@@ -287,8 +273,7 @@ export function restoreRepoSession(repoPath: string): boolean {
     hasMore: capped ? false : cached.hasMore,
     logRef: cached.logRef,
     logOrder: cached.logOrder ?? "default",
-    historyAdvanced:
-      cached.historyAdvanced ?? { ...EMPTY_HISTORY_ADVANCED_FILTERS },
+    historyAdvanced: cached.historyAdvanced ?? { ...EMPTY_HISTORY_ADVANCED_FILTERS },
     commitMessage: cached.commitMessage,
     selectedCommitId: cached.selectedCommitId,
     selectedCommitDetail: detail,
@@ -345,18 +330,12 @@ function demotedSetFrom(paths: readonly string[]): ReadonlySet<string> {
 }
 
 /** 已暂存 / 冲突默认待提交（未 demote） */
-function isStagedEntry(
-  entry: GitStatusEntry,
-  demotedConflictPaths: readonly string[],
-): boolean {
+function isStagedEntry(entry: GitStatusEntry, demotedConflictPaths: readonly string[]): boolean {
   return isStagedChangeEntry(entry, demotedSetFrom(demotedConflictPaths));
 }
 
 /** 未暂存 / 被放回变更的冲突 */
-function isUnstagedEntry(
-  entry: GitStatusEntry,
-  demotedConflictPaths: readonly string[],
-): boolean {
+function isUnstagedEntry(entry: GitStatusEntry, demotedConflictPaths: readonly string[]): boolean {
   return isUnstagedChangeEntry(entry, demotedSetFrom(demotedConflictPaths));
 }
 
@@ -397,11 +376,7 @@ function statusSelectionPatch(
   );
   return {
     demotedConflictPaths,
-    selectedChange: resolveSelectedChange(
-      status,
-      get().selectedChange,
-      demotedConflictPaths,
-    ),
+    selectedChange: resolveSelectedChange(status, get().selectedChange, demotedConflictPaths),
   };
 }
 
@@ -577,9 +552,7 @@ async function syncAfterConflictOp(
       : null;
 
   const nextMessage =
-    options?.preferMergeMessage &&
-    repoState.mergeMessage &&
-    !get().commitMessage.trim()
+    options?.preferMergeMessage && repoState.mergeMessage && !get().commitMessage.trim()
       ? repoState.mergeMessage
       : get().commitMessage;
 
@@ -598,9 +571,7 @@ async function syncAfterConflictOp(
           side: demotedConflictPaths.includes(focusPath) ? "worktree" : "index",
         }
       : resolveSelectedChange(status, get().selectedChange, demotedConflictPaths),
-    conflictFocusEpoch: focusPath
-      ? get().conflictFocusEpoch + 1
-      : get().conflictFocusEpoch,
+    conflictFocusEpoch: focusPath ? get().conflictFocusEpoch + 1 : get().conflictFocusEpoch,
   });
   return repoState;
 }
@@ -614,12 +585,9 @@ function requireRepoPath(repoPath: string | null): string {
 }
 
 /** 解析默认远端名（origin 优先，否则第一个）；无远端返回 null */
-async function resolveDefaultRemoteOrNull(
-  repoPath: string,
-): Promise<string | null> {
+async function resolveDefaultRemoteOrNull(repoPath: string): Promise<string | null> {
   const remotes = await gitService.listRemotes(repoPath);
-  const preferred =
-    remotes.find((remote) => remote.name === "origin") ?? remotes[0];
+  const preferred = remotes.find((remote) => remote.name === "origin") ?? remotes[0];
   return preferred?.name ?? null;
 }
 
@@ -720,9 +688,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     const focusConflict = entry ? isConflictEntry(entry) : false;
     set({
       selectedChange: selection,
-      conflictFocusEpoch: focusConflict
-        ? get().conflictFocusEpoch + 1
-        : get().conflictFocusEpoch,
+      conflictFocusEpoch: focusConflict ? get().conflictFocusEpoch + 1 : get().conflictFocusEpoch,
     });
   },
 
@@ -799,8 +765,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           hasMore: cached.hasMore,
           logRef: cached.logRef,
           logOrder: cached.logOrder ?? "default",
-          historyAdvanced:
-            cached.historyAdvanced ?? { ...EMPTY_HISTORY_ADVANCED_FILTERS },
+          historyAdvanced: cached.historyAdvanced ?? { ...EMPTY_HISTORY_ADVANCED_FILTERS },
           commitMessage: cached.commitMessage,
           selectedCommitId: cached.selectedCommitId,
           selectedCommitDetail: detail,
@@ -896,9 +861,21 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     clearCommitDetailCacheForRepo(repoPath);
 
     try {
-      const status = await gitService.getStatus(repoPath);
+      let status = await gitService.getStatus(repoPath);
       if (get().repoPath !== repoPath) {
         return;
+      }
+
+      // 进程闪退后 lint-staged 备份可能未还原：工作区空但存在 automatic backup 时自动救回
+      if (status.entries.length === 0) {
+        try {
+          const restore = await gitService.restoreLintStagedBackup(repoPath);
+          if (restore.restored) {
+            status = await gitService.getStatus(repoPath);
+          }
+        } catch {
+          // 打开仓库时救场失败不阻断主流程
+        }
       }
 
       const defaultLogRef = historyLogRefFromStatus(status);
@@ -948,10 +925,20 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     beginLoadingOp(repoPath, set, get);
 
     try {
-      const [status, repoState] = await Promise.all([
+      let [status, repoState] = await Promise.all([
         gitService.getStatus(repoPath),
         gitService.getRepoState(repoPath),
       ]);
+      if (status.entries.length === 0) {
+        try {
+          const restore = await gitService.restoreLintStagedBackup(repoPath);
+          if (restore.restored) {
+            status = await gitService.getStatus(repoPath);
+          }
+        } catch {
+          // 刷新时救场失败不阻断
+        }
+      }
       if (get().repoPath !== repoPath) {
         patchRepoSession(repoPath, { status });
         return;
@@ -1035,11 +1022,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         return;
       }
 
-      const { commits, capped } = applyLogCommits(
-        currentCommits,
-        log.commits,
-        reset,
-      );
+      const { commits, capped } = applyLogCommits(currentCommits, log.commits, reset);
       set({
         commits,
         hasMore: capped ? false : log.hasMore,
@@ -1239,11 +1222,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         return;
       }
 
-      const { commits, capped } = applyLogCommits(
-        get().commits,
-        log.commits,
-        false,
-      );
+      const { commits, capped } = applyLogCommits(get().commits, log.commits, false);
       set({
         commits,
         hasMore: capped ? false : log.hasMore,
@@ -1423,9 +1402,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const gitPaths = entries
         .filter(
           (entry) =>
-            !isConflictEntry(entry) &&
-            entry.indexStatus !== "." &&
-            entry.indexStatus !== "?",
+            !isConflictEntry(entry) && entry.indexStatus !== "." && entry.indexStatus !== "?",
         )
         .map((entry) => entry.path);
       if (gitPaths.length === 0) {
@@ -1528,8 +1505,31 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       return commitId;
     } catch (error) {
+      // Rust 侧已尝试还原 lint-staged 备份；此处再兜底并刷新 status，避免 UI 卡在「空变更」
+      let restoredBackup = false;
+      try {
+        const restore = await gitService.restoreLintStagedBackup(repoPath);
+        restoredBackup = restore.restored;
+      } catch {
+        // 忽略二次救场失败，仍抛出原始提交错误
+      }
+      try {
+        const status = await gitService.getStatus(repoPath);
+        if (get().repoPath === repoPath) {
+          set({ status, ...statusSelectionPatch(get, status) });
+        } else {
+          patchRepoSession(repoPath, { status });
+        }
+      } catch {
+        // status 刷新失败不掩盖提交错误
+      }
       if (get().repoPath === repoPath) {
         setError(set, get, error);
+      }
+      if (restoredBackup) {
+        const wrapped =
+          error && typeof error === "object" ? { ...error, restoredLintStagedBackup: true } : error;
+        throw wrapped;
       }
       throw error;
     } finally {
@@ -1589,9 +1589,11 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       });
       saveRepoSession(repoPath, get());
       // 详情按新 id 重拉
-      void get().selectCommit(commitId).catch(() => {
-        // 选中失败不阻断 amend 成功
-      });
+      void get()
+        .selectCommit(commitId)
+        .catch(() => {
+          // 选中失败不阻断 amend 成功
+        });
 
       return commitId;
     } catch (error) {
@@ -1967,8 +1969,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const status = get().status;
       const remote = options?.remote ?? "origin";
       const branch =
-        options?.branch ??
-        (status?.detached ? undefined : (status?.branch ?? undefined));
+        options?.branch ?? (status?.detached ? undefined : (status?.branch ?? undefined));
       const result = await gitService.push(repoPath, {
         ...options,
         remote,

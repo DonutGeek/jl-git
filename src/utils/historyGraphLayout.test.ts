@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  computeHistoryGraphLayout,
-  rewriteParentsForVisibleCommits,
-} from "./historyGraphLayout";
+import { computeHistoryGraphLayout, rewriteParentsForVisibleCommits } from "./historyGraphLayout";
 
 describe("computeHistoryGraphLayout", () => {
   it("线性历史占单列", () => {

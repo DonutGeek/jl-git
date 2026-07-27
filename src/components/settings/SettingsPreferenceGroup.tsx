@@ -1,10 +1,4 @@
-import {
-  Children,
-  Fragment,
-  isValidElement,
-  type ReactElement,
-  type ReactNode,
-} from "react";
+import { Children, Fragment, isValidElement, type ReactElement, type ReactNode } from "react";
 
 import { ItemGroup, ItemSeparator } from "@/components/ui/item";
 import { cn } from "@/lib/utils";
@@ -20,17 +14,9 @@ export function SettingsPreferenceGroup({
   const items = Children.toArray(children).filter(Boolean);
 
   return (
-    <ItemGroup
-      className={cn(
-        "border-border overflow-hidden rounded-md border",
-        className,
-      )}
-    >
+    <ItemGroup className={cn("border-border overflow-hidden rounded-md border", className)}>
       {items.map((child, index) => {
-        const key =
-          isValidElement(child) && child.key != null
-            ? child.key
-            : `pref-row-${index}`;
+        const key = isValidElement(child) && child.key != null ? child.key : `pref-row-${index}`;
         return (
           <Fragment key={key}>
             {index > 0 ? <ItemSeparator /> : null}

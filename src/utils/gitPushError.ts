@@ -47,10 +47,7 @@ interface ToastPushErrorOptions {
 }
 
 /** 推送失败 toast：拒绝推送时友好文案 + 可选「更新」动作，其它错误走原文 */
-export function toastPushError(
-  error: unknown,
-  options: ToastPushErrorOptions = {},
-): void {
+export function toastPushError(error: unknown, options: ToastPushErrorOptions = {}): void {
   if (isPushRejectedError(error) && options.onUpdate) {
     toast.error(i18n.t("repo.pushRejected"), {
       id: options.toastId,

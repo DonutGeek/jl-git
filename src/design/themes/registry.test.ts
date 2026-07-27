@@ -15,14 +15,7 @@ describe("应用主题注册表", () => {
     const ids = APP_THEME_PACKS.map((pack) => pack.id);
 
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids).toEqual([
-      "jingling-git",
-      "github",
-      "chatgpt",
-      "claude-code",
-      "codex",
-      "vscode",
-    ]);
+    expect(ids).toEqual(["jingling-git", "github", "chatgpt", "claude-code", "codex", "vscode"]);
     expect(APP_THEME_OPTIONS.map((option) => option.id)).toEqual(ids);
   });
 
@@ -61,58 +54,44 @@ describe("应用主题注册表", () => {
   });
 
   it("主题包提供各自的卡片、侧栏与昼夜分层色", () => {
-    expect(chromeFromPreset(normalizeAppThemeId("github"), false)).toMatchObject(
-      {
-        background: "#FFFFFF",
-        surface: "#FFFFFF",
-        muted: "#F6F8FA",
-        sidebar: "#F6F8FA",
-        border: "#D1D9E0",
-      },
-    );
-    expect(chromeFromPreset(normalizeAppThemeId("github"), true)).toMatchObject(
-      {
-        background: "#0D1117",
-        surface: "#151B23",
-        sidebar: "#010409",
-        border: "#3D444D",
-      },
-    );
-    expect(chromeFromPreset(normalizeAppThemeId("vscode"), true)).toMatchObject(
-      {
-        background: "#1F1F1F",
-        surface: "#202020",
-        muted: "#2B2B2B",
-        sidebar: "#181818",
-      },
-    );
-    expect(
-      chromeFromPreset(normalizeAppThemeId("claude-code"), false),
-    ).toMatchObject({
+    expect(chromeFromPreset(normalizeAppThemeId("github"), false)).toMatchObject({
+      background: "#FFFFFF",
+      surface: "#FFFFFF",
+      muted: "#F6F8FA",
+      sidebar: "#F6F8FA",
+      border: "#D1D9E0",
+    });
+    expect(chromeFromPreset(normalizeAppThemeId("github"), true)).toMatchObject({
+      background: "#0D1117",
+      surface: "#151B23",
+      sidebar: "#010409",
+      border: "#3D444D",
+    });
+    expect(chromeFromPreset(normalizeAppThemeId("vscode"), true)).toMatchObject({
+      background: "#1F1F1F",
+      surface: "#202020",
+      muted: "#2B2B2B",
+      sidebar: "#181818",
+    });
+    expect(chromeFromPreset(normalizeAppThemeId("claude-code"), false)).toMatchObject({
       background: "#F9F9F7",
       surface: "#FFFFFF",
       sidebar: "#FCFCFB",
       accent: "#0B0B0B",
     });
-    expect(
-      chromeFromPreset(normalizeAppThemeId("claude-code"), true),
-    ).toMatchObject({
+    expect(chromeFromPreset(normalizeAppThemeId("claude-code"), true)).toMatchObject({
       background: "#0D0D0D",
       surface: "#2C2C2A",
       sidebar: "#1A1A19",
       accent: "#FFFFFF",
     });
-    expect(
-      chromeFromPreset(normalizeAppThemeId("chatgpt"), false),
-    ).toMatchObject({
+    expect(chromeFromPreset(normalizeAppThemeId("chatgpt"), false)).toMatchObject({
       background: "#FCFCFC",
       surface: "#FFFFFF",
       sidebar: "#FCFCFC",
       accent: "#0D0D0D",
     });
-    expect(
-      chromeFromPreset(normalizeAppThemeId("chatgpt"), true),
-    ).toMatchObject({
+    expect(chromeFromPreset(normalizeAppThemeId("chatgpt"), true)).toMatchObject({
       background: "#000000",
       surface: "#212121",
       selection: "#303030",
@@ -133,9 +112,7 @@ describe("应用主题注册表", () => {
   });
 
   it("颜色建议去重且均来自有效 HEX 色值", () => {
-    expect(new Set(APP_THEME_COLOR_SUGGESTIONS).size).toBe(
-      APP_THEME_COLOR_SUGGESTIONS.length,
-    );
+    expect(new Set(APP_THEME_COLOR_SUGGESTIONS).size).toBe(APP_THEME_COLOR_SUGGESTIONS.length);
     for (const color of APP_THEME_COLOR_SUGGESTIONS) {
       expect(color).toMatch(/^#[0-9A-F]{6}$/);
     }
@@ -168,12 +145,6 @@ describe("应用主题注册表", () => {
     const preset = chromeFromPreset(themeId, true);
 
     expect(isAppThemeChromeAtPreset(themeId, preset, true)).toBe(true);
-    expect(
-      isAppThemeChromeAtPreset(
-        themeId,
-        { ...preset, sidebar: "#123456" },
-        true,
-      ),
-    ).toBe(false);
+    expect(isAppThemeChromeAtPreset(themeId, { ...preset, sidebar: "#123456" }, true)).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
-import { FormEvent, useMemo, useState, type ReactNode } from "react";
+import type { FormEvent } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   Folder,
@@ -25,7 +26,12 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 
@@ -39,12 +45,14 @@ import { WorkspaceGroupDialog } from "@/components/project/WorkspaceGroupDialog"
 import { WorkspaceSelectMenu } from "@/components/project/WorkspaceSelectMenu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -53,12 +61,8 @@ import { projectService } from "@/services/project";
 import { openProjectManageWindow } from "@/services/window/projectManageWindow";
 import { useProjectStore } from "@/store/useProjectStore";
 import { toUserMessage } from "@/types/error";
-import {
-  DEFAULT_PROJECT_ICON,
-  Project,
-  type ProjectIcon as ProjectIconName,
-  Workspace,
-} from "@/types/project";
+import type { Project, Workspace } from "@/types/project";
+import { DEFAULT_PROJECT_ICON, type ProjectIcon as ProjectIconName } from "@/types/project";
 import { buildProjectOrderItems } from "@/utils/projectGroupOrder";
 
 interface ProjectManagerProps {
@@ -118,10 +122,11 @@ function SortableGroupItem({
   className?: string;
   children: ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({
-    id,
-    data: entry,
-  });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } =
+    useSortable({
+      id,
+      data: entry,
+    });
 
   return (
     <div
@@ -166,9 +171,7 @@ function getProjectName(path: string): string {
 }
 
 /** 新标签页中的仓库管理入口。 */
-export function ProjectManager({
-  onOpenProject,
-}: ProjectManagerProps) {
+export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
   const { t } = useTranslation();
   const [view, setView] = useState<View>("recent");
   const [filter, setFilter] = useState("");
@@ -182,9 +185,7 @@ export function ProjectManager({
   const [opening, setOpening] = useState(false);
   const [picking, setPicking] = useState(false);
   const [groupDialog, setGroupDialog] = useState<
-    | { mode: "create"; parentId: string | null }
-    | { mode: "edit"; workspace: Workspace }
-    | null
+    { mode: "create"; parentId: string | null } | { mode: "edit"; workspace: Workspace } | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -201,9 +202,13 @@ export function ProjectManager({
   const reorderGroupedItems = useProjectStore((state) => state.reorderGroupedItems);
   const query = filter.trim().toLowerCase();
   const visibleProjects = useMemo(
-    () => query
-      ? projects.filter((item) => item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query))
-      : projects,
+    () =>
+      query
+        ? projects.filter(
+            (item) =>
+              item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query),
+          )
+        : projects,
     [projects, query],
   );
   const nav = [
@@ -214,13 +219,21 @@ export function ProjectManager({
     { id: "manage" as const, label: t("projectManager.manage"), icon: FolderKanban },
   ];
   const rootWorkspaces = useMemo(
-    () => workspaces
-      .filter((workspace) => workspace.parentId === null || !workspaces.some((item) => item.id === workspace.parentId))
-      .sort((a, b) => a.sortOrder - b.sortOrder),
+    () =>
+      workspaces
+        .filter(
+          (workspace) =>
+            workspace.parentId === null ||
+            !workspaces.some((item) => item.id === workspace.parentId),
+        )
+        .sort((a, b) => a.sortOrder - b.sortOrder),
     [workspaces],
   );
   const rootProjects = useMemo(
-    () => visibleProjects.filter((project) => project.workspaceId === null).sort((a, b) => a.sortOrder - b.sortOrder),
+    () =>
+      visibleProjects
+        .filter((project) => project.workspaceId === null)
+        .sort((a, b) => a.sortOrder - b.sortOrder),
     [visibleProjects],
   );
   const rootMixedItems = useMemo(() => {
@@ -282,7 +295,9 @@ export function ProjectManager({
     return mixed.sort(compareMixedTreeItems);
   }
 
-  async function persistProjectMove(groups: Array<{ workspaceId: string | null; projectIds: string[] }>): Promise<void> {
+  async function persistProjectMove(
+    groups: Array<{ workspaceId: string | null; projectIds: string[] }>,
+  ): Promise<void> {
     await reorderGroupedItems({
       workspaces: [],
       projects: buildProjectOrderItems(groups),
@@ -339,7 +354,10 @@ export function ProjectManager({
       return;
     }
     await persistProjectMove([
-      { workspaceId: fromWorkspaceId, projectIds: source.filter((item) => item.id !== projectId).map((item) => item.id) },
+      {
+        workspaceId: fromWorkspaceId,
+        projectIds: source.filter((item) => item.id !== projectId).map((item) => item.id),
+      },
       { workspaceId: toWorkspaceId, projectIds: [...target.map((item) => item.id), projectId] },
     ]);
     if (toWorkspaceId) {
@@ -372,10 +390,8 @@ export function ProjectManager({
     try {
       // 拖动分组：与同级分组或同级仓库重排
       if (active.type === "workspace") {
-        const sameLevelWorkspace =
-          over.type === "workspace" && over.parentId === active.parentId;
-        const sameLevelProject =
-          over.type === "project" && over.workspaceId === active.parentId;
+        const sameLevelWorkspace = over.type === "workspace" && over.parentId === active.parentId;
+        const sameLevelProject = over.type === "project" && over.workspaceId === active.parentId;
         if (sameLevelWorkspace || sameLevelProject) {
           await persistMixedReorder(active.parentId, activeSortableId, overSortableId);
         }
@@ -590,16 +606,12 @@ export function ProjectManager({
               disabled={opening || dragging}
               className={cn(
                 "focus-visible:ring-ring group relative flex h-9 w-full min-w-0 cursor-grab items-center gap-2.5 rounded-md px-2 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing",
-                isSelected
-                  ? "bg-accent hover:bg-accent"
-                  : "hover:bg-accent/60",
+                isSelected ? "bg-accent hover:bg-accent" : "hover:bg-accent/60",
               )}
               onClick={() => {
                 if (!opening && !dragging) {
                   // 再次点击已选项则取消选中
-                  setSelectedProjectId((current) =>
-                    current === project.id ? null : project.id,
-                  );
+                  setSelectedProjectId((current) => (current === project.id ? null : project.id));
                 }
               }}
               onDoubleClick={() => openGroupProject(project.id)}
@@ -687,7 +699,9 @@ export function ProjectManager({
                     <Plus aria-hidden="true" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>{t("projectManager.createChildGroup", { name: workspace.name })}</TooltipContent>
+                <TooltipContent>
+                  {t("projectManager.createChildGroup", { name: workspace.name })}
+                </TooltipContent>
               </Tooltip>
               <Tooltip delayDuration={300}>
                 <TooltipTrigger asChild>
@@ -752,9 +766,7 @@ export function ProjectManager({
             onClick={() => {
               if (item.id === "manage") {
                 void openProjectManageWindow().catch((error: unknown) => {
-                  toast.error(
-                    toUserMessage(error) || t("projectManager.manageOpenFailed"),
-                  );
+                  toast.error(toUserMessage(error) || t("projectManager.manageOpenFailed"));
                 });
                 return;
               }
@@ -769,114 +781,105 @@ export function ProjectManager({
       </aside>
 
       <section className="flex min-h-0 flex-1 flex-col px-6 pt-3 pb-6">
-        {view === "recent" ? (
-          <RecentProjectList onOpenProject={onOpenProject} />
-        ) : null}
+        {view === "recent" ? <RecentProjectList onOpenProject={onOpenProject} /> : null}
 
         {view === "clone" ? (
-          <CloneRepoPanel
-            onOpenProject={onOpenProject}
-            disabled={opening}
-          />
+          <CloneRepoPanel onOpenProject={onOpenProject} disabled={opening} />
         ) : null}
 
         {view === "open" ? (
           <ScrollArea className="-mr-6 min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block">
-          <form className="max-w-2xl space-y-6 pr-6 pb-2" onSubmit={(event) => void submitOpen(event)}>
-            <FieldGroup className="gap-4">
-              <Field>
-                <FieldLabel htmlFor="project-manager-path">
-                  {t("openRepo.pathLabel")}
-                </FieldLabel>
-                <div className="flex gap-2">
+            <form
+              className="max-w-2xl space-y-6 pr-6 pb-2"
+              onSubmit={(event) => void submitOpen(event)}
+            >
+              <FieldGroup className="gap-4">
+                <Field>
+                  <FieldLabel htmlFor="project-manager-path">{t("openRepo.pathLabel")}</FieldLabel>
+                  <div className="flex gap-2">
+                    <Input
+                      id="project-manager-path"
+                      value={path}
+                      onChange={(event) => handlePathChange(event.target.value)}
+                      placeholder={t("openRepo.pathPlaceholder")}
+                      autoComplete="off"
+                      disabled={opening || descriptionGenerating}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={picking || opening || descriptionGenerating}
+                      onClick={() => void pickPath()}
+                    >
+                      <FolderOpen className="size-4" aria-hidden="true" />
+                      {t("openRepo.pickButton")}
+                    </Button>
+                  </div>
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="project-manager-alias">
+                    {t("openRepo.aliasLabel")}
+                  </FieldLabel>
                   <Input
-                    id="project-manager-path"
-                    value={path}
-                    onChange={(event) => handlePathChange(event.target.value)}
-                    placeholder={t("openRepo.pathPlaceholder")}
+                    id="project-manager-alias"
+                    value={alias}
+                    onChange={(event) => handleAliasChange(event.target.value)}
+                    placeholder={t("openRepo.aliasPlaceholder")}
                     autoComplete="off"
                     disabled={opening || descriptionGenerating}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={picking || opening || descriptionGenerating}
-                    onClick={() => void pickPath()}
-                  >
-                    <FolderOpen className="size-4" aria-hidden="true" />
-                    {t("openRepo.pickButton")}
-                  </Button>
+                </Field>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="project-manager-icon">
+                      {t("projectManager.projectIcon")}
+                    </FieldLabel>
+                    <ProjectIconPicker
+                      id="project-manager-icon"
+                      value={projectIcon}
+                      onValueChange={setProjectIcon}
+                      disabled={opening || descriptionGenerating}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>{t("projectManager.workspaceLabel")}</FieldLabel>
+                    <WorkspaceSelectMenu
+                      value={workspaceId}
+                      onChange={setWorkspaceId}
+                      ariaLabel={t("projectManager.workspaceLabel")}
+                      disabled={opening || descriptionGenerating}
+                      triggerClassName="h-9"
+                    />
+                  </Field>
                 </div>
-              </Field>
 
-              <Field>
-                <FieldLabel htmlFor="project-manager-alias">
-                  {t("openRepo.aliasLabel")}
-                </FieldLabel>
-                <Input
-                  id="project-manager-alias"
-                  value={alias}
-                  onChange={(event) => handleAliasChange(event.target.value)}
-                  placeholder={t("openRepo.aliasPlaceholder")}
-                  autoComplete="off"
-                  disabled={opening || descriptionGenerating}
+                <ProjectDescriptionField
+                  value={description}
+                  onChange={setDescription}
+                  repoPath={path}
+                  disabled={opening}
+                  generating={descriptionGenerating}
+                  onGeneratingChange={setDescriptionGenerating}
+                  fieldId="project-manager-description"
                 />
-              </Field>
+              </FieldGroup>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="project-manager-icon">
-                    {t("projectManager.projectIcon")}
-                  </FieldLabel>
-                  <ProjectIconPicker
-                    id="project-manager-icon"
-                    value={projectIcon}
-                    onValueChange={setProjectIcon}
-                    disabled={opening || descriptionGenerating}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel>
-                    {t("projectManager.workspaceLabel")}
-                  </FieldLabel>
-                  <WorkspaceSelectMenu
-                    value={workspaceId}
-                    onChange={setWorkspaceId}
-                    ariaLabel={t("projectManager.workspaceLabel")}
-                    disabled={opening || descriptionGenerating}
-                    triggerClassName="h-9"
-                  />
-                </Field>
+              <div className="flex items-center gap-2">
+                <Button type="submit" disabled={!path.trim() || opening || descriptionGenerating}>
+                  {opening ? t("common.loading") : t("openRepo.submitButton")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!path.trim() || opening || descriptionGenerating}
+                  onClick={() => void saveAndContinue()}
+                >
+                  {t("openRepo.saveAndContinue")}
+                </Button>
               </div>
-
-              <ProjectDescriptionField
-                value={description}
-                onChange={setDescription}
-                repoPath={path}
-                disabled={opening}
-                generating={descriptionGenerating}
-                onGeneratingChange={setDescriptionGenerating}
-                fieldId="project-manager-description"
-              />
-            </FieldGroup>
-
-            <div className="flex items-center gap-2">
-              <Button
-                type="submit"
-                disabled={!path.trim() || opening || descriptionGenerating}
-              >
-                {opening ? t("common.loading") : t("openRepo.submitButton")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!path.trim() || opening || descriptionGenerating}
-                onClick={() => void saveAndContinue()}
-              >
-                {t("openRepo.saveAndContinue")}
-              </Button>
-            </div>
-          </form>
+            </form>
           </ScrollArea>
         ) : null}
 
@@ -890,7 +893,9 @@ export function ProjectManager({
                     {t("projectManager.groupsCount", { count: workspaces.length })}
                   </Badge>
                 </div>
-                <p className="text-muted-foreground mt-0.5 text-xs">{t("projectManager.groupsDescription")}</p>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  {t("projectManager.groupsDescription")}
+                </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <label className="relative block w-52">
@@ -932,81 +937,90 @@ export function ProjectManager({
               onDragCancel={() => setActiveDrag(null)}
               onDragEnd={(event) => void handleGroupDragEnd(event)}
             >
-            <div className="min-h-0 flex-1">
-              {/* -mr-6 让滚动条贴住面板右缘（抵消 section 的 px-6）；pr-3 使行高亮与滚动条留出约 12px 间隔 */}
-              <ScrollArea className="-mr-6 h-full pb-4 [&_[data-slot=scroll-area-viewport]>div]:!block">
-                <div className="space-y-0.5 pr-3 pb-4">
-                  {/* 最外层根节点：展开/收起全部，并作为拖回未分组的投放目标 */}
-                  <RootDropZone>
-                    <div className="group/row hover:bg-accent/60 flex h-9 w-full items-center gap-0.5 rounded-md transition-colors">
-                      <button
-                        type="button"
-                        className="focus-visible:ring-ring flex h-full min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                        onClick={() => setRootExpanded((current) => !current)}
+              <div className="min-h-0 flex-1">
+                {/* -mr-6 让滚动条贴住面板右缘（抵消 section 的 px-6）；pr-3 使行高亮与滚动条留出约 12px 间隔 */}
+                <ScrollArea className="-mr-6 h-full pb-4 [&_[data-slot=scroll-area-viewport]>div]:!block">
+                  <div className="space-y-0.5 pr-3 pb-4">
+                    {/* 最外层根节点：展开/收起全部，并作为拖回未分组的投放目标 */}
+                    <RootDropZone>
+                      <div className="group/row hover:bg-accent/60 flex h-9 w-full items-center gap-0.5 rounded-md transition-colors">
+                        <button
+                          type="button"
+                          className="focus-visible:ring-ring flex h-full min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                          onClick={() => setRootExpanded((current) => !current)}
+                        >
+                          <ChevronDown
+                            className={cn(
+                              "text-muted-foreground size-3.5 shrink-0 transition-transform",
+                              !rootExpanded && "-rotate-90",
+                            )}
+                            aria-hidden="true"
+                          />
+                          <Folder
+                            className="text-muted-foreground size-4 shrink-0"
+                            aria-hidden="true"
+                          />
+                          {t("projectManager.rootGroup")}
+                        </button>
+                        <div className="mr-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
+                          <Tooltip delayDuration={300}>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-xs"
+                                aria-label={t("projectManager.createGroup")}
+                                disabled={opening || dragging}
+                                onPointerDown={(event) => event.stopPropagation()}
+                                onClick={() => startCreateGroup(null)}
+                              >
+                                <Plus aria-hidden="true" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t("projectManager.createGroup")}</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    </RootDropZone>
+                    {rootExpanded ? (
+                      <SortableContext
+                        items={rootMixedItems.map((item) => item.sortableId)}
+                        strategy={verticalListSortingStrategy}
                       >
+                        {rootMixedItems.map((item) =>
+                          item.kind === "workspace"
+                            ? renderWorkspace(item.workspace, 1)
+                            : renderGroupProject(item.project, 1),
+                        )}
+                      </SortableContext>
+                    ) : null}
+                  </div>
+                </ScrollArea>
+              </div>
+              <DragOverlay dropAnimation={null}>
+                {activeDrag?.label ? (
+                  <div className="bg-popover text-popover-foreground border-border flex h-9 min-w-[14rem] items-center gap-1.5 rounded-md border px-2 shadow-lg">
+                    {activeDrag.type === "project" ? (
+                      <ProjectIcon
+                        name={activeDrag.icon}
+                        className="text-muted-foreground size-3.5 shrink-0"
+                      />
+                    ) : (
+                      <>
                         <ChevronDown
-                          className={cn(
-                            "text-muted-foreground size-3.5 shrink-0 transition-transform",
-                            !rootExpanded && "-rotate-90",
-                          )}
+                          className="text-muted-foreground size-3.5 shrink-0"
                           aria-hidden="true"
                         />
-                        <Folder className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
-                        {t("projectManager.rootGroup")}
-                      </button>
-                      <div className="mr-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
-                        <Tooltip delayDuration={300}>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-xs"
-                              aria-label={t("projectManager.createGroup")}
-                              disabled={opening || dragging}
-                              onPointerDown={(event) => event.stopPropagation()}
-                              onClick={() => startCreateGroup(null)}
-                            >
-                              <Plus aria-hidden="true" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>{t("projectManager.createGroup")}</TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>
-                  </RootDropZone>
-                  {rootExpanded ? (
-                    <SortableContext
-                      items={rootMixedItems.map((item) => item.sortableId)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {rootMixedItems.map((item) =>
-                        item.kind === "workspace"
-                          ? renderWorkspace(item.workspace, 1)
-                          : renderGroupProject(item.project, 1),
-                      )}
-                    </SortableContext>
-                  ) : null}
-                </div>
-              </ScrollArea>
-            </div>
-            <DragOverlay dropAnimation={null}>
-              {activeDrag?.label ? (
-                <div className="bg-popover text-popover-foreground border-border flex h-9 min-w-[14rem] items-center gap-1.5 rounded-md border px-2 shadow-lg">
-                  {activeDrag.type === "project" ? (
-                    <ProjectIcon
-                      name={activeDrag.icon}
-                      className="text-muted-foreground size-3.5 shrink-0"
-                    />
-                  ) : (
-                    <>
-                      <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
-                      <Folder className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
-                    </>
-                  )}
-                  <span className="min-w-0 truncate text-sm font-medium">{activeDrag.label}</span>
-                </div>
-              ) : null}
-            </DragOverlay>
+                        <Folder
+                          className="text-muted-foreground size-4 shrink-0"
+                          aria-hidden="true"
+                        />
+                      </>
+                    )}
+                    <span className="min-w-0 truncate text-sm font-medium">{activeDrag.label}</span>
+                  </div>
+                ) : null}
+              </DragOverlay>
             </DndContext>
             {groupDialog?.mode === "create" ? (
               <WorkspaceGroupDialog
@@ -1045,7 +1059,10 @@ export function ProjectManager({
                   <DialogTitle>{t("projectManager.deleteGroupTitle")}</DialogTitle>
                 </DialogHeader>
                 <div className="flex gap-3">
-                  <TriangleAlert className="text-chart-4 mt-0.5 size-5 shrink-0" aria-hidden="true" />
+                  <TriangleAlert
+                    className="text-chart-4 mt-0.5 size-5 shrink-0"
+                    aria-hidden="true"
+                  />
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-foreground text-sm">
                       <Trans
@@ -1056,7 +1073,9 @@ export function ProjectManager({
                         }}
                       />
                     </p>
-                    <p className="text-muted-foreground text-xs">{t("projectManager.deleteGroupHint")}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {t("projectManager.deleteGroupHint")}
+                    </p>
                   </div>
                 </div>
                 <DialogFooter>

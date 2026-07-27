@@ -2,7 +2,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 
-import { GitStatusEntry } from "@/types/git";
+import type { GitStatusEntry } from "@/types/git";
 
 interface ChangeTreeDirectory {
   kind: "directory";

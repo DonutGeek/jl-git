@@ -17,9 +17,7 @@ function mapConversationById(
   conversationId: string,
   map: (conversation: AgentConversation) => AgentConversation,
 ): AgentConversation[] | null {
-  const index = conversations.findIndex(
-    (conversation) => conversation.id === conversationId,
-  );
+  const index = conversations.findIndex((conversation) => conversation.id === conversationId);
   if (index < 0) {
     return null;
   }
@@ -107,10 +105,9 @@ export const useMultiAgentStore = create<MultiAgentState>((set) => ({
     set((state) => {
       const previousActive = state.activeConversationId;
       const nextActive =
-        previousActive &&
-        conversations.some((conversation) => conversation.id === previousActive)
+        previousActive && conversations.some((conversation) => conversation.id === previousActive)
           ? previousActive
-          : conversations[0]?.id ?? null;
+          : (conversations[0]?.id ?? null);
       return {
         conversations: [...conversations],
         activeConversationId: nextActive,
@@ -132,7 +129,7 @@ export const useMultiAgentStore = create<MultiAgentState>((set) => ({
         if (activeId && state.conversations.some((item) => item.id === activeId)) {
           return state;
         }
-        return { activeConversationId: state.conversations[0]!.id };
+        return { activeConversationId: state.conversations[0].id };
       }
       const conversation = createEmptyConversation();
       return {
@@ -176,7 +173,7 @@ export const useMultiAgentStore = create<MultiAgentState>((set) => ({
       );
       const nextActive =
         state.activeConversationId === conversationId
-          ? (nextConversations[index] ?? nextConversations[index - 1])?.id ?? null
+          ? ((nextConversations[index] ?? nextConversations[index - 1])?.id ?? null)
           : state.activeConversationId;
       return {
         conversations: nextConversations,
@@ -189,9 +186,7 @@ export const useMultiAgentStore = create<MultiAgentState>((set) => ({
     const nextTitle = title.trim().slice(0, 48);
     set((state) => ({
       conversations: state.conversations.map((conversation) =>
-        conversation.id === conversationId
-          ? { ...conversation, title: nextTitle }
-          : conversation,
+        conversation.id === conversationId ? { ...conversation, title: nextTitle } : conversation,
       ),
     }));
   },
@@ -257,7 +252,7 @@ export const useMultiAgentStore = create<MultiAgentState>((set) => ({
           const nextTitle =
             conversation.title || message.role !== "user"
               ? conversation.title
-              : message.content.split(/\r?\n/, 1)[0]?.trim().slice(0, 24) ?? "";
+              : (message.content.split(/\r?\n/, 1)[0]?.trim().slice(0, 24) ?? "");
           return {
             ...conversation,
             title: nextTitle,
@@ -292,9 +287,7 @@ export const useMultiAgentStore = create<MultiAgentState>((set) => ({
         conversationId,
         (conversation) => ({
           ...conversation,
-          messages: conversation.messages.filter(
-            (message) => message.id !== messageId,
-          ),
+          messages: conversation.messages.filter((message) => message.id !== messageId),
         }),
       );
       return conversations ? { conversations } : state;
@@ -307,9 +300,7 @@ export const useMultiAgentStore = create<MultiAgentState>((set) => ({
         state.conversations,
         conversationId,
         (conversation) => {
-          const index = conversation.messages.findIndex(
-            (message) => message.id === messageId,
-          );
+          const index = conversation.messages.findIndex((message) => message.id === messageId);
           if (index < 0) {
             return conversation;
           }
@@ -331,18 +322,14 @@ export const useMultiAgentStore = create<MultiAgentState>((set) => ({
         state.conversations,
         conversationId,
         (conversation) => {
-          const index = conversation.messages.findIndex(
-            (message) => message.id === messageId,
-          );
+          const index = conversation.messages.findIndex((message) => message.id === messageId);
           if (index < 0 || conversation.messages[index]?.role !== "user") {
             return conversation;
           }
           nextMessages = conversation.messages
             .slice(0, index + 1)
             .map((message, messageIndex) =>
-              messageIndex === index
-                ? { ...message, content, createdAt }
-                : message,
+              messageIndex === index ? { ...message, content, createdAt } : message,
             );
           return {
             ...conversation,
@@ -372,9 +359,7 @@ export const useMultiAgentStore = create<MultiAgentState>((set) => ({
 }));
 
 /** 读取指定会话消息（供流式回调等非 React 路径；勿依赖「当前激活」） */
-export function getMultiAgentMessages(
-  conversationId: string,
-): readonly AgentChatMessage[] {
+export function getMultiAgentMessages(conversationId: string): readonly AgentChatMessage[] {
   const conversation = useMultiAgentStore
     .getState()
     .conversations.find((item) => item.id === conversationId);
@@ -392,8 +377,5 @@ export function getActiveMultiAgentMessages(): readonly AgentChatMessage[] {
 
 export function getActiveMultiAgentConversation(): AgentConversation | null {
   const state = useMultiAgentStore.getState();
-  return (
-    state.conversations.find((item) => item.id === state.activeConversationId) ??
-    null
-  );
+  return state.conversations.find((item) => item.id === state.activeConversationId) ?? null;
 }

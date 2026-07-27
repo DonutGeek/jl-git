@@ -30,11 +30,11 @@ export function isAppError(value: unknown): value is AppError {
 /** 本机找不到 / 无法启动 git（含原始 spawn ENOENT） */
 export function isGitNotFoundError(error: unknown): boolean {
   if (isAppError(error)) {
-    return (
-      error.code === "GIT_NOT_FOUND" ||
-      isGitMissingText(error.message) ||
-      isGitMissingText(error.details)
-    );
+    // 以 code 为准；details 常含仓库路径（如 …/JLGit/…），子串 "git" 会误伤
+    if (error.code === "GIT_NOT_FOUND") {
+      return true;
+    }
+    return isGitMissingText(error.message);
   }
 
   if (typeof error === "string") {
@@ -86,13 +86,11 @@ function isGitMissingText(text: string | undefined): boolean {
   }
 
   const lower = text.toLowerCase();
-  if (lower.includes("spawn git enoent")) {
+  // 只认 spawn git 本身的 ENOENT，避免路径 JLGit / 工具输出里的 enoent 误判
+  if (/\bspawn\s+git\b[\s\S]*\benoent\b|\benoent\b[\s\S]*\bspawn\s+git\b/.test(lower)) {
     return true;
   }
-  if (lower.includes("enoent") && lower.includes("git")) {
-    return true;
-  }
-  if (lower.includes("git_not_found")) {
+  if (/\bgit_not_found\b/.test(lower)) {
     return true;
   }
 

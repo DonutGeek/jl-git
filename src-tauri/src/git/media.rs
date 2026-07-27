@@ -76,7 +76,11 @@ pub fn get_file_media(
 
     let size = bytes.len();
     let truncated = size > limit;
-    let slice = if truncated { &bytes[..limit] } else { &bytes[..] };
+    let slice = if truncated {
+        &bytes[..limit]
+    } else {
+        &bytes[..]
+    };
     let mime = mime_from_path(file_path);
     let kind = if mime.is_some() {
         "image".to_string()

@@ -354,11 +354,7 @@ export function filterTechByAuthorUsage(
     return inferTechFromUsageOnly(evidence);
   }
 
-  const haystack = [
-    ...evidence.paths,
-    ...evidence.texts,
-    ...evidence.subjects,
-  ].join("\n");
+  const haystack = [...evidence.paths, ...evidence.texts, ...evidence.subjects].join("\n");
 
   const used: string[] = [];
   for (const label of packageTech) {
@@ -416,11 +412,7 @@ function ruleIndicatesUsage(
 
 /** 无 package.json 时，仅从改动证据推断少量技术栈 */
 function inferTechFromUsageOnly(evidence: TechUsageEvidence): string[] {
-  const haystack = [
-    ...evidence.paths,
-    ...evidence.texts,
-    ...evidence.subjects,
-  ].join("\n");
+  const haystack = [...evidence.paths, ...evidence.texts, ...evidence.subjects].join("\n");
   const hit = new Map<string, number>();
   for (const rule of TECH_RULES) {
     if (rule.label === "Vue 2" || rule.label === "Vue 3") {

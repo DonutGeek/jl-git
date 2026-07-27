@@ -2,10 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, ChevronsUpDown } from "lucide-react";
 
-import {
-  PROJECT_ICON_OPTIONS,
-  ProjectIcon,
-} from "@/components/project/ProjectIcon";
+import { PROJECT_ICON_OPTIONS, ProjectIcon } from "@/components/project/ProjectIcon";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -15,11 +12,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 import type { ProjectIcon as ProjectIconName } from "@/types/project";
@@ -61,10 +54,7 @@ export function ProjectIconPicker({
           <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-64 p-0"
-      >
+      <PopoverContent align="start" className="w-64 p-0">
         <Command>
           <CommandInput
             placeholder={t("projectManager.searchProjectIcons")}
@@ -72,9 +62,7 @@ export function ProjectIconPicker({
           />
           <CommandList className="max-h-40">
             <CommandEmpty>{t("projectManager.projectIconNoMatch")}</CommandEmpty>
-            <CommandGroup
-              className="[&_[cmdk-group-items]]:grid [&_[cmdk-group-items]]:grid-cols-6 [&_[cmdk-group-items]]:gap-0.5"
-            >
+            <CommandGroup className="[&_[cmdk-group-items]]:grid [&_[cmdk-group-items]]:grid-cols-6 [&_[cmdk-group-items]]:gap-0.5">
               {PROJECT_ICON_OPTIONS.map(({ value: optionValue, Icon }) => {
                 const label = t(`projectManager.projectIcons.${optionValue}`);
                 const selected = optionValue === value;

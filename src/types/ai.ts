@@ -19,10 +19,7 @@ export interface AgentProjectMention {
   name: string;
 }
 
-export type AgentMention =
-  | AgentBranchMention
-  | AgentPluginMention
-  | AgentProjectMention;
+export type AgentMention = AgentBranchMention | AgentPluginMention | AgentProjectMention;
 
 export interface AgentChatMessage {
   id: string;

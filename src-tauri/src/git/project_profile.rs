@@ -76,10 +76,7 @@ pub fn collect_snapshot(path: &str) -> Result<ProjectProfileSnapshot, AppError> 
         files.push(entry);
     }
 
-    Ok(ProjectProfileSnapshot {
-        folder_name,
-        files,
-    })
+    Ok(ProjectProfileSnapshot { folder_name, files })
 }
 
 fn read_text_file(
@@ -92,17 +89,17 @@ fn read_text_file(
     })?;
 
     // 跳过明显二进制
-    if bytes
-        .iter()
-        .take(512)
-        .any(|byte| *byte == 0)
-    {
+    if bytes.iter().take(512).any(|byte| *byte == 0) {
         return Ok(None);
     }
 
     let limit = MAX_FILE_BYTES.min(remaining_budget).max(1);
     let truncated = bytes.len() > limit;
-    let slice = if truncated { &bytes[..limit] } else { &bytes[..] };
+    let slice = if truncated {
+        &bytes[..limit]
+    } else {
+        &bytes[..]
+    };
     let content = String::from_utf8_lossy(slice).into_owned();
     if content.trim().is_empty() {
         return Ok(None);

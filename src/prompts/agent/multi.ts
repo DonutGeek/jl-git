@@ -4,10 +4,7 @@ import { AGENT_RESPONSE_PROMPT } from "@/prompts/agent/response";
 import { AGENT_SAFETY_PROMPT } from "@/prompts/agent/safety";
 
 /** 多仓鲸灵基础模式：专注跨仓 Git 与仓库信息问答。 */
-export function buildMultiAgentSystemPrompt(
-  locale: string,
-  projectContext: string,
-): string {
+export function buildMultiAgentSystemPrompt(locale: string, projectContext: string): string {
   const language = locale === "zh-CN" ? "Simplified Chinese" : "English";
   const productName = locale === "zh-CN" ? "鲸灵Git" : "JLGit";
   return [

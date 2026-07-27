@@ -115,10 +115,7 @@ export function isConflictStatus(indexStatus: string, worktreeStatus: string): b
 }
 
 /** 未合并冲突条目 */
-export function isConflictEntry(entry: {
-  indexStatus: string;
-  worktreeStatus: string;
-}): boolean {
+export function isConflictEntry(entry: { indexStatus: string; worktreeStatus: string }): boolean {
   return isConflictStatus(entry.indexStatus, entry.worktreeStatus);
 }
 
@@ -167,8 +164,6 @@ export function pruneDemotedConflictPaths(
   if (demoted.length === 0) {
     return [];
   }
-  const conflictPaths = new Set(
-    entries.filter(isConflictEntry).map((entry) => entry.path),
-  );
+  const conflictPaths = new Set(entries.filter(isConflictEntry).map((entry) => entry.path));
   return demoted.filter((path) => conflictPaths.has(path));
 }

@@ -48,9 +48,7 @@ export function ProjectManageDetailDrawer({
   onOpenChange,
 }: ProjectManageDetailDrawerProps) {
   const { t } = useTranslation();
-  const remote = snapshot?.remoteUrl
-    ? parseRemoteRepository(snapshot.remoteUrl)
-    : null;
+  const remote = snapshot?.remoteUrl ? parseRemoteRepository(snapshot.remoteUrl) : null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -71,14 +69,9 @@ export function ProjectManageDetailDrawer({
           <ScrollArea className="min-h-0 flex-1">
             <div className="flex flex-col gap-5 p-4">
               <div className="flex items-start gap-2.5">
-                <ProjectIcon
-                  name={project.icon}
-                  className="mt-0.5 size-5 shrink-0"
-                />
+                <ProjectIcon name={project.icon} className="mt-0.5 size-5 shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <h3 className="truncate text-sm font-semibold">
-                    {project.name}
-                  </h3>
+                  <h3 className="truncate text-sm font-semibold">{project.name}</h3>
                   <p
                     className="text-muted-foreground mt-1 break-all font-mono text-xs"
                     title={project.path}
@@ -89,10 +82,7 @@ export function ProjectManageDetailDrawer({
               </div>
 
               <DetailSection title={t("projectManager.manageDetailMeta")}>
-                <DetailRow
-                  label={t("projectManager.manageColGroup")}
-                  value={groupLabel}
-                />
+                <DetailRow label={t("projectManager.manageColGroup")} value={groupLabel} />
                 <DetailRow
                   label={t("projectManager.manageColDescription")}
                   value={
@@ -128,14 +118,9 @@ export function ProjectManageDetailDrawer({
 
               <DetailSection title={t("projectManager.manageDetailGit")}>
                 {snapshot?.status === "loading" ? (
-                  <p className="text-muted-foreground text-xs">
-                    {t("common.loading")}
-                  </p>
+                  <p className="text-muted-foreground text-xs">{t("common.loading")}</p>
                 ) : snapshot?.status === "error" ? (
-                  <p
-                    className="text-destructive text-xs"
-                    title={snapshot.error}
-                  >
+                  <p className="text-destructive text-xs" title={snapshot.error}>
                     {t("projectManager.manageGitProbeFailed")}
                   </p>
                 ) : snapshot?.status === "ready" ? (
@@ -145,18 +130,14 @@ export function ProjectManageDetailDrawer({
                       value={
                         snapshot.detached
                           ? t("projectManager.manageDetached")
-                          : (snapshot.branch ??
-                            t("projectManager.manageDetailEmptyValue"))
+                          : (snapshot.branch ?? t("projectManager.manageDetailEmptyValue"))
                       }
                     />
                     <DetailRow
                       label={t("projectManager.manageColDirty")}
                       valueNode={
                         snapshot.dirtyCount > 0 ? (
-                          <Badge
-                            variant="outline"
-                            className="font-normal tabular-nums"
-                          >
+                          <Badge variant="outline" className="font-normal tabular-nums">
                             {t("projectManager.manageDirtyCount", {
                               count: snapshot.dirtyCount,
                             })}
@@ -227,13 +208,7 @@ export function ProjectManageDetailDrawer({
   );
 }
 
-function DetailSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
+function DetailSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-2">
       <h4 className="text-xs font-medium">{title}</h4>
@@ -254,9 +229,7 @@ function DetailRow({
   return (
     <div className="grid grid-cols-[7rem_minmax(0,1fr)] items-start gap-3">
       <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd className="min-w-0 text-xs wrap-break-word">
-        {valueNode ?? value}
-      </dd>
+      <dd className="min-w-0 text-xs wrap-break-word">{valueNode ?? value}</dd>
     </div>
   );
 }

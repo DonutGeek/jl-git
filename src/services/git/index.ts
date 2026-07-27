@@ -12,6 +12,7 @@ export * from "./git.log";
 export * from "./git.merge";
 export * from "./git.remote";
 export * from "./git.show";
+export * from "./git.stash";
 export * from "./git.status";
 export * from "./git.tag";
 export * from "./git.version";
@@ -36,14 +37,14 @@ import {
   readWorktreeFile,
   writeWorktreeFile,
 } from "./git.conflict";
-import { getCommitFileDiff, getCommitPatchDiff, getDiff, getFileMedia, getStagedDiff } from "./git.diff";
 import {
-  createPath,
-  getFileSize,
-  listDir,
-  removePath,
-  renamePath,
-} from "./git.fs";
+  getCommitFileDiff,
+  getCommitPatchDiff,
+  getDiff,
+  getFileMedia,
+  getStagedDiff,
+} from "./git.diff";
+import { createPath, getFileSize, listDir, removePath, renamePath } from "./git.fs";
 import {
   createGitIdentityAccount,
   deleteGitIdentityAccount,
@@ -64,6 +65,7 @@ import {
   getContainingBranches,
   listTree,
 } from "./git.show";
+import { listStash, restoreLintStagedBackup, stashApply } from "./git.stash";
 import { getStatus } from "./git.status";
 import {
   createTag,
@@ -116,6 +118,9 @@ export const gitService = {
   commit,
   amendMessage,
   undoCommit,
+  listStash,
+  stashApply,
+  restoreLintStagedBackup,
   merge,
   getRepoState,
   conflictTake,

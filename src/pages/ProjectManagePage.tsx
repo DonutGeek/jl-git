@@ -64,9 +64,7 @@ export function ProjectManagePage() {
     <div className="bg-background text-foreground flex h-screen flex-col overflow-hidden">
       <AppWindowHeader>
         <FolderKanban className="size-4 shrink-0" aria-hidden="true" />
-        <span className="truncate text-sm font-medium">
-          {t("projectManager.manage")}
-        </span>
+        <span className="truncate text-sm font-medium">{t("projectManager.manage")}</span>
       </AppWindowHeader>
 
       <main className="flex min-h-0 flex-1 flex-col px-3 py-2">

@@ -53,11 +53,7 @@ export function isBranchListPrefsDefault(prefs: BranchListPrefs): boolean {
   return prefs.sort === DEFAULT_BRANCH_LIST_PREFS.sort;
 }
 
-function compareBranches(
-  left: GitBranch,
-  right: GitBranch,
-  sort: BranchListSort,
-): number {
+function compareBranches(left: GitBranch, right: GitBranch, sort: BranchListSort): number {
   const byName = left.name.localeCompare(right.name);
   return sort === "nameAsc" ? byName : -byName;
 }

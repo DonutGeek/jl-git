@@ -32,10 +32,7 @@ function buildFileDiff(text: string, binary: boolean, truncated: boolean): GitDi
 }
 
 /** 工作区文件预览：复用对比工具（Monaco 文件视图 + 追溯 / 历史） */
-export function WorkspaceFilePreview({
-  repoPath,
-  filePath,
-}: WorkspaceFilePreviewProps) {
+export function WorkspaceFilePreview({ repoPath, filePath }: WorkspaceFilePreviewProps) {
   const { t } = useTranslation();
   const [encoding, setEncoding] = useState(DEFAULT_TEXT_ENCODING);
   const [loading, setLoading] = useState(true);
@@ -86,9 +83,7 @@ export function WorkspaceFilePreview({
   );
 
   function handleOpenHistory(): void {
-    const project = useProjectStore
-      .getState()
-      .projects.find((item) => item.path === repoPath);
+    const project = useProjectStore.getState().projects.find((item) => item.path === repoPath);
     if (!project) {
       toast.error(t("repo.diffOpenFileHistoryFailed"));
       return;

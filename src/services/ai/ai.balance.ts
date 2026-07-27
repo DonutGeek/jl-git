@@ -9,8 +9,7 @@ const DEEPSEEK_BALANCE_URL = "https://api.deepseek.com/user/balance";
 const DEEPSEEK_TOP_UP_URL = "https://platform.deepseek.com/top_up";
 const DEEPSEEK_API_KEYS_URL = "https://platform.deepseek.com/api_keys";
 /** 余额 API 官方文档 */
-const DEEPSEEK_BALANCE_DOCS_URL =
-  "https://api-docs.deepseek.com/zh-cn/api/get-user-balance";
+const DEEPSEEK_BALANCE_DOCS_URL = "https://api-docs.deepseek.com/zh-cn/api/get-user-balance";
 const REQUEST_TIMEOUT_MS = 20_000;
 
 export type DeepSeekCurrency = "CNY" | "USD";
@@ -64,11 +63,7 @@ export async function fetchDeepSeekBalance(): Promise<DeepSeekBalanceResult> {
 
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
-      throw mapDeepSeekHttpError(
-        response.status,
-        payload,
-        i18n.t("settings.balanceFetchFailed"),
-      );
+      throw mapDeepSeekHttpError(response.status, payload, i18n.t("settings.balanceFetchFailed"));
     }
 
     return parseBalancePayload(payload);
@@ -89,9 +84,7 @@ export async function fetchDeepSeekBalance(): Promise<DeepSeekBalanceResult> {
 export function pickPreferredBalance(
   balances: readonly DeepSeekBalanceInfo[],
 ): DeepSeekBalanceInfo | null {
-  return (
-    balances.find((item) => item.currency === "CNY") ?? balances[0] ?? null
-  );
+  return balances.find((item) => item.currency === "CNY") ?? balances[0] ?? null;
 }
 
 function parseBalancePayload(payload: unknown): DeepSeekBalanceResult {

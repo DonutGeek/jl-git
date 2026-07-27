@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CompareBranchesAction } from "@/components/ai/AgentRichMessage";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getLog } from "@/services/git";
 import { toUserMessage } from "@/types/error";
@@ -74,15 +80,25 @@ export function AgentBranchComparisonDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl gap-4 p-5 sm:rounded-lg">
         <DialogHeader>
-          <DialogTitle>{t("agent.compareBranchesTitle", { base: action.base, target: action.target })}</DialogTitle>
+          <DialogTitle>
+            {t("agent.compareBranchesTitle", { base: action.base, target: action.target })}
+          </DialogTitle>
           <DialogDescription>{t("agent.compareBranchesDescription")}</DialogDescription>
         </DialogHeader>
-        {loading ? <p className="text-muted-foreground text-sm">{t("agent.compareBranchesLoading")}</p> : null}
+        {loading ? (
+          <p className="text-muted-foreground text-sm">{t("agent.compareBranchesLoading")}</p>
+        ) : null}
         {error ? <p className="text-destructive text-sm">{error}</p> : null}
         {comparison ? (
           <div className="grid min-h-0 gap-4 md:grid-cols-2">
-            <CommitColumn title={t("agent.commitsOnlyOn", { branch: action.base })} commits={comparison.baseOnly} />
-            <CommitColumn title={t("agent.commitsOnlyOn", { branch: action.target })} commits={comparison.targetOnly} />
+            <CommitColumn
+              title={t("agent.commitsOnlyOn", { branch: action.base })}
+              commits={comparison.baseOnly}
+            />
+            <CommitColumn
+              title={t("agent.commitsOnlyOn", { branch: action.target })}
+              commits={comparison.targetOnly}
+            />
           </div>
         ) : null}
       </DialogContent>

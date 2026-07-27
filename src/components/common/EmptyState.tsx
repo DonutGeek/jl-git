@@ -45,14 +45,7 @@ export function EmptyState({
           {icon}
         </div>
       ) : null}
-      <h2
-        className={cn(
-          "font-semibold",
-          compact ? "mt-3 text-sm" : "mt-5 text-lg",
-        )}
-      >
-        {title}
-      </h2>
+      <h2 className={cn("font-semibold", compact ? "mt-3 text-sm" : "mt-5 text-lg")}>{title}</h2>
       {description ? (
         <p
           className={cn(

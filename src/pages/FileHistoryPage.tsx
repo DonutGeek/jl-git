@@ -62,11 +62,7 @@ export function FileHistoryPage() {
   }
 
   return (
-    <FileHistoryWorkspace
-      project={project}
-      filePath={request.filePath}
-      initialRef={request.ref}
-    />
+    <FileHistoryWorkspace project={project} filePath={request.filePath} initialRef={request.ref} />
   );
 }
 

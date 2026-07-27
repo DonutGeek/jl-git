@@ -8,11 +8,7 @@ import { TruncateStartHoverLabel } from "@/components/common/TruncateStartHoverL
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { cn } from "@/lib/utils";
 import type { GitBranch } from "@/types/git";
@@ -62,9 +58,7 @@ export function BranchManageTable({
   });
 
   const SortIcon = sortDir === "desc" ? ArrowDown : ArrowUp;
-  const tableCols = showTracking
-    ? TABLE_COLS_WITH_TRACKING
-    : TABLE_COLS_WITHOUT_TRACKING;
+  const tableCols = showTracking ? TABLE_COLS_WITH_TRACKING : TABLE_COLS_WITHOUT_TRACKING;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -80,7 +74,9 @@ export function BranchManageTable({
         <button
           type="button"
           className="hover:text-foreground inline-flex items-center gap-0.5 text-left transition-colors"
-          aria-label={sortDir === "desc" ? t("branchManage.sortTimeDesc") : t("branchManage.sortTimeAsc")}
+          aria-label={
+            sortDir === "desc" ? t("branchManage.sortTimeDesc") : t("branchManage.sortTimeAsc")
+          }
           onClick={onToggleSort}
         >
           {t("branchManage.columnTime")}
@@ -92,17 +88,13 @@ export function BranchManageTable({
       </div>
 
       <ScrollArea ref={bindScrollArea} className="min-h-0 flex-1">
-        <div
-          className="relative w-full"
-          style={{ height: `${virtualizer.getTotalSize()}px` }}
-        >
+        <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
           {virtualizer.getVirtualItems().map((virtualItem) => {
             const branch = branches[virtualItem.index];
             if (!branch) return null;
             // 与侧栏一致：仅本地且非当前分支可删
             const canDelete = !branch.isRemote && !branch.isCurrent;
-            const deleteDisabled =
-              !canDelete || deletingName === branch.name;
+            const deleteDisabled = !canDelete || deletingName === branch.name;
             const deleteHint = branch.isCurrent
               ? t("branchManage.deleteCurrentDisabled")
               : branch.isRemote

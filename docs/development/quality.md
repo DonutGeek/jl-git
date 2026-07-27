@@ -46,13 +46,15 @@ JLGit 是桌面工具型产品，**写完必须自检**，不能把「能编译�
 ### 2.1 机器检查（必做）
 
 ```bash
-pnpm exec tsc --noEmit
+pnpm check
 # 若改了 Rust：
 cd src-tauri && cargo test
 ```
 
-- [ ] `tsc` 通过，无新增 `any` / 空 catch  
+- [ ] `pnpm check` 通过（ESLint + Prettier + `tsc`），见 [code-quality-tooling](code-quality-tooling.md)
+- [ ] 无新增 `any` / 空 catch
 - [ ] 相关 Rust 单测通过（若改了 Command / 解析 / 路径）
+- [ ] 未改写 `src/components/ui/**`（除非官方 shadcn CLI）
 
 ### 2.2 运行时冒烟（必做，改 UI / 路由 / Store 时）
 
@@ -91,7 +93,7 @@ cd src-tauri && cargo test
 
 ```text
 自检：
-- [ ] tsc / 相关 cargo test
+- [ ] pnpm check / 相关 cargo test
 - [ ] 冒烟：打开仓库、切换标签、拖拽分隔线/标签
 - [ ] 本改动无已知 S0/S1；已知 S2+ 已列出或已修
 ```

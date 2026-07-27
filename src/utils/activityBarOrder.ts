@@ -1,19 +1,6 @@
-const SIDEBAR_VIEWS = [
-  "files",
-  "branches",
-  "tags",
-  "agent",
-] as const;
+export type SidebarView = "files" | "branches" | "tags" | "agent";
 
-export type SidebarView = (typeof SIDEBAR_VIEWS)[number];
-
-export const DEFAULT_ACTIVITY_BAR_ORDER = [
-  "files",
-  "branches",
-  "tags",
-  "search",
-  "agent",
-] as const;
+export const DEFAULT_ACTIVITY_BAR_ORDER = ["files", "branches", "tags", "search", "agent"] as const;
 
 export type ActivityBarItemId = (typeof DEFAULT_ACTIVITY_BAR_ORDER)[number];
 

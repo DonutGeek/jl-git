@@ -22,10 +22,7 @@ interface SettingsCommitModelProps {
 }
 
 /** 设置 → 鲸灵：生成提交信息所用模型（列表来自官方 GET /models） */
-export function SettingsCommitModel({
-  hasEnabledKey,
-  refreshToken,
-}: SettingsCommitModelProps) {
+export function SettingsCommitModel({ hasEnabledKey, refreshToken }: SettingsCommitModelProps) {
   const { t } = useTranslation();
   const [models, setModels] = useState<DeepSeekModelInfo[]>([]);
   const [modelId, setModelId] = useState(() => readCommitModelId());
@@ -109,10 +106,7 @@ export function SettingsCommitModel({
         {t("settings.commitModel")}
       </SettingsFieldHeading>
       <SettingsPreferenceGroup>
-        <SettingsPreferenceRow
-          label={t("settings.commitModelSelect")}
-          description={description}
-        >
+        <SettingsPreferenceRow label={t("settings.commitModelSelect")} description={description}>
           <SelectMenu
             value={modelId}
             options={displayOptions}

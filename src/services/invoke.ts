@@ -2,19 +2,12 @@ import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 
 import i18n from "@/i18n";
 
-import {
-  AppError,
-  isAppError,
-  isGitNotFoundError,
-  isRecord,
-} from "@/types/error";
+import type { AppError } from "@/types/error";
+import { isAppError, isGitNotFoundError, isRecord } from "@/types/error";
 
 type InvokeArgs = Record<string, unknown>;
 
-export async function invokeCommand<TResult>(
-  command: string,
-  args?: InvokeArgs,
-): Promise<TResult> {
+export async function invokeCommand<TResult>(command: string, args?: InvokeArgs): Promise<TResult> {
   try {
     return await tauriInvoke<TResult>(command, args);
   } catch (error) {

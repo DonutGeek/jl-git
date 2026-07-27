@@ -41,9 +41,9 @@ export function AgentMessageList({
   const virtualizerRef = useRef<ReactVirtualizer<HTMLDivElement, HTMLDivElement> | null>(null);
   const messageRowElements = useRef<Map<number, HTMLDivElement>>(new Map());
   const messageRowResizeObserver = useRef<ResizeObserver | null>(null);
-  const messageRowRefCallbacks = useRef<
-    Map<number, (element: HTMLDivElement | null) => void>
-  >(new Map());
+  const messageRowRefCallbacks = useRef<Map<number, (element: HTMLDivElement | null) => void>>(
+    new Map(),
+  );
   const [messageViewport, setMessageViewport] = useState<HTMLDivElement | null>(null);
   /** 同一会话同时只允许一条用户消息处于编辑 */
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -56,10 +56,7 @@ export function AgentMessageList({
   }, [conversationId]);
 
   useEffect(() => {
-    if (
-      editingMessageId &&
-      !messages.some((message) => message.id === editingMessageId)
-    ) {
+    if (editingMessageId && !messages.some((message) => message.id === editingMessageId)) {
       setEditingMessageId(null);
     }
   }, [editingMessageId, messages]);
@@ -274,19 +271,14 @@ export function AgentMessageList({
               className="py-0"
               icon={<Sparkles />}
               title={emptyTitle ?? t("agent.emptyState")}
-              description={
-                emptyDescription ?? t("agent.emptyStateDescription")
-              }
+              description={emptyDescription ?? t("agent.emptyStateDescription")}
             />
           </div>
         </div>
       ) : null}
       <ScrollArea ref={bindMessageScrollArea} className="h-full w-full">
         <div className="px-3 pt-2" style={{ paddingBottom: composerPadPx }}>
-          <div
-            className="relative w-full"
-            style={{ height: `${virtualizer.getTotalSize()}px` }}
-          >
+          <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const message = messages[virtualItem.index];
               const isLast = virtualItem.index === messages.length - 1;
@@ -297,9 +289,7 @@ export function AgentMessageList({
                 !message.isStreaming &&
                 Boolean(message.content.trim());
               const canEdit =
-                Boolean(onEditUserMessage) &&
-                message.role === "user" &&
-                !message.isStreaming;
+                Boolean(onEditUserMessage) && message.role === "user" && !message.isStreaming;
               return (
                 <div
                   key={message.id}
@@ -318,9 +308,7 @@ export function AgentMessageList({
                     onRegenerate={onRegenerateLast}
                     onStartEdit={() => setEditingMessageId(message.id)}
                     onCancelEdit={() => {
-                      setEditingMessageId((current) =>
-                        current === message.id ? null : current,
-                      );
+                      setEditingMessageId((current) => (current === message.id ? null : current));
                     }}
                     onEditSubmit={
                       onEditUserMessage

@@ -19,11 +19,7 @@ import { DiskSpaceTooltip } from "@/components/layout/DiskSpaceTooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { useAppUpdateChecker } from "@/hooks/useAppUpdateChecker";
@@ -35,15 +31,8 @@ import {
   type SystemAppInfo,
   type SystemDiskSpace,
 } from "@/services/system/system.info";
-import {
-  checkAppUpdate,
-  installPendingAppUpdate,
-} from "@/services/system/system.updater";
-import {
-  selectLatestEntry,
-  selectRepoEntries,
-  useOpLogStore,
-} from "@/store/useOpLogStore";
+import { checkAppUpdate, installPendingAppUpdate } from "@/services/system/system.updater";
+import { selectLatestEntry, selectRepoEntries, useOpLogStore } from "@/store/useOpLogStore";
 import { useAppUpdateStore } from "@/store/useAppUpdateStore";
 import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
@@ -51,7 +40,7 @@ import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
 import { useThemeStore } from "@/store/useThemeStore";
 import { toUserMessage } from "@/types/error";
 
-import { GitIdentity } from "@/types/git";
+import type { GitIdentity } from "@/types/git";
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) {
@@ -118,10 +107,8 @@ export function StatusBar() {
   }
 
   const prefersDark =
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const effectiveDark =
-    mode === "dark" || (mode === "system" && prefersDark);
+    typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const effectiveDark = mode === "dark" || (mode === "system" && prefersDark);
 
   const latestOp = useMemo(() => {
     return selectLatestEntry(selectRepoEntries(byRepo, repoPath));
@@ -259,9 +246,7 @@ export function StatusBar() {
                 <Badge
                   className={cn(
                     "group h-5 gap-0 px-1.5 py-0 text-[10px] font-semibold transition-all duration-150",
-                    updating
-                      ? "cursor-wait gap-1"
-                      : "cursor-pointer group-hover:gap-1",
+                    updating ? "cursor-wait gap-1" : "cursor-pointer group-hover:gap-1",
                   )}
                 >
                   {updating ? (
@@ -280,9 +265,7 @@ export function StatusBar() {
                         : "max-w-0 opacity-0 group-hover:max-w-10 group-hover:opacity-100",
                     )}
                   >
-                    {updating
-                      ? t("statusBar.updateInProgress")
-                      : t("statusBar.update")}
+                    {updating ? t("statusBar.updateInProgress") : t("statusBar.update")}
                   </span>
                 </Badge>
               </button>
@@ -332,11 +315,7 @@ export function StatusBar() {
               }
               onClick={toggleDayNight}
             >
-              {effectiveDark ? (
-                <Moon aria-hidden="true" />
-              ) : (
-                <Sun aria-hidden="true" />
-              )}
+              {effectiveDark ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -344,73 +323,74 @@ export function StatusBar() {
           </TooltipContent>
         </Tooltip>
 
-        {!isNewTab ? <><Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                "hover:bg-accent hover:text-accent-foreground inline-flex h-6 cursor-default items-center gap-1 rounded-md px-1.5",
-              )}
-              aria-label={t("statusBar.diskSpace")}
-            >
-              <HardDrive className="size-3.5 shrink-0" aria-hidden="true" />
-              <span className="max-w-[5.5rem] truncate">{diskLabel}</span>
-            </button>
-          </TooltipTrigger>
-          <TooltipContent
-            side="top"
-            className={cn(
-              "p-3",
-              diskVolumes.length > 1 ? "max-w-sm" : "max-w-xs",
-            )}
-          >
-            <DiskSpaceTooltip current={disk} volumes={diskVolumes} />
-          </TooltipContent>
-        </Tooltip>
+        {!isNewTab ? (
+          <>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "hover:bg-accent hover:text-accent-foreground inline-flex h-6 cursor-default items-center gap-1 rounded-md px-1.5",
+                  )}
+                  aria-label={t("statusBar.diskSpace")}
+                >
+                  <HardDrive className="size-3.5 shrink-0" aria-hidden="true" />
+                  <span className="max-w-[5.5rem] truncate">{diskLabel}</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                className={cn("p-3", diskVolumes.length > 1 ? "max-w-sm" : "max-w-xs")}
+              >
+                <DiskSpaceTooltip current={disk} volumes={diskVolumes} />
+              </TooltipContent>
+            </Tooltip>
 
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "size-6 [&_svg]:size-3.5",
-                panelOpen
-                  ? "bg-accent text-accent-foreground hover:bg-accent/80"
-                  : "text-muted-foreground",
-              )}
-              aria-label={opLogAria}
-              aria-pressed={panelOpen}
-              onClick={togglePanel}
-            >
-              {latestOp?.status === "running" ? (
-                <Spinner className="text-primary size-3.5" />
-              ) : latestOp?.status === "success" ? (
-                <CheckCircle2 className="text-primary" aria-hidden />
-              ) : latestOp?.status === "error" ? (
-                <XCircle className="text-destructive" aria-hidden />
-              ) : (
-                <ScrollText aria-hidden />
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{opLogAria}</TooltipContent>
-        </Tooltip>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "size-6 [&_svg]:size-3.5",
+                    panelOpen
+                      ? "bg-accent text-accent-foreground hover:bg-accent/80"
+                      : "text-muted-foreground",
+                  )}
+                  aria-label={opLogAria}
+                  aria-pressed={panelOpen}
+                  onClick={togglePanel}
+                >
+                  {latestOp?.status === "running" ? (
+                    <Spinner className="text-primary size-3.5" />
+                  ) : latestOp?.status === "success" ? (
+                    <CheckCircle2 className="text-primary" aria-hidden />
+                  ) : latestOp?.status === "error" ? (
+                    <XCircle className="text-destructive" aria-hidden />
+                  ) : (
+                    <ScrollText aria-hidden />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{opLogAria}</TooltipContent>
+            </Tooltip>
 
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <div className="flex items-center">
-              <GitIdentityAvatar
-                name={identity?.name ?? null}
-                email={identity?.email ?? null}
-                label={identityLabel}
-                className="size-5 rounded-full text-[9px]"
-              />
-            </div>
-          </TooltipTrigger>
-        <TooltipContent>{identityLabel}</TooltipContent>
-        </Tooltip></> : null}
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <div className="flex items-center">
+                  <GitIdentityAvatar
+                    name={identity?.name ?? null}
+                    email={identity?.email ?? null}
+                    label={identityLabel}
+                    className="size-5 rounded-full text-[9px]"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>{identityLabel}</TooltipContent>
+            </Tooltip>
+          </>
+        ) : null}
 
         <MultiAgentWindowButton
           label={t("statusBar.multiAgent")}

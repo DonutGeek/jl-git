@@ -32,14 +32,9 @@ fn path_to_file_uri(path: &Path) -> String {
     let mut uri = String::from("file://");
     for byte in path.as_os_str().as_encoded_bytes() {
         match byte {
-            b'A'..=b'Z'
-            | b'a'..=b'z'
-            | b'0'..=b'9'
-            | b'/'
-            | b'-'
-            | b'_'
-            | b'.'
-            | b'~' => uri.push(char::from(*byte)),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'/' | b'-' | b'_' | b'.' | b'~' => {
+                uri.push(char::from(*byte))
+            }
             _ => uri.push_str(&format!("%{byte:02X}")),
         }
     }
@@ -237,12 +232,9 @@ pub fn list_disk_volumes() -> Result<Vec<SystemDiskSpace>, AppError> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let output = Command::new("df")
-            .args(["-kP"])
-            .output()
-            .map_err(|error| {
-                AppError::new("INTERNAL", "无法读取磁盘空间").with_details(error.to_string())
-            })?;
+        let output = Command::new("df").args(["-kP"]).output().map_err(|error| {
+            AppError::new("INTERNAL", "无法读取磁盘空间").with_details(error.to_string())
+        })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);

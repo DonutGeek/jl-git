@@ -40,9 +40,7 @@ export function readDiffViewPrefs(): DiffViewPrefs {
           ? record.lineBlame
           : DEFAULT_DIFF_VIEW_PREFS.lineBlame,
       wordWrap:
-        typeof record.wordWrap === "boolean"
-          ? record.wordWrap
-          : DEFAULT_DIFF_VIEW_PREFS.wordWrap,
+        typeof record.wordWrap === "boolean" ? record.wordWrap : DEFAULT_DIFF_VIEW_PREFS.wordWrap,
       monospace:
         typeof record.monospace === "boolean"
           ? record.monospace

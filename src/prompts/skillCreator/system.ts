@@ -4,10 +4,7 @@ import { buildSkillCreatorIdentityPrompt } from "@/prompts/skillCreator/identity
 import { SKILL_CREATOR_WORKFLOW_PROMPT } from "@/prompts/skillCreator/workflow";
 
 /** 按「身份 → 宿主安全 → 工作流 → 成稿契约」组装 Skill Creator 提示词。 */
-export function buildSkillCreatorSystemPrompt(
-  locale: string,
-  projectContext: string,
-): string {
+export function buildSkillCreatorSystemPrompt(locale: string, projectContext: string): string {
   return [
     ...buildSkillCreatorIdentityPrompt(locale),
     "",

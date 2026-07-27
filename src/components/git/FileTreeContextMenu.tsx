@@ -51,10 +51,7 @@ import { systemOpenService } from "@/services/system/system.open";
 import { toUserMessage } from "@/types/error";
 import type { FsEntry } from "@/types/git";
 import { copyToClipboard } from "@/utils/clipboard";
-import {
-  useContextMenuOpen,
-  withContextMenuHighlight,
-} from "@/utils/contextMenuHighlight";
+import { useContextMenuOpen, withContextMenuHighlight } from "@/utils/contextMenuHighlight";
 import { deferUi } from "@/utils/deferUi";
 import { revealInFileManagerLabel } from "@/utils/platformLabels";
 import { toAbsoluteRepoFilePath } from "@/utils/repoFilePath";
@@ -79,11 +76,7 @@ interface FileTreeContextMenuProps {
 function isValidBasename(name: string): boolean {
   const next = name.trim();
   return (
-    next.length > 0 &&
-    next !== "." &&
-    next !== ".." &&
-    !next.includes("/") &&
-    !next.includes("\\")
+    next.length > 0 && next !== "." && next !== ".." && !next.includes("/") && !next.includes("\\")
   );
 }
 
@@ -216,9 +209,7 @@ export function FileTreeContextMenu({
         : t("repo.fileTreeRenameTitle");
 
   const nameDialogAction =
-    nameDialog === "rename"
-      ? t("repo.fileTreeRenameAction")
-      : t("repo.fileTreeCreateAction");
+    nameDialog === "rename" ? t("repo.fileTreeRenameAction") : t("repo.fileTreeCreateAction");
 
   const nameSubmitDisabled =
     busy ||
@@ -271,18 +262,14 @@ export function FileTreeContextMenu({
             <ContextMenuSubContent className="min-w-44">
               <ContextMenuItem
                 disabled={disabled || busy}
-                onSelect={() =>
-                  void handleCopy(entry.path, "repo.copyRepoPathSuccess")
-                }
+                onSelect={() => void handleCopy(entry.path, "repo.copyRepoPathSuccess")}
               >
                 <Copy aria-hidden="true" />
                 {t("repo.copyRepoRelativePath")}
               </ContextMenuItem>
               <ContextMenuItem
                 disabled={disabled || busy}
-                onSelect={() =>
-                  void handleCopy(absolutePath, "repo.copyAbsolutePathSuccess")
-                }
+                onSelect={() => void handleCopy(absolutePath, "repo.copyAbsolutePathSuccess")}
               >
                 <Copy aria-hidden="true" />
                 {t("repo.copyAbsolutePath")}
@@ -303,18 +290,14 @@ export function FileTreeContextMenu({
 
           <ContextMenuItem
             disabled={disabled || busy}
-            onSelect={() =>
-              void runAction(() => systemOpenService.openInEditor(absolutePath))
-            }
+            onSelect={() => void runAction(() => systemOpenService.openInEditor(absolutePath))}
           >
             <ExternalLink aria-hidden="true" />
             {t("repo.openInEditor")}
           </ContextMenuItem>
           <ContextMenuItem
             disabled={disabled || busy}
-            onSelect={() =>
-              void runAction(() => systemOpenService.openTerminal(terminalPath))
-            }
+            onSelect={() => void runAction(() => systemOpenService.openTerminal(terminalPath))}
           >
             <Terminal aria-hidden="true" />
             {t("repo.openInTerminal")}
@@ -351,9 +334,7 @@ export function FileTreeContextMenu({
             <AlertDialogTitle>{t("repo.fileTreeDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t(
-                entry.isDir
-                  ? "repo.fileTreeDeleteDirQuestion"
-                  : "repo.fileTreeDeleteFileQuestion",
+                entry.isDir ? "repo.fileTreeDeleteDirQuestion" : "repo.fileTreeDeleteFileQuestion",
                 { name: entry.name },
               )}
               <span className="mt-2 block">{t("repo.fileTreeDeleteHint")}</span>

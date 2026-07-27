@@ -1,10 +1,6 @@
 import { useMemo, type ReactNode } from "react";
 
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
 
 type Orientation = "horizontal" | "vertical";
@@ -81,10 +77,7 @@ export function ResizableSplit({
   first,
   second,
 }: ResizableSplitProps) {
-  const ratio = useMemo(
-    () => readRatio(storageKey, defaultRatio),
-    [storageKey, defaultRatio],
-  );
+  const ratio = useMemo(() => readRatio(storageKey, defaultRatio), [storageKey, defaultRatio]);
 
   const defaultLayout = useMemo(
     () => ({
@@ -120,9 +113,7 @@ export function ResizableSplit({
         {first}
       </ResizablePanel>
 
-      <ResizableHandle
-        className={cn(RESIZABLE_HANDLE_CLASSNAME, separatorClassName)}
-      />
+      <ResizableHandle className={cn(RESIZABLE_HANDLE_CLASSNAME, separatorClassName)} />
 
       <ResizablePanel
         id="second"

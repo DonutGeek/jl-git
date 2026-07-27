@@ -2,11 +2,7 @@ import i18n from "@/i18n";
 import type { AgentChatMessage } from "@/types/ai";
 
 export type AgentSafetyRisk =
-  | "credential-theft"
-  | "malware"
-  | "unauthorized-access"
-  | "fraud"
-  | "violent-or-illicit-harm";
+  "credential-theft" | "malware" | "unauthorized-access" | "fraud" | "violent-or-illicit-harm";
 
 interface AgentSafetyRule {
   risk: AgentSafetyRisk;
@@ -16,10 +12,8 @@ interface AgentSafetyRule {
 const SAFE_OBJECTIVE =
   "检测|识别|分析|审计|防御|阻止|移除|清理|修复|响应|取证|合规|detect|identify|analy[sz]e|audit|defend|prevent|remove|remediate|respond|forensic|compliance";
 const SAFE_GAP = `(?!${SAFE_OBJECTIVE})`;
-const BUILD_ACTION_ZH =
-  "编写|生成|创建|制作|开发|实现|添加|增加|加入|加上|补充";
-const BUILD_ACTION_EN =
-  "write|create|build|generate|develop|implement|add|include";
+const BUILD_ACTION_ZH = "编写|生成|创建|制作|开发|实现|添加|增加|加入|加上|补充";
+const BUILD_ACTION_EN = "write|create|build|generate|develop|implement|add|include";
 
 const AGENT_SAFETY_RULES: readonly AgentSafetyRule[] = [
   {
@@ -111,9 +105,7 @@ const AGENT_SAFETY_RULES: readonly AgentSafetyRule[] = [
 export function detectAgentSafetyRisk(
   messages: readonly AgentChatMessage[],
 ): AgentSafetyRisk | null {
-  const lastUser = [...messages]
-    .reverse()
-    .find((message) => message.role === "user");
+  const lastUser = [...messages].reverse().find((message) => message.role === "user");
   if (!lastUser) {
     return null;
   }

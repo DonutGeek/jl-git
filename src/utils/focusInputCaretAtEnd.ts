@@ -2,9 +2,7 @@
  * 聚焦输入框并把光标移到文末。
  * 预填草稿后需在 React 提交 DOM 后再调用（建议双 rAF）。
  */
-export function focusInputCaretAtEnd(
-  input: HTMLInputElement | HTMLTextAreaElement | null,
-): void {
+export function focusInputCaretAtEnd(input: HTMLInputElement | HTMLTextAreaElement | null): void {
   if (!input) {
     return;
   }

@@ -218,6 +218,9 @@ Local State → Zustand → SQLite
 - 新增依赖需说明：解决的问题、体积/许可、是否有更轻替代
 - 禁止混用多个**UI**图标库、多个状态库、多个 UI 体系（文件类型图标仅允许 `material-icon-theme`）
 - 锁文件（`pnpm-lock.yaml` / `Cargo.lock`）必须提交
+- JavaScript/TypeScript **只允许 pnpm**；Node 推荐版本见 `.nvmrc`（`24.14.0`），最低 `>=22.22.1`
+- 提交前必须通过质量工具链：ESLint、Prettier、`pnpm check`、Husky hooks；细则见 [code-quality-tooling](docs/development/code-quality-tooling.md)
+- **`src/components/ui/**` 禁止**被 ESLint、Prettier、编辑器 format-on-save 或手工改写；只能官方 shadcn CLI 写入
 
 ---
 
@@ -328,9 +331,10 @@ AI 修改代码时必须：
 8. 新文件放入正确目录
 9. 注释使用中文，且仅解释非显然逻辑
 10. 涉及 Git/FS/安全时先读 security 与 git 架构文档
-11. **写完必须自检**（见 [quality](docs/development/quality.md)）：至少 `tsc` + 相关冒烟；不得把 S0/S1 留给用户发现
+11. **写完必须自检**（见 [quality](docs/development/quality.md)）：至少 `pnpm check` + 相关冒烟；不得把 S0/S1 留给用户发现
 12. 向用户声称完成前，按 quality 文档的 Bug 级别自查；已知未修问题须标明级别
 13. **shadcn 硬性**：能用官方组件就用；缺组件只跑官方 `pnpm dlx shadcn@latest add <name>`；**禁止**手写 / 粘贴 registry / 私改 `src/components/ui/`（见 §15 / Never Rules）
+14. 常规开发禁止 `--no-verify` 绕过 Husky；紧急绕过须在后续补齐检查并记录原因
 
 ---
 
@@ -338,13 +342,13 @@ AI 修改代码时必须：
 
 一项改动在合并前应满足：
 
-- [ ] 类型检查通过（`tsc` / 项目脚本）
+- [ ] **`pnpm check` 通过**（lint + format + typecheck）
 - [ ] 无新增 `any` / 空 catch / 硬编码色值
 - [ ] UI 走 Service，不直连 `invoke`（除非文档允许的薄封装层）
 - [ ] 错误可被用户感知或已记录
 - [ ] 必要文档已更新（命令/API/功能状态）
 - [ ] Commit message 符合约定
-- [ ] 未引入与范围无关的格式化大爆炸
+- [ ] 未引入与范围无关的格式化大爆炸；未改写 `src/components/ui/**`
 - [ ] **质量自检通过**：无已知 **S0/S1**；运行时冒烟已做（见 [quality](docs/development/quality.md)）
 - [ ] 若残留 **S2+**，PR/回复中写明级别、现象与是否阻塞验收
 
@@ -368,6 +372,8 @@ AI 修改代码时必须：
 12. 只跑类型检查、不跑与改动相关的运行时冒烟就交付
 13. 用裸 `overflow-*-auto` 替代 shadcn `ScrollArea` 作为面板主滚动交付方案
 14. **手写、粘贴或私自修改** `src/components/ui/` 下任何文件（含「顺手修样式」、从 registry 抄文件冒充官方引入）；该目录**只允许**官方 `pnpm dlx shadcn@latest add …` 引入/覆盖
+15. 用 Prettier / ESLint / 编辑器保存动作改写 `src/components/ui/**`
+16. 常规开发使用 `--no-verify` 绕过 pre-commit / pre-push
 
 ---
 
@@ -385,6 +391,7 @@ AI 修改代码时必须：
 | [architecture/database](docs/architecture/database.md) | SQLite |
 | [architecture/command](docs/architecture/command.md) | Command 清单 |
 | [development/coding-style](docs/development/coding-style.md) | 编码风格 |
+| [development/code-quality-tooling](docs/development/code-quality-tooling.md) | ESLint / Prettier / Husky / lint-staged |
 | [development/state-management](docs/development/state-management.md) | 状态 |
 | [development/routing](docs/development/routing.md) | 路由 |
 | [development/theme](docs/development/theme.md) | 主题与 Tokens（实现目录：`src/design/`） |

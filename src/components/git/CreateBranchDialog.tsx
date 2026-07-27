@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GitBranch as GitBranchIcon, Sparkles, Tag } from "lucide-react";
 import { toast } from "sonner";
@@ -17,11 +18,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import { cn } from "@/lib/utils";
 
@@ -30,10 +27,7 @@ import { useRepoStore } from "@/store/useRepoStore";
 
 import { listRemotes } from "@/services/git";
 import { toUserMessage } from "@/types/error";
-import {
-  filterAndSortBranches,
-  readBranchListPrefs,
-} from "@/utils/branchListPrefs";
+import { filterAndSortBranches, readBranchListPrefs } from "@/utils/branchListPrefs";
 import { normalizeBranchPrefix } from "@/utils/branchPrefix";
 
 interface CreateBranchDialogProps {
@@ -71,11 +65,7 @@ export function CreateBranchDialog({
   const lockedStart = Boolean(fixedStartPoint?.trim());
 
   const startOptions = useMemo(() => {
-    const sortedBranches = filterAndSortBranches(
-      branches,
-      readBranchListPrefs(),
-      "",
-    );
+    const sortedBranches = filterAndSortBranches(branches, readBranchListPrefs(), "");
     const localBranches = sortedBranches.filter((branch) => !branch.isRemote);
     const remoteBranches = sortedBranches.filter((branch) => branch.isRemote);
     return [
@@ -133,10 +123,7 @@ export function CreateBranchDialog({
   }, [open, fixedStartPoint, branchPrefix, repoPath]);
 
   const canSubmit =
-    !submitting &&
-    !loading &&
-    name.trim().length > 0 &&
-    startPoint.trim().length > 0;
+    !submitting && !loading && name.trim().length > 0 && startPoint.trim().length > 0;
 
   function handleOpenChange(next: boolean): void {
     if (!next && submitting) {
@@ -276,9 +263,7 @@ export function CreateBranchDialog({
                           className="size-7"
                           disabled={submitting || !hasApiKey}
                           aria-label={
-                            !hasApiKey
-                              ? t("common.aiApiKeyRequired")
-                              : t("repo.aiGenerateBranch")
+                            !hasApiKey ? t("common.aiApiKeyRequired") : t("repo.aiGenerateBranch")
                           }
                           onClick={() => setAiDialogOpen(true)}
                         >
@@ -287,9 +272,7 @@ export function CreateBranchDialog({
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      {!hasApiKey
-                        ? t("common.aiApiKeyRequired")
-                        : t("repo.aiGenerateBranch")}
+                      {!hasApiKey ? t("common.aiApiKeyRequired") : t("repo.aiGenerateBranch")}
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -299,9 +282,7 @@ export function CreateBranchDialog({
                 <Checkbox
                   id="create-branch-checkout"
                   checked={checkoutAfterCreate}
-                  onCheckedChange={(checked) =>
-                    handleCheckoutChange(checked === true)
-                  }
+                  onCheckedChange={(checked) => handleCheckoutChange(checked === true)}
                   disabled={submitting || publishAfterCreate}
                 />
                 <FieldLabel htmlFor="create-branch-checkout">
@@ -313,9 +294,7 @@ export function CreateBranchDialog({
                 <Checkbox
                   id="create-branch-publish"
                   checked={publishAfterCreate}
-                  onCheckedChange={(checked) =>
-                    handlePublishChange(checked === true)
-                  }
+                  onCheckedChange={(checked) => handlePublishChange(checked === true)}
                   disabled={submitting || !hasRemote}
                 />
                 <div className="flex min-w-0 flex-col gap-0.5">

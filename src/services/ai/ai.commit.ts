@@ -42,9 +42,7 @@ export async function generateCommitMessage(
   if (!sanitizedPatch.trim()) {
     throw appError(
       "VALIDATION",
-      i18n.t(
-        commitRev ? "ai.errors.emptyCommitDiff" : "ai.errors.emptyStagedDiff",
-      ),
+      i18n.t(commitRev ? "ai.errors.emptyCommitDiff" : "ai.errors.emptyStagedDiff"),
     );
   }
 
@@ -88,11 +86,7 @@ export async function generateCommitMessage(
     });
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
-      throw mapDeepSeekHttpError(
-        response.status,
-        payload,
-        i18n.t("ai.errors.requestFailed"),
-      );
+      throw mapDeepSeekHttpError(response.status, payload, i18n.t("ai.errors.requestFailed"));
     }
 
     const content = readCommitChoiceContent(payload);
@@ -122,11 +116,7 @@ function normalizeCommitMessage(content: string | null | undefined): string | nu
     .split("\n")
     .map((line) => line.trim());
   const firstLine = lines[0]?.replace(/`/g, "").trim();
-  if (
-    !firstLine ||
-    firstLine.length > 200 ||
-    !CONVENTIONAL_COMMIT_PATTERN.test(firstLine)
-  ) {
+  if (!firstLine || firstLine.length > 200 || !CONVENTIONAL_COMMIT_PATTERN.test(firstLine)) {
     return null;
   }
 

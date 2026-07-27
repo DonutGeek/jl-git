@@ -1,10 +1,4 @@
-import {
-  getCommit,
-  getCommitFileDiff,
-  getLog,
-  listTree,
-  readWorktreeFile,
-} from "@/services/git";
+import { getCommit, getCommitFileDiff, getLog, listTree, readWorktreeFile } from "@/services/git";
 import {
   extractTechFromPackageJson,
   filterTechByAuthorUsage,
@@ -44,8 +38,7 @@ const PACKAGE_JSON_MAX_BYTES = 256_000;
 const README_MAX_BYTES = 48_000;
 const README_EXCERPT_CHARS = 3_500;
 
-const SKIP_FILE_PATTERN =
-  /(?:^|\/)(?:node_modules|dist|build|coverage|\.git)\//i;
+const SKIP_FILE_PATTERN = /(?:^|\/)(?:node_modules|dist|build|coverage|\.git)\//i;
 const SKIP_FILE_NAME_PATTERN =
   /(?:^|\/)(?:package-lock\.json|pnpm-lock\.yaml|yarn\.lock|Cargo\.lock|composer\.lock|Podfile\.lock|\.DS_Store)$/i;
 const SKIP_BINARY_EXT =
@@ -115,9 +108,7 @@ export function buildJlgitMeta(
   groupNameById: ReadonlyMap<string, string> = new Map(),
 ): AgentJlgitMeta {
   const groupName =
-    project.workspaceId != null
-      ? (groupNameById.get(project.workspaceId)?.trim() || null)
-      : null;
+    project.workspaceId != null ? groupNameById.get(project.workspaceId)?.trim() || null : null;
   const description = project.description?.trim() || null;
   return {
     path: project.path,
@@ -166,8 +157,7 @@ export function filterProfilesByAuthor(
   authors: readonly AgentAuthorFilter[],
 ): AgentProjectProfile[] {
   return prepareProfilesForAgentContext(profiles, authors).filter(
-    (profile) =>
-      !profile.error && profile.recentCommits.length > 0,
+    (profile) => !profile.error && profile.recentCommits.length > 0,
   );
 }
 
@@ -196,10 +186,7 @@ export function prepareProfilesForAgentContext(
           lastCommitAt: null,
         };
       }
-      const sampled = selectTimeBucketedCommits(
-        profile.recentCommits,
-        AUTHOR_COMMIT_LIMIT,
-      );
+      const sampled = selectTimeBucketedCommits(profile.recentCommits, AUTHOR_COMMIT_LIMIT);
       return {
         ...profile,
         recentCommits: sampled,
@@ -227,14 +214,8 @@ export function prepareProfilesForAgentContext(
       ...profile,
       recentCommits: sampled,
       sampledCommitCount: sampled.length,
-      firstCommitAt: minIsoDate(
-        profile.firstCommitAt,
-        earliestAuthoredAt(matched),
-      ),
-      lastCommitAt: maxIsoDate(
-        profile.lastCommitAt,
-        latestAuthoredAt(matched),
-      ),
+      firstCommitAt: minIsoDate(profile.firstCommitAt, earliestAuthoredAt(matched)),
+      lastCommitAt: maxIsoDate(profile.lastCommitAt, latestAuthoredAt(matched)),
     };
   });
 }
@@ -243,9 +224,7 @@ export function prepareProfilesForAgentContext(
  * 将 `--author` 用的正则特殊字符转义。
  * 姓名与邮箱都写入（多条 OR）：避免只按邮箱拉日志时漏掉「同名不同邮」的提交。
  */
-export function toGitAuthorPatterns(
-  authors: readonly AgentAuthorFilter[],
-): string[] {
+export function toGitAuthorPatterns(authors: readonly AgentAuthorFilter[]): string[] {
   const patterns: string[] = [];
   for (const author of authors) {
     const email = author.email.trim();
@@ -279,9 +258,7 @@ export function selectTimeBucketedCommits<T extends { id: string; authoredAt: st
     return [...commits].sort((a, b) => b.authoredAt.localeCompare(a.authoredAt));
   }
 
-  const sorted = [...commits].sort((a, b) =>
-    a.authoredAt.localeCompare(b.authoredAt),
-  );
+  const sorted = [...commits].sort((a, b) => a.authoredAt.localeCompare(b.authoredAt));
   const bucketCount = Math.min(TIME_BUCKET_COUNT, limit, sorted.length);
   const basePerBucket = Math.floor(limit / bucketCount);
   let remainder = limit % bucketCount;
@@ -313,9 +290,7 @@ export function selectTimeBucketedCommits<T extends { id: string; authoredAt: st
     }
   }
 
-  return picked
-    .slice(0, limit)
-    .sort((a, b) => b.authoredAt.localeCompare(a.authoredAt));
+  return picked.slice(0, limit).sort((a, b) => b.authoredAt.localeCompare(a.authoredAt));
 }
 
 /** 在序列内均匀取 n 个（含首尾），保序 */
@@ -327,19 +302,17 @@ function pickEvenlySpaced<T>(items: readonly T[], count: number): T[] {
     return [...items];
   }
   if (count === 1) {
-    return [items[Math.floor(items.length / 2)]!];
+    return [items[Math.floor(items.length / 2)]];
   }
   const result: T[] = [];
   for (let i = 0; i < count; i += 1) {
     const index = Math.round((i * (items.length - 1)) / (count - 1));
-    result.push(items[index]!);
+    result.push(items[index]);
   }
   return result;
 }
 
-function earliestAuthoredAt(
-  commits: readonly ResumeCommitSample[],
-): string | null {
+function earliestAuthoredAt(commits: readonly ResumeCommitSample[]): string | null {
   let earliest: string | null = null;
   for (const commit of commits) {
     if (!commit.authoredAt) continue;
@@ -350,9 +323,7 @@ function earliestAuthoredAt(
   return earliest;
 }
 
-function latestAuthoredAt(
-  commits: readonly ResumeCommitSample[],
-): string | null {
+function latestAuthoredAt(commits: readonly ResumeCommitSample[]): string | null {
   let latest: string | null = null;
   for (const commit of commits) {
     if (!commit.authoredAt) continue;
@@ -421,11 +392,9 @@ export function commitMatchesAuthor(
     return true;
   }
   const nameOk =
-    nameConfigured &&
-    (commitName.includes(filter.name) || filter.name.includes(commitName));
+    nameConfigured && (commitName.includes(filter.name) || filter.name.includes(commitName));
   const emailOk =
-    emailConfigured &&
-    (commitEmail === filter.email || commitEmail.includes(filter.email));
+    emailConfigured && (commitEmail === filter.email || commitEmail.includes(filter.email));
   return nameOk || emailOk;
 }
 
@@ -454,15 +423,8 @@ async function buildOneProfile(
       authoredAt: commit.authoredAt,
     }));
 
-    const range = await resolveAuthorInvolvementRange(
-      project.path,
-      authorPatterns,
-      commits,
-    );
-    const recentCommits = selectTimeBucketedCommits(
-      commits,
-      AUTHOR_COMMIT_LIMIT,
-    );
+    const range = await resolveAuthorInvolvementRange(project.path, authorPatterns, commits);
+    const recentCommits = selectTimeBucketedCommits(commits, AUTHOR_COMMIT_LIMIT);
 
     const [packageTechStack, readme] = await Promise.all([
       loadPackageTechStack(project.path, treeResult.paths),
@@ -470,8 +432,7 @@ async function buildOneProfile(
     ]);
     const fallbackTech = inferFallbackTechHints(treeResult.paths);
     // 作者使用过滤在 enrich 后完成；此处先用 package 主栈占位
-    const techStackHints =
-      packageTechStack.length > 0 ? packageTechStack : fallbackTech;
+    const techStackHints = packageTechStack.length > 0 ? packageTechStack : fallbackTech;
 
     return {
       projectId: project.id,
@@ -522,8 +483,7 @@ async function loadSampledLogCommits(
   repoPath: string,
   authorPatterns: readonly string[],
 ): Promise<LogCommitRow[]> {
-  const cap =
-    authorPatterns.length > 0 ? AUTHOR_LOG_CAP : LOG_SAMPLE_LIMIT;
+  const cap = authorPatterns.length > 0 ? AUTHOR_LOG_CAP : LOG_SAMPLE_LIMIT;
   const commits: LogCommitRow[] = [];
   let skip = 0;
 
@@ -533,8 +493,7 @@ async function loadSampledLogCommits(
       limit,
       skip,
       all: true,
-      authors:
-        authorPatterns.length > 0 ? [...authorPatterns] : undefined,
+      authors: authorPatterns.length > 0 ? [...authorPatterns] : undefined,
     });
     if (page.commits.length === 0) {
       break;
@@ -559,7 +518,7 @@ async function resolveAuthorInvolvementRange(
   commits: readonly ResumeCommitSample[],
 ): Promise<{ firstCommitAt: string | null; lastCommitAt: string | null }> {
   let firstCommitAt = earliestAuthoredAt(commits);
-  let lastCommitAt = latestAuthoredAt(commits);
+  const lastCommitAt = latestAuthoredAt(commits);
 
   if (authorPatterns.length === 0 || commits.length === 0) {
     return { firstCommitAt, lastCommitAt };
@@ -584,34 +543,22 @@ async function resolveAuthorInvolvementRange(
   return { firstCommitAt, lastCommitAt };
 }
 
-async function enrichOneProfile(
-  profile: AgentProjectProfile,
-): Promise<AgentProjectProfile> {
+async function enrichOneProfile(profile: AgentProjectProfile): Promise<AgentProjectProfile> {
   if (profile.error || !profile.projectPath || profile.recentCommits.length === 0) {
     return profile;
   }
 
   const repoPath = profile.projectPath;
   // 证据提交也按时间分桶，避免只抽最近几条
-  const targets = selectTimeBucketedCommits(
-    profile.recentCommits,
-    CODE_EVIDENCE_COMMIT_LIMIT,
-  );
-  const enrichedList = await Promise.all(
-    targets.map((commit) => enrichCommit(repoPath, commit)),
-  );
-  const enrichedById = new Map(
-    enrichedList.map((commit) => [commit.id, commit] as const),
-  );
+  const targets = selectTimeBucketedCommits(profile.recentCommits, CODE_EVIDENCE_COMMIT_LIMIT);
+  const enrichedList = await Promise.all(targets.map((commit) => enrichCommit(repoPath, commit)));
+  const enrichedById = new Map(enrichedList.map((commit) => [commit.id, commit] as const));
   const recentCommits = profile.recentCommits.map(
     (commit) => enrichedById.get(commit.id) ?? commit,
   );
 
   // 额外收集更多提交的改动路径，用于判断作者实际用过哪些技术
-  const pathCommits = selectTimeBucketedCommits(
-    recentCommits,
-    TECH_PATH_COMMIT_LIMIT,
-  );
+  const pathCommits = selectTimeBucketedCommits(recentCommits, TECH_PATH_COMMIT_LIMIT);
   const extraPaths = await collectTouchedPaths(repoPath, pathCommits);
 
   const paths = new Set<string>(extraPaths);
@@ -635,8 +582,7 @@ async function enrichOneProfile(
   return {
     ...profile,
     recentCommits,
-    techStackHints:
-      techStackHints.length > 0 ? techStackHints : profile.techStackHints,
+    techStackHints: techStackHints.length > 0 ? techStackHints : profile.techStackHints,
   };
 }
 
@@ -771,9 +717,7 @@ async function enrichCommit(
     const { commit: detail } = await getCommit(repoPath, commit.id);
     const parentDiff = detail.diffs[0];
     const parentRev = parentDiff?.parentId;
-    const interesting = (parentDiff?.files ?? []).filter((file) =>
-      isInterestingPath(file.path),
-    );
+    const interesting = (parentDiff?.files ?? []).filter((file) => isInterestingPath(file.path));
     // 前 N 个拉 diff 摘录；其余只保留路径供技术栈使用判定
     const filesForDiff = interesting.slice(0, CODE_EVIDENCE_FILES_PER_COMMIT);
     const pathOnly = interesting.slice(CODE_EVIDENCE_FILES_PER_COMMIT);
@@ -844,9 +788,7 @@ function truncateSnippet(text: string): string {
 function inferFallbackTechHints(paths: readonly string[]): string[] {
   const hints = new Set<string>();
   const rootFiles = new Set(
-    paths
-      .filter((path) => !path.includes("/"))
-      .map((path) => path.toLowerCase()),
+    paths.filter((path) => !path.includes("/")).map((path) => path.toLowerCase()),
   );
 
   for (const { file, hint } of FALLBACK_TECH_FILES) {

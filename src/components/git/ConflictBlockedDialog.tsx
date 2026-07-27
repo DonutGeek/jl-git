@@ -19,11 +19,7 @@ interface ConflictBlockedDialogProps {
 }
 
 /** 冲突/进行中操作拦截提示 */
-export function ConflictBlockedDialog({
-  open,
-  onOpenChange,
-  reason,
-}: ConflictBlockedDialogProps) {
+export function ConflictBlockedDialog({ open, onOpenChange, reason }: ConflictBlockedDialogProps) {
   const { t } = useTranslation();
 
   return (
@@ -35,9 +31,7 @@ export function ConflictBlockedDialog({
               <TriangleAlert className="size-3" aria-hidden="true" />
               {t("repo.conflictOpBlockedTag")}
             </span>
-            <DialogTitle className="text-base">
-              {t("repo.conflictOpBlockedTitle")}
-            </DialogTitle>
+            <DialogTitle className="text-base">{t("repo.conflictOpBlockedTitle")}</DialogTitle>
           </div>
           <DialogDescription className="text-foreground/90 text-sm leading-relaxed">
             {reason === "conflict"

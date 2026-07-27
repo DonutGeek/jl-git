@@ -270,10 +270,7 @@ fn validate_author_patterns(authors: Option<&[String]>) -> Result<Vec<String>, A
             ));
         }
         if pattern.chars().any(|ch| ch.is_control()) {
-            return Err(AppError::new(
-                "VALIDATION",
-                "作者过滤不能包含控制字符",
-            ));
+            return Err(AppError::new("VALIDATION", "作者过滤不能包含控制字符"));
         }
         patterns.push(pattern.to_string());
     }

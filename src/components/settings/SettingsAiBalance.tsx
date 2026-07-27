@@ -24,10 +24,7 @@ interface SettingsAiBalanceProps {
 }
 
 /** 设置 → 鲸灵：DeepSeek 账户余额与充值入口 */
-export function SettingsAiBalance({
-  hasEnabledKey,
-  refreshToken,
-}: SettingsAiBalanceProps) {
+export function SettingsAiBalance({ hasEnabledKey, refreshToken }: SettingsAiBalanceProps) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<DeepSeekBalanceResult | null>(null);

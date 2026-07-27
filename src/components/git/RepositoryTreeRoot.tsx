@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";

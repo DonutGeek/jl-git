@@ -1,11 +1,7 @@
 import type { NavigateFunction } from "react-router-dom";
 
 import { useAppPrefsStore } from "@/store/useAppPrefsStore";
-import {
-  pathForOpenTab,
-  useOpenTabsStore,
-  type OpenTab,
-} from "@/store/useOpenTabsStore";
+import { pathForOpenTab, useOpenTabsStore, type OpenTab } from "@/store/useOpenTabsStore";
 
 let startupTabsApplied = false;
 const appliedListeners = new Set<() => void>();
@@ -51,7 +47,10 @@ function waitForPersistHydration(store: {
   });
 }
 
-function resolveStartupTab(tabs: readonly OpenTab[], lastActiveTabId: string | null): OpenTab | null {
+function resolveStartupTab(
+  tabs: readonly OpenTab[],
+  lastActiveTabId: string | null,
+): OpenTab | null {
   if (tabs.length === 0) {
     return null;
   }
@@ -68,9 +67,7 @@ function resolveStartupTab(tabs: readonly OpenTab[], lastActiveTabId: string | n
  * 主窗冷启动：按「恢复上次 / 每次新标签」导航一次。
  * 子窗（agent 等）不挂 AppLayout，不会执行。
  */
-export async function applyStartupTabsBootstrap(
-  navigate: NavigateFunction,
-): Promise<void> {
+export async function applyStartupTabsBootstrap(navigate: NavigateFunction): Promise<void> {
   if (startupTabsApplied) {
     return;
   }

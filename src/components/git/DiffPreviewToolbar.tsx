@@ -1,12 +1,5 @@
 import { useTranslation } from "react-i18next";
-import {
-  ChevronDown,
-  ChevronUp,
-  Columns2,
-  FoldVertical,
-  List,
-  Menu,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, Columns2, FoldVertical, List, Menu } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,11 +8,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SelectMenu } from "@/components/common/SelectMenu";
 import { ToolIconButton } from "@/components/git/monacoPreviewShared";
 import { cn } from "@/lib/utils";
@@ -255,27 +244,21 @@ export function DiffPreviewToolbar({
             <DropdownMenuCheckboxItem
               checked={viewPrefs.lineBlame}
               disabled={lineBlameDisabled}
-              onCheckedChange={(checked) =>
-                onViewPrefsChange({ lineBlame: Boolean(checked) })
-              }
+              onCheckedChange={(checked) => onViewPrefsChange({ lineBlame: Boolean(checked) })}
               onSelect={(event) => event.preventDefault()}
             >
               {t("repo.diffLineBlame")}
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={viewPrefs.wordWrap}
-              onCheckedChange={(checked) =>
-                onViewPrefsChange({ wordWrap: Boolean(checked) })
-              }
+              onCheckedChange={(checked) => onViewPrefsChange({ wordWrap: Boolean(checked) })}
               onSelect={(event) => event.preventDefault()}
             >
               {t("repo.diffWordWrap")}
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={viewPrefs.monospace}
-              onCheckedChange={(checked) =>
-                onViewPrefsChange({ monospace: Boolean(checked) })
-              }
+              onCheckedChange={(checked) => onViewPrefsChange({ monospace: Boolean(checked) })}
               onSelect={(event) => event.preventDefault()}
             >
               {t("repo.diffMonospace")}

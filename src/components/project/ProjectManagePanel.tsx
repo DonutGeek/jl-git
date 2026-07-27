@@ -53,10 +53,8 @@ export function ProjectManagePanel({
   const loading = useProjectStore((state) => state.loading);
   const removeProject = useProjectStore((state) => state.removeProject);
 
-  const [draftFilters, setDraftFilters] =
-    useState<ManageFilters>(EMPTY_MANAGE_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<ManageFilters>(EMPTY_MANAGE_FILTERS);
+  const [draftFilters, setDraftFilters] = useState<ManageFilters>(EMPTY_MANAGE_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState<ManageFilters>(EMPTY_MANAGE_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [settingsProject, setSettingsProject] = useState<Project | null>(null);
@@ -74,8 +72,7 @@ export function ProjectManagePanel({
   }, [workspaces]);
 
   const needsWideProbe =
-    appliedFilters.dirty !== MANAGE_DIRTY_ALL ||
-    appliedFilters.sync !== MANAGE_SYNC_ALL;
+    appliedFilters.dirty !== MANAGE_DIRTY_ALL || appliedFilters.sync !== MANAGE_SYNC_ALL;
 
   // 先按关键词/分组/排序得到基表，再决定探测范围
   const baseFiltered = useMemo(
@@ -95,17 +92,11 @@ export function ProjectManagePanel({
   const pageForProbe = useMemo(() => {
     const totalPages = Math.max(1, Math.ceil(baseFiltered.length / pageSize));
     const currentPage = Math.min(page, totalPages);
-    return baseFiltered.slice(
-      (currentPage - 1) * pageSize,
-      currentPage * pageSize,
-    );
+    return baseFiltered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   }, [baseFiltered, page, pageSize]);
 
   const probeTargets = needsWideProbe ? baseFiltered : pageForProbe;
-  const { snapshots, lites } = useProjectManageGitProbe(
-    probeTargets,
-    gitRefreshToken,
-  );
+  const { snapshots, lites } = useProjectManageGitProbe(probeTargets, gitRefreshToken);
 
   const filtered = useMemo(
     () => filterAndSortProjects(projects, appliedFilters, lites),
@@ -114,15 +105,9 @@ export function ProjectManagePanel({
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const pageRows = filtered.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
-  );
+  const pageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  function updateDraft<K extends keyof ManageFilters>(
-    key: K,
-    value: ManageFilters[K],
-  ): void {
+  function updateDraft<K extends keyof ManageFilters>(key: K, value: ManageFilters[K]): void {
     setDraftFilters((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -150,9 +135,7 @@ export function ProjectManagePanel({
     setDeleting(true);
     try {
       await removeProject(deleteProject.id);
-      toast.success(
-        t("projectManager.deleteProjectSuccess", { name: deleteProject.name }),
-      );
+      toast.success(t("projectManager.deleteProjectSuccess", { name: deleteProject.name }));
       setDeleteProject(null);
       if (detailProject?.id === deleteProject.id) {
         setDetailProject(null);
@@ -167,8 +150,7 @@ export function ProjectManagePanel({
 
   const detailGroupLabel = detailProject
     ? detailProject.workspaceId
-      ? (workspaceNameById.get(detailProject.workspaceId) ??
-        t("projectManager.ungrouped"))
+      ? (workspaceNameById.get(detailProject.workspaceId) ?? t("projectManager.ungrouped"))
       : t("projectManager.ungrouped")
     : t("projectManager.ungrouped");
 
@@ -228,11 +210,7 @@ export function ProjectManagePanel({
       <ProjectManageDetailDrawer
         project={detailProjectLive}
         groupLabel={detailGroupLabel}
-        snapshot={
-          detailProjectLive
-            ? snapshots.get(detailProjectLive.id)
-            : undefined
-        }
+        snapshot={detailProjectLive ? snapshots.get(detailProjectLive.id) : undefined}
         open={Boolean(detailProject)}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
@@ -264,22 +242,16 @@ export function ProjectManagePanel({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("projectManager.deleteProjectTitle")}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{t("projectManager.deleteProjectTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("projectManager.deleteProjectQuestion", {
                 name: deleteProject?.name ?? "",
               })}
-              <span className="mt-2 block">
-                {t("projectManager.deleteProjectHint")}
-              </span>
+              <span className="mt-2 block">{t("projectManager.deleteProjectHint")}</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>
-              {t("common.cancel")}
-            </AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               disabled={deleting}

@@ -1,14 +1,7 @@
 import type { ReactNode } from "react";
 
-import {
-  TruncateStartPath,
-  TRUNCATE_BUDGET_ATTR,
-} from "@/components/common/TruncateStartPath";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TruncateStartPath, TRUNCATE_BUDGET_ATTR } from "@/components/common/TruncateStartPath";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 interface TruncateStartHoverLabelProps {
@@ -37,10 +30,7 @@ export function TruncateStartHoverLabel({
   textClassName,
 }: TruncateStartHoverLabelProps) {
   return (
-    <div
-      className={cn("min-w-0 w-full", className)}
-      {...{ [TRUNCATE_BUDGET_ATTR]: true }}
-    >
+    <div className={cn("min-w-0 w-full", className)} {...{ [TRUNCATE_BUDGET_ATTR]: true }}>
       <Tooltip delayDuration={300}>
         <TooltipTrigger asChild>
           <div className="flex w-max max-w-full min-w-0 cursor-default items-center gap-1.5">
@@ -48,10 +38,7 @@ export function TruncateStartHoverLabel({
             <TruncateStartPath
               path={text}
               title=""
-              className={cn(
-                "text-foreground font-mono text-[11px] leading-none",
-                textClassName,
-              )}
+              className={cn("text-foreground font-mono text-[11px] leading-none", textClassName)}
             />
             {trailing}
           </div>

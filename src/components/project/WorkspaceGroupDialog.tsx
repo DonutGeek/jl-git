@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Folder } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -25,11 +26,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useProjectStore } from "@/store/useProjectStore";
 import { toUserMessage } from "@/types/error";
-import type {
-  Workspace,
-  WorkspaceColor,
-  WorkspaceIcon,
-} from "@/types/project";
+import type { Workspace, WorkspaceColor, WorkspaceIcon } from "@/types/project";
 import {
   buildWorkspaceTree,
   collectWorkspaceSubtreeIds,
@@ -54,8 +51,7 @@ interface WorkspaceGroupDialogEditProps {
 }
 
 export type WorkspaceGroupDialogProps =
-  | WorkspaceGroupDialogCreateProps
-  | WorkspaceGroupDialogEditProps;
+  WorkspaceGroupDialogCreateProps | WorkspaceGroupDialogEditProps;
 
 /** 新建 / 编辑仓库分组：名称、上级、图标、颜色 */
 export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
@@ -94,9 +90,7 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
     return findWorkspaceTreeLabel(parentTree, parentId) ?? parentId;
   }, [parentId, parentTree, t]);
 
-  const folderIcon = (
-    <Folder className="size-4 shrink-0" aria-hidden="true" />
-  );
+  const folderIcon = <Folder className="size-4 shrink-0" aria-hidden="true" />;
 
   useEffect(() => {
     if (!open) {
@@ -118,9 +112,7 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
   }, [open, mode, editWorkspace, createParentId]);
 
   const Icon = workspaceIconComponent(icon);
-  const parentName = parentId
-    ? workspaces.find((item) => item.id === parentId)?.name
-    : null;
+  const parentName = parentId ? workspaces.find((item) => item.id === parentId)?.name : null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     // Portal 内表单的 submit 会沿 React 树冒泡到外层「打开/克隆」等 form，必须阻断
@@ -145,12 +137,7 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
         toast.success(t("projectManager.editGroupSuccess"));
         props.onUpdated?.(workspace);
       } else {
-        const workspace = await createWorkspace(
-          nextName,
-          parentId || undefined,
-          icon,
-          color,
-        );
+        const workspace = await createWorkspace(nextName, parentId || undefined, icon, color);
         toast.success(t("projectManager.createGroupSuccess"));
         props.onCreated?.(workspace);
       }
@@ -176,9 +163,7 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>
-            {mode === "edit"
-              ? t("projectManager.editGroup")
-              : t("projectManager.createGroup")}
+            {mode === "edit" ? t("projectManager.editGroup") : t("projectManager.createGroup")}
           </DialogTitle>
           <DialogDescription>
             {mode === "edit"
@@ -238,9 +223,7 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
                   displayLabel={
                     <span className="flex items-center gap-2">
                       <Icon className="size-4" aria-hidden="true" />
-                      {t(
-                        `projectManager.icon${icon[0].toUpperCase()}${icon.slice(1)}`,
-                      )}
+                      {t(`projectManager.icon${icon[0].toUpperCase()}${icon.slice(1)}`)}
                     </span>
                   }
                   options={WORKSPACE_ICON_OPTIONS.map((option) => ({
@@ -260,14 +243,9 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
                   displayLabel={
                     <span className="flex items-center gap-2">
                       <span
-                        className={cn(
-                          "block size-3 rounded-full",
-                          WORKSPACE_COLOR_CLASS[color],
-                        )}
+                        className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS[color])}
                       />
-                      {t(
-                        `projectManager.color${color[0].toUpperCase()}${color.slice(1)}`,
-                      )}
+                      {t(`projectManager.color${color[0].toUpperCase()}${color.slice(1)}`)}
                     </span>
                   }
                   options={WORKSPACE_COLOR_OPTIONS.map((option) => ({

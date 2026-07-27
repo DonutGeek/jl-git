@@ -1,5 +1,5 @@
 import { invokeCommand } from "@/services/invoke";
-import {
+import type {
   AddProjectInput,
   PickDirectoryResult,
   Project,
@@ -8,7 +8,7 @@ import {
   RecentItem,
   RecentListResult,
 } from "@/types/project";
-import { OkResult } from "@/types/git";
+import type { OkResult } from "@/types/git";
 
 export async function list(workspaceId?: string): Promise<Project[]> {
   const result = await invokeCommand<ProjectListResult>("project_list", {

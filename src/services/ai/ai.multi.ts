@@ -66,9 +66,7 @@ export async function streamMultiAgentReply({
 
   const skillMode = getAgentSkillMode(messages);
   const resumeMode = skillMode === "resume";
-  const projectContext = redactSecrets(
-    formatProfilesContext(profiles, resumeAuthors, resumeMode),
-  );
+  const projectContext = redactSecrets(formatProfilesContext(profiles, resumeAuthors, resumeMode));
   const systemPrompt =
     skillMode === "resume"
       ? buildResumeSystemPrompt(locale, projectContext)
@@ -93,12 +91,7 @@ export async function streamMultiAgentReply({
         model: modelId,
         stream: true,
         // 成稿类技能略高；通用多仓问答更克制
-        temperature:
-          skillMode === "resume"
-            ? 0.55
-            : skillMode === "skill-creator"
-              ? 0.45
-              : 0.3,
+        temperature: skillMode === "resume" ? 0.55 : skillMode === "skill-creator" ? 0.45 : 0.3,
         ...(enableThinking
           ? {
               thinking: { type: "enabled" },
@@ -123,11 +116,7 @@ export async function streamMultiAgentReply({
 
     if (!response.ok) {
       const payload = await readResponseJson(response);
-      throw mapDeepSeekHttpError(
-        response.status,
-        payload,
-        i18n.t("multiAgent.replyFailed"),
-      );
+      throw mapDeepSeekHttpError(response.status, payload, i18n.t("multiAgent.replyFailed"));
     }
     if (!response.body) {
       throw appError("INTERNAL", i18n.t("multiAgent.replyFailed"));
@@ -150,9 +139,7 @@ function formatProfilesContext(
   resumeAuthors: ReadonlyArray<{ name: string; email: string }>,
   resumeMode: boolean,
 ): string {
-  const authors = resumeAuthors.filter(
-    (author) => author.name.trim() || author.email.trim(),
-  );
+  const authors = resumeAuthors.filter((author) => author.name.trim() || author.email.trim());
   const authorLines =
     authors.length > 0
       ? authors
@@ -212,9 +199,7 @@ function formatProfileBlock(
   const title = profile.jlgitMeta.alias || profile.projectName;
   const jlgitMetaBlock = formatJlgitMetaBlock(profile.jlgitMeta);
   const folderName = repoFolderNameFromPath(profile.jlgitMeta.path);
-  const techStackLabel = resumeMode
-    ? "techStack (package.json ∩ author usage)"
-    : "techStackHints";
+  const techStackLabel = resumeMode ? "techStack (package.json ∩ author usage)" : "techStackHints";
 
   if (profile.error) {
     return `### ${title}\n${jlgitMetaBlock}\nERROR: ${profile.error}`;
@@ -234,9 +219,7 @@ function formatProfileBlock(
       resumeMode ? "matchedCommits=0" : null,
       resumeMode ? "authorInvolvementRange: —" : null,
       `${techStackLabel}: ${profile.techStackHints.join(", ") || "—"}`,
-      readmeExcerpt
-        ? `readmeExcerpt:\n${readmeExcerpt}`
-        : "readmeExcerpt: (none)",
+      readmeExcerpt ? `readmeExcerpt:\n${readmeExcerpt}` : "readmeExcerpt: (none)",
       resumeMode
         ? "(no author-matched commit samples; still list this project when enumerating; do not invent personal contributions)"
         : "(no commit samples in snapshot; still list this project when enumerating)",
@@ -249,30 +232,22 @@ function formatProfileBlock(
     mode === "full"
       ? CONTEXT_SUBJECT_COMMITS_PER_PROJECT
       : Math.min(24, CONTEXT_SUBJECT_COMMITS_PER_PROJECT);
-  const detailLimit =
-    mode === "full" ? CONTEXT_DETAIL_COMMITS_PER_PROJECT : 3;
+  const detailLimit = mode === "full" ? CONTEXT_DETAIL_COMMITS_PER_PROJECT : 3;
   const readmeLimit = mode === "full" ? CONTEXT_README_CHARS : 800;
 
   const subjectIndex = profile.recentCommits
     .slice(0, subjectLimit)
-    .map(
-      (commit) =>
-        `- ${commit.authoredAt.slice(0, 10)} ${commit.shortId} ${commit.subject}`,
-    )
+    .map((commit) => `- ${commit.authoredAt.slice(0, 10)} ${commit.shortId} ${commit.subject}`)
     .join("\n");
 
   const detailCommits = profile.recentCommits
     .slice(0, detailLimit)
-    .map((commit) =>
-      formatCommitEvidence(commit, mode === "compact", resumeMode),
-    )
+    .map((commit) => formatCommitEvidence(commit, mode === "compact", resumeMode))
     .join("\n\n");
 
   const readmeRaw = profile.readmeExcerpt?.trim() ?? "";
   const readmeExcerpt =
-    readmeRaw.length > readmeLimit
-      ? `${readmeRaw.slice(0, readmeLimit)}\n…[truncated]`
-      : readmeRaw;
+    readmeRaw.length > readmeLimit ? `${readmeRaw.slice(0, readmeLimit)}\n…[truncated]` : readmeRaw;
   const readmeBlock = readmeExcerpt
     ? [
         `readmePath: ${profile.readmePath ?? "README"}`,
@@ -284,9 +259,7 @@ function formatProfileBlock(
   const involvementStart = formatResumeMonth(profile.firstCommitAt);
   const involvementEnd = formatResumeMonth(profile.lastCommitAt);
   const involvementRange =
-    involvementStart && involvementEnd
-      ? `${involvementStart} – ${involvementEnd}`
-      : "—";
+    involvementStart && involvementEnd ? `${involvementStart} – ${involvementEnd}` : "—";
 
   return [
     `### ${title}`,
@@ -304,9 +277,7 @@ function formatProfileBlock(
     readmeBlock,
     "subjectIndex (cluster by theme; enough for approach bullets):",
     subjectIndex || "(none)",
-    detailCommits
-      ? `commitDetails (paths/excerpts when available):\n${detailCommits}`
-      : null,
+    detailCommits ? `commitDetails (paths/excerpts when available):\n${detailCommits}` : null,
   ]
     .filter((line): line is string => line !== null)
     .join("\n");
@@ -319,23 +290,14 @@ function repoFolderNameFromPath(path: string): string {
 }
 
 /** 超预算时按仓库轮转截取，避免只保留前几个仓 */
-function fairTruncateBlocks(
-  header: string,
-  blocks: readonly string[],
-  budget: number,
-): string {
+function fairTruncateBlocks(header: string, blocks: readonly string[], budget: number): string {
   if (blocks.length === 0) {
     return `${header.slice(0, budget)}\n\n[truncated]`;
   }
   const overhead = header.length + 2;
-  const perBlock = Math.max(
-    1_200,
-    Math.floor((budget - overhead) / blocks.length) - 8,
-  );
+  const perBlock = Math.max(1_200, Math.floor((budget - overhead) / blocks.length) - 8);
   const trimmed = blocks.map((block) =>
-    block.length <= perBlock
-      ? block
-      : `${block.slice(0, perBlock)}\n…[project truncated]`,
+    block.length <= perBlock ? block : `${block.slice(0, perBlock)}\n…[project truncated]`,
   );
   let text = `${header}\n\n${trimmed.join("\n\n")}`;
   if (text.length > budget) {
@@ -375,9 +337,7 @@ function formatCommitEvidence(
         ? ` +${file.additions ?? 0}/-${file.deletions ?? 0}`
         : "";
     const snippet =
-      !pathsOnly && file.snippet
-        ? `\n    code excerpt:\n${indentBlock(file.snippet, "    ")}`
-        : "";
+      !pathsOnly && file.snippet ? `\n    code excerpt:\n${indentBlock(file.snippet, "    ")}` : "";
     return `  · ${file.status} ${file.path}${stats}${snippet}`;
   });
   return [head, ...fileBlocks].join("\n");

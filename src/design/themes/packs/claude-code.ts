@@ -1,7 +1,4 @@
-import {
-  APP_THEME_CLAUDE_CODE,
-  type AppThemePack,
-} from "@/design/themes/types";
+import { APP_THEME_CLAUDE_CODE, type AppThemePack } from "@/design/themes/types";
 
 /**
  * Claude（内部沿用 claude-code id 兼容既有偏好）

@@ -126,33 +126,24 @@ export function CommitFileDiffPane() {
 
   const statusLetter = normalizeGitStatusLetter(selectedCommitFile.status);
   const filePath = selectedCommitFile.path;
-  const parentFullId =
-    selectedCommitFile.parentId === "" ? null : selectedCommitFile.parentId;
+  const parentFullId = selectedCommitFile.parentId === "" ? null : selectedCommitFile.parentId;
   const commitFullId = selectedCommitFile.commitId;
   const isRootCommit = selectedCommitFile.parentId === "";
-  const isImageBinary = Boolean(
-    diff?.binary && isImagePath(selectedCommitFile.path),
-  );
+  const isImageBinary = Boolean(diff?.binary && isImagePath(selectedCommitFile.path));
 
   const oldLabel =
     isRootCommit || !parentFullId ? (
-      <span className="text-foreground truncate font-mono">
-        {t("repo.diffEmptyTree")}
-      </span>
+      <span className="text-foreground truncate font-mono">{t("repo.diffEmptyTree")}</span>
     ) : (
       <div className="flex min-w-0 items-baseline gap-1.5">
-        <span className="text-muted-foreground shrink-0">
-          {t("repo.diffParentLabel")}
-        </span>
+        <span className="text-muted-foreground shrink-0">{t("repo.diffParentLabel")}</span>
         <CopyableDiffRev hash={parentFullId} />
       </div>
     );
 
   const newLabel = (
     <div className="flex min-w-0 items-baseline gap-1.5">
-      <span className="text-muted-foreground shrink-0">
-        {t("repo.diffCommitLabel")}
-      </span>
+      <span className="text-muted-foreground shrink-0">{t("repo.diffCommitLabel")}</span>
       <CopyableDiffRev hash={commitFullId} />
     </div>
   );
@@ -186,11 +177,7 @@ export function CommitFileDiffPane() {
             {statusLetter}
           </span>
         ) : null}
-        <MaterialFileIcon
-          name={filePath}
-          isDir={false}
-          className="size-3.5 shrink-0"
-        />
+        <MaterialFileIcon name={filePath} isDir={false} className="size-3.5 shrink-0" />
         <CopyablePathLabel path={filePath} />
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
@@ -226,14 +213,10 @@ export function CommitFileDiffPane() {
         <MediaFilePreview
           repoPath={repoPath}
           filePath={selectedCommitFile.path}
-          oldSource={
-            selectedCommitFile.parentId === "" ? null : selectedCommitFile.parentId
-          }
+          oldSource={selectedCommitFile.parentId === "" ? null : selectedCommitFile.parentId}
           newSource={selectedCommitFile.commitId}
           oldLabel={
-            selectedCommitFile.parentId === ""
-              ? t("repo.diffEmptyTree")
-              : t("repo.diffParentLabel")
+            selectedCommitFile.parentId === "" ? t("repo.diffEmptyTree") : t("repo.diffParentLabel")
           }
           newLabel={t("repo.diffCommitLabel")}
           statusCode={selectedCommitFile.status}
@@ -274,9 +257,7 @@ export function CommitFileDiffPane() {
                   ref: useRepoStore.getState().logRef,
                 });
               } catch (error: unknown) {
-                toast.error(
-                  toUserMessage(error) || t("repo.diffOpenFileHistoryFailed"),
-                );
+                toast.error(toUserMessage(error) || t("repo.diffOpenFileHistoryFailed"));
               }
             })();
           }}

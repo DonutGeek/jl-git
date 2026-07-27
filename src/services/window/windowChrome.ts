@@ -12,10 +12,7 @@ export function detectAppOs(): AppOs {
 }
 
 /** macOS 普通窗口为交通灯留位；全屏后交通灯隐藏，恢复标准边距。 */
-export function resolveWindowHeaderPaddingClass(
-  os: AppOs,
-  fullscreen: boolean,
-): string {
+export function resolveWindowHeaderPaddingClass(os: AppOs, fullscreen: boolean): string {
   return os === "macos" && !fullscreen ? "pl-[88px]" : "pl-3";
 }
 
@@ -31,9 +28,7 @@ export interface AppWindowChromeOptions {
  * - mac：Overlay + 交通灯
  * - Windows / Linux：系统原生边框与窗口按钮
  */
-export function createAppWindowChromeOptions(
-  os: AppOs = detectAppOs(),
-): AppWindowChromeOptions {
+export function createAppWindowChromeOptions(os: AppOs = detectAppOs()): AppWindowChromeOptions {
   if (os === "windows" || os === "linux") {
     return {
       decorations: true,
