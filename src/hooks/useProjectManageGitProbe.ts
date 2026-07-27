@@ -21,12 +21,32 @@ export interface ProjectManageGitSnapshot {
   error?: string;
 }
 
+/** 同进程多窗共享 Rust/Git：限制并发，避免主窗一起卡死 */
+const PROBE_CONCURRENCY = 2;
+/** 首屏画出后再探测，减少与子窗冷启动叠峰 */
+const PROBE_START_DELAY_MS = 80;
+
 function toLite(snapshot: ProjectManageGitSnapshot): ManageGitProbeLite {
   return {
     dirtyCount: snapshot.dirtyCount,
     ahead: snapshot.ahead,
     behind: snapshot.behind,
     ready: snapshot.status === "ready",
+  };
+}
+
+function loadingSnapshot(): ProjectManageGitSnapshot {
+  return {
+    status: "loading",
+    branch: null,
+    detached: false,
+    dirtyCount: 0,
+    ahead: 0,
+    behind: 0,
+    upstream: null,
+    remoteUrl: null,
+    lastSubject: null,
+    lastAuthoredAt: null,
   };
 }
 
@@ -51,8 +71,31 @@ async function probeProject(path: string): Promise<ProjectManageGitSnapshot> {
   };
 }
 
+/** 有限并发跑异步任务，完成顺序不保证 */
+async function runPool<T>(
+  items: readonly T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>,
+): Promise<void> {
+  if (items.length === 0) {
+    return;
+  }
+  let next = 0;
+  const limit = Math.min(concurrency, items.length);
+  await Promise.all(
+    Array.from({ length: limit }, async () => {
+      while (next < items.length) {
+        const index = next;
+        next += 1;
+        await worker(items[index]!);
+      }
+    }),
+  );
+}
+
 /**
- * 对给定仓库列表并发探测 Git 摘要；`refreshToken` 递增时清空缓存并重探。
+ * 对给定仓库列表探测 Git 摘要；`refreshToken` 递增时清空缓存并重探。
+ * 有限并发 + 合并刷新，避免子窗加载拖死主窗。
  */
 export function useProjectManageGitProbe(
   projects: readonly Project[],
@@ -67,6 +110,7 @@ export function useProjectManageGitProbe(
   const cacheRef = useRef(new Map<string, ProjectManageGitSnapshot>());
   const generationRef = useRef(0);
   const lastRefreshRef = useRef(0);
+  const flushScheduledRef = useRef(false);
 
   const projectKey = useMemo(
     () => projects.map((project) => `${project.id}\u0000${project.path}`).join("\n"),
@@ -83,23 +127,10 @@ export function useProjectManageGitProbe(
     }
 
     const generation = ++generationRef.current;
-    const targets = projectList.filter((project) => {
-      const cached = cacheRef.current.get(project.id);
-      return !cached || cached.status === "error" || cached.status === "loading";
-    });
-
-    // 已有完整缓存时只需同步 state
-    const missing = projectList.filter(
-      (project) => !cacheRef.current.has(project.id),
-    );
-    if (missing.length === 0 && targets.every((p) => cacheRef.current.has(p.id))) {
-      setSnapshots(new Map(cacheRef.current));
-      return;
-    }
-
+    // loading 也要重探：Strict Mode / 依赖变更会取消上一轮，cache 里会残留 loading
     const toFetch = projectList.filter((project) => {
       const cached = cacheRef.current.get(project.id);
-      return !cached || cached.status === "error";
+      return !cached || cached.status === "error" || cached.status === "loading";
     });
 
     if (toFetch.length === 0) {
@@ -110,54 +141,67 @@ export function useProjectManageGitProbe(
     setSnapshots((prev) => {
       const next = new Map(prev);
       for (const project of toFetch) {
-        if (!cacheRef.current.has(project.id)) {
-          next.set(project.id, {
-            status: "loading",
-            branch: null,
-            detached: false,
-            dirtyCount: 0,
-            ahead: 0,
-            behind: 0,
-            upstream: null,
-            remoteUrl: null,
-            lastSubject: null,
-            lastAuthoredAt: null,
-          });
-        }
+        const loading = loadingSnapshot();
+        cacheRef.current.set(project.id, loading);
+        next.set(project.id, loading);
       }
       return next;
     });
 
-    void Promise.all(
-      toFetch.map(async (project) => {
+    function scheduleFlush(): void {
+      if (flushScheduledRef.current) {
+        return;
+      }
+      flushScheduledRef.current = true;
+      window.requestAnimationFrame(() => {
+        flushScheduledRef.current = false;
+        if (generation !== generationRef.current) {
+          return;
+        }
+        setSnapshots(new Map(cacheRef.current));
+      });
+    }
+
+    const startTimer = window.setTimeout(() => {
+      void runPool(toFetch, PROBE_CONCURRENCY, async (project) => {
+        if (generation !== generationRef.current) {
+          return;
+        }
         try {
           const snapshot = await probeProject(project.path);
           if (generation !== generationRef.current) {
             return;
           }
           cacheRef.current.set(project.id, snapshot);
-          setSnapshots(new Map(cacheRef.current));
         } catch (error) {
           if (generation !== generationRef.current) {
             return;
           }
           cacheRef.current.set(project.id, {
+            ...loadingSnapshot(),
             status: "error",
-            branch: null,
-            detached: false,
-            dirtyCount: 0,
-            ahead: 0,
-            behind: 0,
-            upstream: null,
-            remoteUrl: null,
-            lastSubject: null,
-            lastAuthoredAt: null,
             error: toUserMessage(error),
           });
-          setSnapshots(new Map(cacheRef.current));
         }
-      }),
-    );
+        scheduleFlush();
+      }).then(() => {
+        if (generation !== generationRef.current) {
+          return;
+        }
+        setSnapshots(new Map(cacheRef.current));
+      });
+    }, PROBE_START_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(startTimer);
+      // 作废进行中探测；清掉未完成的 loading，避免下轮误判为「已在处理」
+      generationRef.current += 1;
+      for (const [id, snap] of [...cacheRef.current.entries()]) {
+        if (snap.status === "loading") {
+          cacheRef.current.delete(id);
+        }
+      }
+    };
   }, [projectList, refreshToken]);
 
   const lites = useMemo(() => {

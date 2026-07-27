@@ -1,0 +1,25 @@
+# Dependencies and build output
+node_modules
+dist
+coverage
+.pnpm-store
+.secrets
+
+# Rust and Tauri use their own formatters
+src-tauri
+
+# Documentation is maintained as reviewed prose, not bulk-formatted
+docs
+README.md
+AGENTS.md
+CHANGELOG.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+LICENSE
+design-qa.md
+
+# pnpm owns the lockfile
+pnpm-lock.yaml
+
+# shadcn CLI-managed generated code: never rewrite manually or through formatters
+src/components/ui
