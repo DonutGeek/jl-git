@@ -293,9 +293,6 @@ export function CommitBox() {
       if (pushAfterCommit) {
         const needsPublish =
           Boolean(status?.branch) && !status?.detached && !status?.upstream;
-        const toastId = toast.loading(
-          needsPublish ? t("repo.publishStart") : t("repo.pushStart"),
-        );
         try {
           await push(
             needsPublish && status?.branch
@@ -306,23 +303,17 @@ export function CommitBox() {
                 }
               : undefined,
           );
-          // 成功不弹绿条；失败仍提示
-          toast.dismiss(toastId);
         } catch (pushError) {
           toastPushError(pushError, {
-            toastId,
             onUpdate: () => {
               void (async () => {
-                const pullToastId = toast.loading(t("repo.pullStart"));
                 try {
                   const pullResult = await pull();
                   if (pullResult.conflict) {
-                    toast.error(t("repo.pullConflict"), { id: pullToastId });
-                  } else {
-                    toast.dismiss(pullToastId);
+                    toast.error(t("repo.pullConflict"));
                   }
                 } catch (pullError) {
-                  toast.error(toUserMessage(pullError), { id: pullToastId });
+                  toast.error(toUserMessage(pullError));
                 }
               })();
             },
@@ -345,12 +336,10 @@ export function CommitBox() {
       return;
     }
     setBusy(true);
-    const toastId = toast.loading(t("repo.undoCommitStart"));
     try {
       await undoCommit();
-      toast.dismiss(toastId);
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toast.error(toUserMessage(error));
     } finally {
       setBusy(false);
     }

@@ -203,13 +203,10 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     }
 
     setCheckingOut(true);
-    const toastId = toast.loading(t("repo.checkoutStart", { branch: branchName }));
     try {
       await checkout(branchName);
-      // 成功不弹绿条，避免挡工具栏；失败仍提示
-      toast.dismiss(toastId);
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toast.error(toUserMessage(error));
     } finally {
       setCheckingOut(false);
     }
@@ -221,12 +218,10 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     }
 
     setFetching(true);
-    const toastId = toast.loading(t("repo.checkUpdateStart"));
     try {
       await fetchRemote();
-      toast.dismiss(toastId);
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toast.error(toUserMessage(error));
     } finally {
       setFetching(false);
     }
@@ -241,7 +236,6 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     }
 
     setPulling(true);
-    const toastId = toast.loading(t("repo.pullStart"));
     try {
       // 有当前分支时显式 pull origin <branch>，与 ugit 一致；分离头则走 upstream
       const branch = status?.detached ? undefined : (status?.branch ?? undefined);
@@ -250,12 +244,10 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
         branch,
       });
       if (result.conflict) {
-        toast.error(t("repo.pullConflict"), { id: toastId });
-      } else {
-        toast.dismiss(toastId);
+        toast.error(t("repo.pullConflict"));
       }
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toast.error(toUserMessage(error));
     } finally {
       setPulling(false);
     }
@@ -267,13 +259,10 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     }
 
     setPushing(true);
-    const toastId = toast.loading(t("repo.pushStart"));
     try {
       await pushRemote();
-      toast.dismiss(toastId);
     } catch (error) {
       toastPushError(error, {
-        toastId,
         onUpdate: () => void handlePull(),
       });
       // 静默 fetch，刷新 behind 角标，便于用户直接点「更新」
@@ -291,17 +280,14 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     }
 
     setPushing(true);
-    const toastId = toast.loading(t("repo.publishStart"));
     try {
       await pushRemote({
         remote: "origin",
         branch: status.branch,
         setUpstream: true,
       });
-      toast.dismiss(toastId);
     } catch (error) {
       toastPushError(error, {
-        toastId,
         onUpdate: () => void handlePull(),
       });
       if (isPushRejectedError(error)) {
@@ -321,12 +307,10 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
       return;
     }
     void (async () => {
-      const toastId = toast.loading(t("repo.undoCommitStart"));
       try {
         await undoCommit();
-        toast.dismiss(toastId);
       } catch (error) {
-        toast.error(toUserMessage(error), { id: toastId });
+        toast.error(toUserMessage(error));
       }
     })();
   }
