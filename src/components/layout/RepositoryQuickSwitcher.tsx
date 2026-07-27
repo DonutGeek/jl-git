@@ -160,30 +160,37 @@ export function RepositoryQuickSwitcher({
                     <CommandItem
                       key={project.id}
                       value={projectQuickSwitcherValue(project, workspaceName)}
-                      className="min-w-0 overflow-hidden"
+                      className="min-w-0 items-start justify-start overflow-hidden py-2"
                       aria-current={
                         project.id === currentProjectId ? "page" : undefined
                       }
                       onSelect={() => handleProject(project.id)}
                     >
-                      <ProjectIcon name={project.icon} className="shrink-0" />
-                      <span className="min-w-0 max-w-[40%] shrink truncate font-medium">
-                        {project.name}
-                      </span>
-                      {workspaceName ? (
-                        <Badge
-                          variant="secondary"
-                          className="h-4 max-w-28 shrink-0 px-1.5 text-[10px]"
-                          title={workspaceName}
+                      <ProjectIcon
+                        name={project.icon}
+                        className="mt-0.5 shrink-0 self-start"
+                      />
+                      <span className="flex min-w-0 flex-1 flex-col items-stretch gap-0.5 overflow-hidden text-left">
+                        <span className="flex min-w-0 items-center justify-start gap-1.5">
+                          <span className="min-w-0 truncate text-left font-medium">
+                            {project.name}
+                          </span>
+                          {workspaceName ? (
+                            <Badge
+                              variant="secondary"
+                              className="h-4 max-w-28 shrink-0 px-1.5 text-[10px]"
+                              title={workspaceName}
+                            >
+                              <span className="truncate">{workspaceName}</span>
+                            </Badge>
+                          ) : null}
+                        </span>
+                        <span
+                          className="text-muted-foreground block w-full truncate text-left text-xs"
+                          title={project.path}
                         >
-                          <span className="truncate">{workspaceName}</span>
-                        </Badge>
-                      ) : null}
-                      <span
-                        className="text-muted-foreground min-w-0 flex-1 truncate text-xs"
-                        title={project.path}
-                      >
-                        {project.path}
+                          {project.path}
+                        </span>
                       </span>
                     </CommandItem>
                   );
