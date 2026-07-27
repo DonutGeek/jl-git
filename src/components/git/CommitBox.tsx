@@ -133,14 +133,17 @@ export function CommitBox() {
   );
   const stagedCount =
     status?.entries.filter((entry) => isStagedEntry(entry, demotedSet)).length ?? 0;
+  // working：提交/撤销等仓库操作；生成文案用 isGenerating，不禁用「推送到远程」
   const working = loading || busy;
-  const canGenerateCommitMessage = hasApiKey && stagedCount > 0 && !working;
+  const canGenerateCommitMessage =
+    hasApiKey && stagedCount > 0 && !working && !isGenerating;
   const hasIdentity = hasConfiguredGitIdentity(identity);
   const isDetached = Boolean(status?.detached);
   // 待提交为空不可提交；合并进行中且冲突已清时可提交以结束合并；无 Git 身份不可提交
   // 分离 HEAD（如检出标签）禁止普通提交，避免提交悬空难找回
   const canCommit =
     !working &&
+    !isGenerating &&
     hasIdentity &&
     !isDetached &&
     conflictCount === 0 &&
@@ -373,7 +376,6 @@ export function CommitBox() {
       return;
     }
 
-    setBusy(true);
     setIsGenerating(true);
     // 先让出一帧，避免点击时同步卡死 UI；大 diff 已在 Rust 侧流式截断
     await new Promise<void>((resolve) => {
@@ -388,7 +390,6 @@ export function CommitBox() {
       toastAiFailure(error, t("ai.errors.requestFailed"));
     } finally {
       setIsGenerating(false);
-      setBusy(false);
     }
   }
 
@@ -542,7 +543,7 @@ export function CommitBox() {
           aria-label={t("repo.commitMessage")}
           placeholder=""
           className="h-full min-h-0 resize-none px-2.5 py-1.5 text-xs md:text-xs"
-          disabled={working}
+          disabled={working || isGenerating}
         />
         {commitMessage.trim().length === 0 ? (
           <span

@@ -183,32 +183,18 @@ export function CreateBranchDialog({
 
       if (!shouldPublish) {
         onOpenChange(false);
-        toast.success(
-          shouldCheckout
-            ? t("repo.createBranchSuccess", { name: branchName })
-            : t("repo.createBranchSuccessNoCheckout", { name: branchName }),
-        );
         return;
       }
 
       try {
-        const result = await pushRemote({
+        await pushRemote({
           remote: "origin",
           branch: branchName,
           setUpstream: true,
         });
-        const seconds = (result.elapsedMs / 1000).toFixed(3);
         onOpenChange(false);
-        toast.success(
-          t("repo.createBranchPublishSuccess", {
-            name: branchName,
-            remote: result.remote,
-            seconds,
-          }),
-        );
       } catch (publishError) {
         onOpenChange(false);
-        toast.success(t("repo.createBranchSuccess", { name: branchName }));
         toast.error(
           t("repo.createBranchPublishFailed", {
             name: branchName,

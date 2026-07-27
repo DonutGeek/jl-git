@@ -30,9 +30,11 @@ function AppContent() {
       <App />
       <Toaster
         containerAriaLabel={t("common.notifications")}
-        position="top-right"
+        position="bottom-right"
         richColors
         theme={theme}
+        // 成功提示尽量短；错误仍用默认时长便于阅读
+        duration={2500}
       />
     </>
   );

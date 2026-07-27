@@ -206,7 +206,8 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     const toastId = toast.loading(t("repo.checkoutStart", { branch: branchName }));
     try {
       await checkout(branchName);
-      toast.success(t("repo.checkoutSuccess", { branch: branchName }), { id: toastId });
+      // 成功不弹绿条，避免挡工具栏；失败仍提示
+      toast.dismiss(toastId);
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     } finally {
@@ -222,11 +223,8 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     setFetching(true);
     const toastId = toast.loading(t("repo.checkUpdateStart"));
     try {
-      const result = await fetchRemote();
-      const seconds = (result.elapsedMs / 1000).toFixed(3);
-      toast.success(t("repo.checkUpdateSuccess", { remote: result.remote, seconds }), {
-        id: toastId,
-      });
+      await fetchRemote();
+      toast.dismiss(toastId);
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     } finally {
@@ -251,13 +249,10 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
         remote: "origin",
         branch,
       });
-      const seconds = (result.elapsedMs / 1000).toFixed(3);
       if (result.conflict) {
         toast.error(t("repo.pullConflict"), { id: toastId });
       } else {
-        toast.success(t("repo.pullSuccess", { remote: result.remote, seconds }), {
-          id: toastId,
-        });
+        toast.dismiss(toastId);
       }
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
@@ -274,11 +269,8 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     setPushing(true);
     const toastId = toast.loading(t("repo.pushStart"));
     try {
-      const result = await pushRemote();
-      const seconds = (result.elapsedMs / 1000).toFixed(3);
-      toast.success(t("repo.pushSuccess", { remote: result.remote, seconds }), {
-        id: toastId,
-      });
+      await pushRemote();
+      toast.dismiss(toastId);
     } catch (error) {
       toastPushError(error, {
         toastId,
@@ -301,15 +293,12 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     setPushing(true);
     const toastId = toast.loading(t("repo.publishStart"));
     try {
-      const result = await pushRemote({
+      await pushRemote({
         remote: "origin",
         branch: status.branch,
         setUpstream: true,
       });
-      const seconds = (result.elapsedMs / 1000).toFixed(3);
-      toast.success(t("repo.publishSuccess", { remote: result.remote, seconds }), {
-        id: toastId,
-      });
+      toast.dismiss(toastId);
     } catch (error) {
       toastPushError(error, {
         toastId,
@@ -334,9 +323,8 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     void (async () => {
       const toastId = toast.loading(t("repo.undoCommitStart"));
       try {
-        const result = await undoCommit();
-        const seconds = (result.elapsedMs / 1000).toFixed(3);
-        toast.success(t("repo.undoCommitSuccess", { seconds }), { id: toastId });
+        await undoCommit();
+        toast.dismiss(toastId);
       } catch (error) {
         toast.error(toUserMessage(error), { id: toastId });
       }
