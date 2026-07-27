@@ -37,6 +37,7 @@ sqlx = { version = "0.8.6", features = ["sqlite", "runtime-tokio"] }
 font-kit = "0.14.3"
 encoding_rs = "0.8"
 base64 = "0.22"
+pdf-extract = "0.12"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tauri-plugin-process = "2.3.1"
 

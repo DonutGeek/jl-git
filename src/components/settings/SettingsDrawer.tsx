@@ -286,6 +286,7 @@ export function SettingsDrawer() {
   const launchAtLogin = useAppPrefsStore((state) => state.launchAtLogin);
   const startupTabsMode = useAppPrefsStore((state) => state.startupTabsMode);
   const pushAfterCommit = useAppPrefsStore((state) => state.pushAfterCommit);
+  const branchPrefix = useAppPrefsStore((state) => state.branchPrefix);
   const setClientFont = useAppPrefsStore((state) => state.setClientFont);
   const setEditorFont = useAppPrefsStore((state) => state.setEditorFont);
   const setAppThemeId = useAppPrefsStore((state) => state.setAppThemeId);
@@ -305,7 +306,9 @@ export function SettingsDrawer() {
   const setLaunchAtLogin = useAppPrefsStore((state) => state.setLaunchAtLogin);
   const setStartupTabsMode = useAppPrefsStore((state) => state.setStartupTabsMode);
   const setPushAfterCommit = useAppPrefsStore((state) => state.setPushAfterCommit);
+  const setBranchPrefix = useAppPrefsStore((state) => state.setBranchPrefix);
 
+  const [branchPrefixDraft, setBranchPrefixDraft] = useState(branchPrefix);
   const [gitAccounts, setGitAccounts] = useState<GitIdentityAccount[]>([]);
   const [gitAccountsLoading, setGitAccountsLoading] = useState(false);
   const [gitAccountActionId, setGitAccountActionId] = useState<string | null>(null);
@@ -354,6 +357,10 @@ export function SettingsDrawer() {
       media.removeEventListener("change", syncSystemTheme);
     };
   }, []);
+
+  useEffect(() => {
+    setBranchPrefixDraft(branchPrefix);
+  }, [branchPrefix]);
 
   // 外部 openDrawer("git") 时落到对应分区
   useEffect(() => {
@@ -1297,6 +1304,29 @@ export function SettingsDrawer() {
                   checked={pushAfterCommit}
                   onCheckedChange={setPushAfterCommit}
                   aria-label={t("settings.pushAfterCommit")}
+                />
+              </SettingsPreferenceRow>
+              <SettingsPreferenceRow
+                control="below"
+                label={t("settings.branchPrefix")}
+                description={t("settings.branchPrefixHint")}
+              >
+                <Input
+                  className={cn(settingsFieldClassName, "w-full font-mono")}
+                  value={branchPrefixDraft}
+                  onChange={(event) => setBranchPrefixDraft(event.target.value)}
+                  onBlur={() => {
+                    if (!setBranchPrefix(branchPrefixDraft)) {
+                      toast.error(t("settings.branchPrefixInvalid"));
+                      setBranchPrefixDraft(branchPrefix);
+                      return;
+                    }
+                    setBranchPrefixDraft(
+                      useAppPrefsStore.getState().branchPrefix,
+                    );
+                  }}
+                  placeholder={t("settings.branchPrefixPlaceholder")}
+                  aria-label={t("settings.branchPrefix")}
                 />
               </SettingsPreferenceRow>
             </SettingsPreferenceGroup>

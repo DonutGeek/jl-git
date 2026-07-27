@@ -389,6 +389,10 @@
   "pushAfterCommit": "Push to remote after commit",
   "pushAfterCommitHint": "New commits select “Push to remote” by default",
   "pushAfterCommitTipAria": "Push after commit help",
+  "branchPrefix": "Branch prefix",
+  "branchPrefixHint": "Prefills Create Branch; AI-generated names also use this prefix (e.g. jlgit/)",
+  "branchPrefixPlaceholder": "jlgit/",
+  "branchPrefixInvalid": "Branch prefix cannot contain spaces or backslashes",
   "alsoInStatusBar": "Theme and language can also be toggled from the status bar",
   "comingSoon": "Coming soon"
 }

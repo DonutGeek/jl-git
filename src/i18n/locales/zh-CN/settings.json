@@ -389,6 +389,10 @@
   "pushAfterCommit": "提交后推送到远程",
   "pushAfterCommitHint": "新提交默认勾选“推送到远程”",
   "pushAfterCommitTipAria": "提交后推送说明",
+  "branchPrefix": "分支前缀",
+  "branchPrefixHint": "创建分支时预填；AI 生成分支名也会使用此前缀（如 jlgit/）",
+  "branchPrefixPlaceholder": "jlgit/",
+  "branchPrefixInvalid": "分支前缀不能包含空格或反斜杠",
   "alsoInStatusBar": "主题与语言也可在底部状态栏快速切换",
   "comingSoon": "即将支持"
 }

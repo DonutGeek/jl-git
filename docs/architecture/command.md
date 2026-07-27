@@ -561,6 +561,16 @@ interface GitBranch {
 `system_write_text_file` 的 `path` 须为绝对路径（通常来自另存为对话框）。均用参数数组调用系统命令，不拼 shell。  
 `preference`：编辑器为 `auto` / `cursor` / `vscode` / `custom`；终端按平台为 `auto` 与具体终端 id（如 `wt`、`terminal`、`gnome-terminal`）或 `custom`。`customPath` 仅在 `custom` 时使用。
 
+### `document_extract_pdf_text`
+
+| | |
+|--|--|
+| **目的** | 从 PDF 字节抽取可选中文本（无 OCR；供创建分支 AI 附件） |
+| **输入** | `{ input: { path: string } }`（系统临时目录下 `jlgit-pdf-*.pdf` 绝对路径，≤20MB） |
+| **输出** | `{ text: string }` |
+| **错误** | 路径非法 / 非 PDF / 超限 → `VALIDATION`；缺失 → `NOT_FOUND`；解析失败 → `INTERNAL` |
+| **说明** | 在 `spawn_blocking` 中解析，避免阻塞 UI 线程；临时文件由前端写入并删除 |
+
 ### `git_identity_global`
 
 | 命令 | 输入 | 输出 |

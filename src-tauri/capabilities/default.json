@@ -23,6 +23,20 @@
     "store:default",
     "dialog:default",
     "fs:default",
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [
+        { "path": "$TEMP/**" },
+        { "path": "$TMPDIR/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [
+        { "path": "$TEMP/**" },
+        { "path": "$TMPDIR/**" }
+      ]
+    },
     "notification:default",
     "updater:default",
     "process:default",

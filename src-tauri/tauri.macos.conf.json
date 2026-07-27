@@ -11,6 +11,7 @@
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "acceptFirstMouse": true,
+        "dragDropEnabled": false,
         "trafficLightPosition": {
           "x": 16,
           "y": 26

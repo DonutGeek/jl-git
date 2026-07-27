@@ -21,6 +21,11 @@ import {
   normalizeActivityBarOrder,
   type ActivityBarItemId,
 } from "@/utils/activityBarOrder";
+import {
+  DEFAULT_BRANCH_PREFIX,
+  isBranchPrefixInputValid,
+  normalizeBranchPrefix,
+} from "@/utils/branchPrefix";
 
 /** 客户端字体：`system` 表示系统默认无衬线栈，其它为字体族名 */
 export const CLIENT_FONT_SYSTEM = "system";
@@ -67,6 +72,8 @@ interface AppPrefsState {
   launchAtLogin: boolean;
   startupTabsMode: StartupTabsMode;
   pushAfterCommit: boolean;
+  /** 创建分支预填 / AI 生成使用的分支名前缀 */
+  branchPrefix: string;
   /** 仓库页左侧活动栏入口顺序 */
   activityBarOrder: ActivityBarItemId[];
   setClientFont: (font: string) => void;
@@ -84,6 +91,8 @@ interface AppPrefsState {
   setLaunchAtLogin: (value: boolean) => void;
   setStartupTabsMode: (mode: StartupTabsMode) => void;
   setPushAfterCommit: (value: boolean) => void;
+  /** 非法前缀时返回 false，不写入 */
+  setBranchPrefix: (value: string) => boolean;
   setActivityBarOrder: (order: readonly ActivityBarItemId[]) => void;
 }
 
@@ -184,6 +193,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
       launchAtLogin: false,
       startupTabsMode: "restore",
       pushAfterCommit: false,
+      branchPrefix: DEFAULT_BRANCH_PREFIX,
       activityBarOrder: [...DEFAULT_ACTIVITY_BAR_ORDER],
 
       setClientFont(font) {
@@ -249,6 +259,18 @@ export const useAppPrefsStore = create<AppPrefsState>()(
         set({ pushAfterCommit: value });
         notifyGlobalPreferenceChange("app-prefs");
       },
+      setBranchPrefix(value) {
+        if (!isBranchPrefixInputValid(value)) {
+          return false;
+        }
+        const next = normalizeBranchPrefix(value);
+        if (next === get().branchPrefix) {
+          return true;
+        }
+        set({ branchPrefix: next });
+        notifyGlobalPreferenceChange("app-prefs");
+        return true;
+      },
       setActivityBarOrder(order) {
         const next = normalizeActivityBarOrder(order);
         if (
@@ -263,7 +285,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
     }),
     {
       name: APP_PREFS_STORAGE_KEY,
-      version: 12,
+      version: 13,
       migrate: (persisted, version) => {
         const state = persisted as Partial<AppPrefsState> & {
           editorChromeLight?: AppThemeChrome;
@@ -359,6 +381,13 @@ export const useAppPrefsStore = create<AppPrefsState>()(
             // ChatGPT 拆为独立主题后，恢复既有 Codex 用户的 Codex 配色。
             Object.assign(state, applyThemePack(id));
           }
+        }
+        if (version < 13) {
+          const raw = state.branchPrefix;
+          state.branchPrefix =
+            typeof raw === "string" && isBranchPrefixInputValid(raw)
+              ? normalizeBranchPrefix(raw)
+              : DEFAULT_BRANCH_PREFIX;
         }
         return state as AppPrefsState;
       },

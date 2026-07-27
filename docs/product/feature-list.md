@@ -156,7 +156,7 @@
 | 鲸灵内容安全 | Done | 本地高置信度恶意请求门禁 + 全模式公共安全 Prompt；仓库内容按不可信数据处理；保留防御性安全与授权测试 |
 | AI Diff Explain | Planned | |
 | AI Review | Planned | |
-| AI Branch Naming | Planned | |
+| AI Branch Naming | Done | 创建分支名称框 AI 按钮；详情 + 最多 3 个附件（md/txt/docx/pdf 文本抽取，单文件 ≤20MB，无 OCR）生成短 slug；设置 → Git 配置分支前缀（默认 `jlgit/`）；复用提交信息模型与 API Key |
 | AI Release Notes | Planned | |
 | AI 历史 | Planned | SQLite |
 

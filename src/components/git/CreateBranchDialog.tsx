@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { GitBranch as GitBranchIcon, Tag } from "lucide-react";
+import { GitBranch as GitBranchIcon, Sparkles, Tag } from "lucide-react";
 import { toast } from "sonner";
 
+import { GenerateBranchNameDialog } from "@/components/git/GenerateBranchNameDialog";
 import { GitRefPicker } from "@/components/git/GitRefPicker";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,15 +17,24 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import { cn } from "@/lib/utils";
 
+import { useAppPrefsStore } from "@/store/useAppPrefsStore";
 import { useRepoStore } from "@/store/useRepoStore";
 
+import { listRemotes } from "@/services/git";
 import { toUserMessage } from "@/types/error";
 import {
   filterAndSortBranches,
   readBranchListPrefs,
 } from "@/utils/branchListPrefs";
+import { normalizeBranchPrefix } from "@/utils/branchPrefix";
 
 interface CreateBranchDialogProps {
   open: boolean;
@@ -35,7 +45,7 @@ interface CreateBranchDialogProps {
   fixedStartIsTag?: boolean;
 }
 
-/** 创建分支弹窗：名称 + 选择基线分支（不含关联需求 / 新工作区） */
+/** 创建分支弹窗：名称 + 基线 + 可选检出/发布 */
 export function CreateBranchDialog({
   open,
   onOpenChange,
@@ -43,17 +53,23 @@ export function CreateBranchDialog({
   fixedStartIsTag = false,
 }: CreateBranchDialogProps) {
   const { t } = useTranslation();
+  const repoPath = useRepoStore((state) => state.repoPath);
   const branches = useRepoStore((state) => state.branches);
   const createBranch = useRepoStore((state) => state.createBranch);
+  const pushRemote = useRepoStore((state) => state.push);
   const loading = useRepoStore((state) => state.loading);
+  const branchPrefix = useAppPrefsStore((state) => state.branchPrefix);
+  const hasApiKey = useHasAgentApiKey();
 
   const [name, setName] = useState("");
   const [startPoint, setStartPoint] = useState("");
   const [checkoutAfterCreate, setCheckoutAfterCreate] = useState(true);
+  const [publishAfterCreate, setPublishAfterCreate] = useState(false);
+  const [hasRemote, setHasRemote] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const lockedStart = Boolean(fixedStartPoint?.trim());
 
-  // 与侧栏分支列表共用排序偏好
   const startOptions = useMemo(() => {
     const sortedBranches = filterAndSortBranches(
       branches,
@@ -76,25 +92,45 @@ export function CreateBranchDialog({
     ];
   }, [branches]);
 
-  // 仅在打开瞬间重置表单，避免输入时被 branches 引用变化冲掉
   useEffect(() => {
     if (!open) {
       return;
     }
 
-    setName("");
+    setName(normalizeBranchPrefix(branchPrefix));
     setSubmitting(false);
+    setAiDialogOpen(false);
+    setPublishAfterCreate(false);
+    setHasRemote(false);
     const locked = fixedStartPoint?.trim() ?? "";
     if (locked) {
       setStartPoint(locked);
       // 从标签创建时默认不自动检出，与常见客户端一致
       setCheckoutAfterCreate(false);
     } else {
-      // 无默认起点；须用户主动选择
       setStartPoint("");
       setCheckoutAfterCreate(true);
     }
-  }, [open, fixedStartPoint]);
+
+    if (!repoPath) {
+      return;
+    }
+    let cancelled = false;
+    void listRemotes(repoPath)
+      .then((remotes) => {
+        if (!cancelled) {
+          setHasRemote(remotes.length > 0);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHasRemote(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, fixedStartPoint, branchPrefix, repoPath]);
 
   const canSubmit =
     !submitting &&
@@ -103,11 +139,28 @@ export function CreateBranchDialog({
     startPoint.trim().length > 0;
 
   function handleOpenChange(next: boolean): void {
-    // 执行中禁止关闭，避免重复提交
     if (!next && submitting) {
       return;
     }
     onOpenChange(next);
+  }
+
+  function handleCheckoutChange(checked: boolean): void {
+    setCheckoutAfterCreate(checked);
+    if (!checked) {
+      setPublishAfterCreate(false);
+    }
+  }
+
+  function handlePublishChange(checked: boolean): void {
+    if (!hasRemote) {
+      return;
+    }
+    setPublishAfterCreate(checked);
+    if (checked) {
+      // 发布需要先检出才能设置 upstream
+      setCheckoutAfterCreate(true);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -118,19 +171,51 @@ export function CreateBranchDialog({
 
     const branchName = name.trim();
     const start = startPoint.trim();
+    const shouldPublish = publishAfterCreate && hasRemote;
+    const shouldCheckout = checkoutAfterCreate || shouldPublish;
 
     setSubmitting(true);
     try {
       await createBranch(branchName, {
         startPoint: start,
-        checkout: checkoutAfterCreate,
+        checkout: shouldCheckout,
       });
-      onOpenChange(false);
-      toast.success(
-        checkoutAfterCreate
-          ? t("repo.createBranchSuccess", { name: branchName })
-          : t("repo.createBranchSuccessNoCheckout", { name: branchName }),
-      );
+
+      if (!shouldPublish) {
+        onOpenChange(false);
+        toast.success(
+          shouldCheckout
+            ? t("repo.createBranchSuccess", { name: branchName })
+            : t("repo.createBranchSuccessNoCheckout", { name: branchName }),
+        );
+        return;
+      }
+
+      try {
+        const result = await pushRemote({
+          remote: "origin",
+          branch: branchName,
+          setUpstream: true,
+        });
+        const seconds = (result.elapsedMs / 1000).toFixed(3);
+        onOpenChange(false);
+        toast.success(
+          t("repo.createBranchPublishSuccess", {
+            name: branchName,
+            remote: result.remote,
+            seconds,
+          }),
+        );
+      } catch (publishError) {
+        onOpenChange(false);
+        toast.success(t("repo.createBranchSuccess", { name: branchName }));
+        toast.error(
+          t("repo.createBranchPublishFailed", {
+            name: branchName,
+            message: toUserMessage(publishError),
+          }),
+        );
+      }
     } catch (submitError) {
       toast.error(toUserMessage(submitError));
     } finally {
@@ -139,94 +224,150 @@ export function CreateBranchDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className={cn("flex max-w-md flex-col gap-4 overflow-hidden p-5 sm:rounded-lg")}
-      >
-        <DialogHeader>
-          <DialogTitle>{t("repo.createBranchTitle")}</DialogTitle>
-        </DialogHeader>
-
-        <form
-          className="flex min-h-0 flex-1 flex-col gap-4"
-          onSubmit={(event) => void handleSubmit(event)}
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent
+          className={cn("flex max-w-md flex-col gap-4 overflow-hidden p-5 sm:rounded-lg")}
         >
-          <FieldGroup className="gap-4">
-            {lockedStart ? (
+          <DialogHeader>
+            <DialogTitle>{t("repo.createBranchTitle")}</DialogTitle>
+          </DialogHeader>
+
+          <form
+            className="flex min-h-0 flex-1 flex-col gap-4"
+            onSubmit={(event) => void handleSubmit(event)}
+          >
+            <FieldGroup className="gap-4">
+              {lockedStart ? (
+                <Field>
+                  <FieldLabel>{t("repo.createBranchBasedOn")}</FieldLabel>
+                  <div className="border-border bg-muted/30 flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                    {fixedStartIsTag ? (
+                      <Tag className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+                    ) : (
+                      <GitBranchIcon
+                        className="text-muted-foreground size-3.5 shrink-0"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className="min-w-0 truncate font-mono">{startPoint}</span>
+                  </div>
+                </Field>
+              ) : (
+                <Field>
+                  <FieldLabel htmlFor="create-branch-base">
+                    {t("repo.createBranchBasedOn")}
+                  </FieldLabel>
+                  <GitRefPicker
+                    id="create-branch-base"
+                    value={startPoint}
+                    options={startOptions}
+                    disabled={submitting}
+                    onValueChange={setStartPoint}
+                  />
+                </Field>
+              )}
+
               <Field>
-                <FieldLabel>{t("repo.createBranchBasedOn")}</FieldLabel>
-                <div className="border-border bg-muted/30 flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                  {fixedStartIsTag ? (
-                    <Tag className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
-                  ) : (
-                    <GitBranchIcon
-                      className="text-muted-foreground size-3.5 shrink-0"
-                      aria-hidden="true"
-                    />
-                  )}
-                  <span className="min-w-0 truncate font-mono">{startPoint}</span>
+                <FieldLabel htmlFor="branch-name">{t("repo.branchName")}</FieldLabel>
+                <div className="relative">
+                  <Input
+                    id="branch-name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder={t("repo.branchNamePlaceholder")}
+                    autoFocus
+                    disabled={submitting}
+                    className="pr-9 font-mono"
+                  />
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <span className="absolute top-1/2 right-1 -translate-y-1/2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
+                          disabled={submitting || !hasApiKey}
+                          aria-label={
+                            !hasApiKey
+                              ? t("common.aiApiKeyRequired")
+                              : t("repo.aiGenerateBranch")
+                          }
+                          onClick={() => setAiDialogOpen(true)}
+                        >
+                          <Sparkles className="size-3.5" aria-hidden="true" />
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {!hasApiKey
+                        ? t("common.aiApiKeyRequired")
+                        : t("repo.aiGenerateBranch")}
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               </Field>
-            ) : (
-              <Field>
-                <FieldLabel htmlFor="create-branch-base">
-                  {t("repo.createBranchBasedOn")}
-                </FieldLabel>
-                <GitRefPicker
-                  id="create-branch-base"
-                  value={startPoint}
-                  options={startOptions}
-                  disabled={submitting}
-                  onValueChange={setStartPoint}
-                />
-              </Field>
-            )}
 
-            <Field>
-              <FieldLabel htmlFor="branch-name">{t("repo.branchName")}</FieldLabel>
-              <Input
-                id="branch-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder={t("repo.branchNamePlaceholder")}
-                autoFocus
-                disabled={submitting}
-              />
-            </Field>
-
-            {lockedStart ? (
               <Field orientation="horizontal">
                 <Checkbox
                   id="create-branch-checkout"
                   checked={checkoutAfterCreate}
                   onCheckedChange={(checked) =>
-                    setCheckoutAfterCreate(checked === true)
+                    handleCheckoutChange(checked === true)
                   }
-                  disabled={submitting}
+                  disabled={submitting || publishAfterCreate}
                 />
                 <FieldLabel htmlFor="create-branch-checkout">
                   {t("repo.createBranchCheckoutAfter")}
                 </FieldLabel>
               </Field>
-            ) : null}
-          </FieldGroup>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={submitting}
-              onClick={() => handleOpenChange(false)}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" disabled={!canSubmit}>
-              {submitting ? <Spinner className="size-3.5" /> : null}
-              {t("repo.createBranchAction")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="create-branch-publish"
+                  checked={publishAfterCreate}
+                  onCheckedChange={(checked) =>
+                    handlePublishChange(checked === true)
+                  }
+                  disabled={submitting || !hasRemote}
+                />
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <FieldLabel htmlFor="create-branch-publish">
+                    {t("repo.createBranchPublishAfter")}
+                  </FieldLabel>
+                  <p className="text-muted-foreground text-xs">
+                    {hasRemote
+                      ? t("repo.createBranchPublishAfterHint")
+                      : t("repo.createBranchPublishNoRemote")}
+                  </p>
+                </div>
+              </Field>
+            </FieldGroup>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={submitting}
+                onClick={() => handleOpenChange(false)}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" disabled={!canSubmit}>
+                {submitting ? <Spinner className="size-3.5" /> : null}
+                {t("repo.createBranchAction")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <GenerateBranchNameDialog
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        onGenerated={setName}
+      />
+    </>
   );
 }

@@ -1,5 +1,6 @@
 pub mod app_data;
 pub mod chat;
+pub mod document;
 pub mod git_ops;
 pub mod project;
 pub mod ssh_keys;

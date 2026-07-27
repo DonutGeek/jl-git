@@ -24,7 +24,7 @@ AI 是 **辅助层**，不是 Git 的替代执行器。所有副作用（commit�
 | **AI Commit Message** | 暂存区 diff 摘要 + 可选风格 | 标题/正文候选 | 编辑后 `git_commit` |
 | **AI Diff Explain** | 单文件或提交 patch | 结构化说明 | 只读 |
 | **AI Review** | 变更集 | 风险点/建议列表 | 只读；可一键复制评论 |
-| **AI Branch Naming** | 变更摘要 / issue 标题 | 分支名候选 | 确认后 `git_branch_create` |
+| **AI Branch Naming** | 用户详情 + 可选附件（md/txt/docx/pdf 文本抽取，最多 3、单文件 ≤20MB、无 OCR）+ 分支前缀 | `prefix` + kebab-case slug | 回填创建分支名称框，确认后 `git_branch_create` |
 | **AI Release Notes** | 提交区间 log | 分类说明草稿 | 复制到 Release |
 
 ---
@@ -104,6 +104,7 @@ flowchart LR
 ## UX 要点
 
 - Commit 区：「生成提交信息」按钮；仅有待提交文件时可用，生成中禁用
+- 创建分支：名称输入框右侧 Sparkles；弹窗填写详情，并可另附最多 3 个 PRD/文档（md/txt/docx/pdf，仅文本层）；生成后回填；打开时预填设置 → Git 的分支前缀（默认 `jlgit/`）；无 API Key 时按钮禁用
 - 鲸灵对话：发送后展示深度思考（`AgentReasoningBlock`）与正文流式输出；增量按动画帧写入消息列表；请求失败或超时保留已收到的内容并提示用户；生成过程中不禁用输入框（可继续打草稿，需停止当前生成后再发送）
 - 建议结果默认包含 Conventional Commit 标题及基于 diff 的简短要点；用户可编辑后再提交
 - Review 结果用列表 + 严重级别，避免墙式散文

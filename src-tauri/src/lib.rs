@@ -149,6 +149,7 @@ pub fn run() {
             commands::system::system_open_in_editor,
             commands::system::system_open_with_default_app,
             commands::system::system_write_text_file,
+            commands::document::document_extract_pdf_text,
             commands::ssh_keys::ssh_key_generate,
             commands::ssh_keys::ssh_key_change_passphrase,
             commands::ssh_keys::ssh_key_delete,

@@ -12,6 +12,11 @@ export {
   setAiInstructions,
 } from "./ai.settings";
 export type { AiApiKey, AiInstructions } from "./ai.settings";
+export { generateBranchName, normalizeBranchName } from "./ai.branch";
+export type {
+  BranchNameAttachmentInput,
+  GenerateBranchNameOptions,
+} from "./ai.branch";
 export { generateCommitMessage } from "./ai.commit";
 export { generateProjectDescription } from "./ai.projectDescription";
 export {

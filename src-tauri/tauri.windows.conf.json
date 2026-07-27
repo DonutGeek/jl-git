@@ -9,7 +9,8 @@
         "minWidth": 900,
         "minHeight": 600,
         "decorations": true,
-        "acceptFirstMouse": true
+        "acceptFirstMouse": true,
+        "dragDropEnabled": false
       }
     ]
   }
