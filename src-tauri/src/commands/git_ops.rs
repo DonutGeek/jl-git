@@ -544,6 +544,17 @@ pub fn git_staged_diff(
     diff::get_staged_diff(&repo_path, max_bytes)
 }
 
+/// 读取有限长度的提交 patch，供 AI 改写提交文案（如修改 HEAD 说明）。
+#[tauri::command]
+pub fn git_commit_patch_diff(
+    path: String,
+    rev: String,
+    max_bytes: Option<usize>,
+) -> Result<GitStagedDiffResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    diff::get_commit_patch_diff(&repo_path, &rev, max_bytes)
+}
+
 /// 历史提交内单文件相对 parent 的前后对比（Monaco 两侧文本）
 ///
 /// `parent_rev` 传空字符串或缺省表示根提交（无父，相对空树）

@@ -114,6 +114,7 @@ pub fn run() {
             commands::git_ops::git_branch_compare,
             commands::git_ops::git_branch_file_diff,
             commands::git_ops::git_staged_diff,
+            commands::git_ops::git_commit_patch_diff,
             commands::git_ops::git_commit_file_diff,
             commands::git_ops::git_stage,
             commands::git_ops::git_unstage,

@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
-import { Copy, FileDown, Hash, PencilLine } from "lucide-react";
+import { Copy, FileDown, Hash, PencilLine, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -29,11 +29,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
+import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
+import { generateCommitMessage, toastAiFailure } from "@/services/ai";
 import { gitService } from "@/services/git";
 import { exportTextFile } from "@/services/system/system.write";
+import { useLocaleStore } from "@/store/useLocaleStore";
 import { useRepoStore } from "@/store/useRepoStore";
+import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
 
 import { toUserMessage } from "@/types/error";
 import type { GitCommitSummary } from "@/types/git";
@@ -67,16 +77,22 @@ export function HistoryCommitContextMenu({
   children,
 }: HistoryCommitContextMenuProps) {
   const { t } = useTranslation();
+  const locale = useLocaleStore((state) => state.locale);
   const repoPath = useRepoStore((state) => state.repoPath);
   const repoState = useRepoStore((state) => state.repoState);
   const amendMessage = useRepoStore((state) => state.amendMessage);
+  const hasApiKey = useHasAgentApiKey();
+  const openSettingsDrawer = useSettingsDrawerStore((state) => state.openDrawer);
   const [editOpen, setEditOpen] = useState(false);
   const [confirmPushOpen, setConfirmPushOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [loadingMessage, setLoadingMessage] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const writeBlocked = isWriteOpBlocked(repoState);
   const { menuOpen, onOpenChange } = useContextMenuOpen(onMenuOpen);
+  const canGenerate =
+    Boolean(repoPath) && hasApiKey && !loadingMessage && !saving && !isGenerating;
 
   async function loadFullMessage(): Promise<string> {
     if (!repoPath) {
@@ -129,6 +145,7 @@ export function HistoryCommitContextMenu({
 
   async function openEditDialog(): Promise<void> {
     setLoadingMessage(true);
+    setIsGenerating(false);
     setEditOpen(true);
     try {
       const full = await loadFullMessage();
@@ -154,8 +171,32 @@ export function HistoryCommitContextMenu({
     });
   }
 
+  async function handleGenerateMessage(): Promise<void> {
+    if (!hasApiKey) {
+      openSettingsDrawer("ai");
+      return;
+    }
+    if (!repoPath || !canGenerate) {
+      return;
+    }
+    setIsGenerating(true);
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
+    try {
+      const next = await generateCommitMessage(repoPath, locale, {
+        commitRev: commit.id,
+      });
+      setMessage(next);
+    } catch (error) {
+      toastAiFailure(error, t("ai.errors.requestFailed"));
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   async function handleSaveEdit(): Promise<void> {
-    if (saving) {
+    if (saving || isGenerating) {
       return;
     }
     const trimmed = message.trim();
@@ -240,26 +281,66 @@ export function HistoryCommitContextMenu({
               {t("repo.amendMessageDescription", { shortId: commit.shortId })}
             </DialogDescription>
           </DialogHeader>
-          <Textarea
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            disabled={loadingMessage || saving}
-            className="min-h-40 font-mono text-sm"
-            aria-label={t("repo.commitMessage")}
-            placeholder={t("repo.commitMessagePlaceholder")}
-          />
+          <div className="relative">
+            <Textarea
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              disabled={loadingMessage || saving || isGenerating}
+              className="min-h-40 resize-y pb-10 font-mono text-sm"
+              aria-label={t("repo.commitMessage")}
+              placeholder={t("repo.commitMessagePlaceholder")}
+            />
+            <div className="absolute right-2 bottom-2">
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="text-muted-foreground size-7"
+                      aria-label={
+                        !hasApiKey
+                          ? t("common.aiApiKeyRequired")
+                          : isGenerating
+                            ? t("repo.generatingCommitMessage")
+                            : t("repo.generateCommitMessage")
+                      }
+                      disabled={!canGenerate && hasApiKey}
+                      onClick={() => void handleGenerateMessage()}
+                    >
+                      {isGenerating ? (
+                        <Spinner className="size-3.5" />
+                      ) : (
+                        <Sparkles className="size-3.5" aria-hidden="true" />
+                      )}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {!hasApiKey
+                    ? t("common.aiApiKeyRequired")
+                    : isGenerating
+                      ? t("repo.generatingCommitMessage")
+                      : t("repo.generateCommitMessage")}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
-              disabled={saving}
+              disabled={saving || isGenerating}
               onClick={() => setEditOpen(false)}
             >
               {t("common.cancel")}
             </Button>
             <Button
               type="button"
-              disabled={loadingMessage || saving || !message.trim()}
+              disabled={
+                loadingMessage || saving || isGenerating || !message.trim()
+              }
               onClick={() => void handleSaveEdit()}
             >
               {saving ? t("common.loading") : t("repo.amendMessageSave")}

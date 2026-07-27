@@ -2,6 +2,7 @@
   "errors": {
     "missingApiKey": "Configure a DeepSeek API Key in Settings first",
     "emptyStagedDiff": "There are no staged changes to generate a message from",
+    "emptyCommitDiff": "This commit has no changes to generate a message from",
     "emptyProjectProfile": "No README or manifest found — cannot generate a project summary",
     "requestFailed": "Generation failed. Try again shortly.",
     "invalidResponse": "The model did not return valid content",

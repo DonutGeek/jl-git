@@ -46,6 +46,19 @@ export async function getStagedDiff(
   });
 }
 
+/** 指定提交的限长 patch：供 AI 改写提交文案。 */
+export async function getCommitPatchDiff(
+  repoPath: string,
+  rev: string,
+  maxBytes?: number,
+): Promise<GitStagedDiffResult> {
+  return invokeCommand<GitStagedDiffResult>("git_commit_patch_diff", {
+    path: repoPath,
+    rev,
+    maxBytes,
+  });
+}
+
 /** 历史提交内单文件相对 parent 的前后对比（含 Monaco 两侧文本） */
 export async function getCommitFileDiff(
   repoPath: string,

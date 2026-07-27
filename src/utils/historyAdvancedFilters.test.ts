@@ -15,11 +15,20 @@ describe("historyAdvancedFilters", () => {
     );
   });
 
-  it("隐藏合并提交视为活跃", () => {
+  it("隐藏合并提交不计入活跃高亮（合并开关属偏好，与注释一致）", () => {
     expect(
       hasActiveAdvancedGitFilters({
         ...EMPTY_HISTORY_ADVANCED_FILTERS,
         showMergeCommits: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("任一 Git 检索字段非空则活跃", () => {
+    expect(
+      hasActiveAdvancedGitFilters({
+        ...EMPTY_HISTORY_ADVANCED_FILTERS,
+        grep: "feat",
       }),
     ).toBe(true);
   });

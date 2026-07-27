@@ -107,6 +107,11 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 - **Command：** `git_staged_diff`
 - **说明：** 返回限长的暂存区 patch（最大 64 KiB）与 `truncated`。仅供 `AiService` 生成提交文案使用，不执行 Git 写操作。
 
+### `getCommitPatchDiff(repoPath: string, rev: string, maxBytes?: number): Promise<GitStagedDiffResult>`
+
+- **Command：** `git_commit_patch_diff`
+- **说明：** 返回指定提交的限长 patch（最大 64 KiB）与 `truncated`。供 AI 改写提交说明（如修改 HEAD）；不执行 Git 写操作。
+
 ### `getCommitFileDiff(repoPath, options: GitCommitFileDiffOptions): Promise<GitDiffResult>`
 
 - **Command：** `git_commit_file_diff`

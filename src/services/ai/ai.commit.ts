@@ -3,7 +3,7 @@ import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
 import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
 import { readCommitModelId } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
-import { getStagedDiff } from "@/services/git/git.diff";
+import { getCommitPatchDiff, getStagedDiff } from "@/services/git/git.diff";
 
 import i18n from "@/i18n";
 import type { AppError } from "@/types/error";
@@ -14,24 +14,38 @@ const AI_DIFF_MAX_BYTES = 65_536;
 const CONVENTIONAL_COMMIT_PATTERN =
   /^(feat|fix|refactor|style|docs|test|perf|build|ci|chore)(\([^)\r\n]+\))?:\s+\S.+$/;
 
+export interface GenerateCommitMessageOptions {
+  /** 基于该提交的 patch（修改提交信息）；缺省则用暂存区 */
+  commitRev?: string;
+}
+
 /**
- * 根据已暂存的改动生成 Conventional Commit 标题与简短正文。
- * 模型只提供建议，提交动作仍由用户在 CommitBox 中确认。
+ * 根据暂存区或指定提交的改动生成 Conventional Commit 标题与简短正文。
+ * 模型只提供建议，提交 / 改写动作仍由用户确认。
  */
 export async function generateCommitMessage(
   repoPath: string,
   locale: string,
+  options?: GenerateCommitMessageOptions,
 ): Promise<string> {
   const apiKey = await getAgentKey();
   if (!apiKey) {
     throw appError("VALIDATION", i18n.t("ai.errors.missingApiKey"));
   }
 
-  const context = await getStagedDiff(repoPath, AI_DIFF_MAX_BYTES);
+  const commitRev = options?.commitRev?.trim();
+  const context = commitRev
+    ? await getCommitPatchDiff(repoPath, commitRev, AI_DIFF_MAX_BYTES)
+    : await getStagedDiff(repoPath, AI_DIFF_MAX_BYTES);
   const { commit: commitInstructions } = await getAiInstructions();
   const sanitizedPatch = redactSecrets(context.patch);
   if (!sanitizedPatch.trim()) {
-    throw appError("VALIDATION", i18n.t("ai.errors.emptyStagedDiff"));
+    throw appError(
+      "VALIDATION",
+      i18n.t(
+        commitRev ? "ai.errors.emptyCommitDiff" : "ai.errors.emptyStagedDiff",
+      ),
+    );
   }
 
   const controller = new AbortController();
@@ -56,9 +70,13 @@ export async function generateCommitMessage(
           {
             role: "user",
             content: [
-              context.truncated
-                ? "以下暂存区 diff 已因长度截断，请只基于可见内容总结。"
-                : "以下是完整的暂存区 diff。",
+              commitRev
+                ? context.truncated
+                  ? "以下提交 diff 已因长度截断，请只基于可见内容总结。"
+                  : "以下是完整的提交 diff。"
+                : context.truncated
+                  ? "以下暂存区 diff 已因长度截断，请只基于可见内容总结。"
+                  : "以下是完整的暂存区 diff。",
               "```diff",
               sanitizedPatch,
               "```",

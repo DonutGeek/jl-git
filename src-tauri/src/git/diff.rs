@@ -63,6 +63,26 @@ pub fn get_staged_diff(
     Ok(GitStagedDiffResult { patch, truncated })
 }
 
+/// 读取指定提交相对 parent 的 patch（无提交说明头），供 AI 改写提交文案。
+pub fn get_commit_patch_diff(
+    repo_path: &Path,
+    rev: &str,
+    max_bytes: Option<usize>,
+) -> Result<GitStagedDiffResult, AppError> {
+    let rev = rev.trim();
+    validate_git_ref(rev)?;
+    let limit = max_bytes
+        .unwrap_or(DEFAULT_STAGED_CONTEXT_MAX_BYTES)
+        .clamp(1_024, DEFAULT_STAGED_CONTEXT_MAX_BYTES);
+    let (patch, truncated) = runner::run_git_stdout_capped(
+        repo_path,
+        &["show", "--format=", "--no-ext-diff", "--unified=3", rev],
+        limit,
+    )?;
+
+    Ok(GitStagedDiffResult { patch, truncated })
+}
+
 /// 工作区或暂存区单文件 Diff（含 Monaco 所需两侧文本）
 pub fn get_diff(
     repo_path: &Path,

@@ -379,6 +379,16 @@ interface GitBranch {
 | **错误** | `INVALID_PATH` `NOT_A_REPO` `GIT_FAILED` |
 | **说明** | 执行 `git diff --cached --no-ext-diff --unified=3`；**流式读取** stdout，最多约 64 KiB（超限截断并结束 git，避免大暂存 diff 撑爆内存导致闪退）；前端发送给 DeepSeek 前再做密钥掩码。 |
 
+### `git_commit_patch_diff`
+
+| | |
+|--|--|
+| **目的** | 读取限长的提交 patch，供 AI 改写提交文案（如修改 HEAD 说明） |
+| **输入** | `{ path: string; rev: string; maxBytes?: number }` |
+| **输出** | `{ patch: string; truncated: boolean }` |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `GIT_FAILED` |
+| **说明** | 执行 `git show --format= --no-ext-diff --unified=3 <rev>`（无提交说明头，仅 patch）；流式截断策略与 `git_staged_diff` 一致；`rev` 经 `validate_git_ref`。 |
+
 ### `git_commit_file_diff`
 
 | | |

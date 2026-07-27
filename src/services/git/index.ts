@@ -36,7 +36,7 @@ import {
   readWorktreeFile,
   writeWorktreeFile,
 } from "./git.conflict";
-import { getCommitFileDiff, getDiff, getFileMedia, getStagedDiff } from "./git.diff";
+import { getCommitFileDiff, getCommitPatchDiff, getDiff, getFileMedia, getStagedDiff } from "./git.diff";
 import {
   createPath,
   getFileSize,
@@ -104,6 +104,7 @@ export const gitService = {
   getDiff,
   getFileMedia,
   getStagedDiff,
+  getCommitPatchDiff,
   getCommitFileDiff,
   getBranchCompare,
   getBranchFileDiff,

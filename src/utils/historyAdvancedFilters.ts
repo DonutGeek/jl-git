@@ -36,8 +36,7 @@ export function hasActiveAdvancedGitFilters(
       filters.path.trim() ||
       filters.since ||
       filters.until ||
-      filters.author.trim() ||
-      !filters.showMergeCommits,
+      filters.author.trim(),
   );
 }
 

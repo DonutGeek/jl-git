@@ -18,6 +18,7 @@ export type {
   GenerateBranchNameOptions,
 } from "./ai.branch";
 export { generateCommitMessage } from "./ai.commit";
+export type { GenerateCommitMessageOptions } from "./ai.commit";
 export { generateProjectDescription } from "./ai.projectDescription";
 export {
   AI_AUTH_FAILED_CODE,
