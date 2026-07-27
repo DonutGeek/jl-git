@@ -19,58 +19,176 @@ export interface HostSize {
   height: number;
 }
 
-/** 根据扩展名推断 Monaco language id */
+/** 无扩展名或特殊文件名 → Monaco language id */
+const SPECIAL_FILENAME_LANGUAGE: Readonly<Record<string, string>> = {
+  dockerfile: "dockerfile",
+  containerfile: "dockerfile",
+  makefile: "shell",
+  gnumakefile: "shell",
+  "cmakelists.txt": "plaintext",
+  gemfile: "ruby",
+  rakefile: "ruby",
+  podfile: "ruby",
+  brewfile: "ruby",
+  ".gitignore": "ini",
+  ".gitattributes": "ini",
+  ".gitmodules": "ini",
+  ".dockerignore": "ini",
+  ".editorconfig": "ini",
+  ".env": "ini",
+  ".npmrc": "ini",
+  ".yarnrc": "ini",
+};
+
+/**
+ * 扩展名 → Monaco language id（仅内置语言；无对应语法时选最接近的回退）。
+ * Vue/Svelte/Astro 等无内置语法，按 HTML 高亮。
+ */
+const EXTENSION_LANGUAGE: Readonly<Record<string, string>> = {
+  // Web / TS / JS
+  ts: "typescript",
+  tsx: "typescript",
+  mts: "typescript",
+  cts: "typescript",
+  js: "javascript",
+  jsx: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  json: "json",
+  jsonc: "json",
+  json5: "json",
+  html: "html",
+  htm: "html",
+  xhtml: "html",
+  vue: "html",
+  svelte: "html",
+  astro: "html",
+  hbs: "handlebars",
+  handlebars: "handlebars",
+  ejs: "html",
+  njk: "html",
+  pug: "pug",
+  jade: "pug",
+  css: "css",
+  scss: "scss",
+  sass: "scss",
+  less: "less",
+  styl: "css",
+  // 文档 / 配置
+  md: "markdown",
+  mdx: "markdown",
+  markdown: "markdown",
+  rst: "restructuredtext",
+  yml: "yaml",
+  yaml: "yaml",
+  toml: "ini",
+  ini: "ini",
+  cfg: "ini",
+  conf: "ini",
+  properties: "ini",
+  env: "ini",
+  // 系统 / Shell
+  sh: "shell",
+  bash: "shell",
+  zsh: "shell",
+  fish: "shell",
+  ksh: "shell",
+  ps1: "powershell",
+  psm1: "powershell",
+  psd1: "powershell",
+  bat: "bat",
+  cmd: "bat",
+  // 后端 / 系统语言
+  py: "python",
+  pyw: "python",
+  pyi: "python",
+  go: "go",
+  rs: "rust",
+  java: "java",
+  kt: "kotlin",
+  kts: "kotlin",
+  scala: "scala",
+  sc: "scala",
+  groovy: "java",
+  gradle: "java",
+  php: "php",
+  phtml: "php",
+  rb: "ruby",
+  rake: "ruby",
+  gemspec: "ruby",
+  swift: "swift",
+  cs: "csharp",
+  fs: "fsharp",
+  fsx: "fsharp",
+  fsi: "fsharp",
+  vb: "vb",
+  c: "cpp",
+  h: "cpp",
+  cc: "cpp",
+  cpp: "cpp",
+  cxx: "cpp",
+  hpp: "cpp",
+  hxx: "cpp",
+  hh: "cpp",
+  m: "objective-c",
+  mm: "objective-c",
+  dart: "dart",
+  lua: "lua",
+  r: "r",
+  jl: "julia",
+  ex: "elixir",
+  exs: "elixir",
+  erl: "plaintext",
+  hs: "plaintext",
+  clj: "clojure",
+  cljs: "clojure",
+  cljc: "clojure",
+  edn: "clojure",
+  pl: "perl",
+  pm: "perl",
+  t: "perl",
+  // 数据 / 查询 / IDL
+  sql: "sql",
+  mysql: "mysql",
+  pgsql: "pgsql",
+  graphql: "graphql",
+  gql: "graphql",
+  proto: "protobuf",
+  tf: "hcl",
+  tfvars: "hcl",
+  hcl: "hcl",
+  sol: "solidity",
+  // 标记 / 其它
+  xml: "xml",
+  svg: "xml",
+  xsl: "xml",
+  xsd: "xml",
+  plist: "xml",
+  cshtml: "razor",
+  razor: "razor",
+  dockerfile: "dockerfile",
+};
+
+/** 根据扩展名 / 特殊文件名推断 Monaco language id */
 export function languageFromPath(filePath: string): string {
   const name = filePath.split(/[/\\]/).pop() ?? filePath;
   const lower = name.toLowerCase();
-  if (lower === "dockerfile") {
+
+  const special = SPECIAL_FILENAME_LANGUAGE[lower];
+  if (special) {
+    return special;
+  }
+  // Dockerfile.dev / Dockerfile.prod
+  if (lower.startsWith("dockerfile")) {
     return "dockerfile";
   }
-  const ext = lower.includes(".") ? lower.slice(lower.lastIndexOf(".") + 1) : "";
-  switch (ext) {
-    case "ts":
-    case "tsx":
-      return "typescript";
-    case "js":
-    case "jsx":
-    case "mjs":
-    case "cjs":
-      return "javascript";
-    case "json":
-      return "json";
-    case "md":
-    case "mdx":
-      return "markdown";
-    case "rs":
-      return "rust";
-    case "py":
-      return "python";
-    case "go":
-      return "go";
-    case "css":
-      return "css";
-    case "scss":
-      return "scss";
-    case "html":
-    case "htm":
-      return "html";
-    case "yml":
-    case "yaml":
-      return "yaml";
-    case "toml":
-      return "ini";
-    case "sh":
-    case "bash":
-    case "zsh":
-      return "shell";
-    case "sql":
-      return "sql";
-    case "xml":
-    case "svg":
-      return "xml";
-    default:
-      return "plaintext";
+  // .env.local / .env.production
+  if (lower === ".env" || lower.startsWith(".env.")) {
+    return "ini";
   }
+
+  const ext = lower.includes(".") ? lower.slice(lower.lastIndexOf(".") + 1) : "";
+  return EXTENSION_LANGUAGE[ext] ?? "plaintext";
 }
 
 export function readMonoFont(): string {

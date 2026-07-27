@@ -148,6 +148,7 @@
   "diffHistory": "历史",
   "workspacePreviewEmpty": "无法预览该文件",
   "workspaceClosePreview": "返回目录",
+  "workspaceParentDir": "上级目录",
   "diffMore": "更多",
   "diffComingSoon": "即将推出",
   "diffIgnoreWhitespace": "忽略空白字符",

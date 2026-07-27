@@ -148,6 +148,7 @@
   "diffHistory": "History",
   "workspacePreviewEmpty": "Unable to preview this file",
   "workspaceClosePreview": "Back to folder",
+  "workspaceParentDir": "Parent folder",
   "diffMore": "More",
   "diffComingSoon": "Coming soon",
   "diffIgnoreWhitespace": "Ignore whitespace",
