@@ -224,7 +224,6 @@ export function GenerateBranchNameDialog({
       });
       onGenerated(name);
       onOpenChange(false);
-      toast.success(t("repo.aiBranchGenerated"));
     } catch (error) {
       toastAiFailure(error, t("ai.errors.requestFailed"));
     } finally {

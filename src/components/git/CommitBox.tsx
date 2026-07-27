@@ -289,7 +289,6 @@ export function CommitBox() {
     setIsCommitting(true);
     try {
       await commit();
-      toast.success(t("repo.commitSuccess"));
 
       if (pushAfterCommit) {
         const needsPublish =
@@ -298,7 +297,7 @@ export function CommitBox() {
           needsPublish ? t("repo.publishStart") : t("repo.pushStart"),
         );
         try {
-          const result = await push(
+          await push(
             needsPublish && status?.branch
               ? {
                   remote: "origin",
@@ -307,14 +306,8 @@ export function CommitBox() {
                 }
               : undefined,
           );
-          const seconds = (result.elapsedMs / 1000).toFixed(3);
-          toast.success(
-            t(needsPublish ? "repo.publishSuccess" : "repo.pushSuccess", {
-              remote: result.remote,
-              seconds,
-            }),
-            { id: toastId },
-          );
+          // 成功不弹绿条；失败仍提示
+          toast.dismiss(toastId);
         } catch (pushError) {
           toastPushError(pushError, {
             toastId,
@@ -323,17 +316,10 @@ export function CommitBox() {
                 const pullToastId = toast.loading(t("repo.pullStart"));
                 try {
                   const pullResult = await pull();
-                  const pullSeconds = (pullResult.elapsedMs / 1000).toFixed(3);
                   if (pullResult.conflict) {
                     toast.error(t("repo.pullConflict"), { id: pullToastId });
                   } else {
-                    toast.success(
-                      t("repo.pullSuccess", {
-                        remote: pullResult.remote,
-                        seconds: pullSeconds,
-                      }),
-                      { id: pullToastId },
-                    );
+                    toast.dismiss(pullToastId);
                   }
                 } catch (pullError) {
                   toast.error(toUserMessage(pullError), { id: pullToastId });
@@ -361,9 +347,8 @@ export function CommitBox() {
     setBusy(true);
     const toastId = toast.loading(t("repo.undoCommitStart"));
     try {
-      const result = await undoCommit();
-      const seconds = (result.elapsedMs / 1000).toFixed(3);
-      toast.success(t("repo.undoCommitSuccess", { seconds }), { id: toastId });
+      await undoCommit();
+      toast.dismiss(toastId);
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     } finally {
@@ -384,7 +369,6 @@ export function CommitBox() {
     try {
       const message = await generateCommitMessage(repoPath, locale);
       setCommitMessage(message);
-      toast.success(t("repo.aiCommitGenerated"));
       messageInputRef.current?.focus();
     } catch (error) {
       toastAiFailure(error, t("ai.errors.requestFailed"));
