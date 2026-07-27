@@ -500,6 +500,11 @@ interface RepoStoreActions {
     setUpstream?: boolean;
     force?: boolean;
   }) => Promise<{ remote: string; elapsedMs: number }>;
+  /**
+   * 包裹复合写操作（如提交后推送），在子操作间隙保持 loading，
+   * 避免顶栏推送等按钮短暂可点导致双重推送。
+   */
+  holdLoading: <T>(fn: () => Promise<T>) => Promise<T>;
 }
 
 type RepoStore = RepoStoreState & RepoStoreActions;
@@ -1891,9 +1896,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
   async push(options) {
     set({ error: null });
+    const repoPath = requireRepoPath(get().repoPath);
+    beginLoadingOp(repoPath, set, get);
 
     try {
-      const repoPath = requireRepoPath(get().repoPath);
       // 对齐 ugit：默认 origin + 当前分支 → push --progress origin main:main
       const status = get().status;
       const remote = options?.remote ?? "origin";
@@ -1918,6 +1924,16 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         ),
       ]);
 
+      if (get().repoPath !== repoPath) {
+        patchRepoSession(repoPath, {
+          status: nextStatus,
+          branches,
+          commits: log.commits,
+          hasMore: log.hasMore,
+        });
+        return { remote: result.remote, elapsedMs: result.elapsedMs };
+      }
+
       set({
         status: nextStatus,
         ...statusSelectionPatch(get, nextStatus),
@@ -1927,8 +1943,22 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       });
       return { remote: result.remote, elapsedMs: result.elapsedMs };
     } catch (error) {
-      setError(set, get, error);
+      if (get().repoPath === repoPath) {
+        setError(set, get, error);
+      }
       throw error;
+    } finally {
+      endLoadingOp(repoPath, set, get);
+    }
+  },
+
+  async holdLoading(fn) {
+    const repoPath = requireRepoPath(get().repoPath);
+    beginLoadingOp(repoPath, set, get);
+    try {
+      return await fn();
+    } finally {
+      endLoadingOp(repoPath, set, get);
     }
   },
 }));

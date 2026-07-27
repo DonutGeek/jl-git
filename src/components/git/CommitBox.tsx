@@ -97,6 +97,7 @@ export function CommitBox() {
   const push = useRepoStore((state) => state.push);
   const pull = useRepoStore((state) => state.pull);
   const fetchRemote = useRepoStore((state) => state.fetch);
+  const holdLoading = useRepoStore((state) => state.holdLoading);
   const status = useRepoStore((state) => state.status);
   const identity = useRepoStore((state) => state.identity);
   const commits = useRepoStore((state) => state.commits);
@@ -288,41 +289,44 @@ export function CommitBox() {
     setBusy(true);
     setIsCommitting(true);
     try {
-      await commit();
+      // 包住提交→推送间隙，避免顶栏「推送」短暂可点造成双重推送
+      await holdLoading(async () => {
+        await commit();
 
-      if (pushAfterCommit) {
-        const needsPublish =
-          Boolean(status?.branch) && !status?.detached && !status?.upstream;
-        try {
-          await push(
-            needsPublish && status?.branch
-              ? {
-                  remote: "origin",
-                  branch: status.branch,
-                  setUpstream: true,
-                }
-              : undefined,
-          );
-        } catch (pushError) {
-          toastPushError(pushError, {
-            onUpdate: () => {
-              void (async () => {
-                try {
-                  const pullResult = await pull();
-                  if (pullResult.conflict) {
-                    toast.error(t("repo.pullConflict"));
+        if (pushAfterCommit) {
+          const needsPublish =
+            Boolean(status?.branch) && !status?.detached && !status?.upstream;
+          try {
+            await push(
+              needsPublish && status?.branch
+                ? {
+                    remote: "origin",
+                    branch: status.branch,
+                    setUpstream: true,
                   }
-                } catch (pullError) {
-                  toast.error(toUserMessage(pullError));
-                }
-              })();
-            },
-          });
-          if (isPushRejectedError(pushError)) {
-            void fetchRemote().catch(() => undefined);
+                : undefined,
+            );
+          } catch (pushError) {
+            toastPushError(pushError, {
+              onUpdate: () => {
+                void (async () => {
+                  try {
+                    const pullResult = await pull();
+                    if (pullResult.conflict) {
+                      toast.error(t("repo.pullConflict"));
+                    }
+                  } catch (pullError) {
+                    toast.error(toUserMessage(pullError));
+                  }
+                })();
+              },
+            });
+            if (isPushRejectedError(pushError)) {
+              void fetchRemote().catch(() => undefined);
+            }
           }
         }
-      }
+      });
     } catch (error) {
       toast.error(toUserMessage(error));
     } finally {
