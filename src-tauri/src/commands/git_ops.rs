@@ -390,6 +390,13 @@ pub fn git_log(
     authors: Option<Vec<String>>,
     // 为 true 时等价 `git log --reverse`
     reverse: Option<bool>,
+    // 可选：提交说明 `--grep`
+    grep: Option<String>,
+    // 可选：`--since` / `--until`
+    since: Option<String>,
+    until: Option<String>,
+    // 为 true 时 `--no-merges`
+    no_merges: Option<bool>,
 ) -> Result<GitLogResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
     let skip = skip.unwrap_or(0);
@@ -405,6 +412,10 @@ pub fn git_log(
         file_path.as_deref(),
         authors.as_deref(),
         reverse.unwrap_or(false),
+        grep.as_deref(),
+        since.as_deref(),
+        until.as_deref(),
+        no_merges.unwrap_or(false),
     )
 }
 

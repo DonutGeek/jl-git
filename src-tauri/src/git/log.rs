@@ -50,6 +50,13 @@ pub fn get_log(
     authors: Option<&[String]>,
     // 为 true 时等价 `git log --reverse`（从旧到新；常用于取作者最早提交）
     reverse: bool,
+    // 可选：提交说明匹配（`git log --grep`）
+    grep: Option<&str>,
+    // 可选：`--since` / `--until`（git 日期串）
+    since: Option<&str>,
+    until: Option<&str>,
+    // 为 true 时加 `--no-merges`
+    no_merges: bool,
 ) -> Result<GitLogResult, AppError> {
     if limit == 0 {
         return Err(AppError::new("VALIDATION", "提交数量必须大于 0"));
@@ -72,6 +79,9 @@ pub fn get_log(
     }
 
     let author_patterns = validate_author_patterns(authors)?;
+    let grep_pattern = validate_log_text_option(grep, "grep", MAX_GREP_LEN)?;
+    let since_value = validate_log_text_option(since, "since", MAX_DATE_LEN)?;
+    let until_value = validate_log_text_option(until, "until", MAX_DATE_LEN)?;
 
     let order_flag = match order.map(str::trim).filter(|value| !value.is_empty()) {
         None | Some("default") => None,
@@ -98,8 +108,21 @@ pub fn get_log(
     if reverse {
         args.push("--reverse".to_string());
     }
+    if no_merges {
+        args.push("--no-merges".to_string());
+    }
     args.push(format!("--skip={skip}"));
     args.push(format!("--max-count={fetch_limit}"));
+
+    if let Some(pattern) = &grep_pattern {
+        args.push(format!("--grep={pattern}"));
+    }
+    if let Some(value) = &since_value {
+        args.push(format!("--since={value}"));
+    }
+    if let Some(value) = &until_value {
+        args.push(format!("--until={value}"));
+    }
 
     // 多个 --author 为 OR；模式由调用方负责转义正则特殊字符
     for pattern in &author_patterns {
@@ -191,6 +214,36 @@ fn parse_parent_ids(raw: &str) -> Vec<String> {
 
 const MAX_AUTHOR_PATTERNS: usize = 16;
 const MAX_AUTHOR_PATTERN_LEN: usize = 256;
+const MAX_GREP_LEN: usize = 256;
+const MAX_DATE_LEN: usize = 64;
+
+/// 校验 `--grep` / `--since` / `--until`：禁控制字符与空串，限制长度（参数数组传递）
+fn validate_log_text_option(
+    value: Option<&str>,
+    label: &str,
+    max_len: usize,
+) -> Result<Option<String>, AppError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if trimmed.len() > max_len {
+        return Err(AppError::new(
+            "VALIDATION",
+            format!("{label} 长度不能超过 {max_len}"),
+        ));
+    }
+    if trimmed.chars().any(|ch| ch.is_control()) {
+        return Err(AppError::new(
+            "VALIDATION",
+            format!("{label} 不能包含控制字符"),
+        ));
+    }
+    Ok(Some(trimmed.to_string()))
+}
 
 /// 校验 `--author` 模式：禁控制字符，限制条数与长度（参数数组传递，不做 shell）
 fn validate_author_patterns(authors: Option<&[String]>) -> Result<Vec<String>, AppError> {
@@ -378,65 +431,61 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07
         assert_eq!(refs, vec!["v1.2.3".to_string(), "origin&daily".to_string()]);
     }
 
+    fn get_log_default(
+        skip: u32,
+        limit: u32,
+        ref_name: Option<&str>,
+        all: bool,
+        order: Option<&str>,
+        path: Option<&str>,
+        authors: Option<&[String]>,
+        reverse: bool,
+    ) -> Result<GitLogResult, AppError> {
+        get_log(
+            Path::new("."),
+            skip,
+            limit,
+            ref_name,
+            all,
+            order,
+            path,
+            authors,
+            reverse,
+            None,
+            None,
+            None,
+            false,
+        )
+    }
+
     #[test]
     fn rejects_zero_limit_before_running_git() {
-        let error =
-            get_log(Path::new("."), 0, 0, None, false, None, None, None, false)
-                .expect_err("zero limit should fail");
+        let error = get_log_default(0, 0, None, false, None, None, None, false)
+            .expect_err("zero limit should fail");
 
         assert_eq!(error.code, "VALIDATION");
     }
 
     #[test]
     fn rejects_option_like_ref_before_running_git() {
-        let error = get_log(
-            Path::new("."),
-            0,
-            50,
-            Some("-main"),
-            false,
-            None,
-            None,
-            None,
-            false,
-        )
-        .expect_err("invalid ref should fail");
+        let error = get_log_default(0, 50, Some("-main"), false, None, None, None, false)
+            .expect_err("invalid ref should fail");
 
         assert_eq!(error.code, "VALIDATION");
     }
 
     #[test]
     fn rejects_all_together_with_ref() {
-        let error = get_log(
-            Path::new("."),
-            0,
-            50,
-            Some("main"),
-            true,
-            None,
-            None,
-            None,
-            false,
-        )
-        .expect_err("all+ref should fail");
+        let error = get_log_default(0, 50, Some("main"), true, None, None, None, false)
+            .expect_err("all+ref should fail");
 
         assert_eq!(error.code, "VALIDATION");
     }
 
     #[test]
     fn rejects_unknown_order() {
-        let error = get_log(
-            Path::new("."),
-            0,
-            50,
-            None,
-            false,
-            Some("author"),
-            None,
-            None,
-            false,
-        )
-        .expect_err("unknown order should fail");
+        let error = get_log_default(0, 50, None, false, Some("author"), None, None, false)
+            .expect_err("unknown order should fail");
 
         assert_eq!(error.code, "VALIDATION");
     }
@@ -444,6 +493,14 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07
     #[test]
     fn rejects_empty_author_pattern() {
         let authors = vec!["".to_string()];
+        let error = get_log_default(0, 50, None, false, None, None, Some(&authors), false)
+            .expect_err("empty author should fail");
+
+        assert_eq!(error.code, "VALIDATION");
+    }
+
+    #[test]
+    fn rejects_grep_with_control_chars() {
         let error = get_log(
             Path::new("."),
             0,
@@ -452,12 +509,23 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07
             false,
             None,
             None,
-            Some(&authors),
+            None,
+            false,
+            Some("fix\nme"),
+            None,
+            None,
             false,
         )
-        .expect_err("empty author should fail");
+        .expect_err("grep control chars should fail");
 
         assert_eq!(error.code, "VALIDATION");
+    }
+
+    #[test]
+    fn accepts_empty_optional_filters_as_absent() {
+        let grep = validate_log_text_option(Some("   "), "grep", MAX_GREP_LEN)
+            .expect("whitespace-only grep is absent");
+        assert!(grep.is_none());
     }
 
     #[test]

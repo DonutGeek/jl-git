@@ -373,6 +373,14 @@ export interface GitLogOptions {
   authors?: string[];
   /** true 时 `git log --reverse`（从旧到新） */
   reverse?: boolean;
+  /** 提交说明匹配（`git log --grep`） */
+  grep?: string;
+  /** `git log --since` */
+  since?: string;
+  /** `git log --until` */
+  until?: string;
+  /** true 时 `git log --no-merges` */
+  noMerges?: boolean;
 }
 
 export interface GitCommitOptions {

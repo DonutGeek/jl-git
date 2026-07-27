@@ -1062,7 +1062,7 @@ export function ChangesPanel() {
             autoFocus
             type="search"
             value={searchQuery}
-            placeholder={t("repo.changesSearch")}
+            placeholder={t("repo.changesSearchPlaceholder")}
             aria-label={t("repo.changesSearch")}
             className="mr-2 h-6 min-w-0 flex-1 px-2 text-xs"
             onChange={(event) => setSearchQuery(event.target.value)}

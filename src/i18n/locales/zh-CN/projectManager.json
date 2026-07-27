@@ -13,7 +13,7 @@
   "manageFilterAll": "全部分组",
   "manageFilterGroup": "分组",
   "manageFilterKeyword": "关键词",
-  "manageFilterKeywordPlaceholder": "名称、路径或简介",
+  "manageFilterKeywordPlaceholder": "请输入名称、路径或简介",
   "manageFilterDirty": "工作区",
   "manageFilterDirtyAll": "全部",
   "manageFilterDirtyDirty": "有未提交变更",
@@ -114,7 +114,7 @@
   "quickAddGroupTitle": "添加仓库分组",
   "moveToGroup": "移至仓库分组",
   "projectIcon": "仓库图标",
-  "searchProjectIcons": "搜索图标…",
+  "searchProjectIcons": "请输入图标名称",
   "projectIconNoMatch": "没有匹配的图标",
   "projectIcons": {
     "folder-git-2": "Git 仓库",

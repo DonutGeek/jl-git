@@ -282,11 +282,6 @@ export function MultiAgentSidebar({
     [conversations, draggingId],
   );
 
-  const renameTarget = useMemo(
-    () => conversations.find((item) => item.id === renameTargetId) ?? null,
-    [conversations, renameTargetId],
-  );
-
   const pendingDeleteTarget = useMemo(
     () => conversations.find((item) => item.id === pendingDeleteId) ?? null,
     [conversations, pendingDeleteId],
@@ -458,11 +453,7 @@ export function MultiAgentSidebar({
                 id="multi-agent-rename"
                 value={renameValue}
                 onChange={(event) => setRenameValue(event.target.value)}
-                placeholder={
-                  renameTarget
-                    ? conversationLabel(renameTarget)
-                    : t("multiAgent.newConversation")
-                }
+                placeholder={t("multiAgent.tabRenamePlaceholder")}
                 maxLength={48}
                 autoFocus
               />

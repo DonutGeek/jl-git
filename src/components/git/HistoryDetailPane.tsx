@@ -490,8 +490,8 @@ function ParentDiffSection({
   const isMultiParent = parentCount > 1 && Boolean(diff.parentShortId);
   const sectionSummary = useMemo(() => summarizeFiles(diff.files), [diff.files]);
 
-  // 「与 parentN 的差异」只做搜索框 placeholder，不占标题行（避免窄列截成「与 pa...」）
-  const placeholder = showAllFiles
+  // 搜索框用标准 placeholder；aria-label 保留上下文（全部文件 / 与 parent 差异 / 改动文件）
+  const filterAriaLabel = showAllFiles
     ? t("repo.commitAllFilesFilter")
     : isMultiParent && diff.parentShortId
       ? t("repo.commitDiffWithParent", {
@@ -526,9 +526,9 @@ function ParentDiffSection({
           <Input
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
-            placeholder={placeholder}
+            placeholder={t("repo.commitFilesFilterPlaceholder")}
             className="h-7 pl-8 text-xs shadow-none"
-            aria-label={placeholder}
+            aria-label={filterAriaLabel}
           />
         </div>
       </div>

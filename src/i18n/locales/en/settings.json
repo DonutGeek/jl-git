@@ -391,7 +391,7 @@
   "pushAfterCommitTipAria": "Push after commit help",
   "branchPrefix": "Branch prefix",
   "branchPrefixHint": "Prefills Create Branch; AI-generated names also use this prefix (e.g. jlgit/)",
-  "branchPrefixPlaceholder": "jlgit/",
+  "branchPrefixPlaceholder": "Enter branch prefix",
   "branchPrefixInvalid": "Branch prefix cannot contain spaces or backslashes",
   "alsoInStatusBar": "Theme and language can also be toggled from the status bar",
   "comingSoon": "Coming soon"

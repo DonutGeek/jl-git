@@ -83,6 +83,7 @@ JLGit 以 [shadcn/ui](https://ui.shadcn.com/) 作为基础组件来源（代码�
 | Avatar | `avatar.tsx` |
 | Badge | `badge.tsx` |
 | Button | `button.tsx` |
+| Calendar | `calendar.tsx` |
 | Card | `card.tsx` |
 | Checkbox | `checkbox.tsx` |
 | Command | `command.tsx` |

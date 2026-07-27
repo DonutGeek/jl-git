@@ -13,7 +13,7 @@
   "manageFilterAll": "All groups",
   "manageFilterGroup": "Group",
   "manageFilterKeyword": "Keyword",
-  "manageFilterKeywordPlaceholder": "Name, path, or description",
+  "manageFilterKeywordPlaceholder": "Enter name, path, or description",
   "manageFilterDirty": "Working tree",
   "manageFilterDirtyAll": "Any",
   "manageFilterDirtyDirty": "Has changes",
@@ -114,7 +114,7 @@
   "quickAddGroupTitle": "Add repository group",
   "moveToGroup": "Move to repository group",
   "projectIcon": "Repository icon",
-  "searchProjectIcons": "Search icons…",
+  "searchProjectIcons": "Enter icon name",
   "projectIconNoMatch": "No matching icons",
   "projectIcons": {
     "folder-git-2": "Git repository",

@@ -8,6 +8,8 @@
   "copy": "Copy",
   "notifications": "Notifications",
   "pleaseSelect": "Please select",
+  "datePickerPlaceholder": "Select a date",
+  "datePickerClear": "Clear",
   "productName": "JL Git",
   "aiApiKeyRequired": "Configure and enable an API Key in Settings first",
   "gitNotFound": "Git was not found. Install Git and make sure it is on your PATH"

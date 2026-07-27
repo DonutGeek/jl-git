@@ -13,7 +13,7 @@
   "commits": "提交",
   "noUpstream": "该本地分支没有跟踪远程分支，无法比较。",
   "changedFiles": "{{total}} 文件 {{modified}} 修改 {{added}} 新增 {{deleted}} 删除",
-  "filterFiles": "过滤",
+  "filterFiles": "请输入文件路径",
   "noFiles": "没有文件差异",
   "noFilesDescription": "所选分支之间没有可显示的文件变更。",
   "loadFilesFailed": "读取变更文件失败",

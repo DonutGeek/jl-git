@@ -31,6 +31,10 @@ import {
 } from "@/utils/gitConflict";
 import { hasConfiguredGitIdentity } from "@/utils/gitIdentity";
 import {
+  EMPTY_HISTORY_ADVANCED_FILTERS,
+  type HistoryAdvancedFilters,
+} from "@/utils/historyAdvancedFilters";
+import {
   beginRepoPendingOp,
   endRepoPendingOp,
   hasRepoPendingOp,
@@ -116,6 +120,8 @@ interface RepoSessionSnapshot {
   hasMore: boolean;
   logRef: string | null;
   logOrder: GitLogOrder;
+  /** 历史高级筛选（切标签保留；切仓清空） */
+  historyAdvanced: HistoryAdvancedFilters;
   commitMessage: string;
   selectedCommitId: string | null;
   selectedChange: SelectedChange | null;
@@ -200,6 +206,7 @@ function saveRepoSession(repoPath: string, state: RepoStoreState): void {
     hasMore: capped ? false : state.hasMore,
     logRef: state.logRef,
     logOrder: state.logOrder,
+    historyAdvanced: state.historyAdvanced,
     commitMessage: state.commitMessage,
     selectedCommitId: state.selectedCommitId,
     selectedChange: state.selectedChange,
@@ -280,6 +287,8 @@ export function restoreRepoSession(repoPath: string): boolean {
     hasMore: capped ? false : cached.hasMore,
     logRef: cached.logRef,
     logOrder: cached.logOrder ?? "default",
+    historyAdvanced:
+      cached.historyAdvanced ?? { ...EMPTY_HISTORY_ADVANCED_FILTERS },
     commitMessage: cached.commitMessage,
     selectedCommitId: cached.selectedCommitId,
     selectedCommitDetail: detail,
@@ -317,7 +326,8 @@ export function beginRepoSwitch(repoPath: string): void {
     commits: [],
     hasMore: false,
     logRef: null,
-    // 排序偏好跨仓保留，不在此重置
+    // 排序偏好跨仓保留；高级筛选按仓清空
+    historyAdvanced: { ...EMPTY_HISTORY_ADVANCED_FILTERS },
     commitMessage: "",
     selectedCommitId: null,
     selectedCommitDetail: null,
@@ -411,6 +421,8 @@ interface RepoStoreState {
   logRef: string | null;
   /** 历史 log 排序（git 默认 / topo / date） */
   logOrder: GitLogOrder;
+  /** 历史高级筛选（已应用；切仓清空） */
+  historyAdvanced: HistoryAdvancedFilters;
   commitMessage: string;
   /** 历史列表当前选中的提交 id */
   selectedCommitId: string | null;
@@ -449,6 +461,10 @@ interface RepoStoreActions {
   selectLogRef: (ref: string | null) => Promise<void>;
   /** 切换历史排序并重新拉取 log */
   setLogOrder: (order: GitLogOrder) => Promise<void>;
+  /** 应用历史高级筛选并重拉 log */
+  applyHistoryAdvanced: (filters: HistoryAdvancedFilters) => Promise<void>;
+  /** 清空高级筛选（保留合并偏好由调用方写入 filters）并重拉 */
+  clearHistoryAdvanced: (showMergeCommits?: boolean) => Promise<void>;
   createTag: (options: GitCreateTagOptions) => Promise<GitTagCreateResult>;
   deleteTag: (name: string) => Promise<void>;
   /** 查询远端标签（联网），刷新本地/远端分组数据 */
@@ -521,6 +537,7 @@ const initialState: RepoStoreState = {
   hasMore: false,
   logRef: null,
   logOrder: "default",
+  historyAdvanced: { ...EMPTY_HISTORY_ADVANCED_FILTERS },
   commitMessage: "",
   selectedCommitId: null,
   selectedCommitDetail: null,
@@ -782,6 +799,8 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           hasMore: cached.hasMore,
           logRef: cached.logRef,
           logOrder: cached.logOrder ?? "default",
+          historyAdvanced:
+            cached.historyAdvanced ?? { ...EMPTY_HISTORY_ADVANCED_FILTERS },
           commitMessage: cached.commitMessage,
           selectedCommitId: cached.selectedCommitId,
           selectedCommitDetail: detail,
@@ -808,6 +827,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
               limit: LOG_PAGE_SIZE,
               logRef: cached.logRef,
               order: cached.logOrder ?? "default",
+              advanced: get().historyAdvanced,
             }),
           ),
           gitService.getRepoState(repoPath),
@@ -861,6 +881,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         commits: [],
         hasMore: false,
         logRef: null,
+        historyAdvanced: { ...EMPTY_HISTORY_ADVANCED_FILTERS },
         commitMessage: "",
         selectedCommitId: null,
         selectedCommitDetail: null,
@@ -891,6 +912,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef: defaultLogRef,
             order: get().logOrder,
+            advanced: get().historyAdvanced,
           }),
         ),
         gitService.getRepoState(repoPath),
@@ -1005,6 +1027,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           limit: LOG_PAGE_SIZE,
           logRef: get().logRef,
           order: get().logOrder,
+          advanced: get().historyAdvanced,
         }),
       );
 
@@ -1053,6 +1076,37 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       return;
     }
     set({ logOrder: order });
+    await get().refreshLog(true);
+  },
+
+  async applyHistoryAdvanced(filters) {
+    set({
+      historyAdvanced: { ...filters },
+      selectedCommitId: null,
+      selectedCommitDetail: null,
+      selectedCommitFile: null,
+    });
+    const repoPath = get().repoPath;
+    if (repoPath) {
+      clearCommitDetailCacheForRepo(repoPath);
+    }
+    await get().refreshLog(true);
+  },
+
+  async clearHistoryAdvanced(showMergeCommits = true) {
+    set({
+      historyAdvanced: {
+        ...EMPTY_HISTORY_ADVANCED_FILTERS,
+        showMergeCommits,
+      },
+      selectedCommitId: null,
+      selectedCommitDetail: null,
+      selectedCommitFile: null,
+    });
+    const repoPath = get().repoPath;
+    if (repoPath) {
+      clearCommitDetailCacheForRepo(repoPath);
+    }
     await get().refreshLog(true);
   },
 
@@ -1177,6 +1231,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           limit: LOG_PAGE_SIZE,
           logRef: get().logRef,
           order: get().logOrder,
+          advanced: get().historyAdvanced,
         }),
       );
 
@@ -1445,6 +1500,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef,
             order: logOrder,
+            advanced: get().historyAdvanced,
           }),
         ),
         gitService.getRepoState(repoPath),
@@ -1505,6 +1561,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef,
             order: logOrder,
+            advanced: get().historyAdvanced,
           }),
         ),
         gitService.listBranches(repoPath, true),
@@ -1571,6 +1628,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef: get().logRef,
             order: get().logOrder,
+            advanced: get().historyAdvanced,
           }),
         ),
       ]);
@@ -1615,6 +1673,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef,
             order: logOrder,
+            advanced: get().historyAdvanced,
           }),
         ),
       ]);
@@ -1669,6 +1728,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef,
             order: logOrder,
+            advanced: get().historyAdvanced,
           }),
         ),
       ]);
@@ -1726,6 +1786,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef,
             order: logOrder,
+            advanced: get().historyAdvanced,
           }),
         ),
       ]);
@@ -1806,6 +1867,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef: get().logRef,
             order: get().logOrder,
+            advanced: get().historyAdvanced,
           }),
         ),
       ]);
@@ -1862,6 +1924,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef: get().logRef,
             order: get().logOrder,
+            advanced: get().historyAdvanced,
           }),
         ),
       ]);
@@ -1920,6 +1983,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef: get().logRef,
             order: get().logOrder,
+            advanced: get().historyAdvanced,
           }),
         ),
       ]);

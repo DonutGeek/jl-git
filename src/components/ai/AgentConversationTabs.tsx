@@ -257,11 +257,6 @@ export function AgentConversationTabs({
     [conversations, draggingId],
   );
 
-  const renameTarget = useMemo(
-    () => conversations.find((conversation) => conversation.id === renameTargetId) ?? null,
-    [conversations, renameTargetId],
-  );
-
   const pendingDeleteTarget = useMemo(
     () => conversations.find((conversation) => conversation.id === pendingDeleteId) ?? null,
     [conversations, pendingDeleteId],
@@ -414,11 +409,7 @@ export function AgentConversationTabs({
                 id="agent-conversation-rename"
                 value={renameValue}
                 onChange={(event) => setRenameValue(event.target.value)}
-                placeholder={
-                  renameTarget
-                    ? conversationLabel(renameTarget)
-                    : t("agent.newConversation")
-                }
+                placeholder={t("agent.tabRenamePlaceholder")}
                 maxLength={48}
                 autoFocus
               />

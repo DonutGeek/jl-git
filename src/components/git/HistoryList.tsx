@@ -23,7 +23,6 @@ import {
   MoreHorizontal,
   Search,
   SearchX,
-  SlidersHorizontal,
 } from "lucide-react";
 import { usePanelRef } from "react-resizable-panels";
 import { toast } from "sonner";
@@ -33,6 +32,7 @@ import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollAr
 import { TRUNCATE_BUDGET_ATTR } from "@/components/common/TruncateStartPath";
 import { CommitAuthorAvatars } from "@/components/git/CommitAuthorAvatars";
 import { GitRefTag } from "@/components/git/GitRefTag";
+import { HistoryAdvancedFilterPopover } from "@/components/git/HistoryAdvancedFilterPopover";
 import { HistoryCommitContextMenu } from "@/components/git/HistoryCommitContextMenu";
 import { HistoryGraph } from "@/components/git/HistoryGraph";
 import { useHistoryWorkspace } from "@/components/git/HistoryWorkspaceContext";
@@ -458,6 +458,9 @@ export function HistoryList() {
   const logOrder = useRepoStore((state) => state.logOrder);
   const selectLogRef = useRepoStore((state) => state.selectLogRef);
   const setLogOrder = useRepoStore((state) => state.setLogOrder);
+  const historyAdvanced = useRepoStore((state) => state.historyAdvanced);
+  const applyHistoryAdvanced = useRepoStore((state) => state.applyHistoryAdvanced);
+  const clearHistoryAdvanced = useRepoStore((state) => state.clearHistoryAdvanced);
   const { allowOpenInNewWindow } = useHistoryWorkspace();
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -827,8 +830,19 @@ export function HistoryList() {
     historyViewport?.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function handleSoon(action: string): void {
-    toast.message(t("repo.syncComingSoon", { action }));
+  function writeShowMergeCommitsPrefs(value: boolean): void {
+    setViewPrefs((prev) => {
+      const next = { ...prev, showMergeCommits: value };
+      try {
+        localStorage.setItem(
+          HISTORY_VIEW_PREFS_STORAGE_KEY,
+          JSON.stringify(next),
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
   }
 
   const isCurrentBranchScope =
@@ -986,21 +1000,18 @@ export function HistoryList() {
             className="h-7 pr-8 pl-7 text-xs shadow-none"
             aria-label={t("repo.historySearch")}
           />
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground absolute top-1/2 right-0.5 size-6 -translate-y-1/2"
-                aria-label={t("repo.historyAdvancedFilter")}
-                onClick={() => handleSoon(t("repo.historyAdvancedFilter"))}
-              >
-                <SlidersHorizontal className="size-3.5" aria-hidden="true" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t("repo.historyAdvancedFilter")}</TooltipContent>
-          </Tooltip>
+          <HistoryAdvancedFilterPopover
+            applied={historyAdvanced}
+            showMergeCommitsPrefs={viewPrefs.showMergeCommits}
+            onShowMergeCommitsPrefsChange={writeShowMergeCommitsPrefs}
+            disabled={loading}
+            onApply={async (filters) => {
+              await applyHistoryAdvanced(filters);
+            }}
+            onReset={async (showMergeCommits) => {
+              await clearHistoryAdvanced(showMergeCommits);
+            }}
+          />
         </div>
 
         <DropdownMenu

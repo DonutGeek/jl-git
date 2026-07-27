@@ -13,7 +13,7 @@
   "commits": "Commits",
   "noUpstream": "This local branch has no tracking upstream to compare.",
   "changedFiles": "{{total}} files · {{modified}} modified · {{added}} added · {{deleted}} deleted",
-  "filterFiles": "Filter",
+  "filterFiles": "Enter file path",
   "noFiles": "No file differences",
   "noFilesDescription": "There are no file changes to show between these branches.",
   "loadFilesFailed": "Failed to load changed files",
