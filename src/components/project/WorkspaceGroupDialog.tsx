@@ -123,7 +123,9 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
     : null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    // Portal 内表单的 submit 会沿 React 树冒泡到外层「打开/克隆」等 form，必须阻断
     event.preventDefault();
+    event.stopPropagation();
     const nextName = name.trim();
     if (!nextName || saving) {
       return;
