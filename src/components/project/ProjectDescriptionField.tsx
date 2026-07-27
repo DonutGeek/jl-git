@@ -23,6 +23,8 @@ interface ProjectDescriptionFieldProps {
   /** 避免同页多实例时 label/id 冲突 */
   fieldId?: string;
   placeholder?: string;
+  /** 紧凑高度（打开仓库等对话框） */
+  compact?: boolean;
 }
 
 /** 项目详情 Textarea + 右下角 AI 生成简介 */
@@ -35,6 +37,7 @@ export function ProjectDescriptionField({
   onGeneratingChange,
   fieldId = "project-description",
   placeholder,
+  compact = false,
 }: ProjectDescriptionFieldProps) {
   const { t } = useTranslation();
   const hasApiKey = useHasAgentApiKey();
@@ -92,7 +95,7 @@ export function ProjectDescriptionField({
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder ?? t("openRepo.detailPlaceholder")}
           disabled={disabled || generating}
-          className="min-h-28 resize-y pb-10"
+          className={compact ? "min-h-16 resize-y pb-9 text-xs" : "min-h-28 resize-y pb-10"}
         />
         <div className="absolute right-2 bottom-2">
           <Tooltip delayDuration={300}>

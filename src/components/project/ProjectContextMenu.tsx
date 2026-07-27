@@ -5,7 +5,7 @@ import {
   ExternalLink,
   FolderOpen,
   Link,
-  Settings2,
+  SquarePen,
   Terminal,
   Trash2,
 } from "lucide-react";
@@ -147,8 +147,8 @@ export function ProjectContextMenu({
             disabled={disabled}
             onSelect={() => deferUi(() => setSettingsOpen(true))}
           >
-            <Settings2 aria-hidden="true" />
-            {t("projectManager.projectSettings")}
+            <SquarePen aria-hidden="true" />
+            {t("projectManager.manageEditAction")}
           </ContextMenuItem>
           <ContextMenuSeparator />
           {/* 复制类操作有共性，收进子菜单 */}

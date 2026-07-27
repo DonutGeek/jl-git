@@ -155,7 +155,8 @@ export function ProjectManageFilterForm({
       className="border-border bg-muted/20 shrink-0 rounded-md border px-3 py-2.5"
       onSubmit={handleSubmit}
     >
-      <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-3">
+      {/* 三列：展开后第二行「工作区 | 与远程 | 操作」，填满右侧空位 */}
+      <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-3">
         <FilterField
           label={t("projectManager.manageFilterKeyword")}
           htmlFor="project-manage-filter-keyword"
@@ -179,6 +180,20 @@ export function ProjectManageFilterForm({
             disabled={disabled}
             size="sm"
             options={groupOptions}
+            triggerClassName="h-8 w-full min-w-0"
+          />
+        </FilterField>
+
+        <FilterField label={t("projectManager.manageSort")}>
+          <SelectMenu
+            value={draft.sortBy}
+            onChange={(value) =>
+              onDraftChange("sortBy", value as ManageSortBy)
+            }
+            ariaLabel={t("projectManager.manageSort")}
+            disabled={disabled}
+            size="sm"
+            options={sortOptions}
             triggerClassName="h-8 w-full min-w-0"
           />
         </FilterField>
@@ -213,26 +228,10 @@ export function ProjectManageFilterForm({
               />
             </FilterField>
 
-            <FilterField label={t("projectManager.manageSort")}>
-              <SelectMenu
-                value={draft.sortBy}
-                onChange={(value) =>
-                  onDraftChange("sortBy", value as ManageSortBy)
-                }
-                ariaLabel={t("projectManager.manageSort")}
-                disabled={disabled}
-                size="sm"
-                options={sortOptions}
-                triggerClassName="h-8 w-full min-w-0"
-              />
-            </FilterField>
-
-            <div className="flex items-center justify-end sm:col-span-2 xl:col-span-1">
-              {actions}
-            </div>
+            <div className="flex items-center justify-end">{actions}</div>
           </>
         ) : (
-          <div className="flex items-center justify-end sm:col-span-2 xl:col-span-1">
+          <div className="flex items-center justify-end md:col-span-3">
             {actions}
           </div>
         )}

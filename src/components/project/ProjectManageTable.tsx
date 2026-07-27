@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
-import dayjs from "dayjs";
 import { useTranslation } from "react-i18next";
-import { FolderOpen, PanelRight, Settings2, Trash2 } from "lucide-react";
+import { Info, SquarePen, Trash2 } from "lucide-react";
 
+import { SelectMenu } from "@/components/common/SelectMenu";
+import { CopyablePathLabel } from "@/components/git/CopyablePathLabel";
 import { ProjectContextMenu } from "@/components/project/ProjectContextMenu";
 import { ProjectIcon } from "@/components/project/ProjectIcon";
+import { RemoteRepositoryLabel } from "@/components/project/RemoteRepositoryLabel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,22 +36,27 @@ import {
 import { cn } from "@/lib/utils";
 
 import type { ProjectManageGitSnapshot } from "@/hooks/useProjectManageGitProbe";
+import { openExternalUrl } from "@/services/system/open-url";
 import type { Project } from "@/types/project";
 import { buildManagePageItems } from "@/utils/projectManageFilter";
+import { parseRemoteRepository } from "@/utils/remoteRepository";
 
-const TABLE_COL_SPAN = 5;
+const TABLE_COL_SPAN = 6;
 
 interface ProjectManageTableProps {
   rows: readonly Project[];
   loading: boolean;
-  selectedId: string | null;
   snapshots: ReadonlyMap<string, ProjectManageGitSnapshot>;
+  /** 分组 id → 显示名 */
+  workspaceNameById: ReadonlyMap<string, string>;
   currentPage: number;
   totalPages: number;
   totalCount: number;
+  pageSize: number;
+  pageSizeOptions: readonly number[];
   disabled?: boolean;
-  onSelectRow: (projectId: string) => void;
   onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
   onOpenDetail: (project: Project) => void;
   onOpenProject: (projectId: string) => void;
   onOpenSettings: (project: Project) => void;
@@ -57,29 +64,20 @@ interface ProjectManageTableProps {
   onProjectsMutated?: () => void;
 }
 
-function formatOpenedAt(value: string | null, neverLabel: string): string {
-  if (!value) {
-    return neverLabel;
-  }
-  const parsed = dayjs(value);
-  if (!parsed.isValid()) {
-    return neverLabel;
-  }
-  return parsed.format("YYYY-MM-DD HH:mm");
-}
-
-/** 管理台表格 + 分页（主列表仅重要列；完整信息在详情抽屉） */
+/** 管理台表格 + 分页（列表展示常用字段；详情抽屉补全其余） */
 export function ProjectManageTable({
   rows,
   loading,
-  selectedId,
   snapshots,
+  workspaceNameById,
   currentPage,
   totalPages,
   totalCount,
+  pageSize,
+  pageSizeOptions,
   disabled = false,
-  onSelectRow,
   onPageChange,
+  onPageSizeChange,
   onOpenDetail,
   onOpenProject,
   onOpenSettings,
@@ -88,6 +86,10 @@ export function ProjectManageTable({
 }: ProjectManageTableProps) {
   const { t } = useTranslation();
   const pageItems = buildManagePageItems(currentPage, totalPages);
+  const pageSizeMenuOptions = pageSizeOptions.map((size) => ({
+    value: String(size),
+    label: t("projectManager.managePageSizeOption", { count: size }),
+  }));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
@@ -96,15 +98,20 @@ export function ProjectManageTable({
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead>{t("projectManager.manageColName")}</TableHead>
-                <TableHead className="w-32">
+                <TableHead className="min-w-36">
+                  {t("projectManager.manageColName")}
+                </TableHead>
+                <TableHead className="w-28">
+                  {t("projectManager.manageColGroup")}
+                </TableHead>
+                <TableHead className="min-w-40">
+                  {t("projectManager.manageColPath")}
+                </TableHead>
+                <TableHead className="min-w-36 max-w-48">
                   {t("projectManager.manageColBranch")}
                 </TableHead>
-                <TableHead className="w-24">
-                  {t("projectManager.manageColDirty")}
-                </TableHead>
-                <TableHead className="w-36">
-                  {t("projectManager.manageColOpened")}
+                <TableHead className="min-w-36">
+                  {t("projectManager.manageColRemote")}
                 </TableHead>
                 <TableHead className="w-36 text-right">
                   {t("projectManager.manageColActions")}
@@ -135,60 +142,77 @@ export function ProjectManageTable({
                 </TableRow>
               ) : (
                 rows.map((project) => {
-                  const selected = selectedId === project.id;
                   const snapshot = snapshots.get(project.id);
+                  const groupLabel = project.workspaceId
+                    ? (workspaceNameById.get(project.workspaceId) ??
+                      t("projectManager.ungrouped"))
+                    : t("projectManager.ungrouped");
+                  const remote = snapshot?.remoteUrl
+                    ? parseRemoteRepository(snapshot.remoteUrl)
+                    : null;
 
                   return (
-                    <TableRow
-                      key={project.id}
-                      data-state={selected ? "selected" : undefined}
-                      className={cn(
-                        "cursor-pointer",
-                        selected && "bg-accent/60",
-                      )}
-                      onClick={() => onSelectRow(project.id)}
-                      onDoubleClick={() => onOpenProject(project.id)}
-                    >
+                    <TableRow key={project.id}>
                       <TableCell>
                         <ProjectContextMenu
                           project={project}
                           onOpenProject={onOpenProject}
                           disabled={disabled}
-                          onMenuOpen={() => onSelectRow(project.id)}
                           onRemoved={onProjectsMutated}
                         >
                           <button
                             type="button"
-                            className="flex w-full min-w-0 cursor-pointer items-center gap-2 text-left"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onSelectRow(project.id);
-                            }}
-                            onDoubleClick={(event) => {
-                              event.stopPropagation();
-                              onOpenProject(project.id);
-                            }}
+                            disabled={disabled}
+                            className="hover:text-primary flex max-w-full min-w-0 cursor-pointer items-center gap-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={() => onOpenProject(project.id)}
                           >
                             <ProjectIcon
                               name={project.icon}
                               className="size-4 shrink-0"
                             />
-                            <span className="truncate font-medium">
+                            <span className="truncate font-medium underline-offset-2 hover:underline">
                               {project.name}
                             </span>
                           </button>
                         </ProjectContextMenu>
                       </TableCell>
-                      <TableCell>
-                        <GitCell snapshot={snapshot} kind="branch" />
+                      <TableCell className="max-w-36">
+                        <Badge
+                          variant="outline"
+                          title={groupLabel}
+                          className="max-w-full min-w-0 shrink justify-start font-normal"
+                        >
+                          <span className="min-w-0 truncate">{groupLabel}</span>
+                        </Badge>
                       </TableCell>
-                      <TableCell>
-                        <GitCell snapshot={snapshot} kind="dirty" />
+                      <TableCell
+                        className="max-w-48"
+                        onClick={(event) => event.stopPropagation()}
+                        onDoubleClick={(event) => event.stopPropagation()}
+                      >
+                        <CopyablePathLabel
+                          path={project.path}
+                          className="text-muted-foreground text-xs"
+                        />
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-xs tabular-nums">
-                        {formatOpenedAt(
-                          project.lastOpenedAt,
-                          t("projectManager.manageNeverOpened"),
+                      <TableCell className="max-w-48">
+                        <GitCell snapshot={snapshot} />
+                      </TableCell>
+                      <TableCell
+                        className="max-w-48"
+                        onClick={(event) => event.stopPropagation()}
+                        onDoubleClick={(event) => event.stopPropagation()}
+                      >
+                        {remote ? (
+                          <RemoteRepositoryLabel
+                            remote={remote}
+                            className="ml-0 max-w-full min-w-0"
+                            onOpen={(url) => {
+                              void openExternalUrl(url);
+                            }}
+                          />
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -202,27 +226,14 @@ export function ProjectManageTable({
                             disabled={disabled}
                             onClick={() => onOpenDetail(project)}
                           >
-                            <PanelRight
-                              className="size-3.5"
-                              aria-hidden="true"
-                            />
+                            <Info className="size-3.5" aria-hidden="true" />
                           </IconAction>
                           <IconAction
-                            label={t("projectManager.openProject")}
-                            disabled={disabled}
-                            onClick={() => onOpenProject(project.id)}
-                          >
-                            <FolderOpen
-                              className="size-3.5"
-                              aria-hidden="true"
-                            />
-                          </IconAction>
-                          <IconAction
-                            label={t("projectManager.projectSettings")}
+                            label={t("projectManager.manageEditAction")}
                             disabled={disabled}
                             onClick={() => onOpenSettings(project)}
                           >
-                            <Settings2
+                            <SquarePen
                               className="size-3.5"
                               aria-hidden="true"
                             />
@@ -247,13 +258,29 @@ export function ProjectManageTable({
       </div>
 
       <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <p className="text-muted-foreground text-xs tabular-nums">
-          {t("projectManager.managePageStatus", {
-            page: currentPage,
-            total: totalPages,
-            count: totalCount,
-          })}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-muted-foreground text-xs tabular-nums">
+            {t("projectManager.managePageStatus", {
+              page: currentPage,
+              total: totalPages,
+              count: totalCount,
+            })}
+          </p>
+          <SelectMenu
+            value={String(pageSize)}
+            onChange={(value) => {
+              const next = Number(value);
+              if (Number.isFinite(next) && next > 0) {
+                onPageSizeChange(next);
+              }
+            }}
+            ariaLabel={t("projectManager.managePageSize")}
+            disabled={disabled}
+            size="sm"
+            options={pageSizeMenuOptions}
+            triggerClassName="h-8 w-[7.5rem]"
+          />
+        </div>
         <Pagination
           className="mx-0 w-auto justify-end"
           aria-label={t("projectManager.managePagination")}
@@ -347,13 +374,7 @@ export function ProjectManageTable({
   );
 }
 
-function GitCell({
-  snapshot,
-  kind,
-}: {
-  snapshot?: ProjectManageGitSnapshot;
-  kind: "branch" | "dirty";
-}) {
+function GitCell({ snapshot }: { snapshot?: ProjectManageGitSnapshot }) {
   const { t } = useTranslation();
 
   if (!snapshot || snapshot.status === "idle") {
@@ -375,25 +396,18 @@ function GitCell({
     );
   }
 
-  if (kind === "branch") {
-    return (
-      <Badge variant="secondary" className="max-w-28 truncate font-normal">
-        {snapshot.detached
-          ? t("projectManager.manageDetached")
-          : (snapshot.branch ?? "—")}
-      </Badge>
-    );
-  }
-  if (snapshot.dirtyCount <= 0) {
-    return (
-      <span className="text-muted-foreground text-xs">
-        {t("projectManager.manageClean")}
-      </span>
-    );
-  }
+  const label = snapshot.detached
+    ? t("projectManager.manageDetached")
+    : (snapshot.branch ?? "—");
+
+  // Badge 默认 justify-center，长文案会被左右裁切；左对齐并由内层 truncate
   return (
-    <Badge variant="outline" className="font-normal tabular-nums">
-      {snapshot.dirtyCount}
+    <Badge
+      variant="secondary"
+      title={label}
+      className="max-w-full min-w-0 shrink justify-start font-normal"
+    >
+      <span className="min-w-0 truncate">{label}</span>
     </Badge>
   );
 }

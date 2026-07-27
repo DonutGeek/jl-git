@@ -151,14 +151,14 @@ export function OpenRepoDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("openRepo.title")}</DialogTitle>
           <DialogDescription>{t("openRepo.description")}</DialogDescription>
         </DialogHeader>
 
-        <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
-          <FieldGroup className="gap-4">
+        <form className="space-y-4" onSubmit={(event) => void handleSubmit(event)}>
+          <FieldGroup className="gap-3">
             <Field>
               <FieldLabel htmlFor="repo-path">
               {t("openRepo.pathLabel")}
@@ -218,6 +218,7 @@ export function OpenRepoDialog({
               generating={descriptionGenerating}
               onGeneratingChange={setDescriptionGenerating}
               fieldId="open-repo-description"
+              compact
             />
           </FieldGroup>
 

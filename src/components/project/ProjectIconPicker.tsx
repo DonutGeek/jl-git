@@ -63,17 +63,17 @@ export function ProjectIconPicker({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-[var(--radix-popover-trigger-width)] p-0"
+        className="w-64 p-0"
       >
         <Command>
           <CommandInput
             placeholder={t("projectManager.searchProjectIcons")}
             aria-label={t("projectManager.searchProjectIcons")}
           />
-          <CommandList className="max-h-64">
+          <CommandList className="max-h-40">
             <CommandEmpty>{t("projectManager.projectIconNoMatch")}</CommandEmpty>
             <CommandGroup
-              className="[&_[cmdk-group-items]]:grid [&_[cmdk-group-items]]:grid-cols-5 [&_[cmdk-group-items]]:gap-1"
+              className="[&_[cmdk-group-items]]:grid [&_[cmdk-group-items]]:grid-cols-6 [&_[cmdk-group-items]]:gap-0.5"
             >
               {PROJECT_ICON_OPTIONS.map(({ value: optionValue, Icon }) => {
                 const label = t(`projectManager.projectIcons.${optionValue}`);
@@ -94,11 +94,11 @@ export function ProjectIconPicker({
                       setOpen(false);
                     }}
                   >
-                    <Icon className="size-5" aria-hidden="true" />
+                    <Icon className="size-4" aria-hidden="true" />
                     <span className="sr-only">{label}</span>
                     {selected ? (
                       <Check
-                        className="text-primary absolute right-0.5 bottom-0.5 size-3"
+                        className="text-primary absolute right-0.5 bottom-0.5 size-2.5"
                         aria-hidden="true"
                       />
                     ) : null}

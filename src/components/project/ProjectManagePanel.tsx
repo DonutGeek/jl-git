@@ -31,7 +31,8 @@ import {
   type ManageFilters,
 } from "@/utils/projectManageFilter";
 
-const PAGE_SIZE = 12;
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 50] as const;
 
 interface ProjectManagePanelProps {
   onOpenProject: (projectId: string) => void;
@@ -57,7 +58,7 @@ export function ProjectManagePanel({
   const [appliedFilters, setAppliedFilters] =
     useState<ManageFilters>(EMPTY_MANAGE_FILTERS);
   const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [settingsProject, setSettingsProject] = useState<Project | null>(null);
   const [detailProject, setDetailProject] = useState<Project | null>(null);
   const [deleteProject, setDeleteProject] = useState<Project | null>(null);
@@ -92,13 +93,13 @@ export function ProjectManagePanel({
   );
 
   const pageForProbe = useMemo(() => {
-    const totalPages = Math.max(1, Math.ceil(baseFiltered.length / PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(baseFiltered.length / pageSize));
     const currentPage = Math.min(page, totalPages);
     return baseFiltered.slice(
-      (currentPage - 1) * PAGE_SIZE,
-      currentPage * PAGE_SIZE,
+      (currentPage - 1) * pageSize,
+      currentPage * pageSize,
     );
-  }, [baseFiltered, page]);
+  }, [baseFiltered, page, pageSize]);
 
   const probeTargets = needsWideProbe ? baseFiltered : pageForProbe;
   const { snapshots, lites } = useProjectManageGitProbe(
@@ -111,11 +112,11 @@ export function ProjectManagePanel({
     [appliedFilters, lites, projects],
   );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const pageRows = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
   );
 
   function updateDraft<K extends keyof ManageFilters>(
@@ -139,7 +140,6 @@ export function ProjectManagePanel({
     if (disabled) {
       return;
     }
-    setSelectedId(projectId);
     onOpenProject(projectId);
   }
 
@@ -154,9 +154,6 @@ export function ProjectManagePanel({
         t("projectManager.deleteProjectSuccess", { name: deleteProject.name }),
       );
       setDeleteProject(null);
-      if (selectedId === deleteProject.id) {
-        setSelectedId(null);
-      }
       if (detailProject?.id === deleteProject.id) {
         setDetailProject(null);
       }
@@ -198,24 +195,32 @@ export function ProjectManagePanel({
       <ProjectManageTable
         rows={pageRows}
         loading={loading}
-        selectedId={selectedId}
         snapshots={snapshots}
+        workspaceNameById={workspaceNameById}
         currentPage={currentPage}
         totalPages={totalPages}
         totalCount={filtered.length}
+        pageSize={pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
         disabled={disabled}
-        onSelectRow={setSelectedId}
         onPageChange={(nextPage) => {
           if (nextPage >= 1 && nextPage <= totalPages) {
             setPage(nextPage);
           }
         }}
+        onPageSizeChange={(nextSize) => {
+          setPageSize(nextSize);
+          setPage(1);
+        }}
         onOpenDetail={(project) => {
-          setSelectedId(project.id);
+          setSettingsProject(null);
           setDetailProject(project);
         }}
         onOpenProject={handleOpen}
-        onOpenSettings={setSettingsProject}
+        onOpenSettings={(project) => {
+          setDetailProject(null);
+          setSettingsProject(project);
+        }}
         onDelete={setDeleteProject}
         onProjectsMutated={onProjectsMutated}
       />
@@ -234,10 +239,6 @@ export function ProjectManagePanel({
             setDetailProject(null);
           }
         }}
-        onOpenProject={handleOpen}
-        onOpenSettings={setSettingsProject}
-        onDelete={setDeleteProject}
-        disabled={disabled}
       />
 
       {settingsProject ? (
