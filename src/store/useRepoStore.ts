@@ -925,10 +925,11 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     beginLoadingOp(repoPath, set, get);
 
     try {
-      let [status, repoState] = await Promise.all([
+      const [initialStatus, repoState] = await Promise.all([
         gitService.getStatus(repoPath),
         gitService.getRepoState(repoPath),
       ]);
+      let status = initialStatus;
       if (status.entries.length === 0) {
         try {
           const restore = await gitService.restoreLintStagedBackup(repoPath);
