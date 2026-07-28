@@ -14,6 +14,7 @@ import {
   Plus,
   Power,
   PowerOff,
+  FolderPlus,
   Settings2,
   Sparkles,
   Terminal,
@@ -64,6 +65,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Item, ItemActions, ItemContent, ItemTitle } from "@/components/ui/item";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { SelectMenu } from "@/components/common/SelectMenu";
@@ -98,6 +100,7 @@ import {
   updateGitIdentityAccount,
   type GitIdentityAccount,
 } from "@/services/git/git.accounts";
+import { pickDirectory } from "@/services/project/project.service";
 import { listSystemFonts } from "@/services/system/system.info";
 import { setLaunchAtLoginEnabled } from "@/services/system/system.autostart";
 import { openExternalUrl } from "@/services/system/open-url";
@@ -257,6 +260,7 @@ export function SettingsDrawer() {
   const externalEditorPath = useAppPrefsStore((state) => state.externalEditorPath);
   const shell = useAppPrefsStore((state) => state.shell);
   const shellPath = useAppPrefsStore((state) => state.shellPath);
+  const gitExtraPath = useAppPrefsStore((state) => state.gitExtraPath);
   const launchAtLogin = useAppPrefsStore((state) => state.launchAtLogin);
   const startupTabsMode = useAppPrefsStore((state) => state.startupTabsMode);
   const pushAfterCommit = useAppPrefsStore((state) => state.pushAfterCommit);
@@ -277,6 +281,7 @@ export function SettingsDrawer() {
   const setExternalEditorPath = useAppPrefsStore((state) => state.setExternalEditorPath);
   const setShell = useAppPrefsStore((state) => state.setShell);
   const setShellPath = useAppPrefsStore((state) => state.setShellPath);
+  const setGitExtraPath = useAppPrefsStore((state) => state.setGitExtraPath);
   const setLaunchAtLogin = useAppPrefsStore((state) => state.setLaunchAtLogin);
   const setStartupTabsMode = useAppPrefsStore((state) => state.setStartupTabsMode);
   const setPushAfterCommit = useAppPrefsStore((state) => state.setPushAfterCommit);
@@ -584,6 +589,38 @@ export function SettingsDrawer() {
     } catch (error) {
       toast.error(toUserMessage(error) || t("settings.launchAtLoginFailed"));
     }
+  }
+
+  function gitExtraPathDirs(): string[] {
+    return gitExtraPath
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#"));
+  }
+
+  async function handleAddGitExtraPathDir(): Promise<void> {
+    try {
+      const path = await pickDirectory();
+      if (!path) {
+        return;
+      }
+      const existing = gitExtraPathDirs();
+      if (existing.includes(path)) {
+        toast.message(t("settings.gitExtraPathAlreadyAdded"));
+        return;
+      }
+      setGitExtraPath([...existing, path].join("\n"));
+    } catch (error) {
+      toast.error(toUserMessage(error) || t("settings.gitExtraPathPickFailed"));
+    }
+  }
+
+  function handleRemoveGitExtraPathDir(path: string): void {
+    setGitExtraPath(
+      gitExtraPathDirs()
+        .filter((item) => item !== path)
+        .join("\n"),
+    );
   }
 
   const themeOptions: { value: ThemeMode; label: string }[] = [
@@ -1953,6 +1990,62 @@ export function SettingsDrawer() {
                           />
                         </SettingsPreferenceRow>
                       ) : null}
+                      <Item size="sm" className="flex-col items-stretch rounded-none">
+                        <div className="flex w-full items-center gap-2">
+                          <ItemContent className="min-w-0 flex-1">
+                            <ItemTitle className="text-foreground text-xs">
+                              {t("settings.gitExtraPath")}
+                            </ItemTitle>
+                          </ItemContent>
+                          <ItemActions className="shrink-0 gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                void handleAddGitExtraPathDir();
+                              }}
+                            >
+                              <FolderPlus className="size-3.5" aria-hidden="true" />
+                              {t("settings.gitExtraPathAdd")}
+                            </Button>
+                          </ItemActions>
+                        </div>
+                        {gitExtraPathDirs().length > 0 ? (
+                          <ul className="border-border bg-muted/30 divide-border mt-2 flex flex-col divide-y overflow-hidden rounded-md border">
+                            {gitExtraPathDirs().map((dir) => (
+                              <li
+                                key={dir}
+                                className="flex min-w-0 items-center gap-2 px-2.5 py-1.5"
+                              >
+                                <span
+                                  className="text-foreground min-w-0 flex-1 truncate font-mono text-xs"
+                                  title={dir}
+                                >
+                                  {dir}
+                                </span>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-sm"
+                                      className="text-muted-foreground shrink-0"
+                                      aria-label={t("settings.gitExtraPathRemove")}
+                                      onClick={() => handleRemoveGitExtraPathDir(dir)}
+                                    >
+                                      <Trash2 aria-hidden="true" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    {t("settings.gitExtraPathRemove")}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </Item>
                     </SettingsPreferenceGroup>
                   </SettingsSection>
                 ) : null}

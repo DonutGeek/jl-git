@@ -73,6 +73,17 @@ type ThemeMode = "light" | "dark" | "system";
 
 Tokens 定义见 [theme](../development/theme.md)。
 
+### 应用偏好中的外部工具 / Git PATH
+
+由 `useAppPrefsStore` 持久化（非 SQLite settings）：
+
+| 字段 / 方法 | 行为 |
+|-------------|------|
+| `shell` / `shellPath` | 工具栏「在终端中打开」 |
+| `externalEditor` / `externalEditorPath` | 工具栏「在编辑器中打开」 |
+| `gitExtraPath` / `setGitExtraPath` | 额外 PATH 目录列表（换行分隔）；首次启动空配置时自动发现 node 的 bin 并填入；设置页亦可用系统选目录对话框添加 |
+| `probeHookToolchain()` / `discoverNodeBin()`（`src/services/git/git.path.ts`） | 探测 / 发现本机 node |
+
 ---
 
 ## AiService

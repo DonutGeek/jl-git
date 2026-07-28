@@ -40,6 +40,33 @@ interface AppError {
 | **输出** | `{ version: string; path: string }` |
 | **错误** | `GIT_NOT_FOUND` |
 
+### `git_set_extra_path`
+
+| | |
+|--|--|
+| **目的** | 设置 Git 子进程额外 PATH 目录前缀（供 husky 等钩子找到 node/pnpm） |
+| **输入** | `{ dirs: string }`（多行或平台分隔符；空串清空） |
+| **输出** | `string[]`（规范化后实际生效的绝对目录） |
+| **错误** | `INTERNAL` |
+
+### `git_probe_hook_toolchain`
+
+| | |
+|--|--|
+| **目的** | 在当前（含额外 PATH）环境下探测 node；找不到时回退常见安装位置 |
+| **输入** | `{}` |
+| **输出** | `{ nodePath?, nodeVersion?, pathUsed, extraDirs }` |
+| **错误** | `INTERNAL` |
+
+### `git_discover_node_bin`
+
+| | |
+|--|--|
+| **目的** | 发现本机 node 的 bin 目录（PATH + nvm/fnm/asdf/Homebrew 等），供首次启动自动填入 |
+| **输入** | `{}` |
+| **输出** | `{ binDir?, nodePath?, nodeVersion? }` |
+| **错误** | `INTERNAL` |
+
 ### `app_paths`
 
 | | |

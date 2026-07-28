@@ -1163,6 +1163,24 @@ pub fn git_restore_lint_staged_backup(
     ))
 }
 
+/// 设置 Git 子进程额外 PATH 目录（多行文本；空则清空）
+#[tauri::command]
+pub fn git_set_extra_path(dirs: String) -> Result<Vec<String>, AppError> {
+    crate::git::env_path::set_extra_path_from_text(&dirs)
+}
+
+/// 探测当前（含额外 PATH）环境下的 node
+#[tauri::command]
+pub fn git_probe_hook_toolchain() -> Result<crate::git::env_path::HookToolchainProbe, AppError> {
+    crate::git::env_path::probe_hook_toolchain()
+}
+
+/// 发现本机 node 的 bin 目录（首次启动自动填入）
+#[tauri::command]
+pub fn git_discover_node_bin() -> Result<crate::git::env_path::DiscoverNodeBinResult, AppError> {
+    crate::git::env_path::discover_node_bin()
+}
+
 fn is_tracked_path(repo_path: &PathBuf, relative: &str) -> Result<bool, AppError> {
     let output =
         runner::run_git_allow_nonzero(repo_path, &["ls-files", "--error-unmatch", "--", relative])?;

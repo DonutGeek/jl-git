@@ -10,6 +10,7 @@ export * from "./git.accounts";
 export * from "./git.identity";
 export * from "./git.log";
 export * from "./git.merge";
+export * from "./git.path";
 export * from "./git.remote";
 export * from "./git.show";
 export * from "./git.stash";

@@ -4,6 +4,7 @@ pub mod branch_compare;
 pub mod commit;
 pub mod conflict;
 pub mod diff;
+pub mod env_path;
 pub mod fs_list;
 pub mod identity;
 pub mod log;

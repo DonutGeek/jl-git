@@ -212,6 +212,16 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 
 - **Command：** `git_version`
 
+### `setGitExtraPath(dirs: string): Promise<string[]>`
+
+- **Command：** `git_set_extra_path`
+- 将设置中的额外 PATH 目录同步到 Rust；空串清空。返回规范化后的目录列表。
+
+### `probeHookToolchain(): Promise<HookToolchainProbe>`
+
+- **Command：** `git_probe_hook_toolchain`
+- 在当前注入 PATH 下探测 `node`（路径与 `-v` 版本）。
+
 ---
 
 ## 聚合导出示例

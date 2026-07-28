@@ -23,6 +23,8 @@ fn git_command(cwd: &Path, args: &[&str]) -> Command {
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("NO_COLOR", "1")
         .env("TERM", "dumb");
+    // 用户配置的额外 PATH（husky 钩子继承，便于找到 node/pnpm）
+    crate::git::env_path::apply_to_command(&mut command);
     // Windows：隐藏控制台，否则每次 git 都会闪黑窗
     crate::process_cmd::configure_background_command(&mut command);
     command
@@ -305,9 +307,6 @@ fn ensure_success(args: &[&str], output: GitOutput) -> Result<GitOutput, AppErro
         || lower.contains("pre-push")
         || lower.contains(".husky/")
     {
-        let reason = pick_error_message(&combined)
-            .map(|line| truncate_chars(&line, 180))
-            .unwrap_or_else(|| "请根据仓库 hooks 输出排查（如 lint / 测试）".to_string());
         let hook_name = if lower.contains("pre-push") {
             "pre-push"
         } else if lower.contains("pre-commit") {
@@ -315,15 +314,61 @@ fn ensure_success(args: &[&str], output: GitOutput) -> Result<GitOutput, AppErro
         } else {
             "hook"
         };
-        return Err(AppError::new(
-            "GIT_FAILED",
-            format!("Git {hook_name} 检查未通过：{reason}"),
-        )
-        .with_details(combined));
+        // lint-staged「Task killed」：多为内存/进程被杀，不是缺 PATH
+        if looks_like_lint_staged_task_killed(&combined) {
+            return Err(AppError::new(
+                "GIT_FAILED",
+                format!(
+                    "Git {hook_name} 检查未通过：格式化或检查任务被中断（Task killed）。请重试提交；若反复出现，请释放内存或减少一次暂存的文件数量"
+                ),
+            )
+            .with_details(combined));
+        }
+        // cargo fmt --check：Rust 未按 rustfmt 格式化
+        if looks_like_cargo_fmt_check_failure(&combined) {
+            return Err(AppError::new(
+                "GIT_FAILED",
+                format!(
+                    "Git {hook_name} 检查未通过：Rust 代码格式不符合 rustfmt。请运行 cargo fmt --manifest-path src-tauri/Cargo.toml 后再提交"
+                ),
+            )
+            .with_details(combined));
+        }
+        let reason = pick_error_message(&combined)
+            .map(|line| truncate_chars(&line, 180))
+            .unwrap_or_else(|| "请根据仓库 hooks 输出排查（如 lint / 测试）".to_string());
+        let mut message = format!("Git {hook_name} 检查未通过：{reason}");
+        if looks_like_hook_toolchain_issue(&combined) {
+            message.push_str("。可在设置 → 外部工具中配置额外 PATH（node 所在目录）");
+        }
+        return Err(AppError::new("GIT_FAILED", message).with_details(combined));
     }
 
     let message = pick_error_message(&combined).unwrap_or_else(|| "git 命令失败".to_string());
     Err(AppError::new("GIT_FAILED", message).with_details(combined))
+}
+
+/// 钩子失败是否像缺少 node 或 PATH 不对
+fn looks_like_hook_toolchain_issue(combined: &str) -> bool {
+    let lower = combined.to_ascii_lowercase();
+    lower.contains("this version of pnpm requires")
+        || lower.contains("pnpm: command not found")
+        || lower.contains("'pnpm' is not recognized")
+        || lower.contains("node: command not found")
+        || lower.contains("'node' is not recognized")
+        || lower.contains("enoent")
+        || (lower.contains("unsupported engine") && lower.contains("node"))
+        || (lower.contains("requires a node version") && lower.contains("pnpm"))
+}
+
+/// lint-staged 子任务被 SIGKILL / 内存杀掉
+fn looks_like_lint_staged_task_killed(combined: &str) -> bool {
+    combined.to_ascii_lowercase().contains("task killed")
+}
+
+fn looks_like_cargo_fmt_check_failure(combined: &str) -> bool {
+    let lower = combined.to_ascii_lowercase();
+    lower.contains("cargo fmt") && (lower.contains("diff in ") || lower.contains("--check"))
 }
 
 /// 去掉 CSI / OSC 等 ANSI 转义，避免 toast 出现 `38;2;...` 乱码
@@ -395,6 +440,8 @@ fn is_hook_wrapper_line(line: &str) -> bool {
         || lower.contains("command failed with exit code")
         || lower.starts_with("error command failed")
         || lower.contains("script failed (code")
+        || lower.starts_with("skipping backup because")
+        || lower.contains("this might result in data loss")
 }
 
 fn looks_like_error_line(line: &str) -> bool {
@@ -402,9 +449,21 @@ fn looks_like_error_line(line: &str) -> bool {
         return false;
     }
     let lower = line.to_lowercase();
+    // lint-staged 进度行：仅有命令名、无实质原因
+    if lower.starts_with('✖') || lower.starts_with('✗') {
+        let rest = lower.trim_start_matches(['✖', '✗', ' ']);
+        if rest.starts_with("prettier ") && !rest.contains("task killed") {
+            // 真正失败通常还有 Diff / 解析错误；单独一条 prettier 命令名优先不选
+            if !rest.contains("error") && !rest.contains("diff") && rest.ends_with(':') {
+                return false;
+            }
+        }
+    }
     lower.contains("error")
         || lower.contains("fatal")
         || lower.contains("failed")
+        || lower.contains("diff in ")
+        || lower.contains("task killed")
         || lower.contains("✖")
         || lower.contains("✗")
         || lower.contains("subject-empty")
@@ -414,6 +473,7 @@ fn looks_like_error_line(line: &str) -> bool {
         || lower.contains("eslint")
         || lower.contains("prettier")
         || lower.contains("lint-staged")
+        || lower.contains("cargo fmt")
 }
 
 fn pick_error_message(text: &str) -> Option<String> {
@@ -591,6 +651,24 @@ husky - pre-commit script failed (code 1)
         assert!(err.message.contains("pre-commit"));
         assert!(err.message.contains("eslint"));
         assert!(!err.message.contains("script failed (code 1)"));
+    }
+
+    #[test]
+    fn husky_task_killed_gets_friendly_message() {
+        let output = GitOutput {
+            stdout: String::new(),
+            stderr: "\
+✖ Task killed: prettier --write --ignore-unknown
+⚠ Skipping backup because `--no-stash` was used.
+husky - pre-commit script failed (code 1)
+"
+            .to_string(),
+            code: 1,
+        };
+        let err = ensure_success(&["commit", "-m", "x"], output).unwrap_err();
+        assert!(err.message.contains("Task killed"));
+        assert!(err.message.contains("释放内存") || err.message.contains("重试"));
+        assert!(!err.message.contains("额外 PATH"));
     }
 
     #[test]

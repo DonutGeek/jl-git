@@ -31,7 +31,7 @@ UI / Store 只消费 DTO。
 | 职责 | 说明 |
 |------|------|
 | 定位 `git` 可执行文件 | `PATH`；允许设置中覆盖自定义路径 |
-| 统一环境 | 可设置 `GIT_TERMINAL_PROMPT=0` 等，避免交互卡死 |
+| 统一环境 | 可设置 `GIT_TERMINAL_PROMPT=0` 等，避免交互卡死；用户可在设置「外部工具」配置额外 PATH 目录，Runner 将其 **prepend** 到 Git 子进程 `PATH`（供 husky 等钩子找到 node/pnpm） |
 | 参数数组 | 永不把整行命令当 shell |
 | 捕获 | stdout / stderr / exit code |
 | 超时 | fetch/push/clone 可配置 |

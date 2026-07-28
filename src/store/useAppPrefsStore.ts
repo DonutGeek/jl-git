@@ -69,6 +69,10 @@ interface AppPrefsState {
   externalEditorPath: string;
   shell: string;
   shellPath: string;
+  /** Git 子进程额外 PATH 目录（多行；供 husky 找到 node） */
+  gitExtraPath: string;
+  /** 是否已完成首次自动发现（成功填入或用户已手动改过）；未找到 node 时保持 false 以便下次启动再试 */
+  gitExtraPathAutoSeeded: boolean;
   launchAtLogin: boolean;
   startupTabsMode: StartupTabsMode;
   pushAfterCommit: boolean;
@@ -88,6 +92,7 @@ interface AppPrefsState {
   setExternalEditorPath: (value: string) => void;
   setShell: (value: string) => void;
   setShellPath: (value: string) => void;
+  setGitExtraPath: (value: string) => void;
   setLaunchAtLogin: (value: boolean) => void;
   setStartupTabsMode: (mode: StartupTabsMode) => void;
   setPushAfterCommit: (value: boolean) => void;
@@ -187,6 +192,8 @@ export const useAppPrefsStore = create<AppPrefsState>()(
       externalEditorPath: "",
       shell: "auto",
       shellPath: "",
+      gitExtraPath: "",
+      gitExtraPathAutoSeeded: false,
       launchAtLogin: false,
       startupTabsMode: "restore",
       pushAfterCommit: false,
@@ -238,6 +245,15 @@ export const useAppPrefsStore = create<AppPrefsState>()(
         set({ shellPath: value });
         notifyGlobalPreferenceChange("app-prefs");
       },
+      setGitExtraPath(value) {
+        set({ gitExtraPath: value, gitExtraPathAutoSeeded: true });
+        notifyGlobalPreferenceChange("app-prefs");
+        void import("@/services/git/git.path")
+          .then(({ setGitExtraPath: sync }) => sync(value))
+          .catch((error: unknown) => {
+            console.warn("同步 Git 额外 PATH 失败", error);
+          });
+      },
       setLaunchAtLogin(value) {
         set({ launchAtLogin: value });
         notifyGlobalPreferenceChange("app-prefs");
@@ -276,7 +292,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
     }),
     {
       name: APP_PREFS_STORAGE_KEY,
-      version: 13,
+      version: 15,
       migrate: (persisted, version) => {
         const state = persisted as Partial<AppPrefsState> & {
           editorChromeLight?: AppThemeChrome;
@@ -375,6 +391,14 @@ export const useAppPrefsStore = create<AppPrefsState>()(
               ? normalizeBranchPrefix(raw)
               : DEFAULT_BRANCH_PREFIX;
         }
+        if (version < 14) {
+          state.gitExtraPath = typeof state.gitExtraPath === "string" ? state.gitExtraPath : "";
+        }
+        if (version < 15) {
+          // 触发一次启动自动发现：已有配置视为已处理，空配置下次启动填入
+          state.gitExtraPathAutoSeeded =
+            typeof state.gitExtraPath === "string" && state.gitExtraPath.trim().length > 0;
+        }
         return state as AppPrefsState;
       },
       onRehydrateStorage: () => (state) => {
@@ -410,12 +434,39 @@ export function initAppPrefs(): void {
         console.warn("同步开机自启失败", error);
       });
   };
+  const syncGitExtraPath = (): void => {
+    void (async () => {
+      try {
+        const { discoverNodeBin, setGitExtraPath: sync } = await import("@/services/git/git.path");
+        const prefs = useAppPrefsStore.getState();
+        if (!prefs.gitExtraPathAutoSeeded && !(prefs.gitExtraPath ?? "").trim()) {
+          const discovered = await discoverNodeBin();
+          if (discovered.binDir) {
+            // 写入偏好并同步 Rust（setGitExtraPath 会标记 autoSeeded）
+            prefs.setGitExtraPath(discovered.binDir);
+            return;
+          }
+          // 未找到 node：下次启动再试
+          await sync("");
+          return;
+        }
+        if (!prefs.gitExtraPathAutoSeeded && (prefs.gitExtraPath ?? "").trim()) {
+          useAppPrefsStore.setState({ gitExtraPathAutoSeeded: true });
+        }
+        await sync(prefs.gitExtraPath ?? "");
+      } catch (error: unknown) {
+        console.warn("同步 Git 额外 PATH 失败", error);
+      }
+    })();
+  };
   if (useAppPrefsStore.persist.hasHydrated()) {
     syncAutostart();
+    syncGitExtraPath();
   } else {
     const unsub = useAppPrefsStore.persist.onFinishHydration(() => {
       unsub();
       syncAutostart();
+      syncGitExtraPath();
       applyActiveTheme(useAppPrefsStore.getState());
     });
   }
