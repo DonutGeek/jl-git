@@ -78,6 +78,7 @@
   "pushTagToRemote": "推送到远端",
   "pushTagStart": "正在推送标签 {{name}}…",
   "pushTagSuccess": "已推送标签 {{name}} 到远端",
+  "pushTagAlreadyExists": "远端已存在标签 {{name}}",
   "deleteTagRemoteHint": "此操作会修改远端仓库，且不可撤销",
   "deleteTagRemoteTitle": "删除远端标签",
   "deleteTagRemoteQuestion": "从远端删除标签 <name>{{name}}</name>？",

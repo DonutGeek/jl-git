@@ -194,7 +194,7 @@ pub fn run_git_stdout_capped(
 
     if truncated {
         // 停止 git 继续吐数据，避免后台仍占用 CPU/内存
-        let _ = child.kill();
+        crate::process_cmd::kill_background_child(&mut child);
     }
     let status = child.wait().map_err(|error| {
         AppError::new("GIT_FAILED", "等待 git 进程失败").with_details(error.to_string())
@@ -566,7 +566,7 @@ fn run_git_allow_nonzero_timeout(
             }
             Ok(None) => {
                 if started.elapsed() >= timeout {
-                    let _ = child.kill();
+                    crate::process_cmd::kill_background_child(&mut child);
                     let _ = child.wait();
                     let _ = stdout_handle.join();
                     let _ = stderr_handle.join();
@@ -585,7 +585,7 @@ fn run_git_allow_nonzero_timeout(
                 thread::sleep(Duration::from_millis(50));
             }
             Err(error) => {
-                let _ = child.kill();
+                crate::process_cmd::kill_background_child(&mut child);
                 return Err(AppError::new("GIT_FAILED", "等待 git 进程失败")
                     .with_details(error.to_string()));
             }

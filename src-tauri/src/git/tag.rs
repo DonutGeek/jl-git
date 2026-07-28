@@ -96,6 +96,7 @@ pub fn push_tag(repo_path: &Path, remote: &str, name: &str) -> Result<(), AppErr
     validate_git_ref(remote)?;
     validate_tag_name(repo_path, name)?;
     let refspec = format!("refs/tags/{name}");
+    // 标签推送不跑仓库 pre-push（如 pnpm check）：那是提交质量门禁，会让标签推送长时间卡住
     runner::run_git_timeout(
         repo_path,
         &[
@@ -103,6 +104,7 @@ pub fn push_tag(repo_path: &Path, remote: &str, name: &str) -> Result<(), AppErr
             "protocol.version=2",
             "push",
             "--progress",
+            "--no-verify",
             remote,
             &refspec,
         ],
@@ -140,6 +142,7 @@ pub fn delete_remote_tag(repo_path: &Path, remote: &str, name: &str) -> Result<(
     validate_git_ref(remote)?;
     validate_tag_name(repo_path, name)?;
     let refspec = format!("refs/tags/{name}");
+    // 同 push_tag：删远端标签不应触发 pre-push 全量检查
     runner::run_git_timeout(
         repo_path,
         &[
@@ -147,6 +150,7 @@ pub fn delete_remote_tag(repo_path: &Path, remote: &str, name: &str) -> Result<(
             "protocol.version=2",
             "push",
             "--progress",
+            "--no-verify",
             remote,
             "--delete",
             &refspec,
