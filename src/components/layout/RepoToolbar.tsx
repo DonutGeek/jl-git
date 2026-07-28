@@ -239,10 +239,14 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     }
 
     setPushing(true);
+    const toastId = toast.loading(t("repo.pushStart"));
     try {
-      await pushRemote();
+      const result = await pushRemote();
+      const seconds = (result.elapsedMs / 1000).toFixed(1);
+      toast.success(t("repo.pushSuccess", { remote: result.remote, seconds }), { id: toastId });
     } catch (error) {
       toastPushError(error, {
+        toastId,
         onUpdate: () => void handlePull(),
       });
       // 静默 fetch，刷新 behind 角标，便于用户直接点「更新」
@@ -260,14 +264,18 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     }
 
     setPushing(true);
+    const toastId = toast.loading(t("repo.publishStart"));
     try {
-      await pushRemote({
+      const result = await pushRemote({
         remote: "origin",
         branch: status.branch,
         setUpstream: true,
       });
+      const seconds = (result.elapsedMs / 1000).toFixed(1);
+      toast.success(t("repo.publishSuccess", { remote: result.remote, seconds }), { id: toastId });
     } catch (error) {
       toastPushError(error, {
+        toastId,
         onUpdate: () => void handlePull(),
       });
       if (isPushRejectedError(error)) {
