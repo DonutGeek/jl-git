@@ -270,41 +270,58 @@ export function CommitBox() {
       return;
     }
 
+    if (!repoPath) {
+      toast.error(t("repo.errors.noRepo"));
+      return;
+    }
+
     setBusy(true);
     setIsCommitting(true);
+    // 锁定发起仓：提交后 await 间隙若切标签，push 仍落原仓
+    const originRepoPath = repoPath;
+    const originBranch = status?.branch;
+    const originDetached = Boolean(status?.detached);
+    const originUpstream = status?.upstream;
     try {
       // 包住提交→推送间隙，避免顶栏「推送」短暂可点造成双重推送
       await holdLoading(async () => {
         await commit();
 
         if (pushAfterCommit) {
-          const needsPublish = Boolean(status?.branch) && !status?.detached && !status?.upstream;
+          const needsPublish = Boolean(originBranch) && !originDetached && !originUpstream;
           try {
-            await push(
-              needsPublish && status?.branch
-                ? {
-                    remote: "origin",
-                    branch: status.branch,
-                    setUpstream: true,
+            await push({
+              repoPath: originRepoPath,
+              remote: "origin",
+              ...(needsPublish && originBranch
+                ? { branch: originBranch, setUpstream: true }
+                : originBranch
+                  ? { branch: originBranch }
+                  : {}),
+            });
+          } catch (pushError) {
+            const stillOnOrigin = useRepoStore.getState().repoPath === originRepoPath;
+            toastPushError(pushError, {
+              onUpdate: stillOnOrigin
+                ? () => {
+                    void (async () => {
+                      try {
+                        const pullResult = await pull(
+                          originBranch
+                            ? { remote: "origin", branch: originBranch }
+                            : { remote: "origin" },
+                        );
+                        if (pullResult.conflict) {
+                          toast.error(t("repo.pullConflict"));
+                        }
+                      } catch (pullError) {
+                        toast.error(toUserMessage(pullError));
+                      }
+                    })();
                   }
                 : undefined,
-            );
-          } catch (pushError) {
-            toastPushError(pushError, {
-              onUpdate: () => {
-                void (async () => {
-                  try {
-                    const pullResult = await pull();
-                    if (pullResult.conflict) {
-                      toast.error(t("repo.pullConflict"));
-                    }
-                  } catch (pullError) {
-                    toast.error(toUserMessage(pullError));
-                  }
-                })();
-              },
             });
-            if (isPushRejectedError(pushError)) {
+            if (isPushRejectedError(pushError) && stillOnOrigin) {
               void fetchRemote().catch(() => undefined);
             }
           }

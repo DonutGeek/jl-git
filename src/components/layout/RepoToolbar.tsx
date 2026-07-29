@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -113,6 +113,18 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
   const [pushing, setPushing] = useState(false);
   const [projectFilter, setProjectFilter] = useState("");
   const { guard: guardWriteOp, dialog: conflictGuardDialog } = useConflictOperationGuard();
+
+  const projectPathRef = useRef(project.path);
+  projectPathRef.current = project.path;
+
+  // 切仓时丢掉上一仓的本地 busy，避免新仓工具栏误显示「正在推送」
+  useEffect(() => {
+    setCheckingOut(false);
+    setFetching(false);
+    setPulling(false);
+    setPushing(false);
+    setBranchMenuOpen(false);
+  }, [project.path]);
 
   const changeCount = useMemo(() => {
     return status?.entries.length ?? 0;
@@ -238,23 +250,30 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
       return;
     }
 
+    const originPath = project.path;
+    const originBranch = status?.detached ? undefined : (status?.branch ?? undefined);
     setPushing(true);
-    const toastId = toast.loading(t("repo.pushStart"));
     try {
-      const result = await pushRemote();
+      const result = await pushRemote({
+        repoPath: originPath,
+        remote: "origin",
+        branch: originBranch,
+      });
       const seconds = (result.elapsedMs / 1000).toFixed(1);
-      toast.success(t("repo.pushSuccess", { remote: result.remote, seconds }), { id: toastId });
+      toast.success(t("repo.pushSuccess", { remote: result.remote, seconds }));
     } catch (error) {
+      const stillOnOrigin = useRepoStore.getState().repoPath === originPath;
       toastPushError(error, {
-        toastId,
-        onUpdate: () => void handlePull(),
+        onUpdate: stillOnOrigin ? () => void handlePull() : undefined,
       });
       // 静默 fetch，刷新 behind 角标，便于用户直接点「更新」
-      if (isPushRejectedError(error)) {
+      if (isPushRejectedError(error) && stillOnOrigin) {
         void fetchRemote().catch(() => undefined);
       }
     } finally {
-      setPushing(false);
+      if (projectPathRef.current === originPath) {
+        setPushing(false);
+      }
     }
   }
 
@@ -263,26 +282,30 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
       return;
     }
 
+    const originPath = project.path;
+    const originBranch = status.branch;
     setPushing(true);
-    const toastId = toast.loading(t("repo.publishStart"));
     try {
       const result = await pushRemote({
+        repoPath: originPath,
         remote: "origin",
-        branch: status.branch,
+        branch: originBranch,
         setUpstream: true,
       });
       const seconds = (result.elapsedMs / 1000).toFixed(1);
-      toast.success(t("repo.publishSuccess", { remote: result.remote, seconds }), { id: toastId });
+      toast.success(t("repo.publishSuccess", { remote: result.remote, seconds }));
     } catch (error) {
+      const stillOnOrigin = useRepoStore.getState().repoPath === originPath;
       toastPushError(error, {
-        toastId,
-        onUpdate: () => void handlePull(),
+        onUpdate: stillOnOrigin ? () => void handlePull() : undefined,
       });
-      if (isPushRejectedError(error)) {
+      if (isPushRejectedError(error) && stillOnOrigin) {
         void fetchRemote().catch(() => undefined);
       }
     } finally {
-      setPushing(false);
+      if (projectPathRef.current === originPath) {
+        setPushing(false);
+      }
     }
   }
 

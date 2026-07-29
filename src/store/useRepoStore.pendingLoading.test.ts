@@ -8,6 +8,7 @@ vi.mock("@/services/git", () => ({
     getRepoState: vi.fn(),
     getLog: vi.fn(),
     commit: vi.fn(),
+    push: vi.fn(),
     getIdentity: vi.fn(),
     listBranches: vi.fn(),
     listTags: vi.fn(),
@@ -158,5 +159,50 @@ describe("useRepoStore 切仓后保留进行中 loading", () => {
     expect(useRepoStore.getState().loading).toBe(true);
 
     endRepoPendingOp("/repo/a");
+  });
+
+  it("A 推送未完成时切到 B，仍向 A 推送并写回 A 会话", async () => {
+    let resolvePush!: (value: { ok: true; remote: string; elapsedMs: number }) => void;
+    const pushPromise = new Promise<{ ok: true; remote: string; elapsedMs: number }>((resolve) => {
+      resolvePush = resolve;
+    });
+    vi.mocked(gitService.push).mockReturnValue(pushPromise);
+    vi.mocked(gitService.listBranches).mockResolvedValue([branchStub]);
+    vi.mocked(gitService.getStatus).mockResolvedValue({ ...statusA, ahead: 0 });
+    vi.mocked(gitService.getLog).mockResolvedValue({ commits: [], hasMore: false });
+
+    useRepoStore.setState({
+      repoPath: "/repo/a",
+      status: { ...statusA, ahead: 1, upstream: "origin/main" },
+      identity,
+      branches: [branchStub],
+      tags: [],
+      commits: [],
+      loading: false,
+      error: null,
+    });
+
+    const pushTask = useRepoStore.getState().push({ repoPath: "/repo/a" });
+
+    beginRepoSwitch("/repo/b");
+    useRepoStore.setState({
+      status: statusB,
+      identity,
+      branches: [branchStub],
+      loading: false,
+    });
+
+    resolvePush({ ok: true, remote: "origin", elapsedMs: 12 });
+    await pushTask;
+
+    expect(gitService.push).toHaveBeenCalledWith(
+      "/repo/a",
+      expect.objectContaining({ remote: "origin", branch: "main" }),
+    );
+    expect(useRepoStore.getState().repoPath).toBe("/repo/b");
+
+    // 切回 A：会话应已被 patch 为推送后的 status
+    restoreRepoSession("/repo/a");
+    expect(useRepoStore.getState().status?.ahead).toBe(0);
   });
 });

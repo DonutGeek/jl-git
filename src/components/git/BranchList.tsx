@@ -206,45 +206,49 @@ export function BranchList() {
   }
 
   async function handlePush(branch: GitBranch): Promise<void> {
-    const toastId = toast.loading(t("repo.pushStart"));
+    const originPath = useRepoStore.getState().repoPath;
+    if (!originPath) {
+      return;
+    }
     try {
       const result = await pushRemote({
+        repoPath: originPath,
         remote: "origin",
         branch: branch.name,
       });
       const seconds = (result.elapsedMs / 1000).toFixed(3);
-      toast.success(t("repo.pushSuccess", { remote: result.remote, seconds }), {
-        id: toastId,
-      });
+      toast.success(t("repo.pushSuccess", { remote: result.remote, seconds }));
     } catch (error) {
+      const stillOnOrigin = useRepoStore.getState().repoPath === originPath;
       toastPushError(error, {
-        toastId,
-        onUpdate: () => void handlePull(branch),
+        onUpdate: stillOnOrigin ? () => void handlePull(branch) : undefined,
       });
-      if (isPushRejectedError(error)) {
+      if (isPushRejectedError(error) && stillOnOrigin) {
         void fetchRemote().catch(() => undefined);
       }
     }
   }
 
   async function handlePublish(branch: GitBranch): Promise<void> {
-    const toastId = toast.loading(t("repo.publishStart"));
+    const originPath = useRepoStore.getState().repoPath;
+    if (!originPath) {
+      return;
+    }
     try {
       const result = await pushRemote({
+        repoPath: originPath,
         remote: "origin",
         branch: branch.name,
         setUpstream: true,
       });
       const seconds = (result.elapsedMs / 1000).toFixed(3);
-      toast.success(t("repo.publishSuccess", { remote: result.remote, seconds }), {
-        id: toastId,
-      });
+      toast.success(t("repo.publishSuccess", { remote: result.remote, seconds }));
     } catch (error) {
+      const stillOnOrigin = useRepoStore.getState().repoPath === originPath;
       toastPushError(error, {
-        toastId,
-        onUpdate: () => void handlePull(branch),
+        onUpdate: stillOnOrigin ? () => void handlePull(branch) : undefined,
       });
-      if (isPushRejectedError(error)) {
+      if (isPushRejectedError(error) && stillOnOrigin) {
         void fetchRemote().catch(() => undefined);
       }
     }

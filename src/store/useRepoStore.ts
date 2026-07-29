@@ -490,6 +490,8 @@ interface RepoStoreActions {
     branch?: string;
     setUpstream?: boolean;
     force?: boolean;
+    /** 发起推送时的仓库路径；切标签后仍推原仓（提交后推送必传） */
+    repoPath?: string;
   }) => Promise<{ remote: string; elapsedMs: number }>;
   /**
    * 包裹复合写操作（如提交后推送），在子操作间隙保持 loading，
@@ -1962,19 +1964,33 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
   async push(options) {
     set({ error: null });
-    const repoPath = requireRepoPath(get().repoPath);
+    // 允许调用方锁定发起时的路径，避免 await 间隙切标签后推到其它仓
+    const repoPath = options?.repoPath?.trim()
+      ? options.repoPath.trim()
+      : requireRepoPath(get().repoPath);
+    const session = get().repoPath === repoPath ? null : (repoSessionCache.get(repoPath) ?? null);
+    const statusForBranch = get().repoPath === repoPath ? get().status : (session?.status ?? null);
+    const logRef = get().repoPath === repoPath ? get().logRef : (session?.logRef ?? null);
+    const logOrder =
+      get().repoPath === repoPath ? get().logOrder : (session?.logOrder ?? get().logOrder);
+    const historyAdvanced =
+      get().repoPath === repoPath
+        ? get().historyAdvanced
+        : (session?.historyAdvanced ?? { ...EMPTY_HISTORY_ADVANCED_FILTERS });
+
     beginLoadingOp(repoPath, set, get);
 
     try {
       // 对齐 ugit：默认 origin + 当前分支 → push --progress origin main:main
-      const status = get().status;
       const remote = options?.remote ?? "origin";
       const branch =
-        options?.branch ?? (status?.detached ? undefined : (status?.branch ?? undefined));
+        options?.branch ??
+        (statusForBranch?.detached ? undefined : (statusForBranch?.branch ?? undefined));
       const result = await gitService.push(repoPath, {
-        ...options,
         remote,
         branch,
+        setUpstream: options?.setUpstream,
+        force: options?.force,
       });
       const [nextStatus, branches, log] = await Promise.all([
         gitService.getStatus(repoPath),
@@ -1983,9 +1999,9 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           repoPath,
           buildHistoryLogOptions({
             limit: LOG_PAGE_SIZE,
-            logRef: get().logRef,
-            order: get().logOrder,
-            advanced: get().historyAdvanced,
+            logRef,
+            order: logOrder,
+            advanced: historyAdvanced,
           }),
         ),
       ]);
