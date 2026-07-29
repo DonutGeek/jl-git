@@ -1,3 +1,4 @@
 # lint-staged@17 的 --no-stash 只能走 CLI，不能写进配置文件（会被当成 glob）
 # 关闭备份 stash，避免钩子中断/进程闪退后未暂存改动「消失」
-pnpm exec lint-staged --no-stash
+# 用 npm/npx，避免 GUI 提交时找不到 pnpm
+npm exec -- lint-staged --no-stash

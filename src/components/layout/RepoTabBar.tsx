@@ -119,7 +119,8 @@ function TabChrome({
       <button
         type="button"
         className={cn(
-          "flex h-full min-w-0 flex-1 items-center truncate py-0 pr-0.5 pl-2.5 text-left leading-none",
+          // flex 容器上 truncate 无效，省略号必须落在内层文本节点
+          "flex h-full min-w-0 flex-1 items-center py-0 pr-0.5 pl-2.5 text-left leading-none",
           dragging ? "cursor-grabbing" : "cursor-grab",
         )}
         onClick={() => onSelect?.(tab.id)}
@@ -127,7 +128,7 @@ function TabChrome({
         aria-current={isActive ? "page" : undefined}
         tabIndex={dragging ? -1 : undefined}
       >
-        {tab.label}
+        <span className="truncate">{tab.label}</span>
       </button>
       {closeLabel && onClose ? (
         <Tooltip delayDuration={400}>

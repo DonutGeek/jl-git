@@ -53,7 +53,7 @@ pnpm install --frozen-lockfile
 
 ### 5.1 pre-commit
 
-`.husky/pre-commit` 执行 `pnpm exec lint-staged --no-stash`：
+`.husky/pre-commit` 执行 `npm exec -- lint-staged --no-stash`（钩子用 npm，避免 GUI 环境无 pnpm）：
 
 - JavaScript/TypeScript：Prettier（大批量暂存时不在钩子内跑 `eslint --fix`，避免 Task killed）
 - CSS、JSON、HTML、YAML：Prettier
@@ -64,7 +64,7 @@ pnpm install --frozen-lockfile
 
 ### 5.2 pre-push
 
-`.husky/pre-push` 执行 `pnpm check`。常规开发禁止 `--no-verify`。
+`.husky/pre-push` 执行 `npm run check`（脚本内亦用 `npm run`，不依赖 pnpm 二进制）。常规开发禁止 `--no-verify`。
 
 ## 6. shadcn/ui 生成目录保护
 
