@@ -22,9 +22,9 @@ import { CopyableGitRefTag } from "@/components/git/GitRefTag";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -1039,7 +1039,7 @@ export function HistoryDetailPane() {
       </div>
 
       <Dialog open={messagePreviewOpen} onOpenChange={setMessagePreviewOpen}>
-        <DialogContent className="max-w-lg">
+        <AppDialogContent size="lg">
           <DialogHeader>
             <DialogTitle>{t("repo.commitMessagePreview")}</DialogTitle>
             <DialogDescription>{t("repo.commitMessagePreviewDescription")}</DialogDescription>
@@ -1062,7 +1062,7 @@ export function HistoryDetailPane() {
               {messageCopied ? t("repo.copySuccess") : t("repo.copy")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
     </div>
   );

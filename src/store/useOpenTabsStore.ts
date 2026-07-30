@@ -29,6 +29,8 @@ interface OpenTabsState {
   closeTabsToRight: (anchorId: string) => void;
   /** 拖拽重排标签顺序 */
   reorderTabs: (activeId: string, overId: string) => void;
+  /** 按完整 id 序列规范化标签顺序（分组视图与关闭方向共用同一顺序） */
+  orderTabs: (orderedIds: readonly string[]) => void;
   /** 去掉已不存在的仓库标签（例如项目被删除后） */
   pruneTabs: (validProjectIds: Set<string>) => void;
   /** 冷启动「每次新标签」：清空为单个新标签页并返回其 id */
@@ -235,6 +237,25 @@ export const useOpenTabsStore = create<OpenTabsState>()(
           }
           next.splice(to, 0, moved);
           return { tabs: next };
+        });
+      },
+
+      orderTabs(orderedIds) {
+        set((state) => {
+          if (
+            orderedIds.length !== state.tabs.length ||
+            orderedIds.some((id, index) => state.tabs[index]?.id !== id)
+          ) {
+            const byId = new Map(state.tabs.map((tab) => [tab.id, tab]));
+            const next = orderedIds.flatMap((id) => {
+              const tab = byId.get(id);
+              return tab ? [tab] : [];
+            });
+            if (next.length === state.tabs.length) {
+              return { tabs: next };
+            }
+          }
+          return state;
         });
       },
 

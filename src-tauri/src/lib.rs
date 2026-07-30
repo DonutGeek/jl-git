@@ -43,11 +43,25 @@ pub fn run() {
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
             // 导入备份后的待替换库：须在建立连接前应用
-            db::apply_pending_database(&app_data_dir)
+            let pending_database_swap = db::apply_pending_database(&app_data_dir)
                 .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)?;
             let db_path = app_data_dir.join("jlgit.db");
-            let pool = tauri::async_runtime::block_on(db::connect(&db_path))
-                .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)?;
+            let pool = match tauri::async_runtime::block_on(db::connect(&db_path)) {
+                Ok(pool) => {
+                    if let Some(swap) = pending_database_swap {
+                        // 清理失败只会保留一份可恢复旧库，不应阻断已验证的新库启动。
+                        let _ = swap.complete();
+                    }
+                    pool
+                }
+                Err(error) => {
+                    if let Some(swap) = pending_database_swap {
+                        swap.rollback()
+                            .map_err(|rollback| Box::new(rollback) as Box<dyn std::error::Error>)?;
+                    }
+                    return Err(Box::new(error) as Box<dyn std::error::Error>);
+                }
+            };
 
             app.manage(pool);
 

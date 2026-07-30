@@ -96,7 +96,7 @@ pub fn push_tag(repo_path: &Path, remote: &str, name: &str) -> Result<(), AppErr
     validate_git_ref(remote)?;
     validate_tag_name(repo_path, name)?;
     let refspec = format!("refs/tags/{name}");
-    // 标签推送不跑仓库 pre-push（如 pnpm check）：那是提交质量门禁，会让标签推送长时间卡住
+    // 默认尊重仓库 pre-push，避免绕过用户设置的质量与安全门禁。
     runner::run_git_timeout(
         repo_path,
         &[
@@ -104,7 +104,6 @@ pub fn push_tag(repo_path: &Path, remote: &str, name: &str) -> Result<(), AppErr
             "protocol.version=2",
             "push",
             "--progress",
-            "--no-verify",
             remote,
             &refspec,
         ],
@@ -142,7 +141,7 @@ pub fn delete_remote_tag(repo_path: &Path, remote: &str, name: &str) -> Result<(
     validate_git_ref(remote)?;
     validate_tag_name(repo_path, name)?;
     let refspec = format!("refs/tags/{name}");
-    // 同 push_tag：删远端标签不应触发 pre-push 全量检查
+    // 删除远端标签同样尊重 pre-push。
     runner::run_git_timeout(
         repo_path,
         &[
@@ -150,7 +149,6 @@ pub fn delete_remote_tag(repo_path: &Path, remote: &str, name: &str) -> Result<(
             "protocol.version=2",
             "push",
             "--progress",
-            "--no-verify",
             remote,
             "--delete",
             &refspec,
@@ -245,7 +243,7 @@ mod tests {
         // 注解标签：objecttype=tag，contents 为标签信息，解引用后为提交标题
         // 轻量标签：objecttype=commit，contents 即提交标题，解引用为空
         let tags = parse_tags(
-            "v1.0.0\0abc123\02026-07-01T10:00:00+08:00\0tag\0Release one\0Initial commit\nv1.1.0\0def456\0\0commit\0Fix bug\0\n",
+            "v1.0.0\x00abc123\x002026-07-01T10:00:00+08:00\x00tag\x00Release one\x00Initial commit\nv1.1.0\x00def456\x00\x00commit\x00Fix bug\x00\n",
         );
 
         assert_eq!(tags.len(), 2);

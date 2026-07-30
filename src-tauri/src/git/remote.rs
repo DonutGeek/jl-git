@@ -243,11 +243,28 @@ pub fn clone_repository(url: &str, dest: &Path) -> Result<GitCloneResult, AppErr
 
     let started = Instant::now();
     // 与 fetch/push 一致：不禁用 credential.helper；无 TTY 时不交互卡住
-    runner::run_git_timeout(
+    let clone_result = runner::run_git_timeout(
         parent,
-        &["clone", "--progress", "--", url, dest_str],
+        &[
+            "-c",
+            "protocol.ext.allow=never",
+            "-c",
+            "protocol.file.allow=never",
+            "clone",
+            "--progress",
+            "--",
+            url,
+            dest_str,
+        ],
         CLONE_TIMEOUT,
-    )?;
+    );
+    if let Err(error) = clone_result {
+        // 目标在调用前已确认不存在，因此这里只会处理本次 clone 产生的半成品。
+        if dest.exists() {
+            let _ = trash::delete(dest);
+        }
+        return Err(error);
+    }
 
     let repo_path = require_git_toplevel(dest)?;
     Ok(GitCloneResult {
@@ -267,19 +284,40 @@ fn validate_clone_url(url: &str) -> Result<(), AppError> {
         return Err(AppError::new("VALIDATION", "仓库地址非法"));
     }
     let lower = url.to_ascii_lowercase();
-    let looks_remote = lower.starts_with("http://")
+    if lower.starts_with("file:")
+        || lower.starts_with("ext::")
+        || lower.starts_with("fd::")
+        || lower.starts_with("rsync:")
+    {
+        return Err(AppError::new("VALIDATION", "不支持本地或外部 Git 传输协议"));
+    }
+
+    let known_protocol = lower.starts_with("http://")
         || lower.starts_with("https://")
         || lower.starts_with("ssh://")
-        || lower.starts_with("git://")
-        || lower.starts_with("git@")
-        || url.contains(':');
-    if !looks_remote {
+        || lower.starts_with("git://");
+    let scp_like = is_scp_like_remote(url);
+    if !known_protocol && !scp_like {
         return Err(AppError::new(
             "VALIDATION",
-            "请填写有效的仓库地址（HTTPS / SSH）",
+            "请填写有效的仓库地址（HTTPS / HTTP / SSH / Git）",
         ));
     }
     Ok(())
+}
+
+fn is_scp_like_remote(url: &str) -> bool {
+    if url.contains("://") || url.chars().any(char::is_whitespace) {
+        return false;
+    }
+    let Some((host, path)) = url.split_once(':') else {
+        return false;
+    };
+    !host.is_empty()
+        && !path.is_empty()
+        && !host.contains(['/', '\\'])
+        && !host.starts_with('.')
+        && !path.starts_with(':')
 }
 
 fn validate_clone_dest(dest: &Path) -> Result<(), AppError> {
@@ -359,7 +397,7 @@ fn parse_remote_verbose(stdout: &str) -> Vec<GitRemote> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_remote_verbose;
+    use super::{parse_remote_verbose, validate_clone_url};
 
     #[test]
     fn parses_remote_verbose_output() {
@@ -375,5 +413,19 @@ upstream\thttps://github.com/upstream/app.git (push)
         assert_eq!(remotes[0].fetch_url, "git@github.com:acme/app.git");
         assert_eq!(remotes[1].name, "upstream");
         assert_eq!(remotes[1].push_url, "https://github.com/upstream/app.git");
+    }
+
+    #[test]
+    fn accepts_supported_clone_urls() {
+        assert!(validate_clone_url("https://example.com/acme/app.git").is_ok());
+        assert!(validate_clone_url("ssh://git@example.com/acme/app.git").is_ok());
+        assert!(validate_clone_url("git@example.com:acme/app.git").is_ok());
+    }
+
+    #[test]
+    fn rejects_local_and_external_clone_protocols() {
+        assert!(validate_clone_url("file:///tmp/repo.git").is_err());
+        assert!(validate_clone_url("ext::sh -c id").is_err());
+        assert!(validate_clone_url("helper::repo").is_err());
     }
 }

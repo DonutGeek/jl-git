@@ -82,10 +82,11 @@ JLGit 运行在用户本机，主要风险：
 
 | 操作 | 要求 |
 |------|------|
-| discard | 二次确认，列出路径 |
+| discard | 二次确认，列出路径；操作前创建可恢复 stash |
 | force push | 二次确认 + 文案说明风险 |
 | 跳过 hooks | 默认关闭；若提供须确认 |
-| 删除分支/tag | 确认 |
+| 文件树删除 | 确认；移动到系统废纸篓；符号链接不得跟随目标 |
+| 删除分支/tag | 确认；复合删除优先保留本地引用 |
 
 ---
 
@@ -99,6 +100,9 @@ JLGit 运行在用户本机，主要风险：
 
 允许：命令名、仓库路径（用户本机已可见）、截断的 stderr。
 
+Git 参数与 stdout/stderr 在 Rust 事件边界统一脱敏，包括 URL credentials、访问 token、
+Authorization header 与 credential/askpass 配置。
+
 ---
 
 ## 依赖与供应链
@@ -106,6 +110,20 @@ JLGit 运行在用户本机，主要风险：
 - 锁文件入库
 - 新增依赖审查许可与维护状态
 - 定期关注 Tauri / 插件安全通告
+- `mammoth → argparse 1.0.3` 的旧 lodash 通过精确 pnpm override 固定到已修复版本；不得恢复 lodash 3
+
+### 当前审计例外
+
+| Advisory | 结论 | 重新评估条件 |
+|----------|------|--------------|
+| `GHSA-qwww-vcr4-c8h2`（React Router） | 不适用：JLGit 仅使用 Browser Router 的 Library Mode，不引入或调用该公告限定的 unstable RSC API | 引入 RSC API，或规划 React Router 8 升级时 |
+
+## 备份导入
+
+- 备份 ZIP 仅允许 manifest、数据库、localStorage 与固定 Store 文件名；禁止按目录前缀放行
+- 所有 ZIP 条目必须通过封闭路径检查，并限制单项与累计解压体积，防止 Zip Slip / Zip Bomb
+- imported DB 至少校验 SQLite 文件头；启动连接或迁移失败时恢复导入前数据库
+- 备份包含密钥且不加密，导出界面必须明确提示用户安全保存
 
 ---
 

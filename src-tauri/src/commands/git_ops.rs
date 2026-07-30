@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::AppHandle;
 
 use crate::error::AppError;
@@ -30,6 +30,7 @@ use crate::git::{
     status::{self, GitStatusResult},
     tag::{self, GitRemoteTag, GitTag},
     version::{self, GitVersionResult},
+    write_lock,
 };
 
 #[derive(Serialize)]
@@ -137,15 +138,17 @@ pub fn fs_file_size(path: String, file_path: String) -> Result<FsFileSizeResult,
 #[tauri::command]
 pub fn fs_remove(path: String, relative: String) -> Result<OkResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    fs_list::remove(&repo_path, &relative)?;
-    Ok(OkResult { ok: true })
+    write_lock::with_repo_write_lock(&repo_path, || {
+        fs_list::remove(&repo_path, &relative)?;
+        Ok(OkResult { ok: true })
+    })
 }
 
 /// 在同一父目录下重命名
 #[tauri::command]
 pub fn fs_rename(path: String, from: String, new_name: String) -> Result<FsRenameResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    fs_list::rename(&repo_path, &from, &new_name)
+    write_lock::with_repo_write_lock(&repo_path, || fs_list::rename(&repo_path, &from, &new_name))
 }
 
 /// 在父目录下新建空目录或空文件
@@ -158,7 +161,9 @@ pub fn fs_create(
 ) -> Result<FsCreateResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
     let parent = parent.unwrap_or_default();
-    fs_list::create(&repo_path, &parent, &name, is_dir)
+    write_lock::with_repo_write_lock(&repo_path, || {
+        fs_list::create(&repo_path, &parent, &name, is_dir)
+    })
 }
 
 #[tauri::command]
@@ -211,29 +216,31 @@ pub async fn git_tag_create(
     let repo_key = path;
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "createTag", || {
-            tag::create_tag(&repo_path, &name, message.as_deref(), target.as_deref())?;
-            if !should_push {
-                return Ok(GitTagCreateResult {
-                    ok: true,
-                    pushed: false,
-                    push_error: None,
-                });
-            }
+            write_lock::with_repo_write_lock(&repo_path, || {
+                tag::create_tag(&repo_path, &name, message.as_deref(), target.as_deref())?;
+                if !should_push {
+                    return Ok(GitTagCreateResult {
+                        ok: true,
+                        pushed: false,
+                        push_error: None,
+                    });
+                }
 
-            let push_result =
-                tag::push_tag(&repo_path, remote.as_deref().unwrap_or_default(), &name);
-            match push_result {
-                Ok(()) => Ok(GitTagCreateResult {
-                    ok: true,
-                    pushed: true,
-                    push_error: None,
-                }),
-                Err(error) => Ok(GitTagCreateResult {
-                    ok: true,
-                    pushed: false,
-                    push_error: Some(error.message),
-                }),
-            }
+                let push_result =
+                    tag::push_tag(&repo_path, remote.as_deref().unwrap_or_default(), &name);
+                match push_result {
+                    Ok(()) => Ok(GitTagCreateResult {
+                        ok: true,
+                        pushed: true,
+                        push_error: None,
+                    }),
+                    Err(error) => Ok(GitTagCreateResult {
+                        ok: true,
+                        pushed: false,
+                        push_error: Some(error.message),
+                    }),
+                }
+            })
         })
     })
     .await
@@ -256,8 +263,10 @@ pub async fn git_tag_delete(
     let repo_key = path;
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "deleteTag", || {
-            tag::delete_tag(&repo_path, &name)?;
-            Ok(OkResult { ok: true })
+            write_lock::with_repo_write_lock(&repo_path, || {
+                tag::delete_tag(&repo_path, &name)?;
+                Ok(OkResult { ok: true })
+            })
         })
     })
     .await
@@ -285,8 +294,10 @@ pub async fn git_tag_push(
     let repo_key = path;
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "pushTag", || {
-            tag::push_tag(&repo_path, &remote, &name)?;
-            Ok(OkResult { ok: true })
+            write_lock::with_repo_write_lock(&repo_path, || {
+                tag::push_tag(&repo_path, &remote, &name)?;
+                Ok(OkResult { ok: true })
+            })
         })
     })
     .await
@@ -314,8 +325,10 @@ pub async fn git_tag_delete_remote(
     let repo_key = path;
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "deleteRemoteTag", || {
-            tag::delete_remote_tag(&repo_path, &remote, &name)?;
-            Ok(OkResult { ok: true })
+            write_lock::with_repo_write_lock(&repo_path, || {
+                tag::delete_remote_tag(&repo_path, &remote, &name)?;
+                Ok(OkResult { ok: true })
+            })
         })
     })
     .await
@@ -364,8 +377,10 @@ pub async fn git_tag_fetch(
     let repo_key = path;
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "fetchTag", || {
-            tag::fetch_remote_tag(&repo_path, &remote, &name)?;
-            Ok(OkResult { ok: true })
+            write_lock::with_repo_write_lock(&repo_path, || {
+                tag::fetch_remote_tag(&repo_path, &remote, &name)?;
+                Ok(OkResult { ok: true })
+            })
         })
     })
     .await
@@ -375,6 +390,7 @@ pub async fn git_tag_fetch(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // 稳定的 Tauri IPC 参数由前端逐项传入
 pub fn git_log(
     path: String,
     skip: Option<u32>,
@@ -404,18 +420,20 @@ pub fn git_log(
 
     log::get_log(
         &repo_path,
-        skip,
-        limit,
-        r#ref.as_deref(),
-        all.unwrap_or(false),
-        order.as_deref(),
-        file_path.as_deref(),
-        authors.as_deref(),
-        reverse.unwrap_or(false),
-        grep.as_deref(),
-        since.as_deref(),
-        until.as_deref(),
-        no_merges.unwrap_or(false),
+        log::GitLogQuery {
+            skip,
+            limit,
+            ref_name: r#ref.as_deref(),
+            all: all.unwrap_or(false),
+            order: order.as_deref(),
+            path: file_path.as_deref(),
+            authors: authors.as_deref(),
+            reverse: reverse.unwrap_or(false),
+            grep: grep.as_deref(),
+            since: since.as_deref(),
+            until: until.as_deref(),
+            no_merges: no_merges.unwrap_or(false),
+        },
     )
 }
 
@@ -582,29 +600,37 @@ pub fn git_commit_file_diff(
 #[tauri::command]
 pub fn git_stage(path: String, paths: Vec<String>) -> Result<OkResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    run_path_command(&repo_path, &["add", "--"], &paths)
+    write_lock::with_repo_write_lock(&repo_path, || {
+        run_path_command(&repo_path, &["add", "--"], &paths)
+    })
 }
 
 #[tauri::command]
 pub fn git_unstage(path: String, paths: Vec<String>) -> Result<OkResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    run_path_command(&repo_path, &["restore", "--staged", "--"], &paths)
+    write_lock::with_repo_write_lock(&repo_path, || {
+        run_path_command(&repo_path, &["restore", "--staged", "--"], &paths)
+    })
 }
 
 #[tauri::command]
 pub fn git_stage_all(path: String) -> Result<OkResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    // 高频轻量操作，不写入操作日志
-    runner::run_git(&repo_path, &["add", "-A"])?;
-    Ok(OkResult { ok: true })
+    write_lock::with_repo_write_lock(&repo_path, || {
+        // 高频轻量操作，不写入操作日志
+        runner::run_git(&repo_path, &["add", "-A"])?;
+        Ok(OkResult { ok: true })
+    })
 }
 
 #[tauri::command]
 pub fn git_unstage_all(path: String) -> Result<OkResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    // 高频轻量操作，不写入操作日志
-    runner::run_git(&repo_path, &["restore", "--staged", "."])?;
-    Ok(OkResult { ok: true })
+    write_lock::with_repo_write_lock(&repo_path, || {
+        // 高频轻量操作，不写入操作日志
+        runner::run_git(&repo_path, &["restore", "--staged", "."])?;
+        Ok(OkResult { ok: true })
+    })
 }
 
 /// 放弃工作区 / 暂存区对指定路径的更改（危险；UI 须二次确认）
@@ -616,37 +642,10 @@ pub fn git_discard(path: String, paths: Vec<String>) -> Result<OkResult, AppErro
     }
     validate_repo_relative_paths(&paths)?;
 
-    let mut tracked: Vec<String> = Vec::new();
-    let mut untracked: Vec<String> = Vec::new();
-    for relative in &paths {
-        if is_tracked_path(&repo_path, relative)? {
-            tracked.push(relative.clone());
-        } else {
-            untracked.push(relative.clone());
-        }
-    }
-
-    if !tracked.is_empty() {
-        let mut args = vec![
-            "restore".to_string(),
-            "--source=HEAD".to_string(),
-            "--staged".to_string(),
-            "--worktree".to_string(),
-            "--".to_string(),
-        ];
-        args.extend(tracked);
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        runner::run_git(&repo_path, &arg_refs)?;
-    }
-
-    if !untracked.is_empty() {
-        let mut args = vec!["clean".to_string(), "-f".to_string(), "--".to_string()];
-        args.extend(untracked);
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        runner::run_git(&repo_path, &arg_refs)?;
-    }
-
-    Ok(OkResult { ok: true })
+    write_lock::with_repo_write_lock(&repo_path, || {
+        crate::git::stash::stash_paths_for_discard(&repo_path, &paths)?;
+        Ok(OkResult { ok: true })
+    })
 }
 
 #[tauri::command]
@@ -666,7 +665,9 @@ pub async fn git_commit(
     // 阻塞线程池执行，避免同步 command 卡住事件推送（日志才能实时刷新）
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "commit", || {
-            crate::git::commit::commit(&repo_path, &message, &paths, &remove_paths, amend)
+            write_lock::with_repo_write_lock(&repo_path, || {
+                crate::git::commit::commit(&repo_path, &message, &paths, &remove_paths, amend)
+            })
         })
         .map(|commit_id| GitCommitResult { commit_id })
     })
@@ -687,7 +688,9 @@ pub async fn git_amend_message(
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "amend_message", || {
-            crate::git::commit::amend_message(&repo_path, &rev, &message)
+            write_lock::with_repo_write_lock(&repo_path, || {
+                crate::git::commit::amend_message(&repo_path, &rev, &message)
+            })
         })
         .map(|commit_id| GitCommitResult { commit_id })
     })
@@ -709,7 +712,7 @@ pub async fn git_clone(
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "clone", || {
-            remote::clone_repository(&url, &dest)
+            write_lock::with_repo_write_lock(&dest, || remote::clone_repository(&url, &dest))
         })
     })
     .await
@@ -729,7 +732,9 @@ pub async fn git_fetch(
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "fetch", || {
-            remote::fetch(&repo_path, remote_name.as_deref())
+            write_lock::with_repo_write_lock(&repo_path, || {
+                remote::fetch(&repo_path, remote_name.as_deref())
+            })
         })
     })
     .await
@@ -753,12 +758,14 @@ pub async fn git_pull(
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "pull", || {
-            remote::pull(
-                &repo_path,
-                remote_name.as_deref(),
-                branch_name.as_deref(),
-                rebase,
-            )
+            write_lock::with_repo_write_lock(&repo_path, || {
+                remote::pull(
+                    &repo_path,
+                    remote_name.as_deref(),
+                    branch_name.as_deref(),
+                    rebase,
+                )
+            })
         })
     })
     .await
@@ -785,13 +792,15 @@ pub async fn git_push(
     tauri::async_runtime::spawn_blocking(move || {
         let label = if set_upstream { "publish" } else { "push" };
         oplog::run_logged(&app, &repo_key, label, || {
-            remote::push(
-                &repo_path,
-                remote_name.as_deref(),
-                branch_name.as_deref(),
-                set_upstream,
-                force,
-            )
+            write_lock::with_repo_write_lock(&repo_path, || {
+                remote::push(
+                    &repo_path,
+                    remote_name.as_deref(),
+                    branch_name.as_deref(),
+                    set_upstream,
+                    force,
+                )
+            })
         })
     })
     .await
@@ -806,16 +815,17 @@ pub async fn git_undo_commit(
     target: Option<String>,
 ) -> Result<GitResetResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    let target = target;
     let repo_key = path;
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "undo", || {
-            if let Some(rev) = target.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-                reset::reset_mixed(&repo_path, rev)
-            } else {
-                reset::undo_last_commit(&repo_path)
-            }
+            write_lock::with_repo_write_lock(&repo_path, || {
+                if let Some(rev) = target.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                    reset::reset_mixed(&repo_path, rev)
+                } else {
+                    reset::undo_last_commit(&repo_path)
+                }
+            })
         })
     })
     .await
@@ -846,7 +856,9 @@ pub async fn git_merge(
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "merge", || {
-            merge::merge(&repo_path, &source, mode, autostash)
+            write_lock::with_repo_write_lock(&repo_path, || {
+                merge::merge(&repo_path, &source, mode, autostash)
+            })
         })
     })
     .await
@@ -869,12 +881,13 @@ pub async fn git_conflict_take(
     side: ConflictSide,
 ) -> Result<conflict::OkResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    let file_path = file_path;
     let repo_key = path;
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "conflictTake", || {
-            conflict::take_side(&repo_path, &file_path, side)
+            write_lock::with_repo_write_lock(&repo_path, || {
+                conflict::take_side(&repo_path, &file_path, side)
+            })
         })
     })
     .await
@@ -906,21 +919,20 @@ pub async fn git_write_worktree_file(
     encoding: Option<String>,
 ) -> Result<conflict::OkResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    let file_path = file_path;
-    let content = content;
     let stage = stage.unwrap_or(false);
-    let encoding = encoding;
     let repo_key = path;
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "writeWorktree", || {
-            conflict::write_worktree_file(
-                &repo_path,
-                &file_path,
-                &content,
-                stage,
-                encoding.as_deref(),
-            )
+            write_lock::with_repo_write_lock(&repo_path, || {
+                conflict::write_worktree_file(
+                    &repo_path,
+                    &file_path,
+                    &content,
+                    stage,
+                    encoding.as_deref(),
+                )
+            })
         })
     })
     .await
@@ -937,12 +949,13 @@ pub async fn git_conflict_mark_resolved(
     file_path: String,
 ) -> Result<conflict::OkResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    let file_path = file_path;
     let repo_key = path;
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "conflictResolve", || {
-            conflict::mark_resolved(&repo_path, &file_path)
+            write_lock::with_repo_write_lock(&repo_path, || {
+                conflict::mark_resolved(&repo_path, &file_path)
+            })
         })
     })
     .await
@@ -965,8 +978,10 @@ pub async fn git_checkout(
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "checkout", || {
-            checkout_ref(&repo_path, &target)?;
-            Ok(OkResult { ok: true })
+            write_lock::with_repo_write_lock(&repo_path, || {
+                checkout_ref(&repo_path, &target)?;
+                Ok(OkResult { ok: true })
+            })
         })
     })
     .await
@@ -1000,8 +1015,10 @@ pub async fn git_branch_create(
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "createBranch", || {
-            branch::create_branch(&repo_path, &trimmed, start.as_deref(), do_checkout)?;
-            Ok(OkResult { ok: true })
+            write_lock::with_repo_write_lock(&repo_path, || {
+                branch::create_branch(&repo_path, &trimmed, start.as_deref(), do_checkout)?;
+                Ok(OkResult { ok: true })
+            })
         })
     })
     .await
@@ -1037,11 +1054,14 @@ pub async fn git_branch_delete(
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "deleteBranch", || {
-            branch::delete_branch(&repo_path, &trimmed, force)?;
-            if delete_remote {
-                branch::delete_remote_branch(&repo_path, &remote_name, &trimmed)?;
-            }
-            Ok(OkResult { ok: true })
+            write_lock::with_repo_write_lock(&repo_path, || {
+                // 远端先删：远端失败时保留本地分支，避免错误返回后本地引用已经消失。
+                if delete_remote {
+                    branch::delete_remote_branch(&repo_path, &remote_name, &trimmed)?;
+                }
+                branch::delete_branch(&repo_path, &trimmed, force)?;
+                Ok(OkResult { ok: true })
+            })
         })
     })
     .await
@@ -1071,8 +1091,10 @@ pub async fn git_branch_rename(
 
     tauri::async_runtime::spawn_blocking(move || {
         oplog::run_logged(&app, &repo_key, "renameBranch", || {
-            branch::rename_branch(&repo_path, &old, &new)?;
-            Ok(OkResult { ok: true })
+            write_lock::with_repo_write_lock(&repo_path, || {
+                branch::rename_branch(&repo_path, &old, &new)?;
+                Ok(OkResult { ok: true })
+            })
         })
     })
     .await
@@ -1091,16 +1113,8 @@ fn checkout_ref(repo_path: &std::path::Path, target: &str) -> Result<(), AppErro
     let tag_name = target.strip_prefix("tags/").unwrap_or(target);
     if tag::tag_exists(repo_path, tag_name)? {
         let tag_ref = format!("tags/{tag_name}");
-        runner::run_git(
-            repo_path,
-            &[
-                "checkout",
-                "--progress",
-                "--recurse-submodules",
-                &tag_ref,
-                "--",
-            ],
-        )?;
+        runner::run_git(repo_path, &["checkout", "--progress", &tag_ref, "--"])?;
+        branch::sync_submodules_best_effort(repo_path);
         return Ok(());
     }
 
@@ -1113,14 +1127,14 @@ fn checkout_ref(repo_path: &std::path::Path, target: &str) -> Result<(), AppErro
                 branch::checkout_local_branch(repo_path, local_name)?;
             } else {
                 runner::run_git(repo_path, &["switch", "-c", local_name, "--track", target])?;
-                runner::run_git(repo_path, &["submodule", "update", "--init", "--recursive"])?;
+                branch::sync_submodules_best_effort(repo_path);
             }
             return Ok(());
         }
     }
 
     runner::run_git(repo_path, &["checkout", "--progress", target, "--"])?;
-    runner::run_git(repo_path, &["submodule", "update", "--init", "--recursive"])?;
+    branch::sync_submodules_best_effort(repo_path);
     Ok(())
 }
 
@@ -1148,8 +1162,10 @@ pub fn git_stash_list(path: String) -> Result<crate::git::stash::GitStashListRes
 pub fn git_stash_apply(path: String, index: Option<u32>) -> Result<OkResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
     let index = index.unwrap_or(0);
-    crate::git::stash::apply_stash(&repo_path, index)?;
-    Ok(OkResult { ok: true })
+    write_lock::with_repo_write_lock(&repo_path, || {
+        crate::git::stash::apply_stash(&repo_path, index)?;
+        Ok(OkResult { ok: true })
+    })
 }
 
 /// 检测并恢复 lint-staged 残留的 automatic backup（进程闪退后的救场入口）
@@ -1158,9 +1174,11 @@ pub fn git_restore_lint_staged_backup(
     path: String,
 ) -> Result<crate::git::stash::RestoreLintStagedResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    Ok(crate::git::stash::try_restore_lint_staged_backup(
-        &repo_path,
-    ))
+    write_lock::with_repo_write_lock(&repo_path, || {
+        Ok(crate::git::stash::try_restore_lint_staged_backup(
+            &repo_path,
+        ))
+    })
 }
 
 /// 设置 Git 子进程额外 PATH 目录（多行文本；空则清空）
@@ -1181,14 +1199,8 @@ pub fn git_discover_node_bin() -> Result<crate::git::env_path::DiscoverNodeBinRe
     crate::git::env_path::discover_node_bin()
 }
 
-fn is_tracked_path(repo_path: &PathBuf, relative: &str) -> Result<bool, AppError> {
-    let output =
-        runner::run_git_allow_nonzero(repo_path, &["ls-files", "--error-unmatch", "--", relative])?;
-    Ok(output.code == 0)
-}
-
 fn run_path_command(
-    repo_path: &PathBuf,
+    repo_path: &Path,
     prefix: &[&str],
     paths: &[String],
 ) -> Result<OkResult, AppError> {

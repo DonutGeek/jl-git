@@ -18,11 +18,7 @@ import { projectService } from "@/services/project";
 import { useProjectStore } from "@/store/useProjectStore";
 import { toUserMessage } from "@/types/error";
 import { DEFAULT_PROJECT_ICON, type ProjectIcon as ProjectIconName } from "@/types/project";
-import {
-  joinCloneDestPath,
-  repoNameFromCloneUrl,
-  suggestCloneDestPath,
-} from "@/utils/gitClonePath";
+import { joinCloneDestPath, repoNameFromCloneUrl } from "@/utils/gitClonePath";
 
 interface CloneRepoPanelProps {
   onOpenProject: (projectId: string) => void;
@@ -71,17 +67,10 @@ export function CloneRepoPanel({ onOpenProject, disabled = false }: CloneRepoPan
 
   function handleUrlChange(nextUrl: string): void {
     setUrl(nextUrl);
-    const suggested = suggestCloneDestPath({
-      url: nextUrl,
-      currentPath: path,
-      previousRepoName: suggestedRepoName,
-    });
-    setSuggestedRepoName(suggested.repoName);
-    if (suggested.path !== path) {
-      setPath(suggested.path);
-    }
-    if (!aliasEdited && suggested.repoName) {
-      setAlias(suggested.repoName);
+    const repoName = repoNameFromCloneUrl(nextUrl);
+    setSuggestedRepoName(repoName);
+    if (!aliasEdited && repoName) {
+      setAlias(repoName);
     }
   }
 

@@ -35,29 +35,44 @@ pub struct GitLogResult {
     pub has_more: bool,
 }
 
-pub fn get_log(
-    repo_path: &Path,
-    skip: u32,
-    limit: u32,
-    ref_name: Option<&str>,
+pub struct GitLogQuery<'a> {
+    pub skip: u32,
+    pub limit: u32,
+    pub ref_name: Option<&'a str>,
     // 为 true 时使用 `git log --all`（所有本地/远端引用可达的历史）
-    all: bool,
+    pub all: bool,
     // None / "default"：git 默认序；"topo" → --topo-order；"date" → --date-order
-    order: Option<&str>,
+    pub order: Option<&'a str>,
     // 可选：仅该仓库相对路径的历史（`git log -- <path>`）
-    path: Option<&str>,
+    pub path: Option<&'a str>,
     // 可选：作者匹配模式（`git log --author`，多条为 OR）
-    authors: Option<&[String]>,
+    pub authors: Option<&'a [String]>,
     // 为 true 时等价 `git log --reverse`（从旧到新；常用于取作者最早提交）
-    reverse: bool,
+    pub reverse: bool,
     // 可选：提交说明匹配（`git log --grep`）
-    grep: Option<&str>,
+    pub grep: Option<&'a str>,
     // 可选：`--since` / `--until`（git 日期串）
-    since: Option<&str>,
-    until: Option<&str>,
+    pub since: Option<&'a str>,
+    pub until: Option<&'a str>,
     // 为 true 时加 `--no-merges`
-    no_merges: bool,
-) -> Result<GitLogResult, AppError> {
+    pub no_merges: bool,
+}
+
+pub fn get_log(repo_path: &Path, query: GitLogQuery<'_>) -> Result<GitLogResult, AppError> {
+    let GitLogQuery {
+        skip,
+        limit,
+        ref_name,
+        all,
+        order,
+        path,
+        authors,
+        reverse,
+        grep,
+        since,
+        until,
+        no_merges,
+    } = query;
     if limit == 0 {
         return Err(AppError::new("VALIDATION", "提交数量必须大于 0"));
     }
@@ -372,8 +387,8 @@ mod tests {
     #[test]
     fn truncates_extra_commit_and_sets_has_more() {
         let stdout = "\
-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0aaaaaaa\0Alice\0alice@example.com\02026-07-09T09:00:00+00:00\0first subject\0bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb cccccccccccccccccccccccccccccccccccccccc\0HEAD -> main, origin/main\0
-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07-09T10:00:00+00:00\0second subject\0\0\0
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x00aaaaaaa\x00Alice\x00alice@example.com\x002026-07-09T09:00:00+00:00\x00first subject\x00bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb cccccccccccccccccccccccccccccccccccccccc\x00HEAD -> main, origin/main\x00
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\x00bbbbbbb\x00Bob\x00bob@example.com\x002026-07-09T10:00:00+00:00\x00second subject\x00\x00\x00
 ";
 
         let result = parse_log(stdout, 1);
@@ -428,6 +443,7 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07
         assert_eq!(refs, vec!["v1.2.3".to_string(), "origin&daily".to_string()]);
     }
 
+    #[allow(clippy::too_many_arguments)] // 测试构造器只覆盖查询字段默认值
     fn get_log_default(
         skip: u32,
         limit: u32,
@@ -440,18 +456,20 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07
     ) -> Result<GitLogResult, AppError> {
         get_log(
             Path::new("."),
-            skip,
-            limit,
-            ref_name,
-            all,
-            order,
-            path,
-            authors,
-            reverse,
-            None,
-            None,
-            None,
-            false,
+            GitLogQuery {
+                skip,
+                limit,
+                ref_name,
+                all,
+                order,
+                path,
+                authors,
+                reverse,
+                grep: None,
+                since: None,
+                until: None,
+                no_merges: false,
+            },
         )
     }
 
@@ -500,18 +518,20 @@ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\0bbbbbbb\0Bob\0bob@example.com\02026-07
     fn rejects_grep_with_control_chars() {
         let error = get_log(
             Path::new("."),
-            0,
-            50,
-            None,
-            false,
-            None,
-            None,
-            None,
-            false,
-            Some("fix\nme"),
-            None,
-            None,
-            false,
+            GitLogQuery {
+                skip: 0,
+                limit: 50,
+                ref_name: None,
+                all: false,
+                order: None,
+                path: None,
+                authors: None,
+                reverse: false,
+                grep: Some("fix\nme"),
+                since: None,
+                until: None,
+                no_merges: false,
+            },
         )
         .expect_err("grep control chars should fail");
 

@@ -8,9 +8,9 @@ import { toast } from "sonner";
 import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
 import { ProjectIconPicker } from "@/components/project/ProjectIconPicker";
 import { Button } from "@/components/ui/button";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -146,7 +146,7 @@ export function OpenRepoDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <AppDialogContent>
         <DialogHeader>
           <DialogTitle>{t("openRepo.title")}</DialogTitle>
           <DialogDescription>{t("openRepo.description")}</DialogDescription>
@@ -220,7 +220,7 @@ export function OpenRepoDialog({
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
+      </AppDialogContent>
     </Dialog>
   );
 }

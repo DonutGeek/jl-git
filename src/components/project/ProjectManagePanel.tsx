@@ -7,11 +7,11 @@ import { ProjectManageFilterForm } from "@/components/project/ProjectManageFilte
 import { ProjectManageTable } from "@/components/project/ProjectManageTable";
 import { ProjectManageToolbar } from "@/components/project/ProjectManageToolbar";
 import { ProjectSettingsDialog } from "@/components/project/ProjectSettingsDialog";
+import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
-  AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
@@ -240,7 +240,7 @@ export function ProjectManagePanel({
           }
         }}
       >
-        <AlertDialogContent>
+        <AppAlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("projectManager.deleteProjectTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -263,7 +263,7 @@ export function ProjectManagePanel({
               {deleting ? t("common.loading") : t("projectManager.deleteProject")}
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogContent>
+        </AppAlertDialogContent>
       </AlertDialog>
     </div>
   );

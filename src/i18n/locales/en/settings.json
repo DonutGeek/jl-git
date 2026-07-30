@@ -127,7 +127,7 @@
   "dataBackupTipAria": "Backup help",
   "dataExport": "Export backup",
   "dataExportAction": "Export",
-  "dataExportHint": "Export the database, secrets, and preferences to a backup file",
+  "dataExportHint": "Export the database, secrets, and preferences to an unencrypted backup; store it securely",
   "dataImport": "Import backup",
   "dataImportAction": "Import",
   "dataImportHint": "Overwrite local data from a backup; only use trusted sources",

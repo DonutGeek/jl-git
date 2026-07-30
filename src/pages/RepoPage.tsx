@@ -1,6 +1,8 @@
 import {
+  Activity,
+  lazy,
+  Suspense,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -11,21 +13,14 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { ActivityBar, type SidebarView } from "@/components/layout/ActivityBar";
 import { RepoToolbar, type RepoMainView } from "@/components/layout/RepoToolbar";
 import { ResizableSplit } from "@/components/layout/ResizableSplit";
 import { BranchList } from "@/components/git/BranchList";
-import { TagList } from "@/components/git/TagList";
-import { AgentChatPanel } from "@/components/ai/AgentChatPanel";
-import { ChangesPanel } from "@/components/git/ChangesPanel";
-import { ChangesPreviewPane } from "@/components/git/ChangesPreviewPane";
 import { CommitBox } from "@/components/git/CommitBox";
-import { FileTree } from "@/components/git/FileTree";
-import { HistoryWorkspace } from "@/components/git/HistoryWorkspace";
-import { WorkspaceBrowser } from "@/components/git/WorkspaceBrowser";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
-import { cn } from "@/lib/utils";
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
 
@@ -47,6 +42,48 @@ const SIDEBAR_MIN_WIDTH_PX = 240;
 /** 变更列表在纵向分栏中的最小高度。 */
 const CHANGES_LIST_MIN_HEIGHT_PX = 320;
 const HISTORY_DETAIL_SPLIT_KEY = "jlgit:split:history-detail";
+
+const LazyAgentChatPanel = lazy(() =>
+  import("@/components/ai/AgentChatPanel").then((module) => ({
+    default: module.AgentChatPanel,
+  })),
+);
+const LazyFileTree = lazy(() =>
+  import("@/components/git/FileTree").then((module) => ({ default: module.FileTree })),
+);
+const LazyChangesPanel = lazy(() =>
+  import("@/components/git/ChangesPanel").then((module) => ({
+    default: module.ChangesPanel,
+  })),
+);
+const LazyChangesPreviewPane = lazy(() =>
+  import("@/components/git/ChangesPreviewPane").then((module) => ({
+    default: module.ChangesPreviewPane,
+  })),
+);
+const LazyTagList = lazy(() =>
+  import("@/components/git/TagList").then((module) => ({ default: module.TagList })),
+);
+const LazyHistoryWorkspace = lazy(() =>
+  import("@/components/git/HistoryWorkspace").then((module) => ({
+    default: module.HistoryWorkspace,
+  })),
+);
+const LazyWorkspaceBrowser = lazy(() =>
+  import("@/components/git/WorkspaceBrowser").then((module) => ({
+    default: module.WorkspaceBrowser,
+  })),
+);
+
+function RepoModuleLoading() {
+  const { t } = useTranslation();
+  return (
+    <div className="text-muted-foreground flex h-full min-h-24 items-center justify-center gap-2 text-xs">
+      <Spinner className="size-3.5" />
+      <span>{t("common.loading")}</span>
+    </div>
+  );
+}
 
 /** 从 store 同步取项目元数据（轻量，不含 Git 会话还原） */
 function lookupProject(projectId: string | undefined): Project | null {
@@ -181,17 +218,6 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
     };
   }, [reset]);
 
-  // 绘制前轻量清空旧仓列表，避免「标签已是 B、列表还是 A」；比重灌缓存便宜得多
-  useLayoutEffect(() => {
-    if (!active) {
-      return;
-    }
-    const next = lookupProject(projectId);
-    if (next && useRepoStore.getState().repoPath !== next.path) {
-      beginRepoSwitch(next.path);
-    }
-  }, [active, projectId]);
-
   // 合并/拉取冲突后自动切到变更视图
   useEffect(() => {
     if (conflictFocusEpoch <= 0 || !active) {
@@ -216,69 +242,76 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
     const id = projectId;
     let cancelled = false;
 
-    // 等浏览器画出标签/工具栏后再灌会话与拉 Git，削掉点击卡点
+    let loadTimer: number | null = null;
+    // rAF 内只安排宏任务：浏览器会先提交标签 / 工具栏这一帧，再切 Store 与拉 Git。
     const raf = window.requestAnimationFrame(() => {
-      void (async () => {
-        setError(null);
+      loadTimer = window.setTimeout(() => {
+        void (async () => {
+          setError(null);
 
-        try {
-          let target = findById(id) ?? lookupProject(id);
+          try {
+            let target = findById(id) ?? lookupProject(id);
 
-          if (!target) {
-            await loadProjects();
-            target = lookupProject(id);
-          }
+            if (!target) {
+              await loadProjects();
+              target = lookupProject(id);
+            }
 
-          if (!target) {
-            throw new Error(t("repo.notFound"));
-          }
+            if (!target) {
+              throw new Error(t("repo.notFound"));
+            }
 
-          if (cancelled) {
-            return;
-          }
+            if (cancelled) {
+              return;
+            }
 
-          // 每次重新激活都先尝试还原会话。
-          // 否则「同 path 但列表已被 beginRepoSwitch 清空」时会误判 alreadyShowing，
-          // 只刷 status → 分支一直空，还会把空列表写回缓存。
-          const cacheHit = hasRepoSession(target.path);
-          if (cacheHit) {
-            restoreRepoSession(target.path);
-          } else if (useRepoStore.getState().repoPath !== target.path) {
-            beginRepoSwitch(target.path);
-          }
+            // 每次重新激活都先尝试还原会话。
+            // 否则「同 path 但列表已被 beginRepoSwitch 清空」时会误判 alreadyShowing，
+            // 只刷 status → 分支一直空，还会把空列表写回缓存。
+            const cacheHit = hasRepoSession(target.path);
+            if (cacheHit) {
+              restoreRepoSession(target.path);
+            } else if (useRepoStore.getState().repoPath !== target.path) {
+              beginRepoSwitch(target.path);
+            }
 
-          setProject(target);
-          setBootstrapping(false);
-
-          void openExisting(target.id).catch((touchError) => {
-            console.warn("[RepoPage] touchOpened failed", touchError);
-          });
-
-          const hydrated = useRepoStore.getState();
-          const canSoftRefresh = hydrated.repoPath === target.path && hydrated.branches.length > 0;
-
-          if (canSoftRefresh) {
-            void refreshStatus().catch((refreshError) => {
-              console.warn("[RepoPage] refreshStatus failed", refreshError);
-            });
-            return;
-          }
-
-          await loadAll(target.path);
-        } catch (initError) {
-          if (!cancelled) {
-            const message = toUserMessage(initError);
-            setError(message);
+            setProject(target);
             setBootstrapping(false);
-            toast.error(message);
+
+            void openExisting(target.id).catch((touchError) => {
+              console.warn("[RepoPage] touchOpened failed", touchError);
+            });
+
+            const hydrated = useRepoStore.getState();
+            const canSoftRefresh =
+              hydrated.repoPath === target.path && hydrated.branches.length > 0;
+
+            if (canSoftRefresh) {
+              void refreshStatus().catch((refreshError) => {
+                console.warn("[RepoPage] refreshStatus failed", refreshError);
+              });
+              return;
+            }
+
+            await loadAll(target.path);
+          } catch (initError) {
+            if (!cancelled) {
+              const message = toUserMessage(initError);
+              setError(message);
+              setBootstrapping(false);
+              toast.error(message);
+            }
           }
-        }
-      })();
+        })();
+      }, 0);
     });
 
     return () => {
       cancelled = true;
       window.cancelAnimationFrame(raf);
+      if (loadTimer !== null) {
+        window.clearTimeout(loadTimer);
+      }
     };
   }, [projectId, active]);
 
@@ -288,34 +321,44 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
     }
 
     let refreshing = false;
-    let refreshQueued = false;
+    let refreshFrame: number | null = null;
 
     const refreshChanges = async (): Promise<void> => {
       if (refreshing) {
-        refreshQueued = true;
         return;
       }
 
       refreshing = true;
-      do {
-        refreshQueued = false;
-        try {
-          await refreshStatus();
-        } catch (refreshError) {
-          // 自动刷新失败不打断当前操作；手动刷新仍会给出可见提示。
-          console.warn("[RepoPage] refresh repository status failed", refreshError);
-        }
-      } while (refreshQueued);
-      refreshing = false;
+      try {
+        await refreshStatus();
+      } catch (refreshError) {
+        // 自动刷新失败不打断当前操作；手动刷新仍会给出可见提示。
+        console.warn("[RepoPage] refresh repository status failed", refreshError);
+      } finally {
+        refreshing = false;
+      }
+    };
+
+    const scheduleRefresh = (): void => {
+      if (refreshFrame !== null || document.visibilityState !== "visible") {
+        return;
+      }
+      // 后台恢复先给 WebView 两帧完成合成，再触发 Git/React 更新；focus + visibility 只合并为一次。
+      refreshFrame = window.requestAnimationFrame(() => {
+        refreshFrame = window.requestAnimationFrame(() => {
+          refreshFrame = null;
+          void refreshChanges();
+        });
+      });
     };
 
     const handleWindowFocus = (): void => {
-      void refreshChanges();
+      scheduleRefresh();
     };
 
     const handleVisibilityChange = (): void => {
       if (document.visibilityState === "visible") {
-        void refreshChanges();
+        scheduleRefresh();
       }
     };
 
@@ -323,6 +366,9 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      if (refreshFrame !== null) {
+        window.cancelAnimationFrame(refreshFrame);
+      }
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
@@ -378,24 +424,34 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
 
   const sidebar = (
     <aside data-jlgit-sidebar="" className="h-full min-h-0 overflow-hidden">
-      {sidebarView === "files" ? <FileTree key={project.path} repoPath={project.path} /> : null}
-      {sidebarView === "branches" ? <BranchList /> : null}
+      {sidebarView === "files" ? (
+        <Suspense fallback={<RepoModuleLoading />}>
+          <LazyFileTree key={project.path} repoPath={project.path} />
+        </Suspense>
+      ) : null}
+      {sidebarView === "branches" ? <BranchList key={project.path} /> : null}
       {sidebarView === "tags" ? (
-        <TagList onSelectTag={() => handleMainViewChange("history")} />
+        <Suspense fallback={<RepoModuleLoading />}>
+          <LazyTagList key={project.path} onSelectTag={() => handleMainViewChange("history")} />
+        </Suspense>
       ) : null}
       {sidebarView === "agent" ? (
-        <AgentChatPanel projectId={project.id} repoPath={project.path} />
+        <Suspense fallback={<RepoModuleLoading />}>
+          <LazyAgentChatPanel projectId={project.id} repoPath={project.path} />
+        </Suspense>
       ) : null}
     </aside>
   );
 
   const workspacePane = (
-    <WorkspaceBrowser
-      key={project.path}
-      repoPath={project.path}
-      repoName={project.name}
-      active={mainView === "workspace"}
-    />
+    <Suspense fallback={<RepoModuleLoading />}>
+      <LazyWorkspaceBrowser
+        key={project.path}
+        repoPath={project.path}
+        repoName={project.name}
+        active={mainView === "workspace"}
+      />
+    </Suspense>
   );
 
   const changesPane = (
@@ -416,12 +472,14 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
             storageKey="jlgit:split:changes-commit"
             first={
               <div className="h-full min-h-0 overflow-hidden">
-                <ChangesPanel />
+                <Suspense fallback={<RepoModuleLoading />}>
+                  <LazyChangesPanel key={project.path} />
+                </Suspense>
               </div>
             }
             second={
               <div className="h-full min-h-0 overflow-hidden">
-                <CommitBox />
+                <CommitBox key={project.path} />
               </div>
             }
           />
@@ -429,35 +487,39 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       }
       second={
         <aside className="h-full min-h-0 overflow-hidden">
-          <ChangesPreviewPane />
+          <Suspense fallback={<RepoModuleLoading />}>
+            <LazyChangesPreviewPane key={project.path} />
+          </Suspense>
         </aside>
       }
     />
   );
 
-  const historyPane = <HistoryWorkspace />;
+  const historyPane = (
+    <Suspense fallback={<RepoModuleLoading />}>
+      <LazyHistoryWorkspace key={project.path} />
+    </Suspense>
+  );
 
   function renderKeptPane(view: RepoMainView, pane: ReactNode): ReactNode {
     if (!visitedViews.has(view)) {
       return null;
     }
     return (
-      <div
-        className={cn(
-          "h-full min-h-0 min-w-0 overflow-hidden",
-          mainView === view ? "block" : "hidden",
-        )}
-        // 隐藏时不参与无障碍焦点遍历
-        aria-hidden={mainView !== view}
-      >
-        {pane}
-      </div>
+      <Activity mode={mainView === view ? "visible" : "hidden"}>
+        <div className="h-full min-h-0 min-w-0 overflow-hidden">{pane}</div>
+      </Activity>
     );
   }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <RepoToolbar project={project} mainView={mainView} onMainViewChange={handleMainViewChange} />
+      <RepoToolbar
+        key={project.path}
+        project={project}
+        mainView={mainView}
+        onMainViewChange={handleMainViewChange}
+      />
 
       <div className="relative flex min-h-0 flex-1">
         <div className="relative flex min-h-0 min-w-0 flex-1">

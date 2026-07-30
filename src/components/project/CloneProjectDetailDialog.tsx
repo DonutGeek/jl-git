@@ -4,9 +4,9 @@ import { toast } from "sonner";
 
 import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
 import { Button } from "@/components/ui/button";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -102,7 +102,7 @@ export function CloneProjectDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-lg">
+      <AppDialogContent size="lg">
         <DialogHeader>
           <DialogTitle>{t("cloneRepo.detailDialogTitle")}</DialogTitle>
           <DialogDescription>
@@ -132,7 +132,7 @@ export function CloneProjectDetailDialog({
             {saving ? t("common.loading") : t("cloneRepo.detailConfirm")}
           </Button>
         </DialogFooter>
-      </DialogContent>
+      </AppDialogContent>
     </Dialog>
   );
 }

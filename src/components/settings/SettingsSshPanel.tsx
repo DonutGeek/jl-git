@@ -17,9 +17,9 @@ import { SettingsFieldHeading } from "@/components/settings/SettingsFieldHeading
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -561,8 +561,8 @@ export function SettingsSshPanel() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-md">
-          <form className="space-y-6" onSubmit={(event) => void handleCreate(event)}>
+        <AppDialogContent>
+          <form className="space-y-4" onSubmit={(event) => void handleCreate(event)}>
             <DialogHeader>
               <DialogTitle>{t("settings.sshAddTitle")}</DialogTitle>
             </DialogHeader>
@@ -594,7 +594,7 @@ export function SettingsSshPanel() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
 
       <Dialog
@@ -606,8 +606,8 @@ export function SettingsSshPanel() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-md">
-          <form className="space-y-6" onSubmit={(event) => void handleChangePassphrase(event)}>
+        <AppDialogContent>
+          <form className="space-y-4" onSubmit={(event) => void handleChangePassphrase(event)}>
             <DialogHeader>
               <DialogTitle>{t("settings.sshEditPassphraseTitle")}</DialogTitle>
               <DialogDescription>
@@ -669,7 +669,7 @@ export function SettingsSshPanel() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
 
       <Dialog
@@ -680,7 +680,7 @@ export function SettingsSshPanel() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <AppDialogContent>
           <DialogHeader>
             <DialogTitle>{t("settings.sshDeleteTitle")}</DialogTitle>
             <DialogDescription>
@@ -712,7 +712,7 @@ export function SettingsSshPanel() {
               {t("settings.delete")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
     </>
   );

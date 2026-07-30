@@ -40,7 +40,7 @@ interface GitState {
 ### 规则
 
 1. Store **不**直接 `invoke`；由 Service / Hook 写入
-2. 切换仓库时调用 `reset()`，防止串数据
+2. 仓库状态按规范化路径隔离；切换时还原目标仓会话，冷开仓才重置展示数据
 3. 选择器取值，避免整树订阅导致重渲染：
 
 ```ts
@@ -79,6 +79,9 @@ sequenceDiagram
 - `git status` 结果放 `useGitStore`
 - 真相源仍是 Git；任何写操作成功后必须刷新
 - 可对 status 请求做 in-flight 合并（debounce / shared promise）
+- 异步 Git 操作在第一次 `await` 前捕获 `repoPath` 与查询偏好；完成、失败和后续刷新都只回写发起仓库
+- `loading` / `error` 必须按仓库隔离。A 仓操作未完成时切到 B，B 不继承 A 的状态；切回 A 要恢复 A 的 pending 状态
+- 禁止在复合操作的 `await` 间隙重新读取“当前仓库”作为 Git 命令目标
 
 ---
 

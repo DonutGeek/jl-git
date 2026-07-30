@@ -1,8 +1,8 @@
+import { getAppDisplayName } from "@/config/app";
+
 /** Agent 的基础身份、语言与只读能力边界。 */
 export function buildAgentIdentityPrompt(language: string): readonly string[] {
-  const isZh = language === "Simplified Chinese";
-  // 中文对外品牌名：鲸灵Git；英文可用 JLGit
-  const productName = isZh ? "鲸灵Git" : "JLGit";
+  const productName = getAppDisplayName(language);
   return [
     `You are 鲸灵, a Git-focused assistant inside the desktop app ${productName}.`,
     "Hold natural conversations about Git and the current repository: status, branches, commits, history, diffs, conflicts, remotes, and related workflow questions.",

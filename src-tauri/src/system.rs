@@ -177,7 +177,7 @@ pub fn list_fonts() -> Result<Vec<String>, AppError> {
     let mut families = source.all_families().map_err(|error| {
         AppError::new("INTERNAL", "无法读取本机字体列表").with_details(error.to_string())
     })?;
-    families.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    families.sort_by_key(|family| family.to_lowercase());
     families.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
     Ok(families)
 }
@@ -440,6 +440,7 @@ fn is_pseudo_volume(filesystem: &str, mount: &str) -> bool {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
 
@@ -687,15 +688,12 @@ pub fn open_with_default_app(path: &str) -> Result<OkResult, AppError> {
 
     #[cfg(target_os = "windows")]
     {
-        // `start "" <path>`：空标题避免路径被当成窗口标题；去掉 `\\?\`
-        let mut command = Command::new("cmd");
+        // 直接调用 Explorer，避免 `cmd /C start` 对合法路径中的 `&` 等字符进行二次解析
+        let mut command = Command::new("explorer.exe");
         crate::process_cmd::configure_background_command(&mut command);
-        command
-            .args(["/C", "start", "", &path_str])
-            .spawn()
-            .map_err(|error| {
-                AppError::new("INTERNAL", "无法使用默认程序打开").with_details(error.to_string())
-            })?;
+        command.arg(&path_str).spawn().map_err(|error| {
+            AppError::new("INTERNAL", "无法使用默认程序打开").with_details(error.to_string())
+        })?;
     }
 
     #[cfg(all(unix, not(target_os = "macos")))]

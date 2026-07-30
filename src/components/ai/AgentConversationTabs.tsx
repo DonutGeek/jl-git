@@ -22,9 +22,9 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -381,7 +381,7 @@ export function AgentConversationTabs({
           }
         }}
       >
-        <DialogContent className="sm:max-w-sm">
+        <AppDialogContent size="sm">
           <DialogHeader>
             <DialogTitle>{t("agent.tabRenameTitle")}</DialogTitle>
           </DialogHeader>
@@ -408,7 +408,7 @@ export function AgentConversationTabs({
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
 
       <Dialog
@@ -419,7 +419,7 @@ export function AgentConversationTabs({
           }
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <AppDialogContent>
           <DialogHeader>
             <DialogTitle>{t("agent.deleteConversationTitle")}</DialogTitle>
             <DialogDescription>
@@ -438,7 +438,7 @@ export function AgentConversationTabs({
               {t("agent.deleteConversation")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
     </>
   );

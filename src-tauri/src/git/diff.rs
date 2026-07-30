@@ -1,15 +1,16 @@
 use serde::Serialize;
 use std::fs;
+use std::io::Read;
 use std::path::Path;
-use std::process::Command;
 
 use encoding_rs::Encoding;
 
 use crate::error::AppError;
-use crate::git::path::{validate_git_ref, validate_repo_relative_paths};
+use crate::git::path::{resolve_worktree_file, validate_git_ref, validate_repo_relative_paths};
 use crate::git::runner;
 
 pub(crate) const DEFAULT_MAX_BYTES: usize = 1_048_576;
+const MAX_DIFF_BYTES: usize = 8_388_608;
 const DEFAULT_ENCODING: &str = "utf-8";
 const DEFAULT_STAGED_CONTEXT_MAX_BYTES: usize = 65_536;
 const BINARY_HEX_PREVIEW_BYTES: usize = 4_096;
@@ -97,7 +98,9 @@ pub fn get_diff(
     }
     validate_repo_relative_paths(&[file_path.to_string()])?;
 
-    let limit = max_bytes.unwrap_or(DEFAULT_MAX_BYTES).max(1024);
+    let limit = max_bytes
+        .unwrap_or(DEFAULT_MAX_BYTES)
+        .clamp(1_024, MAX_DIFF_BYTES);
     let encoding_id = encoding.unwrap_or(DEFAULT_ENCODING);
 
     let (old_raw, new_raw) = if staged {
@@ -108,13 +111,9 @@ pub fn get_diff(
         )
     } else {
         let old = read_blob(repo_path, &format!("HEAD:{file_path}"))?;
-        let worktree = repo_path.join(file_path);
-        let new = if worktree.is_file() {
-            Some(read_worktree_bytes(&worktree)?)
-        } else {
-            // 工作区已删除，或路径不存在
-            None
-        };
+        let new = resolve_worktree_file(repo_path, file_path)?
+            .map(|worktree| read_worktree_bytes_capped(&worktree, limit.saturating_add(1)))
+            .transpose()?;
         // 未跟踪文件：HEAD 无 blob，old 为空
         (old, new)
     };
@@ -244,7 +243,7 @@ struct PatchOut {
 
 /// 按 UTF-8 字符边界安全截断：直接 `String::truncate` 落在多字节字符中间会 panic（闪退）。
 /// 返回是否发生了截断。
-fn truncate_text_to_limit(text: &mut String, limit: usize) -> bool {
+pub(crate) fn truncate_text_to_limit(text: &mut String, limit: usize) -> bool {
     if text.len() <= limit {
         return false;
     }
@@ -276,8 +275,7 @@ fn read_patch(
 
     // 未跟踪文件：普通 diff 为空，用 --no-index 生成（失败则保持空 patch）
     if !staged && text.is_empty() {
-        let abs = repo_path.join(file_path);
-        if abs.is_file() {
+        if let Some(abs) = resolve_worktree_file(repo_path, file_path)? {
             if let Ok(extra) = diff_untracked(repo_path, &abs, limit) {
                 return Ok(extra);
             }
@@ -291,18 +289,12 @@ fn diff_untracked(repo_path: &Path, abs_file: &Path, limit: usize) -> Result<Pat
     // git diff --no-index 在有差异时退出码为 1
     let null_device = if cfg!(windows) { "NUL" } else { "/dev/null" };
     let abs_str = abs_file.to_string_lossy();
-    let mut command = Command::new("git");
-    crate::process_cmd::configure_background_command(&mut command);
-    let output = command
-        .args(["diff", "--no-index", "--", null_device, abs_str.as_ref()])
-        .current_dir(repo_path)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .map_err(|error| {
-            AppError::new("GIT_FAILED", "无法生成未跟踪文件 diff").with_details(error.to_string())
-        })?;
-
-    let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
+    let (_, stdout, _) = runner::run_git_bytes_capped(
+        repo_path,
+        &["diff", "--no-index", "--", null_device, abs_str.as_ref()],
+        limit.saturating_add(1),
+    )?;
+    let mut text = String::from_utf8_lossy(&stdout).into_owned();
     let truncated = truncate_text_to_limit(&mut text, limit);
     Ok(PatchOut { text, truncated })
 }
@@ -329,9 +321,11 @@ fn read_staged_blob(repo_path: &Path, file_path: &str) -> Result<Option<Vec<u8>>
     if let Some(bytes) = read_blob(repo_path, &format!(":{file_path}"))? {
         return Ok(Some(bytes));
     }
-    let worktree = repo_path.join(file_path);
-    if worktree.is_file() {
-        return Ok(Some(read_worktree_bytes(&worktree)?));
+    if let Some(worktree) = resolve_worktree_file(repo_path, file_path)? {
+        return Ok(Some(read_worktree_bytes_capped(
+            &worktree,
+            MAX_DIFF_BYTES.saturating_add(1),
+        )?));
     }
     Ok(None)
 }
@@ -342,21 +336,24 @@ pub(crate) fn read_worktree_bytes(path: &Path) -> Result<Vec<u8>, AppError> {
     })
 }
 
-fn git_bytes(cwd: &Path, args: &[&str]) -> Result<(i32, Vec<u8>, String), AppError> {
-    let mut command = Command::new("git");
-    crate::process_cmd::configure_background_command(&mut command);
-    let output = command
-        .args(args)
-        .current_dir(cwd)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .map_err(|error| AppError::git_not_found(error.to_string()))?;
+pub(crate) fn read_worktree_bytes_capped(
+    path: &Path,
+    max_bytes: usize,
+) -> Result<Vec<u8>, AppError> {
+    let file = fs::File::open(path).map_err(|error| {
+        AppError::new("INTERNAL", "无法打开工作区文件").with_details(error.to_string())
+    })?;
+    let mut bytes = Vec::with_capacity(max_bytes.min(64 * 1024));
+    file.take(max_bytes as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| {
+            AppError::new("INTERNAL", "无法读取工作区文件").with_details(error.to_string())
+        })?;
+    Ok(bytes)
+}
 
-    Ok((
-        output.status.code().unwrap_or(-1),
-        output.stdout,
-        String::from_utf8_lossy(&output.stderr).into_owned(),
-    ))
+fn git_bytes(cwd: &Path, args: &[&str]) -> Result<(i32, Vec<u8>, String), AppError> {
+    runner::run_git_bytes_capped(cwd, args, MAX_DIFF_BYTES.saturating_add(1))
 }
 
 pub(crate) fn looks_binary(data: Option<&[u8]>) -> bool {

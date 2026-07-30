@@ -101,7 +101,6 @@ docs(architecture): 补充 Command 错误码约定
 
 - [ ] `pnpm check` 通过
 - [ ] `pnpm build` 通过（或至少无新增类型错误）
-- [ ] Husky pre-commit / pre-push 未被 `--no-verify` 绕过
 - [ ] 未手工改写 `src/components/ui/**`
 - [ ] 手动验证相关路径（桌面端优先）
 - [ ] 文档与 Command/API 已同步

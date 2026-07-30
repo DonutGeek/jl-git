@@ -283,7 +283,7 @@ pub fn ssh_key_scan_local(app: AppHandle) -> Result<SshKeyScanResult, AppError> 
         });
     }
 
-    keys.sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
+    keys.sort_by_key(|key| key.name.to_lowercase());
 
     Ok(SshKeyScanResult {
         ssh_dir: ssh_dir_display,

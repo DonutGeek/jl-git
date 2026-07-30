@@ -13,6 +13,13 @@ dist
 dist-ssr
 *.local
 
+# Vite 本机覆盖；`.env.example` / `.env.development` / `.env.production` 可提交。
+# 不要在 VITE_* 中放密钥（会打包进前端）。
+.env
+.env.local
+.env.*.local
+!.env.example
+
 # Brainstorm visual companion
 .superpowers/
 

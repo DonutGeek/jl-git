@@ -1,6 +1,8 @@
 import {
+  startTransition,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type FormEvent,
@@ -10,40 +12,30 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  closestCenter,
   DndContext,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { horizontalListSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { FolderPlus, Plus, X } from "lucide-react";
+import { FolderPlus, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { MultiAgentWindowButton } from "@/components/agent/MultiAgentWindowButton";
-import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
+import { RepositoryTabGroup } from "@/components/layout/RepoTabGroup";
+import {
+  readRepoTabDragData,
+  RepoTabChrome,
+  SortableRepoTab,
+  type TabDisplayItem,
+} from "@/components/layout/RepoTabItem";
 import { OpenRepoDialog } from "@/components/project/OpenRepoDialog";
 import { Button } from "@/components/ui/button";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -51,16 +43,13 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
-import { cn } from "@/lib/utils";
-
 import { useOpenTabsStore, type OpenTab } from "@/store/useOpenTabsStore";
-import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
 import { useProjectStore } from "@/store/useProjectStore";
-
 import { gitService } from "@/services/git";
 import { pickPrimaryRemoteUrl } from "@/services/git/git.remote";
 import { copyToClipboard } from "@/utils/clipboard";
-
+import { cn } from "@/lib/utils";
+import { groupRepoTabs, resolveRepoTabDropAction } from "@/utils/repoTabGroups";
 import { toUserMessage } from "@/types/error";
 import type { Project } from "@/types/project";
 
@@ -82,204 +71,6 @@ function resolveActiveTabId(pathname: string, tabs: OpenTab[]): string | null {
   return null;
 }
 
-interface TabDisplayItem {
-  id: string;
-  label: string;
-  title: string;
-  type: OpenTab["type"];
-  project?: Project;
-}
-
-interface TabChromeProps {
-  tab: TabDisplayItem;
-  isActive: boolean;
-  dragging?: boolean;
-  onSelect?: (tabId: string) => void;
-  onClose?: (event: MouseEvent | KeyboardEvent, tabId: string) => void;
-  closeLabel?: string;
-}
-
-function TabChrome({
-  tab,
-  isActive,
-  dragging = false,
-  onSelect,
-  onClose,
-  closeLabel,
-}: TabChromeProps) {
-  return (
-    <div
-      className={cn(
-        "group relative flex h-7 max-w-44 items-center rounded-md font-mono text-xs leading-none transition-colors",
-        isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/60",
-        dragging && "bg-primary/10 text-primary ring-1 ring-border",
-      )}
-    >
-      {/* 整块标签（含内边距）可点，不只文字 */}
-      <button
-        type="button"
-        className={cn(
-          // flex 容器上 truncate 无效，省略号必须落在内层文本节点
-          "flex h-full min-w-0 flex-1 items-center py-0 pr-0.5 pl-2.5 text-left leading-none",
-          dragging ? "cursor-grabbing" : "cursor-grab",
-        )}
-        onClick={() => onSelect?.(tab.id)}
-        title={tab.title}
-        aria-current={isActive ? "page" : undefined}
-        tabIndex={dragging ? -1 : undefined}
-      >
-        <span className="truncate">{tab.label}</span>
-      </button>
-      {closeLabel && onClose ? (
-        <Tooltip delayDuration={400}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                "hover:bg-muted mr-1 inline-flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm",
-                isActive
-                  ? "opacity-70"
-                  : "opacity-0 group-hover:opacity-70 focus-visible:opacity-70",
-              )}
-              aria-label={closeLabel}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => onClose(event, tab.id)}
-            >
-              <X className="size-3" aria-hidden="true" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{closeLabel}</TooltipContent>
-        </Tooltip>
-      ) : (
-        <span className="mr-1 inline-flex size-4 shrink-0" aria-hidden="true" />
-      )}
-    </div>
-  );
-}
-
-interface SortableRepoTabProps {
-  tab: TabDisplayItem;
-  isActive: boolean;
-  tabIndex: number;
-  tabCount: number;
-  onSelect: (tabId: string) => void;
-  onClose: (event: MouseEvent | KeyboardEvent, tabId: string) => void;
-  onCloseTab: (tabId: string) => void;
-  onCloseOthers: (tabId: string) => void;
-  onCloseLeft: (tabId: string) => void;
-  onCloseRight: (tabId: string) => void;
-  onRemove: (project: Project) => void;
-  onSetAlias: (project: Project) => void;
-  onCopyRemote: (project: Project) => void;
-  onCopyPath: (project: Project) => void;
-  closeLabel: string;
-  labels: Record<
-    | "close"
-    | "remove"
-    | "closeMore"
-    | "closeOthers"
-    | "closeLeft"
-    | "closeRight"
-    | "setAlias"
-    | "copy"
-    | "copyRemote"
-    | "copyPath",
-    string
-  >;
-}
-
-function SortableRepoTab(props: SortableRepoTabProps) {
-  const {
-    tab,
-    isActive,
-    tabIndex,
-    tabCount,
-    onSelect,
-    onClose,
-    onCloseTab,
-    onCloseOthers,
-    onCloseLeft,
-    onCloseRight,
-    onRemove,
-    onSetAlias,
-    onCopyRemote,
-    onCopyPath,
-    closeLabel,
-    labels,
-  } = props;
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: tab.id,
-  });
-  const project = tab.project;
-  const { menuOpen, onOpenChange } = useContextMenuOpen(() => onSelect(tab.id));
-  return (
-    <ContextMenu onOpenChange={onOpenChange}>
-      <ContextMenuTrigger asChild>
-        <div
-          ref={setNodeRef}
-          className={cn("flex h-7 items-center", isDragging && "opacity-40")}
-          style={{ transform: CSS.Transform.toString(transform), transition }}
-          {...attributes}
-          {...listeners}
-        >
-          <TabChrome
-            tab={tab}
-            isActive={isActive || menuOpen}
-            onSelect={onSelect}
-            onClose={onClose}
-            closeLabel={closeLabel}
-          />
-        </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent className="min-w-40">
-        <ContextMenuItem onSelect={() => onCloseTab(tab.id)}>{labels.close}</ContextMenuItem>
-        {/* 批量关闭有共性，收进子菜单 */}
-        <ContextMenuSub>
-          <ContextMenuSubTrigger disabled={tabCount <= 1}>{labels.closeMore}</ContextMenuSubTrigger>
-          <ContextMenuSubContent className="min-w-40">
-            <ContextMenuItem disabled={tabCount <= 1} onSelect={() => onCloseOthers(tab.id)}>
-              {labels.closeOthers}
-            </ContextMenuItem>
-            <ContextMenuItem disabled={tabIndex === 0} onSelect={() => onCloseLeft(tab.id)}>
-              {labels.closeLeft}
-            </ContextMenuItem>
-            <ContextMenuItem
-              disabled={tabIndex >= tabCount - 1}
-              onSelect={() => onCloseRight(tab.id)}
-            >
-              {labels.closeRight}
-            </ContextMenuItem>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-        {project ? (
-          <>
-            <ContextMenuSeparator />
-            {/* 复制类操作有共性，收进子菜单 */}
-            <ContextMenuSub>
-              <ContextMenuSubTrigger>{labels.copy}</ContextMenuSubTrigger>
-              <ContextMenuSubContent className="min-w-40">
-                <ContextMenuItem onSelect={() => onCopyRemote(project)}>
-                  {labels.copyRemote}
-                </ContextMenuItem>
-                <ContextMenuItem onSelect={() => onCopyPath(project)}>
-                  {labels.copyPath}
-                </ContextMenuItem>
-              </ContextMenuSubContent>
-            </ContextMenuSub>
-            <ContextMenuItem onSelect={() => onSetAlias(project)}>
-              {labels.setAlias}
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem variant="destructive" onSelect={() => onRemove(project)}>
-              {labels.remove}
-            </ContextMenuItem>
-          </>
-        ) : null}
-      </ContextMenuContent>
-    </ContextMenu>
-  );
-}
-
 /** 仓库标签顶栏（Win/Linux 用系统窗口按钮，不再挂自绘三键） */
 export function RepoTabBar() {
   const { t } = useTranslation();
@@ -295,19 +86,31 @@ export function RepoTabBar() {
   const closeTabsToLeft = useOpenTabsStore((state) => state.closeTabsToLeft);
   const closeTabsToRight = useOpenTabsStore((state) => state.closeTabsToRight);
   const reorderTabs = useOpenTabsStore((state) => state.reorderTabs);
+  const orderTabs = useOpenTabsStore((state) => state.orderTabs);
   const pruneTabs = useOpenTabsStore((state) => state.pruneTabs);
+  const pendingActiveId = useOpenTabsStore((state) => state.pendingActiveId);
+  const setPendingActiveId = useOpenTabsStore((state) => state.setPendingActiveId);
   const setLastActiveTabId = useOpenTabsStore((state) => state.setLastActiveTabId);
   const projects = useProjectStore((state) => state.projects);
+  const workspaces = useProjectStore((state) => state.workspaces);
   const loadProjects = useProjectStore((state) => state.loadProjects);
+  const loadWorkspaces = useProjectStore((state) => state.loadWorkspaces);
   const removeProject = useProjectStore((state) => state.removeProject);
   const updateAlias = useProjectStore((state) => state.updateAlias);
+  const updateProject = useProjectStore((state) => state.updateProject);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [aliasTarget, setAliasTarget] = useState<Project | null>(null);
   const [aliasValue, setAliasValue] = useState("");
   const [aliasBusy, setAliasBusy] = useState(false);
-  /** 仅跟路由走，与 WorkspaceHost 显隐同一帧，避免标签/页面不同步 */
-  const activeId = resolveActiveTabId(location.pathname, tabEntries);
+  const navigationFrameRef = useRef<number | null>(null);
+  const navigationTimerRef = useRef<number | null>(null);
+  const routedActiveId = resolveActiveTabId(location.pathname, tabEntries);
+  /** 点击态优先：标签先响应，路由与仓库数据随后以低优先级落地。 */
+  const activeId =
+    pendingActiveId && tabEntries.some((tab) => tab.id === pendingActiveId)
+      ? pendingActiveId
+      : routedActiveId;
   const { viewport: tabScrollViewport, bindScrollArea } = useScrollAreaViewport();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const labels = useMemo(
@@ -327,10 +130,19 @@ export function RepoTabBar() {
   );
 
   useEffect(() => {
+    const tasks: Promise<unknown>[] = [];
     if (projects.length === 0) {
-      void loadProjects();
+      tasks.push(loadProjects());
     }
-  }, [projects.length, loadProjects]);
+    if (workspaces.length === 0) {
+      tasks.push(loadWorkspaces());
+    }
+    if (tasks.length > 0) {
+      void Promise.all(tasks).catch((error: unknown) => {
+        console.warn("[RepoTabBar] load project groups failed", error);
+      });
+    }
+  }, [loadProjects, loadWorkspaces, projects.length, workspaces.length]);
 
   useEffect(() => {
     if (projects.length === 0) {
@@ -351,6 +163,24 @@ export function RepoTabBar() {
       openRepositoryTab(activeId);
     }
   }, [activeId, location.pathname, openRepositoryTab, tabEntries]);
+
+  useEffect(() => {
+    if (pendingActiveId && routedActiveId === pendingActiveId) {
+      setPendingActiveId(null);
+    }
+  }, [pendingActiveId, routedActiveId, setPendingActiveId]);
+
+  useEffect(
+    () => () => {
+      if (navigationFrameRef.current !== null) {
+        window.cancelAnimationFrame(navigationFrameRef.current);
+      }
+      if (navigationTimerRef.current !== null) {
+        window.clearTimeout(navigationTimerRef.current);
+      }
+    },
+    [],
+  );
 
   // 同步上次激活标签，供冷启动「恢复上次」使用。
   // 根路径 `/` 只是冷启动占位：resolveActiveTabId 会把「新标签」当成高亮，
@@ -381,21 +211,88 @@ export function RepoTabBar() {
     const byId = new Map(projects.map((project) => [project.id, project]));
     return tabEntries.flatMap((tab): TabDisplayItem[] => {
       if (tab.type === "new-tab") {
-        return [{ id: tab.id, label: t("repo.newTab"), title: t("repo.newTab"), type: tab.type }];
+        return [
+          {
+            id: tab.id,
+            label: t("repo.newTab"),
+            title: t("repo.newTab"),
+            type: tab.type,
+            workspaceId: undefined,
+          },
+        ];
       }
       const project = byId.get(tab.projectId);
       return project
-        ? [{ id: tab.id, label: project.name, title: project.path, type: tab.type, project }]
+        ? [
+            {
+              id: tab.id,
+              label: project.name,
+              title: project.path,
+              type: tab.type,
+              workspaceId: project.workspaceId,
+              project,
+            },
+          ]
         : [];
     });
   }, [projects, t, tabEntries]);
+
+  const workspaceById = useMemo(
+    () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
+    [workspaces],
+  );
+
+  const tabGroups = useMemo(() => {
+    const groups = groupRepoTabs(
+      tabs.map((tab) => ({
+        workspaceId: tab.workspaceId,
+        value: tab,
+      })),
+    );
+    const workspaceRank = new Map(
+      [...workspaces]
+        .sort(
+          (left, right) =>
+            left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, "zh-CN"),
+        )
+        .map((workspace, index) => [workspace.id, index]),
+    );
+    return groups.sort((left, right) => {
+      if (left.workspaceId === undefined) {
+        return -1;
+      }
+      if (right.workspaceId === undefined) {
+        return 1;
+      }
+      if (left.workspaceId === null) {
+        return 1;
+      }
+      if (right.workspaceId === null) {
+        return -1;
+      }
+      return (
+        (workspaceRank.get(left.workspaceId) ?? Number.MAX_SAFE_INTEGER) -
+        (workspaceRank.get(right.workspaceId) ?? Number.MAX_SAFE_INTEGER)
+      );
+    });
+  }, [tabs, workspaces]);
+
+  const orderedTabIds = useMemo(
+    () => tabGroups.flatMap((group) => group.values.map((tab) => tab.id)),
+    [tabGroups],
+  );
+  const orderedTabIdsKey = orderedTabIds.join("\0");
+
+  useEffect(() => {
+    orderTabs(orderedTabIds);
+  }, [orderTabs, orderedTabIds, orderedTabIdsKey]);
 
   const draggingTab = useMemo(
     () => tabs.find((tab) => tab.id === draggingId) ?? null,
     [draggingId, tabs],
   );
 
-  /** 点击立即切路由；仓库数据由 RepoPage 后台加载 */
+  /** 路由只负责切壳；仓库数据由 RepoPage 后台加载。 */
   function navigateToTab(tabId: string): void {
     const target = useOpenTabsStore.getState().tabs.find((tab) => tab.id === tabId);
     if (!target) {
@@ -408,9 +305,22 @@ export function RepoTabBar() {
     }
   }
 
-  /** 直接改路由；标签与页面都跟 pathname，同一提交内对齐（禁止 flushSync 同步大树） */
-  function activateTab(navigateFn: () => void): void {
-    navigateFn();
+  /** 标签高亮为紧急更新，路由与仓库大树放入 Transition。 */
+  function activateTab(tabId: string): void {
+    if (navigationFrameRef.current !== null) {
+      window.cancelAnimationFrame(navigationFrameRef.current);
+    }
+    if (navigationTimerRef.current !== null) {
+      window.clearTimeout(navigationTimerRef.current);
+    }
+    setPendingActiveId(tabId);
+    navigationFrameRef.current = window.requestAnimationFrame(() => {
+      navigationFrameRef.current = null;
+      navigationTimerRef.current = window.setTimeout(() => {
+        navigationTimerRef.current = null;
+        startTransition(() => navigateToTab(tabId));
+      }, 0);
+    });
   }
 
   function syncRouteAfterTabsChange(preferredId?: string): void {
@@ -420,28 +330,28 @@ export function RepoTabBar() {
     }
     const next = remaining.find((tab) => tab.id === preferredId) ?? remaining[0];
     if (next) {
-      activateTab(() => navigateToTab(next.id));
+      activateTab(next.id);
       return;
     }
     const newTabId = openNewTab();
-    activateTab(() => navigate(`/tab/${newTabId}`));
+    activateTab(newTabId);
   }
 
   function handleSelect(tabId: string): void {
     if (tabId === activeId) {
       return;
     }
-    activateTab(() => navigateToTab(tabId));
+    activateTab(tabId);
   }
 
   function closeOneTab(tabId: string): void {
     const nextId = closeTab(tabId);
     if (tabId === activeId) {
       if (nextId) {
-        activateTab(() => navigateToTab(nextId));
+        activateTab(nextId);
       } else {
         const newTabId = openNewTab();
-        activateTab(() => navigate(`/tab/${newTabId}`));
+        activateTab(newTabId);
       }
     }
   }
@@ -507,18 +417,51 @@ export function RepoTabBar() {
     }
   }
 
+  async function handleTabDragEnd(event: DragEndEvent): Promise<void> {
+    setDraggingId(null);
+    const activeData = readRepoTabDragData(event.active.data.current);
+    const overData = readRepoTabDragData(event.over?.data.current);
+    if (!activeData || activeData.type !== "tab") {
+      return;
+    }
+
+    const action = resolveRepoTabDropAction({
+      activeWorkspaceId: activeData.workspaceId,
+      overWorkspaceId: overData?.workspaceId,
+      hasOverTarget: Boolean(event.over && overData),
+      overIsTab: overData?.type === "tab",
+    });
+
+    if (action === "reorder" && event.over) {
+      reorderTabs(String(event.active.id), String(event.over.id));
+      return;
+    }
+
+    if (action !== "ungroup" || !activeData.projectId) {
+      return;
+    }
+
+    if (event.over && overData?.type === "tab" && overData.workspaceId === null) {
+      reorderTabs(String(event.active.id), String(event.over.id));
+    }
+
+    try {
+      await updateProject({
+        id: activeData.projectId,
+        workspaceId: null,
+      });
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    }
+  }
+
   return (
     <>
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={pointerWithin}
         onDragStart={(event: DragStartEvent) => setDraggingId(String(event.active.id))}
-        onDragEnd={(event: DragEndEvent) => {
-          setDraggingId(null);
-          if (event.over) {
-            reorderTabs(String(event.active.id), String(event.over.id));
-          }
-        }}
+        onDragEnd={(event: DragEndEvent) => void handleTabDragEnd(event)}
         onDragCancel={() => setDraggingId(null)}
       >
         <header
@@ -555,46 +498,55 @@ export function RepoTabBar() {
             {/* 主滚动用 shadcn ScrollArea：细滚动条、悬停/滚动时才显示，不再用裸 overflow-x-auto */}
             {/* 内容 h-12 与视口高度一致（表头已去掉占位边框），纵向不溢出，无需隐藏纵向滚动条 */}
             <ScrollArea ref={bindScrollArea} className="h-full min-w-0">
-              <SortableContext
-                items={tabs.map((tab) => tab.id)}
-                strategy={horizontalListSortingStrategy}
-              >
-                <div className="flex h-12 w-max items-center gap-1">
-                  {tabs.map((tab, index) => (
-                    <SortableRepoTab
-                      key={tab.id}
-                      tab={tab}
-                      isActive={tab.id === activeId}
-                      tabIndex={index}
-                      tabCount={tabs.length}
-                      onSelect={handleSelect}
-                      onClose={handleClose}
-                      onCloseTab={closeOneTab}
-                      onCloseOthers={(id) => {
-                        closeOtherTabs(id);
-                        syncRouteAfterTabsChange(id);
-                      }}
-                      onCloseLeft={(id) => {
-                        closeTabsToLeft(id);
-                        syncRouteAfterTabsChange(id);
-                      }}
-                      onCloseRight={(id) => {
-                        closeTabsToRight(id);
-                        syncRouteAfterTabsChange(id);
-                      }}
-                      onRemove={(project) => void handleRemove(project)}
-                      onSetAlias={(project) => {
-                        setAliasTarget(project);
-                        setAliasValue(project.name);
-                      }}
-                      onCopyRemote={(project) => void handleCopyRemote(project)}
-                      onCopyPath={(project) => void handleCopyPath(project)}
-                      closeLabel={t("repo.closeTab", { name: tab.label })}
-                      labels={labels}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
+              <div className="flex h-12 w-max items-center gap-1.5">
+                {tabGroups.map((group) => (
+                  <RepositoryTabGroup
+                    key={group.key}
+                    workspaceId={group.workspaceId}
+                    workspace={
+                      typeof group.workspaceId === "string"
+                        ? workspaceById.get(group.workspaceId)
+                        : undefined
+                    }
+                    tabIds={group.values.map((tab) => tab.id)}
+                    ungroupedLabel={t("projectManager.ungrouped")}
+                  >
+                    {group.values.map((tab) => (
+                      <SortableRepoTab
+                        key={tab.id}
+                        tab={tab}
+                        isActive={tab.id === activeId}
+                        tabIndex={orderedTabIds.indexOf(tab.id)}
+                        tabCount={tabs.length}
+                        onSelect={handleSelect}
+                        onClose={handleClose}
+                        onCloseTab={closeOneTab}
+                        onCloseOthers={(id) => {
+                          closeOtherTabs(id);
+                          syncRouteAfterTabsChange(id);
+                        }}
+                        onCloseLeft={(id) => {
+                          closeTabsToLeft(id);
+                          syncRouteAfterTabsChange(id);
+                        }}
+                        onCloseRight={(id) => {
+                          closeTabsToRight(id);
+                          syncRouteAfterTabsChange(id);
+                        }}
+                        onRemove={(project) => void handleRemove(project)}
+                        onSetAlias={(project) => {
+                          setAliasTarget(project);
+                          setAliasValue(project.name);
+                        }}
+                        onCopyRemote={(project) => void handleCopyRemote(project)}
+                        onCopyPath={(project) => void handleCopyPath(project)}
+                        closeLabel={t("repo.closeTab", { name: tab.label })}
+                        labels={labels}
+                      />
+                    ))}
+                  </RepositoryTabGroup>
+                ))}
+              </div>
             </ScrollArea>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
@@ -606,7 +558,7 @@ export function RepoTabBar() {
                   aria-label={t("repo.addTab")}
                   onClick={() => {
                     const tabId = openNewTab();
-                    activateTab(() => navigate(`/tab/${tabId}`));
+                    activateTab(tabId);
                   }}
                 >
                   <Plus className="size-3.5" aria-hidden="true" />
@@ -627,7 +579,7 @@ export function RepoTabBar() {
         </header>
         <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
           {draggingTab ? (
-            <TabChrome tab={draggingTab} isActive={draggingTab.id === activeId} dragging />
+            <RepoTabChrome tab={draggingTab} isActive={draggingTab.id === activeId} dragging />
           ) : null}
         </DragOverlay>
       </DndContext>
@@ -640,7 +592,7 @@ export function RepoTabBar() {
           }
         }}
       >
-        <DialogContent className="max-w-sm gap-4 p-5 sm:rounded-lg">
+        <AppDialogContent size="sm">
           <DialogHeader>
             <DialogTitle>{t("repo.tabAliasTitle")}</DialogTitle>
           </DialogHeader>
@@ -678,7 +630,7 @@ export function RepoTabBar() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
     </>
   );

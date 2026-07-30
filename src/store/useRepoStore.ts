@@ -110,6 +110,7 @@ interface RepoSessionSnapshot {
   identity: GitIdentity | null;
   branches: GitBranch[];
   tags: GitTag[];
+  remoteTags: GitRemoteTag[] | null;
   commits: GitCommitSummary[];
   hasMore: boolean;
   logRef: string | null;
@@ -119,6 +120,9 @@ interface RepoSessionSnapshot {
   commitMessage: string;
   selectedCommitId: string | null;
   selectedChange: SelectedChange | null;
+  repoState: GitRepoState | null;
+  demotedConflictPaths: string[];
+  error: string | null;
 }
 
 const repoSessionCache = new Map<string, RepoSessionSnapshot>();
@@ -174,14 +178,7 @@ function ensureSelectedCommitDetail(): void {
 }
 
 function saveRepoSession(repoPath: string, state: RepoStoreState): void {
-  const existing = repoSessionCache.get(repoPath);
-  // 避免 refreshStatus 等局部刷新把空分支列表写回，污染切标签会话缓存
-  const branches =
-    state.branches.length > 0 || !existing?.branches.length ? state.branches : existing.branches;
-  const tags = state.tags.length > 0 || !existing?.tags.length ? state.tags : existing.tags;
-  const rawCommits =
-    state.commits.length > 0 || !existing?.commits.length ? state.commits : existing.commits;
-  const { commits, capped } = applyLogCommits([], rawCommits, true);
+  const { commits, capped } = applyLogCommits([], state.commits, true);
 
   if (repoSessionCache.has(repoPath)) {
     repoSessionCache.delete(repoPath);
@@ -189,8 +186,9 @@ function saveRepoSession(repoPath: string, state: RepoStoreState): void {
   repoSessionCache.set(repoPath, {
     status: state.status,
     identity: state.identity,
-    branches,
-    tags,
+    branches: state.branches,
+    tags: state.tags,
+    remoteTags: state.remoteTags,
     commits,
     hasMore: capped ? false : state.hasMore,
     logRef: state.logRef,
@@ -199,6 +197,9 @@ function saveRepoSession(repoPath: string, state: RepoStoreState): void {
     commitMessage: state.commitMessage,
     selectedCommitId: state.selectedCommitId,
     selectedChange: state.selectedChange,
+    repoState: state.repoState,
+    demotedConflictPaths: state.demotedConflictPaths,
+    error: state.error,
   });
   while (repoSessionCache.size > REPO_SESSION_CACHE_MAX) {
     const oldest = repoSessionCache.keys().next().value;
@@ -226,6 +227,7 @@ function beginLoadingOp(
   get: () => { repoPath: string | null },
 ): void {
   beginRepoPendingOp(repoPath);
+  patchRepoSession(repoPath, { error: null });
   if (get().repoPath === repoPath) {
     set({ loading: true, error: null });
   }
@@ -267,7 +269,7 @@ export function restoreRepoSession(repoPath: string): boolean {
     identity: cached.identity,
     branches: cached.branches,
     tags: cached.tags,
-    remoteTags: null,
+    remoteTags: cached.remoteTags,
     remoteTagsLoading: false,
     commits,
     hasMore: capped ? false : cached.hasMore,
@@ -280,9 +282,10 @@ export function restoreRepoSession(repoPath: string): boolean {
     detailLoading: needsDetail,
     selectedChange: cached.selectedChange,
     selectedCommitFile: null,
-    // 仍有进行中操作时保持 loading；否则先 true，由后续 soft refresh 收尾
-    loading: true,
-    error: null,
+    repoState: cached.repoState,
+    demotedConflictPaths: cached.demotedConflictPaths,
+    loading: hasRepoPendingOp(repoPath),
+    error: cached.error,
   });
   if (needsDetail) {
     ensureSelectedCommitDetail();
@@ -319,6 +322,7 @@ export function beginRepoSwitch(repoPath: string): void {
     detailLoading: false,
     selectedChange: null,
     selectedCommitFile: null,
+    repoState: null,
     demotedConflictPaths: [],
     loading: true,
     error: null,
@@ -378,6 +382,21 @@ function statusSelectionPatch(
     demotedConflictPaths,
     selectedChange: resolveSelectedChange(status, get().selectedChange, demotedConflictPaths),
   };
+}
+
+/** 将状态刷新结果只写回发起仓库；后台完成时更新会话缓存。 */
+function applyStatusResult(
+  repoPath: string,
+  status: GitStatusResult,
+  set: (state: Partial<RepoStoreState>) => void,
+  get: () => RepoStore,
+): void {
+  if (get().repoPath !== repoPath) {
+    patchRepoSession(repoPath, { status });
+    return;
+  }
+  set({ status, ...statusSelectionPatch(get, status) });
+  saveRepoSession(repoPath, get());
 }
 
 interface RepoStoreState {
@@ -536,14 +555,15 @@ function firstConflictPath(status: GitStatusResult | null): string | null {
 }
 
 async function syncAfterConflictOp(
+  repoPath: string,
   set: (partial: Partial<RepoStoreState>) => void,
   get: () => RepoStore,
+  origin: Pick<
+    RepoStoreState,
+    "commitMessage" | "conflictFocusEpoch" | "demotedConflictPaths" | "selectedChange"
+  >,
   options?: { focusConflict?: boolean; preferMergeMessage?: boolean },
 ): Promise<GitRepoState | null> {
-  const repoPath = get().repoPath;
-  if (!repoPath) {
-    return null;
-  }
   const [status, repoState] = await Promise.all([
     gitService.getStatus(repoPath),
     gitService.getRepoState(repoPath),
@@ -553,28 +573,43 @@ async function syncAfterConflictOp(
       ? (repoState.conflictPaths[0] ?? firstConflictPath(status))
       : null;
 
+  const current = get().repoPath === repoPath ? get() : origin;
   const nextMessage =
-    options?.preferMergeMessage && repoState.mergeMessage && !get().commitMessage.trim()
+    options?.preferMergeMessage && repoState.mergeMessage && !current.commitMessage.trim()
       ? repoState.mergeMessage
-      : get().commitMessage;
+      : current.commitMessage;
 
   const demotedConflictPaths = pruneDemotedConflictPaths(
-    get().demotedConflictPaths,
+    current.demotedConflictPaths,
     status.entries,
   );
+  const selectedChange = focusPath
+    ? {
+        path: focusPath,
+        side: demotedConflictPaths.includes(focusPath) ? ("worktree" as const) : ("index" as const),
+      }
+    : resolveSelectedChange(status, current.selectedChange, demotedConflictPaths);
+
+  if (get().repoPath !== repoPath) {
+    patchRepoSession(repoPath, {
+      status,
+      repoState,
+      demotedConflictPaths,
+      commitMessage: nextMessage,
+      selectedChange,
+    });
+    return repoState;
+  }
+
   set({
     status,
     repoState,
     demotedConflictPaths,
     commitMessage: nextMessage,
-    selectedChange: focusPath
-      ? {
-          path: focusPath,
-          side: demotedConflictPaths.includes(focusPath) ? "worktree" : "index",
-        }
-      : resolveSelectedChange(status, get().selectedChange, demotedConflictPaths),
+    selectedChange,
     conflictFocusEpoch: focusPath ? get().conflictFocusEpoch + 1 : get().conflictFocusEpoch,
   });
+  saveRepoSession(repoPath, get());
   return repoState;
 }
 
@@ -624,14 +659,18 @@ function throwValidationError(message: string): never {
 function setError(
   set: (state: Partial<RepoStoreState>) => void,
   get: () => { repoPath: string | null },
+  repoPath: string,
   error: unknown,
 ): void {
-  const repoPath = get().repoPath;
-  set({
-    error: toUserMessage(error),
-    // 同仓若仍有其它 pending（如提交中又刷新失败），勿误关 loading
-    loading: repoPath ? hasRepoPendingOp(repoPath) : false,
-  });
+  const message = toUserMessage(error);
+  patchRepoSession(repoPath, { error: message });
+  if (get().repoPath === repoPath) {
+    set({
+      error: message,
+      // 同仓若仍有其它 pending（如提交中又刷新失败），勿误关 loading
+      loading: hasRepoPendingOp(repoPath),
+    });
+  }
 }
 
 /**
@@ -639,29 +678,45 @@ function setError(
  * 远端未知（remoteTags 为 null）时不臆造列表，交由后续刷新（打开面板/手动刷新）决定。
  */
 function markRemoteTagPresent(
+  repoPath: string,
   set: (state: Partial<RepoStoreState>) => void,
   get: () => RepoStore,
   name: string,
 ): void {
-  const remoteTags = get().remoteTags;
+  const current = get().repoPath === repoPath ? get() : repoSessionCache.get(repoPath);
+  const remoteTags = current?.remoteTags ?? null;
   if (!remoteTags || remoteTags.some((tag) => tag.name === name)) {
     return;
   }
-  const target = get().tags.find((tag) => tag.name === name)?.target ?? "";
-  set({ remoteTags: [...remoteTags, { name, target }] });
+  const target = current?.tags.find((tag) => tag.name === name)?.target ?? "";
+  const nextRemoteTags = [...remoteTags, { name, target }];
+  if (get().repoPath === repoPath) {
+    set({ remoteTags: nextRemoteTags });
+    saveRepoSession(repoPath, get());
+  } else {
+    patchRepoSession(repoPath, { remoteTags: nextRemoteTags });
+  }
 }
 
 /** 乐观移除：远端标签删除成功后同步移除远端缓存中的对应项 */
 function removeRemoteTagPresent(
+  repoPath: string,
   set: (state: Partial<RepoStoreState>) => void,
   get: () => RepoStore,
   name: string,
 ): void {
-  const remoteTags = get().remoteTags;
+  const current = get().repoPath === repoPath ? get() : repoSessionCache.get(repoPath);
+  const remoteTags = current?.remoteTags ?? null;
   if (!remoteTags) {
     return;
   }
-  set({ remoteTags: remoteTags.filter((tag) => tag.name !== name) });
+  const nextRemoteTags = remoteTags.filter((tag) => tag.name !== name);
+  if (get().repoPath === repoPath) {
+    set({ remoteTags: nextRemoteTags });
+    saveRepoSession(repoPath, get());
+  } else {
+    patchRepoSession(repoPath, { remoteTags: nextRemoteTags });
+  }
 }
 
 export const useRepoStore = create<RepoStore>((set, get) => ({
@@ -702,11 +757,18 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     }
     try {
       const repoState = await gitService.getRepoState(repoPath);
+      if (get().repoPath !== repoPath) {
+        patchRepoSession(repoPath, { repoState });
+        return repoState;
+      }
       set({ repoState });
+      saveRepoSession(repoPath, get());
       return repoState;
     } catch (error) {
       console.warn("[useRepoStore] refreshRepoState failed", error);
-      return get().repoState;
+      return get().repoPath === repoPath
+        ? get().repoState
+        : (repoSessionCache.get(repoPath)?.repoState ?? null);
     }
   },
 
@@ -719,6 +781,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     try {
       const identity = await resolveRepoIdentity(repoPath);
       if (get().repoPath !== repoPath) {
+        patchRepoSession(repoPath, { identity });
         return;
       }
       set({ identity });
@@ -794,7 +857,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
               limit: LOG_PAGE_SIZE,
               logRef: cached.logRef,
               order: cached.logOrder ?? "default",
-              advanced: get().historyAdvanced,
+              advanced: cached.historyAdvanced,
             }),
           ),
           gitService.getRepoState(repoPath),
@@ -809,6 +872,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             tags: tags.tags,
             commits: log.commits,
             hasMore: log.hasMore,
+            repoState,
           });
           return;
         }
@@ -827,9 +891,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         // 刷新后选中提交可能已不在列表；仍在则补详情
         ensureSelectedCommitDetail();
       } catch (error) {
-        if (get().repoPath === repoPath) {
-          setError(set, get, error);
-        }
+        setError(set, get, repoPath, error);
         throw error;
       } finally {
         endLoadingOp(repoPath, set, get);
@@ -863,41 +925,90 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     clearCommitDetailCacheForRepo(repoPath);
 
     try {
-      let status = await gitService.getStatus(repoPath);
-      if (get().repoPath !== repoPath) {
-        return;
-      }
+      const logOrder = get().logOrder;
+      const historyAdvanced = get().historyAdvanced;
+      const applyIfCurrent = (patch: Partial<RepoStoreState>): void => {
+        if (get().repoPath === repoPath) {
+          set(patch);
+        }
+      };
 
-      // 进程闪退后 lint-staged 备份可能未还原：工作区空但存在 automatic backup 时自动救回
-      if (status.entries.length === 0) {
+      const statusPromise = (async () => {
+        let status = await gitService.getStatus(repoPath);
+
+        // 后端仅在存在 JLGit 恢复标记时处理，不能按 stash 消息误恢复用户旧备份。
         try {
           const restore = await gitService.restoreLintStagedBackup(repoPath);
           if (restore.restored) {
             status = await gitService.getStatus(repoPath);
           }
-        } catch {
-          // 打开仓库时救场失败不阻断主流程
+        } catch (restoreError) {
+          // 打开仓库时救场失败不阻断主流程，但保留诊断信息。
+          console.warn("[repo] restore interrupted commit failed", restoreError);
         }
-      }
 
-      const defaultLogRef = historyLogRefFromStatus(status);
-      const [identity, branches, tags, log, repoState] = await Promise.all([
-        resolveRepoIdentity(repoPath),
-        gitService.listBranches(repoPath, true),
-        gitService.listTags(repoPath),
-        gitService.getLog(
+        applyIfCurrent({
+          status,
+          ...statusSelectionPatch(get, status),
+        });
+        return status;
+      })();
+
+      const identityPromise = resolveRepoIdentity(repoPath).then((identity) => {
+        applyIfCurrent({ identity });
+        return identity;
+      });
+      const branchesPromise = gitService.listBranches(repoPath, true).then((branches) => {
+        applyIfCurrent({ branches });
+        return branches;
+      });
+      const tagsPromise = gitService.listTags(repoPath).then((tags) => {
+        applyIfCurrent({ tags: tags.tags });
+        return tags;
+      });
+      const repoStatePromise = gitService.getRepoState(repoPath).then((repoState) => {
+        applyIfCurrent({ repoState });
+        return repoState;
+      });
+      const logPromise = statusPromise.then(async (status) => {
+        const defaultLogRef = historyLogRefFromStatus(status);
+        const log = await gitService.getLog(
           repoPath,
           buildHistoryLogOptions({
             limit: LOG_PAGE_SIZE,
             logRef: defaultLogRef,
-            order: get().logOrder,
-            advanced: get().historyAdvanced,
+            order: logOrder,
+            advanced: historyAdvanced,
           }),
-        ),
-        gitService.getRepoState(repoPath),
+        );
+        applyIfCurrent({
+          commits: log.commits,
+          hasMore: log.hasMore,
+          logRef: defaultLogRef,
+        });
+        return { defaultLogRef, log };
+      });
+
+      const [status, identity, branches, tags, logResult, repoState] = await Promise.all([
+        statusPromise,
+        identityPromise,
+        branchesPromise,
+        tagsPromise,
+        logPromise,
+        repoStatePromise,
       ]);
 
       if (get().repoPath !== repoPath) {
+        patchRepoSession(repoPath, {
+          status,
+          identity,
+          branches,
+          tags: tags.tags,
+          commits: logResult.log.commits,
+          hasMore: logResult.log.hasMore,
+          logRef: logResult.defaultLogRef,
+          repoState,
+        });
         return;
       }
 
@@ -906,16 +1017,14 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         identity,
         branches,
         tags: tags.tags,
-        commits: log.commits,
-        hasMore: log.hasMore,
-        logRef: defaultLogRef,
+        commits: logResult.log.commits,
+        hasMore: logResult.log.hasMore,
+        logRef: logResult.defaultLogRef,
         repoState,
       });
       saveRepoSession(repoPath, get());
     } catch (error) {
-      if (get().repoPath === repoPath) {
-        setError(set, get, error);
-      }
+      setError(set, get, repoPath, error);
       throw error;
     } finally {
       endLoadingOp(repoPath, set, get);
@@ -932,18 +1041,17 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         gitService.getRepoState(repoPath),
       ]);
       let status = initialStatus;
-      if (status.entries.length === 0) {
-        try {
-          const restore = await gitService.restoreLintStagedBackup(repoPath);
-          if (restore.restored) {
-            status = await gitService.getStatus(repoPath);
-          }
-        } catch {
-          // 刷新时救场失败不阻断
+      try {
+        const restore = await gitService.restoreLintStagedBackup(repoPath);
+        if (restore.restored) {
+          status = await gitService.getStatus(repoPath);
         }
+      } catch (restoreError) {
+        // 刷新时救场失败不阻断，但保留诊断信息。
+        console.warn("[repo] restore interrupted commit on refresh failed", restoreError);
       }
       if (get().repoPath !== repoPath) {
-        patchRepoSession(repoPath, { status });
+        patchRepoSession(repoPath, { status, repoState });
         return;
       }
       set({
@@ -953,9 +1061,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       });
       saveRepoSession(repoPath, get());
     } catch (error) {
-      if (get().repoPath === repoPath) {
-        setError(set, get, error);
-      }
+      setError(set, get, repoPath, error);
       throw error;
     } finally {
       endLoadingOp(repoPath, set, get);
@@ -974,9 +1080,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       }
       set({ branches });
     } catch (error) {
-      if (get().repoPath === repoPath) {
-        setError(set, get, error);
-      }
+      setError(set, get, repoPath, error);
       throw error;
     } finally {
       endLoadingOp(repoPath, set, get);
@@ -994,9 +1098,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       }
       set({ tags: result.tags });
     } catch (error) {
-      if (get().repoPath === repoPath) {
-        setError(set, get, error);
-      }
+      setError(set, get, repoPath, error);
       throw error;
     } finally {
       endLoadingOp(repoPath, set, get);
@@ -1005,35 +1107,41 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
   async refreshLog(reset = true) {
     const repoPath = requireRepoPath(get().repoPath);
+    const currentCommits = get().commits;
+    const logRef = get().logRef;
+    const logOrder = get().logOrder;
+    const historyAdvanced = get().historyAdvanced;
     beginLoadingOp(repoPath, set, get);
 
     try {
-      const currentCommits = get().commits;
       const skip = reset ? 0 : currentCommits.length;
       const log = await gitService.getLog(
         repoPath,
         buildHistoryLogOptions({
           skip,
           limit: LOG_PAGE_SIZE,
-          logRef: get().logRef,
-          order: get().logOrder,
-          advanced: get().historyAdvanced,
+          logRef,
+          order: logOrder,
+          advanced: historyAdvanced,
         }),
       );
 
+      const { commits, capped } = applyLogCommits(currentCommits, log.commits, reset);
       if (get().repoPath !== repoPath) {
+        patchRepoSession(repoPath, {
+          commits,
+          hasMore: capped ? false : log.hasMore,
+        });
         return;
       }
 
-      const { commits, capped } = applyLogCommits(currentCommits, log.commits, reset);
       set({
         commits,
         hasMore: capped ? false : log.hasMore,
       });
+      saveRepoSession(repoPath, get());
     } catch (error) {
-      if (get().repoPath === repoPath) {
-        setError(set, get, error);
-      }
+      setError(set, get, repoPath, error);
       throw error;
     } finally {
       endLoadingOp(repoPath, set, get);
@@ -1097,71 +1205,175 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
   },
 
   async createTag(options) {
+    const repoPath = requireRepoPath(get().repoPath);
+    const logRef = get().logRef;
+    const logOrder = get().logOrder;
+    const historyAdvanced = get().historyAdvanced;
+    beginLoadingOp(repoPath, set, get);
     try {
-      const repoPath = requireRepoPath(get().repoPath);
       const result = await gitService.createTag(repoPath, options);
-      await Promise.all([get().refreshTags(), get().refreshLog(true)]);
+      const [tags, log] = await Promise.all([
+        gitService.listTags(repoPath),
+        gitService.getLog(
+          repoPath,
+          buildHistoryLogOptions({
+            limit: LOG_PAGE_SIZE,
+            logRef,
+            order: logOrder,
+            advanced: historyAdvanced,
+          }),
+        ),
+      ]);
+      if (get().repoPath === repoPath) {
+        set({ tags: tags.tags, commits: log.commits, hasMore: log.hasMore });
+        saveRepoSession(repoPath, get());
+      } else {
+        patchRepoSession(repoPath, {
+          tags: tags.tags,
+          commits: log.commits,
+          hasMore: log.hasMore,
+        });
+      }
       // 推送成功后立即同步远端状态，避免新标签短暂显示「未推送」
       if (result.pushed) {
-        markRemoteTagPresent(set, get, options.name);
+        markRemoteTagPresent(repoPath, set, get, options.name);
       }
       return result;
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
+    } finally {
+      endLoadingOp(repoPath, set, get);
     }
   },
 
   async deleteTag(name) {
+    const repoPath = requireRepoPath(get().repoPath);
+    const status = get().status;
+    const logRef = get().logRef;
+    const logOrder = get().logOrder;
+    const historyAdvanced = get().historyAdvanced;
+    const deletedSelectedRef = logRef === name;
+    beginLoadingOp(repoPath, set, get);
     try {
-      const repoPath = requireRepoPath(get().repoPath);
       await gitService.deleteTag(repoPath, name);
-      const deletedSelectedRef = get().logRef === name;
-      await get().refreshTags();
+      const tags = await gitService.listTags(repoPath);
+      let logPatch: Partial<RepoSessionSnapshot> = {};
       if (deletedSelectedRef) {
-        await get().selectLogRef(historyLogRefFromStatus(get().status));
+        const nextLogRef = historyLogRefFromStatus(status);
+        const log = await gitService.getLog(
+          repoPath,
+          buildHistoryLogOptions({
+            limit: LOG_PAGE_SIZE,
+            logRef: nextLogRef,
+            order: logOrder,
+            advanced: historyAdvanced,
+          }),
+        );
+        logPatch = {
+          logRef: nextLogRef,
+          commits: log.commits,
+          hasMore: log.hasMore,
+          selectedCommitId: null,
+        };
+      }
+      if (get().repoPath === repoPath) {
+        set({
+          tags: tags.tags,
+          ...logPatch,
+          ...(deletedSelectedRef ? { selectedCommitDetail: null, selectedCommitFile: null } : {}),
+        });
+        saveRepoSession(repoPath, get());
+      } else {
+        patchRepoSession(repoPath, { tags: tags.tags, ...logPatch });
       }
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
+    } finally {
+      endLoadingOp(repoPath, set, get);
     }
   },
 
   async pushTag(name) {
+    const repoPath = requireRepoPath(get().repoPath);
+    beginLoadingOp(repoPath, set, get);
     try {
-      const repoPath = requireRepoPath(get().repoPath);
       const remote = await resolveDefaultRemote(repoPath);
       await gitService.pushTag(repoPath, name, remote);
-      markRemoteTagPresent(set, get, name);
+      markRemoteTagPresent(repoPath, set, get, name);
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
+    } finally {
+      endLoadingOp(repoPath, set, get);
     }
   },
 
   async deleteRemoteTag(name) {
+    const repoPath = requireRepoPath(get().repoPath);
+    beginLoadingOp(repoPath, set, get);
     try {
-      const repoPath = requireRepoPath(get().repoPath);
       const remote = await resolveDefaultRemote(repoPath);
       await gitService.deleteRemoteTag(repoPath, name, remote);
-      removeRemoteTagPresent(set, get, name);
+      removeRemoteTagPresent(repoPath, set, get, name);
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
+    } finally {
+      endLoadingOp(repoPath, set, get);
     }
   },
 
   async deleteTagBoth(name) {
+    const repoPath = requireRepoPath(get().repoPath);
+    const status = get().status;
+    const logRef = get().logRef;
+    const logOrder = get().logOrder;
+    const historyAdvanced = get().historyAdvanced;
+    const deletedSelectedRef = logRef === name;
+    beginLoadingOp(repoPath, set, get);
     try {
-      const repoPath = requireRepoPath(get().repoPath);
       const remote = await resolveDefaultRemote(repoPath);
       // 先删远端再删本地：远端失败时本地标签仍保留，便于重试
       await gitService.deleteRemoteTag(repoPath, name, remote);
-      removeRemoteTagPresent(set, get, name);
-      await get().deleteTag(name);
+      removeRemoteTagPresent(repoPath, set, get, name);
+      await gitService.deleteTag(repoPath, name);
+      const tags = await gitService.listTags(repoPath);
+      let logPatch: Partial<RepoSessionSnapshot> = {};
+      if (deletedSelectedRef) {
+        const nextLogRef = historyLogRefFromStatus(status);
+        const log = await gitService.getLog(
+          repoPath,
+          buildHistoryLogOptions({
+            limit: LOG_PAGE_SIZE,
+            logRef: nextLogRef,
+            order: logOrder,
+            advanced: historyAdvanced,
+          }),
+        );
+        logPatch = {
+          logRef: nextLogRef,
+          commits: log.commits,
+          hasMore: log.hasMore,
+          selectedCommitId: null,
+        };
+      }
+      if (get().repoPath === repoPath) {
+        set({
+          tags: tags.tags,
+          ...logPatch,
+          ...(deletedSelectedRef ? { selectedCommitDetail: null, selectedCommitFile: null } : {}),
+        });
+        saveRepoSession(repoPath, get());
+      } else {
+        patchRepoSession(repoPath, { tags: tags.tags, ...logPatch });
+      }
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
+    } finally {
+      endLoadingOp(repoPath, set, get);
     }
   },
 
@@ -1170,32 +1382,57 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     if (!repoPath) {
       return;
     }
-    set({ remoteTagsLoading: true });
+    if (get().repoPath === repoPath) {
+      set({ remoteTagsLoading: true });
+    }
     try {
       const remote = await resolveDefaultRemoteOrNull(repoPath);
       if (!remote) {
         // 无远端：置 null 表示「未知」，避免把本地标签误判为未推送
-        set({ remoteTags: null, remoteTagsLoading: false });
+        if (get().repoPath === repoPath) {
+          set({ remoteTags: null, remoteTagsLoading: false });
+          saveRepoSession(repoPath, get());
+        } else {
+          patchRepoSession(repoPath, { remoteTags: null });
+        }
         return;
       }
       const remoteTags = await gitService.listRemoteTags(repoPath, remote);
-      set({ remoteTags, remoteTagsLoading: false });
+      if (get().repoPath === repoPath) {
+        set({ remoteTags, remoteTagsLoading: false });
+        saveRepoSession(repoPath, get());
+      } else {
+        patchRepoSession(repoPath, { remoteTags });
+      }
     } catch (error) {
       // 离线/无权限等失败不应影响本地标签展示，静默降级为「未知」
       console.warn("加载远端标签失败", error);
-      set({ remoteTags: null, remoteTagsLoading: false });
+      if (get().repoPath === repoPath) {
+        set({ remoteTags: null, remoteTagsLoading: false });
+      } else {
+        patchRepoSession(repoPath, { remoteTags: null });
+      }
     }
   },
 
   async fetchRemoteTag(name) {
+    const repoPath = requireRepoPath(get().repoPath);
+    beginLoadingOp(repoPath, set, get);
     try {
-      const repoPath = requireRepoPath(get().repoPath);
       const remote = await resolveDefaultRemote(repoPath);
       await gitService.fetchRemoteTag(repoPath, name, remote);
-      await get().refreshTags();
+      const tags = await gitService.listTags(repoPath);
+      if (get().repoPath === repoPath) {
+        set({ tags: tags.tags });
+        saveRepoSession(repoPath, get());
+      } else {
+        patchRepoSession(repoPath, { tags: tags.tags });
+      }
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
+    } finally {
+      endLoadingOp(repoPath, set, get);
     }
   },
 
@@ -1206,33 +1443,41 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
     // 不拉全局 loading：避免工具栏/列表整页进入加载态，底部用局部 loadingMore 提示
     set({ error: null });
+    const repoPath = requireRepoPath(get().repoPath);
+    const currentCommits = get().commits;
+    const skip = currentCommits.length;
+    const logRef = get().logRef;
+    const logOrder = get().logOrder;
+    const historyAdvanced = get().historyAdvanced;
 
     try {
-      const repoPath = requireRepoPath(get().repoPath);
-      const skip = get().commits.length;
       const log = await gitService.getLog(
         repoPath,
         buildHistoryLogOptions({
           skip,
           limit: LOG_PAGE_SIZE,
-          logRef: get().logRef,
-          order: get().logOrder,
-          advanced: get().historyAdvanced,
+          logRef,
+          order: logOrder,
+          advanced: historyAdvanced,
         }),
       );
 
+      const { commits, capped } = applyLogCommits(currentCommits, log.commits, false);
       if (get().repoPath !== repoPath) {
+        patchRepoSession(repoPath, {
+          commits,
+          hasMore: capped ? false : log.hasMore,
+        });
         return;
       }
 
-      const { commits, capped } = applyLogCommits(get().commits, log.commits, false);
       set({
         commits,
         hasMore: capped ? false : log.hasMore,
       });
       saveRepoSession(repoPath, get());
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
     }
   },
@@ -1283,21 +1528,21 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       detailLoading: true,
     });
 
+    const repoPath = requireRepoPath(get().repoPath);
     try {
-      const repoPath = requireRepoPath(get().repoPath);
       const result = await gitService.getCommit(repoPath, commitId);
+      cacheCommitDetail(repoPath, result.commit);
       // 若用户已点了另一条或已切仓，丢弃过期结果
       if (get().selectedCommitId !== commitId || get().repoPath !== repoPath) {
         return;
       }
-      cacheCommitDetail(repoPath, result.commit);
       set({
         selectedCommitDetail: result.commit,
         detailLoading: false,
       });
       saveRepoSession(repoPath, get());
     } catch (error) {
-      if (get().selectedCommitId === commitId) {
+      if (get().repoPath === repoPath && get().selectedCommitId === commitId) {
         set({
           selectedCommitDetail: null,
           detailLoading: false,
@@ -1311,10 +1556,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
   async stage(paths) {
     // 不拉全局 loading：否则变更行悬停按钮的 disabled:opacity-50 会盖过 opacity-0，整表闪一下
     set({ error: null });
+    const repoPath = requireRepoPath(get().repoPath);
+    const entries = get().status?.entries ?? [];
 
     try {
-      const repoPath = requireRepoPath(get().repoPath);
-      const entries = get().status?.entries ?? [];
       const hasConflictPath = paths.some((path) => {
         const entry = entries.find((item) => item.path === path);
         return entry ? isConflictEntry(entry) : false;
@@ -1325,19 +1570,19 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       }
       await gitService.stage(repoPath, paths);
       const status = await gitService.getStatus(repoPath);
-      set({ status, ...statusSelectionPatch(get, status) });
+      applyStatusResult(repoPath, status, set, get);
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
     }
   },
 
   async unstage(paths) {
     set({ error: null });
+    const repoPath = requireRepoPath(get().repoPath);
+    const entries = get().status?.entries ?? [];
 
     try {
-      const repoPath = requireRepoPath(get().repoPath);
-      const entries = get().status?.entries ?? [];
       const hasConflictPath = paths.some((path) => {
         const entry = entries.find((item) => item.path === path);
         return entry ? isConflictEntry(entry) : false;
@@ -1348,37 +1593,39 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       }
       await gitService.unstage(repoPath, paths);
       const status = await gitService.getStatus(repoPath);
-      set({ status, ...statusSelectionPatch(get, status) });
+      applyStatusResult(repoPath, status, set, get);
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
     }
   },
 
   async stageAll() {
     set({ error: null });
+    const repoPath = requireRepoPath(get().repoPath);
 
     try {
-      const repoPath = requireRepoPath(get().repoPath);
-      set({ demotedConflictPaths: [] });
+      if (get().repoPath === repoPath) {
+        set({ demotedConflictPaths: [] });
+      }
       await gitService.stageAll(repoPath);
       const status = await gitService.getStatus(repoPath);
-      set({ status, ...statusSelectionPatch(get, status) });
+      applyStatusResult(repoPath, status, set, get);
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
     }
   },
 
   async discard(paths) {
     set({ error: null });
+    const repoPath = requireRepoPath(get().repoPath);
+    const entries = get().status?.entries ?? [];
 
     try {
-      const repoPath = requireRepoPath(get().repoPath);
       if (paths.length === 0) {
         throwValidationError(i18n.t("repo.discardEmpty"));
       }
-      const entries = get().status?.entries ?? [];
       const hasConflictPath = paths.some((path) => {
         const entry = entries.find((item) => item.path === path);
         return entry ? isConflictEntry(entry) : false;
@@ -1388,19 +1635,19 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       }
       await gitService.discard(repoPath, paths);
       const status = await gitService.getStatus(repoPath);
-      set({ status, ...statusSelectionPatch(get, status) });
+      applyStatusResult(repoPath, status, set, get);
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
     }
   },
 
   async unstageAll() {
     set({ error: null });
+    const repoPath = requireRepoPath(get().repoPath);
+    const entries = get().status?.entries ?? [];
 
     try {
-      const repoPath = requireRepoPath(get().repoPath);
-      const entries = get().status?.entries ?? [];
       // 冲突文件保持在待提交；仅取消暂存其余文件
       const gitPaths = entries
         .filter(
@@ -1416,9 +1663,9 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       }
       await gitService.unstage(repoPath, gitPaths);
       const status = await gitService.getStatus(repoPath);
-      set({ status, ...statusSelectionPatch(get, status) });
+      applyStatusResult(repoPath, status, set, get);
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
     }
   },
@@ -1465,6 +1712,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     // 切仓后仍按发起时的 log 偏好刷新历史
     const logRef = get().logRef;
     const logOrder = get().logOrder;
+    const historyAdvanced = get().historyAdvanced;
 
     beginLoadingOp(repoPath, set, get);
     try {
@@ -1480,7 +1728,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef,
             order: logOrder,
-            advanced: get().historyAdvanced,
+            advanced: historyAdvanced,
           }),
         ),
         gitService.getRepoState(repoPath),
@@ -1492,6 +1740,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           commits: log.commits,
           hasMore: log.hasMore,
           commitMessage: "",
+          repoState,
         });
         return commitId;
       }
@@ -1513,8 +1762,9 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       try {
         const restore = await gitService.restoreLintStagedBackup(repoPath);
         restoredBackup = restore.restored;
-      } catch {
-        // 忽略二次救场失败，仍抛出原始提交错误
+      } catch (restoreError) {
+        // 二次救场失败不掩盖原始提交错误，但保留诊断信息。
+        console.warn("[repo] retry commit recovery failed", restoreError);
       }
       try {
         const status = await gitService.getStatus(repoPath);
@@ -1523,12 +1773,11 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         } else {
           patchRepoSession(repoPath, { status });
         }
-      } catch {
-        // status 刷新失败不掩盖提交错误
+      } catch (refreshError) {
+        // status 刷新失败不掩盖提交错误，但保留诊断信息。
+        console.warn("[repo] refresh status after commit failure failed", refreshError);
       }
-      if (get().repoPath === repoPath) {
-        setError(set, get, error);
-      }
+      setError(set, get, repoPath, error);
       if (restoredBackup) {
         const wrapped =
           error && typeof error === "object" ? { ...error, restoredLintStagedBackup: true } : error;
@@ -1552,6 +1801,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     assertWriteOpAllowed(get);
     const logRef = get().logRef;
     const logOrder = get().logOrder;
+    const historyAdvanced = get().historyAdvanced;
 
     beginLoadingOp(repoPath, set, get);
     try {
@@ -1564,7 +1814,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef,
             order: logOrder,
-            advanced: get().historyAdvanced,
+            advanced: historyAdvanced,
           }),
         ),
         gitService.listBranches(repoPath, true),
@@ -1600,9 +1850,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       return commitId;
     } catch (error) {
-      if (get().repoPath === repoPath) {
-        setError(set, get, error);
-      }
+      setError(set, get, repoPath, error);
       throw error;
     } finally {
       endLoadingOp(repoPath, set, get);
@@ -1611,19 +1859,23 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
   async undoCommit() {
     set({ error: null });
+    const repoPath = requireRepoPath(get().repoPath);
+    const ahead = get().status?.ahead ?? 0;
+    if (ahead <= 0) {
+      throwValidationError(i18n.t("repo.errors.nothingToUndo"));
+    }
 
+    const commits = get().commits;
+    const undone = commits[0] ?? null;
+    const originMessage = get().commitMessage;
+    const logRef = get().logRef;
+    const logOrder = get().logOrder;
+    const historyAdvanced = get().historyAdvanced;
+    // 回退到父提交；无父则交给后端（首提交会返回明确错误）
+    const target = commits[1]?.id;
+
+    beginLoadingOp(repoPath, set, get);
     try {
-      const repoPath = requireRepoPath(get().repoPath);
-      const ahead = get().status?.ahead ?? 0;
-      if (ahead <= 0) {
-        throwValidationError(i18n.t("repo.errors.nothingToUndo"));
-      }
-
-      const commits = get().commits;
-      const undone = commits[0] ?? null;
-      // 回退到父提交；无父则交给后端（首提交会返回明确错误）
-      const target = commits[1]?.id;
-
       const result = await gitService.undoCommit(repoPath, target);
       const [status, log] = await Promise.all([
         gitService.getStatus(repoPath),
@@ -1631,12 +1883,24 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           repoPath,
           buildHistoryLogOptions({
             limit: LOG_PAGE_SIZE,
-            logRef: get().logRef,
-            order: get().logOrder,
-            advanced: get().historyAdvanced,
+            logRef,
+            order: logOrder,
+            advanced: historyAdvanced,
           }),
         ),
       ]);
+
+      const commitMessage = undone?.subject ?? originMessage;
+      if (get().repoPath !== repoPath) {
+        patchRepoSession(repoPath, {
+          status,
+          commits: log.commits,
+          hasMore: log.hasMore,
+          commitMessage,
+          selectedCommitId: null,
+        });
+        return result;
+      }
 
       set({
         status,
@@ -1644,16 +1908,19 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         commits: log.commits,
         hasMore: log.hasMore,
         // 把撤销的提交说明填回输入框，便于改完再提交
-        commitMessage: undone?.subject ?? get().commitMessage,
+        commitMessage,
         selectedCommitId: null,
         selectedCommitDetail: null,
         selectedCommitFile: null,
       });
+      saveRepoSession(repoPath, get());
 
       return result;
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
+    } finally {
+      endLoadingOp(repoPath, set, get);
     }
   },
 
@@ -1666,6 +1933,13 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     }
     const logRef = get().logRef;
     const logOrder = get().logOrder;
+    const historyAdvanced = get().historyAdvanced;
+    const originConflictState = {
+      commitMessage: get().commitMessage,
+      conflictFocusEpoch: get().conflictFocusEpoch,
+      demotedConflictPaths: get().demotedConflictPaths,
+      selectedChange: get().selectedChange,
+    };
 
     beginLoadingOp(repoPath, set, get);
     try {
@@ -1678,10 +1952,15 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef,
             order: logOrder,
-            advanced: get().historyAdvanced,
+            advanced: historyAdvanced,
           }),
         ),
       ]);
+
+      await syncAfterConflictOp(repoPath, set, get, originConflictState, {
+        focusConflict: result.conflict,
+        preferMergeMessage: result.conflict,
+      });
 
       if (get().repoPath !== repoPath) {
         patchRepoSession(repoPath, {
@@ -1692,11 +1971,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         return result;
       }
 
-      await syncAfterConflictOp(set, get, {
-        focusConflict: result.conflict,
-        preferMergeMessage: result.conflict,
-      });
-
       set({
         branches,
         commits: log.commits,
@@ -1706,9 +1980,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
       return result;
     } catch (error) {
-      if (get().repoPath === repoPath) {
-        setError(set, get, error);
-      }
+      setError(set, get, repoPath, error);
       throw error;
     } finally {
       endLoadingOp(repoPath, set, get);
@@ -1720,10 +1992,8 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     const repoPath = requireRepoPath(get().repoPath);
     const logRef = get().logRef;
     const logOrder = get().logOrder;
-
-    beginLoadingOp(repoPath, set, get);
-    try {
-      await gitService.checkout(repoPath, ref);
+    const historyAdvanced = get().historyAdvanced;
+    const syncCheckoutState = async (): Promise<void> => {
       const [status, branches, log] = await Promise.all([
         gitService.getStatus(repoPath),
         gitService.listBranches(repoPath, true),
@@ -1733,7 +2003,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef,
             order: logOrder,
-            advanced: get().historyAdvanced,
+            advanced: historyAdvanced,
           }),
         ),
       ]);
@@ -1756,10 +2026,20 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         hasMore: log.hasMore,
       });
       saveRepoSession(repoPath, get());
+    };
+
+    beginLoadingOp(repoPath, set, get);
+    try {
+      await gitService.checkout(repoPath, ref);
+      await syncCheckoutState();
     } catch (error) {
-      if (get().repoPath === repoPath) {
-        setError(set, get, error);
+      // Git 复合命令可能已经切换 HEAD；失败路径同样以磁盘真实状态为准。
+      try {
+        await syncCheckoutState();
+      } catch (refreshError) {
+        console.warn("[checkout] failed to refresh repository state", refreshError);
       }
+      setError(set, get, repoPath, error);
       throw error;
     } finally {
       endLoadingOp(repoPath, set, get);
@@ -1774,6 +2054,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     }
     const logRef = get().logRef;
     const logOrder = get().logOrder;
+    const historyAdvanced = get().historyAdvanced;
 
     beginLoadingOp(repoPath, set, get);
     try {
@@ -1791,7 +2072,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
             limit: LOG_PAGE_SIZE,
             logRef,
             order: logOrder,
-            advanced: get().historyAdvanced,
+            advanced: historyAdvanced,
           }),
         ),
       ]);
@@ -1815,9 +2096,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       });
       saveRepoSession(repoPath, get());
     } catch (error) {
-      if (get().repoPath === repoPath) {
-        setError(set, get, error);
-      }
+      setError(set, get, repoPath, error);
       throw error;
     } finally {
       endLoadingOp(repoPath, set, get);
@@ -1825,43 +2104,65 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
   },
 
   async deleteBranch(name, options) {
-    set({ error: null });
+    const repoPath = requireRepoPath(get().repoPath);
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throwValidationError(i18n.t("repo.errors.emptyBranchName"));
+    }
 
+    beginLoadingOp(repoPath, set, get);
     try {
-      const repoPath = requireRepoPath(get().repoPath);
-      const trimmed = name.trim();
-      if (!trimmed) {
-        throwValidationError(i18n.t("repo.errors.emptyBranchName"));
-      }
-
       await gitService.deleteBranch(repoPath, trimmed, options);
       const [status, branches] = await Promise.all([
         gitService.getStatus(repoPath),
         gitService.listBranches(repoPath, true),
       ]);
 
-      set({
-        status,
-        ...statusSelectionPatch(get, status),
-        branches,
-      });
+      if (get().repoPath === repoPath) {
+        set({ status, ...statusSelectionPatch(get, status), branches });
+        saveRepoSession(repoPath, get());
+      } else {
+        patchRepoSession(repoPath, { status, branches });
+      }
     } catch (error) {
-      setError(set, get, error);
+      try {
+        const [status, branches] = await Promise.all([
+          gitService.getStatus(repoPath),
+          gitService.listBranches(repoPath, true),
+        ]);
+        if (get().repoPath === repoPath) {
+          set({
+            status,
+            ...statusSelectionPatch(get, status),
+            branches,
+          });
+          saveRepoSession(repoPath, get());
+        } else {
+          patchRepoSession(repoPath, { status, branches });
+        }
+      } catch (refreshError) {
+        console.warn("[deleteBranch] failed to refresh repository state", refreshError);
+      }
+      setError(set, get, repoPath, error);
       throw error;
+    } finally {
+      endLoadingOp(repoPath, set, get);
     }
   },
 
   async renameBranch(oldName, newName) {
-    set({ error: null });
+    const repoPath = requireRepoPath(get().repoPath);
+    const from = oldName.trim();
+    const to = newName.trim();
+    if (!from || !to) {
+      throwValidationError(i18n.t("repo.errors.emptyBranchName"));
+    }
+    const logRef = get().logRef;
+    const logOrder = get().logOrder;
+    const historyAdvanced = get().historyAdvanced;
 
+    beginLoadingOp(repoPath, set, get);
     try {
-      const repoPath = requireRepoPath(get().repoPath);
-      const from = oldName.trim();
-      const to = newName.trim();
-      if (!from || !to) {
-        throwValidationError(i18n.t("repo.errors.emptyBranchName"));
-      }
-
       await gitService.renameBranch(repoPath, from, to);
       const [status, branches, log] = await Promise.all([
         gitService.getStatus(repoPath),
@@ -1870,56 +2171,79 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           repoPath,
           buildHistoryLogOptions({
             limit: LOG_PAGE_SIZE,
-            logRef: get().logRef,
-            order: get().logOrder,
-            advanced: get().historyAdvanced,
+            logRef,
+            order: logOrder,
+            advanced: historyAdvanced,
           }),
         ),
       ]);
 
-      set({
-        status,
-        ...statusSelectionPatch(get, status),
-        branches,
-        commits: log.commits,
-        hasMore: log.hasMore,
-      });
+      if (get().repoPath === repoPath) {
+        set({
+          status,
+          ...statusSelectionPatch(get, status),
+          branches,
+          commits: log.commits,
+          hasMore: log.hasMore,
+        });
+        saveRepoSession(repoPath, get());
+      } else {
+        patchRepoSession(repoPath, {
+          status,
+          branches,
+          commits: log.commits,
+          hasMore: log.hasMore,
+        });
+      }
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
+    } finally {
+      endLoadingOp(repoPath, set, get);
     }
   },
 
   async fetch(remote) {
-    // 不拉全局 loading，避免变更区悬停按钮闪烁；由工具栏本地 busy 控制
-    set({ error: null });
+    const repoPath = requireRepoPath(get().repoPath);
 
+    beginLoadingOp(repoPath, set, get);
     try {
-      const repoPath = requireRepoPath(get().repoPath);
       const result = await gitService.fetch(repoPath, remote);
       const [status, branches] = await Promise.all([
         gitService.getStatus(repoPath),
         gitService.listBranches(repoPath, true),
       ]);
 
-      set({
-        status,
-        ...statusSelectionPatch(get, status),
-        branches,
-      });
+      if (get().repoPath === repoPath) {
+        set({ status, ...statusSelectionPatch(get, status), branches });
+        saveRepoSession(repoPath, get());
+      } else {
+        patchRepoSession(repoPath, { status, branches });
+      }
       return { remote: result.remote, elapsedMs: result.elapsedMs };
     } catch (error) {
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
+    } finally {
+      endLoadingOp(repoPath, set, get);
     }
   },
 
   async pull(options) {
-    set({ error: null });
+    assertWriteOpAllowed(get);
+    const repoPath = requireRepoPath(get().repoPath);
+    const logRef = get().logRef;
+    const logOrder = get().logOrder;
+    const historyAdvanced = get().historyAdvanced;
+    const originConflictState = {
+      commitMessage: get().commitMessage,
+      conflictFocusEpoch: get().conflictFocusEpoch,
+      demotedConflictPaths: get().demotedConflictPaths,
+      selectedChange: get().selectedChange,
+    };
 
+    beginLoadingOp(repoPath, set, get);
     try {
-      assertWriteOpAllowed(get);
-      const repoPath = requireRepoPath(get().repoPath);
       const result = await gitService.pull(repoPath, options);
       const [branches, log] = await Promise.all([
         gitService.listBranches(repoPath, true),
@@ -1927,23 +2251,32 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           repoPath,
           buildHistoryLogOptions({
             limit: LOG_PAGE_SIZE,
-            logRef: get().logRef,
-            order: get().logOrder,
-            advanced: get().historyAdvanced,
+            logRef,
+            order: logOrder,
+            advanced: historyAdvanced,
           }),
         ),
       ]);
       // 冲突时也刷新 status（不再吞掉现场）
-      await syncAfterConflictOp(set, get, {
+      await syncAfterConflictOp(repoPath, set, get, originConflictState, {
         focusConflict: result.conflict,
         preferMergeMessage: result.conflict,
       });
 
-      set({
-        branches,
-        commits: log.commits,
-        hasMore: log.hasMore,
-      });
+      if (get().repoPath === repoPath) {
+        set({
+          branches,
+          commits: log.commits,
+          hasMore: log.hasMore,
+        });
+        saveRepoSession(repoPath, get());
+      } else {
+        patchRepoSession(repoPath, {
+          branches,
+          commits: log.commits,
+          hasMore: log.hasMore,
+        });
+      }
       return {
         ok: result.ok,
         conflict: result.conflict,
@@ -1953,12 +2286,16 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     } catch (error) {
       // 尽量刷新，避免 UI 停留在冲突前的干净状态
       try {
-        await syncAfterConflictOp(set, get, { focusConflict: true });
+        await syncAfterConflictOp(repoPath, set, get, originConflictState, {
+          focusConflict: true,
+        });
       } catch {
         /* ignore */
       }
-      setError(set, get, error);
+      setError(set, get, repoPath, error);
       throw error;
+    } finally {
+      endLoadingOp(repoPath, set, get);
     }
   },
 
@@ -2023,11 +2360,10 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         commits: log.commits,
         hasMore: log.hasMore,
       });
+      saveRepoSession(repoPath, get());
       return { remote: result.remote, elapsedMs: result.elapsedMs };
     } catch (error) {
-      if (get().repoPath === repoPath) {
-        setError(set, get, error);
-      }
+      setError(set, get, repoPath, error);
       throw error;
     } finally {
       endLoadingOp(repoPath, set, get);

@@ -13,11 +13,11 @@ import {
 import { toast } from "sonner";
 
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
+import { AppAlertDialogContent, AppDialogContent } from "@/components/common/AppDialogContent";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
-  AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
@@ -33,13 +33,7 @@ import {
   ContextMenuSubContent,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -329,7 +323,7 @@ export function FileTreeContextMenu({
       </ContextMenu>
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
+        <AppAlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("repo.fileTreeDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -353,7 +347,7 @@ export function FileTreeContextMenu({
               {busy ? t("common.loading") : t("repo.fileTreeDelete")}
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogContent>
+        </AppAlertDialogContent>
       </AlertDialog>
 
       <Dialog
@@ -364,7 +358,7 @@ export function FileTreeContextMenu({
           }
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <AppDialogContent>
           <DialogHeader>
             <DialogTitle>{nameDialogTitle}</DialogTitle>
           </DialogHeader>
@@ -402,7 +396,7 @@ export function FileTreeContextMenu({
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
     </>
   );

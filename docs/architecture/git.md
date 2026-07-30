@@ -78,7 +78,8 @@ Rust 侧：
 | 操作 | 前置条件 | 备注 |
 |------|----------|------|
 | stage/unstage | 路径相对仓库根 | 拒绝 `..` |
-| commit | message 非空；`paths` 非空；允许 hooks 失败上浮 | 提交时重建 index（reset + update-index + `commit -F -`）；不默认 `--no-verify` |
+| commit | message 非空；`paths` 非空；允许 hooks 失败上浮 | 重建 index 前落盘备份；任一步失败恢复原 index；不默认 `--no-verify` |
+| discard | 路径相对仓库根；UI 二次确认 | 先创建带唯一标识的 Git stash；备份失败则取消操作 |
 | checkout/switch | 工作区冲突检测 | 脏工作区策略由产品定义 |
 | push/pull | 远程与分支明确 | 凭据走系统 helper，应用不存密码 |
 
@@ -88,13 +89,11 @@ Rust 侧：
 
 应用**默认不跳过 hooks**。若未来提供「跳过 hooks」选项，必须二次确认，并记入审计日志。
 
-例外：推送 / 删除**远端标签**使用 `--no-verify`，避免 husky `pre-push`（如 `pnpm check`）把标签操作拖成长时间转圈；代码质量门禁仍由分支推送与提交钩子承担。
-
 ---
 
 ## 并发与刷新
 
-- 同一仓库同一时刻：写操作串行化（队列）；读可并行但可合并（status 抖动合并）
+- 同一仓库同一时刻：Rust `write_lock` 按规范化仓库路径串行化写操作；读可并行但可合并
 - UI 在 focus / 操作成功后刷新 status
 - 文件监听（可选，后续）：debounce 后触发 `git_status`
 

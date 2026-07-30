@@ -4,13 +4,8 @@ import { useTranslation } from "react-i18next";
 import { SelectMenu } from "@/components/common/SelectMenu";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import type { GitMergeMode, GitMergeOptions } from "@/types/git";
@@ -78,7 +73,7 @@ export function MergeBranchDialog({
         }
       }}
     >
-      <DialogContent className="max-w-md gap-5 p-5 sm:rounded-lg">
+      <AppDialogContent>
         <DialogHeader>
           <DialogTitle className="pr-6 text-base">{title}</DialogTitle>
         </DialogHeader>
@@ -133,7 +128,7 @@ export function MergeBranchDialog({
             {busy ? t("repo.mergeRunning") : t("repo.mergeAction", { source, target })}
           </Button>
         </DialogFooter>
-      </DialogContent>
+      </AppDialogContent>
     </Dialog>
   );
 }

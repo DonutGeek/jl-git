@@ -22,9 +22,9 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -417,7 +417,7 @@ export function MultiAgentSidebar({
           }
         }}
       >
-        <DialogContent className="sm:max-w-sm">
+        <AppDialogContent size="sm">
           <DialogHeader>
             <DialogTitle>{t("multiAgent.tabRenameTitle")}</DialogTitle>
           </DialogHeader>
@@ -444,7 +444,7 @@ export function MultiAgentSidebar({
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
 
       <Dialog
@@ -455,7 +455,7 @@ export function MultiAgentSidebar({
           }
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <AppDialogContent>
           <DialogHeader>
             <DialogTitle>{t("multiAgent.deleteConversationTitle")}</DialogTitle>
             <DialogDescription>
@@ -474,7 +474,7 @@ export function MultiAgentSidebar({
               {t("multiAgent.deleteConversation")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
     </>
   );

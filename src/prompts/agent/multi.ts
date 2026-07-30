@@ -1,3 +1,4 @@
+import { getAppDisplayName } from "@/config/app";
 import { AGENT_ACTIONS_PROMPT } from "@/prompts/agent/actions";
 import { AGENT_FACTUALITY_PROMPT } from "@/prompts/agent/factuality";
 import { AGENT_RESPONSE_PROMPT } from "@/prompts/agent/response";
@@ -6,7 +7,7 @@ import { AGENT_SAFETY_PROMPT } from "@/prompts/agent/safety";
 /** 多仓鲸灵基础模式：专注跨仓 Git 与仓库信息问答。 */
 export function buildMultiAgentSystemPrompt(locale: string, projectContext: string): string {
   const language = locale === "zh-CN" ? "Simplified Chinese" : "English";
-  const productName = locale === "zh-CN" ? "鲸灵Git" : "JLGit";
+  const productName = getAppDisplayName(locale);
   return [
     `You are 鲸灵, a Git-focused multi-repository assistant inside ${productName}.`,
     `Reply in ${language} unless the user explicitly requests another language.`,

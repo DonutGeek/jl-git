@@ -1,19 +1,72 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 
-import { OpLogPanel } from "@/components/layout/OpLogPanel";
 import { RepoTabBar } from "@/components/layout/RepoTabBar";
 import { StatusBar } from "@/components/layout/StatusBar";
 import { WorkspaceHost } from "@/components/layout/WorkspaceHost";
-import { SettingsDrawer } from "@/components/settings/SettingsDrawer";
 import {
   listenOpenProjectInMain,
   listenProjectsChanged,
 } from "@/services/window/projectManageBridge";
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
+import { useOpLogStore } from "@/store/useOpLogStore";
 import { useProjectStore } from "@/store/useProjectStore";
+import { useSettingsDrawerStore } from "@/store/useSettingsDrawerStore";
 import { applyLocalMachineBootstrap } from "@/utils/localMachineBootstrap";
 import { applyStartupTabsBootstrap } from "@/utils/startupTabsBootstrap";
+
+const LazySettingsDrawer = lazy(() =>
+  import("@/components/settings/SettingsDrawer").then((module) => ({
+    default: module.SettingsDrawer,
+  })),
+);
+const LazyOpLogPanel = lazy(() =>
+  import("@/components/layout/OpLogPanel").then((module) => ({
+    default: module.OpLogPanel,
+  })),
+);
+
+/** 操作日志首次打开才加载虚拟列表，加载后保持挂载以保留展开状态。 */
+function OpLogPanelHost() {
+  const open = useOpLogStore((state) => state.panelOpen);
+  const [visited, setVisited] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setVisited(true);
+    }
+  }, [open]);
+
+  if (!open && !visited) {
+    return null;
+  }
+  return (
+    <Suspense fallback={null}>
+      <LazyOpLogPanel />
+    </Suspense>
+  );
+}
+
+/** 设置首次打开才加载；加载后保持挂载，确保关闭动画与表单草稿不丢失。 */
+function SettingsDrawerHost() {
+  const open = useSettingsDrawerStore((state) => state.open);
+  const [visited, setVisited] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setVisited(true);
+    }
+  }, [open]);
+
+  if (!open && !visited) {
+    return null;
+  }
+  return (
+    <Suspense fallback={null}>
+      <LazySettingsDrawer />
+    </Suspense>
+  );
+}
 
 /** 标签栏 + 工作区保活宿主常驻，子路由只负责改 URL */
 export function AppLayout() {
@@ -86,8 +139,8 @@ export function AppLayout() {
         </div>
       </main>
       <StatusBar />
-      <OpLogPanel />
-      <SettingsDrawer />
+      <OpLogPanelHost />
+      <SettingsDrawerHost />
     </div>
   );
 }

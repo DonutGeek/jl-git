@@ -223,6 +223,11 @@ export async function importBackup(): Promise<AppDataImportResult | null> {
     input: { sourcePath },
   });
 
+  // 导入替换了磁盘文件，丢弃导入前的 LazyStore，避免旧内存状态在重启前覆盖恢复数据
+  invalidateAiSettingsStore();
+  invalidateGitIdentityAccountsStore();
+  invalidateAgentIdentityStore();
+
   const snapshot: Record<string, string> = {};
   for (const [key, value] of Object.entries(result.localStorage ?? {})) {
     if (typeof value === "string") {

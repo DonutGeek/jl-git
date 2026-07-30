@@ -45,13 +45,8 @@ import { WorkspaceGroupDialog } from "@/components/project/WorkspaceGroupDialog"
 import { WorkspaceSelectMenu } from "@/components/project/WorkspaceSelectMenu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -1054,7 +1049,7 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
                 }
               }}
             >
-              <DialogContent className="max-w-md gap-4 p-5 sm:rounded-lg">
+              <AppDialogContent>
                 <DialogHeader>
                   <DialogTitle>{t("projectManager.deleteGroupTitle")}</DialogTitle>
                 </DialogHeader>
@@ -1096,7 +1091,7 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
                     {deleteBusy ? t("common.loading") : t("projectManager.deleteGroupAction")}
                   </Button>
                 </DialogFooter>
-              </DialogContent>
+              </AppDialogContent>
             </Dialog>
           </div>
         ) : null}

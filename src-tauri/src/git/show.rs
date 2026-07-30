@@ -556,7 +556,7 @@ mod tests {
 
     #[test]
     fn parses_meta_with_two_parents_and_body() {
-        let stdout = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0aaaaaaa\0Alice\02026-07-10T10:35:20+08:00\0bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb cccccccccccccccccccccccccccccccccccccccc\0Merge branch 'feat'\0body line\n";
+        let stdout = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x00aaaaaaa\x00Alice\x002026-07-10T10:35:20+08:00\x00bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb cccccccccccccccccccccccccccccccccccccccc\x00Merge branch 'feat'\x00body line\n";
         let detail = parse_show_meta(stdout).unwrap();
         assert_eq!(detail.short_id, "aaaaaaa");
         assert_eq!(detail.parents.len(), 2);
@@ -637,7 +637,7 @@ mod tests {
 
     #[test]
     fn parses_ls_tree_sizes_z() {
-        let raw = "100644 blob abcdef0123456789abcdef0123456789abcdef01   128\tREADME.md\0100644 blob abcdef0123456789abcdef0123456789abcdef02    42\tsrc/a.ts\0";
+        let raw = "100644 blob abcdef0123456789abcdef0123456789abcdef01   128\tREADME.md\x00100644 blob abcdef0123456789abcdef0123456789abcdef02    42\tsrc/a.ts\x00";
         let sizes = parse_ls_tree_sizes_z(raw);
         assert_eq!(sizes.get("README.md"), Some(&128));
         assert_eq!(sizes.get("src/a.ts"), Some(&42));

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -6,6 +7,7 @@ use std::process::Command;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sqlx::SqlitePool;
+use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 
@@ -15,6 +17,7 @@ use super::{to_db_error, CHAT_SCOPE_AGENT, CHAT_SCOPE_AGENT_GLOBAL};
 
 pub const DB_FILE_NAME: &str = "jlgit.db";
 pub const DB_PENDING_NAME: &str = "jlgit.db.pending";
+const DB_IMPORT_BACKUP_NAME: &str = "jlgit.db.import-backup";
 pub const BACKUP_FORMAT: &str = "jlgit-backup";
 pub const BACKUP_FORMAT_VERSION: u32 = 1;
 pub const APP_ID: &str = "com.jingling.jlgit";
@@ -29,6 +32,33 @@ const STORE_SSH_KEYS: &str = "ssh-keys.json";
 const STORE_AGENT_PLUGINS: &str = "agent-plugins.json";
 /// 旧版文件名，按顺序保留兼容（备份/恢复/清理时一并处理）
 const STORE_AGENT_IDENTITY_LEGACY: [&str; 2] = ["jinglv.json", "resume-helper.json"];
+const MAX_BACKUP_MANIFEST_BYTES: u64 = 64 * 1024;
+const MAX_BACKUP_DATABASE_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_BACKUP_JSON_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_BACKUP_EXTRACTED_BYTES: u64 = 576 * 1024 * 1024;
+const SQLITE_HEADER: &[u8; 16] = b"SQLite format 3\0";
+
+struct TemporaryDirectory(PathBuf);
+
+impl TemporaryDirectory {
+    fn create(app_data_dir: &Path, prefix: &str) -> Result<Self, AppError> {
+        let path = app_data_dir.join(format!("{prefix}-{}", Uuid::new_v4()));
+        fs::create_dir(&path).map_err(|error| {
+            AppError::new("IO", "无法创建临时目录").with_details(error.to_string())
+        })?;
+        Ok(Self(path))
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TemporaryDirectory {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -70,25 +100,91 @@ struct BackupManifest {
     created_at: String,
 }
 
-/// 若存在 pending DB，则在建立连接前替换正式库文件。
-pub fn apply_pending_database(app_data_dir: &Path) -> Result<(), AppError> {
-    let pending = app_data_dir.join(DB_PENDING_NAME);
-    if !pending.is_file() {
-        return Ok(());
+pub struct PendingDatabaseSwap {
+    target: PathBuf,
+    backup: PathBuf,
+    had_original: bool,
+}
+
+impl PendingDatabaseSwap {
+    /// 新库无法连接或迁移时恢复导入前的数据库。
+    pub fn rollback(self) -> Result<(), AppError> {
+        if self.target.exists() {
+            fs::remove_file(&self.target).map_err(|error| {
+                AppError::new("IO", "无法移除无效的导入数据库").with_details(error.to_string())
+            })?;
+        }
+        if self.had_original {
+            fs::rename(&self.backup, &self.target).map_err(|error| {
+                AppError::new("IO", "无法恢复导入前的数据库").with_details(error.to_string())
+            })?;
+        }
+        Ok(())
     }
+
+    /// 新库已成功连接并完成迁移后清理旧库备份。
+    pub fn complete(self) -> Result<(), AppError> {
+        if !self.had_original || !self.backup.exists() {
+            return Ok(());
+        }
+        fs::remove_file(&self.backup).map_err(|error| {
+            AppError::new("IO", "无法清理旧数据库备份").with_details(error.to_string())
+        })
+    }
+}
+
+/// 若存在 pending DB，则在建立连接前替换正式库文件。
+/// 返回 guard，由启动流程在连接/迁移成功后确认，否则回滚旧库。
+pub fn apply_pending_database(
+    app_data_dir: &Path,
+) -> Result<Option<PendingDatabaseSwap>, AppError> {
+    let pending = app_data_dir.join(DB_PENDING_NAME);
     let target = app_data_dir.join(DB_FILE_NAME);
-    let backup = app_data_dir.join(format!("{DB_FILE_NAME}.bak"));
-    if target.is_file() {
-        let _ = fs::remove_file(&backup);
+    let backup = app_data_dir.join(DB_IMPORT_BACKUP_NAME);
+
+    if !pending.is_file() {
+        if backup.is_file() && target.is_file() {
+            // 上次可能在替换后、连接确认前闪退；重新验证当前库后再清理备份。
+            return Ok(Some(PendingDatabaseSwap {
+                target,
+                backup,
+                had_original: true,
+            }));
+        }
+        if backup.is_file() && !target.exists() {
+            // 上次在旧库移走后、pending 就位前闪退，直接恢复旧库。
+            fs::rename(&backup, &target).map_err(|error| {
+                AppError::new("IO", "无法恢复中断的数据库导入").with_details(error.to_string())
+            })?;
+        }
+        return Ok(None);
+    }
+
+    if backup.exists() {
+        return Err(AppError::new(
+            "IO",
+            "检测到未完成的数据库导入恢复状态，请重新启动应用",
+        ));
+    }
+
+    let had_original = target.is_file();
+    if had_original {
         fs::rename(&target, &backup).map_err(|error| {
             AppError::new("IO", "无法备份旧数据库").with_details(error.to_string())
         })?;
     }
-    fs::rename(&pending, &target).map_err(|error| {
-        AppError::new("IO", "无法应用导入的数据库").with_details(error.to_string())
-    })?;
-    let _ = fs::remove_file(&backup);
-    Ok(())
+    if let Err(error) = fs::rename(&pending, &target) {
+        if had_original {
+            let _ = fs::rename(&backup, &target);
+        }
+        return Err(AppError::new("IO", "无法应用导入的数据库").with_details(error.to_string()));
+    }
+
+    Ok(Some(PendingDatabaseSwap {
+        target,
+        backup,
+        had_original,
+    }))
 }
 
 pub fn resolve_paths(app_data_dir: &Path) -> AppDataPaths {
@@ -316,12 +412,9 @@ pub async fn export_backup(
         }
     }
 
-    let temp_dir = app_data_dir.join(".backup-export-tmp");
-    let _ = fs::remove_dir_all(&temp_dir);
-    fs::create_dir_all(&temp_dir)
-        .map_err(|error| AppError::new("IO", "无法创建临时目录").with_details(error.to_string()))?;
+    let temp_dir = TemporaryDirectory::create(app_data_dir, ".backup-export-tmp")?;
 
-    let temp_db = temp_dir.join(DB_FILE_NAME);
+    let temp_db = temp_dir.path().join(DB_FILE_NAME);
     let temp_db_str = temp_db.to_string_lossy().replace('\'', "''");
     sqlx::query(&format!("VACUUM INTO '{temp_db_str}'"))
         .execute(pool)
@@ -342,40 +435,54 @@ pub async fn export_backup(
         AppError::new("INTERNAL", "无法序列化 localStorage").with_details(error.to_string())
     })?;
 
-    let file = File::create(&dest)
-        .map_err(|error| AppError::new("IO", "无法创建备份文件").with_details(error.to_string()))?;
-    let mut zip = ZipWriter::new(file);
-    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let dest_name = dest
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("jlgit-backup.zip");
+    let temp_dest = dest.with_file_name(format!(".{dest_name}.jlgit-tmp-{}", Uuid::new_v4()));
+    let write_result = (|| -> Result<(), AppError> {
+        let file = File::create(&temp_dest).map_err(|error| {
+            AppError::new("IO", "无法创建临时备份文件").with_details(error.to_string())
+        })?;
+        let mut zip = ZipWriter::new(file);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
-    zip.start_file("manifest.json", options).map_err(zip_err)?;
-    zip.write_all(&manifest_bytes).map_err(io_err)?;
+        zip.start_file("manifest.json", options).map_err(zip_err)?;
+        zip.write_all(&manifest_bytes).map_err(io_err)?;
 
-    zip.start_file(DB_FILE_NAME, options).map_err(zip_err)?;
-    let mut db_file = File::open(&temp_db).map_err(io_err)?;
-    std::io::copy(&mut db_file, &mut zip).map_err(io_err)?;
+        zip.start_file(DB_FILE_NAME, options).map_err(zip_err)?;
+        let mut db_file = File::open(&temp_db).map_err(io_err)?;
+        std::io::copy(&mut db_file, &mut zip).map_err(io_err)?;
 
-    for name in [STORE_AI, STORE_GIT, STORE_AGENT_IDENTITY] {
-        let store_path = app_data_dir.join(name);
-        let bytes = if store_path.is_file() {
-            fs::read(&store_path).map_err(io_err)?
-        } else if name == STORE_AGENT_IDENTITY {
-            // 新文件不存在时按顺序回退旧版简历插件配置文件
-            read_first_existing(app_data_dir, &STORE_AGENT_IDENTITY_LEGACY)
-                .unwrap_or_else(|| b"{}\n".to_vec())
-        } else {
-            b"{}\n".to_vec()
-        };
-        zip.start_file(format!("stores/{name}"), options)
+        for name in [STORE_AI, STORE_GIT, STORE_AGENT_IDENTITY] {
+            let store_path = app_data_dir.join(name);
+            let bytes = if store_path.is_file() {
+                fs::read(&store_path).map_err(io_err)?
+            } else if name == STORE_AGENT_IDENTITY {
+                // 新文件不存在时按顺序回退旧版简历插件配置文件
+                read_first_existing(app_data_dir, &STORE_AGENT_IDENTITY_LEGACY)
+                    .unwrap_or_else(|| b"{}\n".to_vec())
+            } else {
+                b"{}\n".to_vec()
+            };
+            zip.start_file(format!("stores/{name}"), options)
+                .map_err(zip_err)?;
+            zip.write_all(&bytes).map_err(io_err)?;
+        }
+
+        zip.start_file("localStorage.json", options)
             .map_err(zip_err)?;
-        zip.write_all(&bytes).map_err(io_err)?;
+        zip.write_all(&local_storage_bytes).map_err(io_err)?;
+        let file = zip.finish().map_err(zip_err)?;
+        file.sync_all().map_err(io_err)
+    })();
+    if let Err(error) = write_result {
+        let _ = fs::remove_file(&temp_dest);
+        return Err(error);
     }
+    replace_export_destination(&temp_dest, &dest)?;
 
-    zip.start_file("localStorage.json", options)
-        .map_err(zip_err)?;
-    zip.write_all(&local_storage_bytes).map_err(io_err)?;
-    zip.finish().map_err(zip_err)?;
-
-    let _ = fs::remove_dir_all(&temp_dir);
     Ok(())
 }
 
@@ -397,8 +504,16 @@ pub fn import_backup(
         let mut entry = archive
             .by_name("manifest.json")
             .map_err(|_| AppError::new("VALIDATION", "备份缺少 manifest.json"))?;
+        ensure_backup_entry_size("manifest.json", entry.size(), 0)?;
         let mut buf = String::new();
-        entry.read_to_string(&mut buf).map_err(io_err)?;
+        entry
+            .by_ref()
+            .take(MAX_BACKUP_MANIFEST_BYTES + 1)
+            .read_to_string(&mut buf)
+            .map_err(io_err)?;
+        if buf.len() as u64 > MAX_BACKUP_MANIFEST_BYTES {
+            return Err(AppError::new("VALIDATION", "备份清单体积超出限制"));
+        }
         serde_json::from_str(&buf).map_err(|error| {
             AppError::new("VALIDATION", "manifest 无效").with_details(error.to_string())
         })?
@@ -411,53 +526,64 @@ pub fn import_backup(
         return Err(AppError::new("VALIDATION", "不支持的备份版本"));
     }
 
-    let staging = app_data_dir.join(".backup-import-tmp");
-    let _ = fs::remove_dir_all(&staging);
-    fs::create_dir_all(&staging).map_err(io_err)?;
-    fs::create_dir_all(staging.join("stores")).map_err(io_err)?;
+    let staging = TemporaryDirectory::create(app_data_dir, ".backup-import-tmp")?;
+    fs::create_dir(staging.path().join("stores")).map_err(io_err)?;
+    let mut extracted_bytes = 0_u64;
+    let mut extracted_names = HashSet::new();
 
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).map_err(|error| {
             AppError::new("IO", "读取备份条目失败").with_details(error.to_string())
         })?;
-        let name = entry.name().to_string();
-        if name.ends_with('/') {
+        if entry.is_dir() {
             continue;
         }
-        // 仅允许清单内约定路径
-        let allowed = name == "manifest.json"
-            || name == DB_FILE_NAME
-            || name == "localStorage.json"
-            || name.starts_with("stores/");
-        if !allowed {
+        let enclosed = entry
+            .enclosed_name()
+            .ok_or_else(|| AppError::new("VALIDATION", "备份包含越界路径"))?;
+        let name = enclosed.to_string_lossy().replace('\\', "/");
+        let Some(limit) = backup_entry_limit(&name) else {
             continue;
+        };
+        if !extracted_names.insert(name.clone()) {
+            return Err(AppError::new("VALIDATION", "备份包含重复条目"));
         }
-        let out_path = staging.join(&name);
+        ensure_backup_entry_size(&name, entry.size(), extracted_bytes)?;
+        extracted_bytes = extracted_bytes.saturating_add(entry.size());
+
+        let out_path = staging.path().join(&enclosed);
         if let Some(parent) = out_path.parent() {
             fs::create_dir_all(parent).map_err(io_err)?;
         }
         let mut out = File::create(&out_path).map_err(io_err)?;
-        std::io::copy(&mut entry, &mut out).map_err(io_err)?;
+        let copied =
+            std::io::copy(&mut entry.by_ref().take(limit + 1), &mut out).map_err(io_err)?;
+        if copied > limit {
+            return Err(AppError::new("VALIDATION", "备份条目体积超出限制"));
+        }
     }
 
-    let imported_db = staging.join(DB_FILE_NAME);
+    let imported_db = staging.path().join(DB_FILE_NAME);
     if !imported_db.is_file() {
-        let _ = fs::remove_dir_all(&staging);
         return Err(AppError::new("VALIDATION", "备份缺少数据库文件"));
     }
+    validate_sqlite_file(&imported_db)?;
 
     let local_storage = {
-        let path = staging.join("localStorage.json");
+        let path = staging.path().join("localStorage.json");
         if path.is_file() {
             let text = fs::read_to_string(&path).map_err(io_err)?;
-            serde_json::from_str::<Map<String, Value>>(&text).unwrap_or_default()
+            serde_json::from_str::<Map<String, Value>>(&text).map_err(|error| {
+                AppError::new("VALIDATION", "localStorage.json 无效")
+                    .with_details(error.to_string())
+            })?
         } else {
             Map::new()
         }
     };
 
     for name in [STORE_AI, STORE_GIT, STORE_AGENT_IDENTITY] {
-        let src = staging.join("stores").join(name);
+        let src = staging.path().join("stores").join(name);
         let dest = app_data_dir.join(name);
         if src.is_file() {
             fs::copy(&src, &dest).map_err(io_err)?;
@@ -466,13 +592,83 @@ pub fn import_backup(
 
     let pending = app_data_dir.join(DB_PENDING_NAME);
     fs::copy(&imported_db, &pending).map_err(io_err)?;
-    let _ = fs::remove_dir_all(&staging);
 
     Ok(AppDataImportResult {
         ok: true,
         local_storage,
         requires_restart: true,
     })
+}
+
+fn backup_entry_limit(name: &str) -> Option<u64> {
+    if name == "manifest.json" {
+        return Some(MAX_BACKUP_MANIFEST_BYTES);
+    }
+    if name == DB_FILE_NAME {
+        return Some(MAX_BACKUP_DATABASE_BYTES);
+    }
+    if name == "localStorage.json"
+        || [STORE_AI, STORE_GIT, STORE_AGENT_IDENTITY]
+            .iter()
+            .any(|store| name == format!("stores/{store}"))
+    {
+        return Some(MAX_BACKUP_JSON_BYTES);
+    }
+    None
+}
+
+fn ensure_backup_entry_size(name: &str, size: u64, already_extracted: u64) -> Result<(), AppError> {
+    let limit =
+        backup_entry_limit(name).ok_or_else(|| AppError::new("VALIDATION", "备份包含未知条目"))?;
+    if size > limit || already_extracted.saturating_add(size) > MAX_BACKUP_EXTRACTED_BYTES {
+        return Err(AppError::new("VALIDATION", "备份条目体积超出限制"));
+    }
+    Ok(())
+}
+
+fn validate_sqlite_file(path: &Path) -> Result<(), AppError> {
+    let mut file = File::open(path).map_err(io_err)?;
+    let mut header = [0_u8; 16];
+    file.read_exact(&mut header)
+        .map_err(|_| AppError::new("VALIDATION", "备份数据库无效"))?;
+    if &header != SQLITE_HEADER {
+        return Err(AppError::new("VALIDATION", "备份数据库格式不正确"));
+    }
+    Ok(())
+}
+
+fn replace_export_destination(temp: &Path, dest: &Path) -> Result<(), AppError> {
+    if !dest.exists() {
+        return fs::rename(temp, dest).map_err(io_err);
+    }
+    if !dest.is_file() {
+        let _ = fs::remove_file(temp);
+        return Err(AppError::new("VALIDATION", "备份目标不是文件"));
+    }
+
+    let dest_name = dest
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("jlgit-backup.zip");
+    let previous = dest.with_file_name(format!(".{dest_name}.jlgit-old-{}", Uuid::new_v4()));
+    fs::rename(dest, &previous).map_err(io_err)?;
+    if let Err(error) = fs::rename(temp, dest) {
+        if let Err(restore_error) = fs::rename(&previous, dest) {
+            let _ = fs::remove_file(temp);
+            return Err(AppError::new(
+                "IO_RECOVERY_FAILED",
+                format!(
+                    "无法恢复原备份；原文件仍保留在 {}",
+                    previous.to_string_lossy()
+                ),
+            )
+            .with_details(format!("{error}; {restore_error}")));
+        }
+        let _ = fs::remove_file(temp);
+        return Err(AppError::new("IO", "无法替换备份文件").with_details(error.to_string()));
+    }
+    let _ = fs::remove_file(previous);
+    Ok(())
 }
 
 /// 按顺序尝试读取第一个存在的旧版文件内容
@@ -494,4 +690,121 @@ fn zip_err(error: zip::result::ZipError) -> AppError {
 
 fn io_err(error: impl std::fmt::Display) -> AppError {
     AppError::new("IO", "文件操作失败").with_details(error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        apply_pending_database, backup_entry_limit, import_backup, replace_export_destination,
+        DB_FILE_NAME, DB_IMPORT_BACKUP_NAME, DB_PENDING_NAME,
+    };
+    use std::fs::{self, File};
+    use std::io::Write;
+    use std::path::Path;
+    use zip::write::SimpleFileOptions;
+    use zip::ZipWriter;
+
+    const MANIFEST: &[u8] = br#"{
+      "format": "jlgit-backup",
+      "formatVersion": 1,
+      "appId": "com.jingling.jlgit",
+      "appName": "JLGit",
+      "createdAt": "2026-07-29T00:00:00Z"
+    }"#;
+
+    fn make_temp_dir() -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!("jlgit-backup-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    fn write_backup(path: &Path, entries: &[(&str, &[u8])]) {
+        let file = File::create(path).unwrap();
+        let mut archive = ZipWriter::new(file);
+        let options = SimpleFileOptions::default();
+        for (name, bytes) in entries {
+            archive.start_file(*name, options).unwrap();
+            archive.write_all(bytes).unwrap();
+        }
+        archive.finish().unwrap();
+    }
+
+    #[test]
+    fn backup_whitelist_rejects_store_path_traversal() {
+        assert!(backup_entry_limit("stores/ai-secrets.json").is_some());
+        assert!(backup_entry_limit("stores/../../outside.json").is_none());
+        assert!(backup_entry_limit("../jlgit.db").is_none());
+    }
+
+    #[test]
+    fn import_rejects_invalid_sqlite_database() {
+        let dir = make_temp_dir();
+        let backup = dir.join("invalid.zip");
+        write_backup(
+            &backup,
+            &[("manifest.json", MANIFEST), (DB_FILE_NAME, b"not sqlite")],
+        );
+
+        assert!(import_backup(&dir, backup.to_string_lossy().as_ref()).is_err());
+        assert!(!dir.join(DB_PENDING_NAME).exists());
+
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn import_rejects_archive_path_traversal() {
+        let dir = make_temp_dir();
+        let backup = dir.join("traversal.zip");
+        write_backup(
+            &backup,
+            &[
+                ("manifest.json", MANIFEST),
+                ("stores/../../outside.json", b"escaped"),
+            ],
+        );
+
+        let error = import_backup(&dir, backup.to_string_lossy().as_ref()).unwrap_err();
+        assert_eq!(error.message, "备份包含越界路径");
+        assert!(!dir.parent().unwrap().join("outside.json").exists());
+
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn pending_database_swap_can_restore_original_database() {
+        let dir = make_temp_dir();
+        fs::write(dir.join(DB_FILE_NAME), b"original database").unwrap();
+        fs::write(dir.join(DB_PENDING_NAME), b"imported database").unwrap();
+
+        let swap = apply_pending_database(&dir).unwrap().unwrap();
+        assert_eq!(
+            fs::read(dir.join(DB_FILE_NAME)).unwrap(),
+            b"imported database"
+        );
+        assert!(dir.join(DB_IMPORT_BACKUP_NAME).is_file());
+
+        swap.rollback().unwrap();
+        assert_eq!(
+            fs::read(dir.join(DB_FILE_NAME)).unwrap(),
+            b"original database"
+        );
+        assert!(!dir.join(DB_IMPORT_BACKUP_NAME).exists());
+
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn export_replacement_keeps_complete_new_file() {
+        let dir = make_temp_dir();
+        let target = dir.join("backup.zip");
+        let temporary = dir.join(".backup.tmp");
+        fs::write(&target, b"old complete backup").unwrap();
+        fs::write(&temporary, b"new complete backup").unwrap();
+
+        replace_export_destination(&temporary, &target).unwrap();
+
+        assert_eq!(fs::read(target).unwrap(), b"new complete backup");
+        assert!(!temporary.exists());
+        fs::remove_dir_all(dir).unwrap();
+    }
 }

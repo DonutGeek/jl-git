@@ -1,10 +1,9 @@
 use serde::Serialize;
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::path::{Component, Path, PathBuf};
 
 use crate::error::AppError;
-use crate::git::path::validate_repo_relative_paths;
+use crate::git::path::{resolve_worktree_file, validate_repo_relative_paths};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -93,8 +92,7 @@ pub fn file_size(repo_root: &Path, relative: &str) -> Result<FsFileSizeResult, A
     }
     validate_repo_relative_paths(&[relative.to_string()])?;
 
-    let abs = repo_root.join(relative);
-    if abs.is_file() {
+    if let Some(abs) = resolve_worktree_file(repo_root, relative)? {
         let meta = fs::metadata(&abs).map_err(|error| {
             AppError::new("INTERNAL", "无法读取文件大小").with_details(error.to_string())
         })?;
@@ -116,20 +114,10 @@ pub fn file_size(repo_root: &Path, relative: &str) -> Result<FsFileSizeResult, A
 /// 删除仓库内相对路径（文件或目录；目录递归删除）
 pub fn remove(repo_root: &Path, relative: &str) -> Result<(), AppError> {
     let relative = normalize_relative(relative)?;
-    let target = resolve_existing_under_repo(repo_root, &relative)?;
+    let (target, _) = resolve_mutation_target(repo_root, &relative)?;
     reject_git_meta(repo_root, &target)?;
 
-    if target.is_dir() {
-        fs::remove_dir_all(&target).map_err(|error| {
-            AppError::new("FS_FAILED", "无法删除目录").with_details(error.to_string())
-        })?;
-    } else {
-        fs::remove_file(&target).map_err(|error| {
-            AppError::new("FS_FAILED", "无法删除文件").with_details(error.to_string())
-        })?;
-    }
-
-    Ok(())
+    move_to_trash(&target)
 }
 
 /// 在父目录下新建空目录或空文件（`name` 仅为文件名）
@@ -147,7 +135,7 @@ pub fn create(
     let target = parent_abs.join(&name);
     ensure_under_repo(repo_root, &target)?;
 
-    if target.exists() {
+    if fs::symlink_metadata(&target).is_ok() {
         return Err(AppError::new("FS_EXISTS", "目标名称已存在"));
     }
 
@@ -174,7 +162,7 @@ pub fn create(
 pub fn rename(repo_root: &Path, from: &str, new_name: &str) -> Result<FsRenameResult, AppError> {
     let from = normalize_relative(from)?;
     let new_name = validate_basename(new_name)?;
-    let from_abs = resolve_existing_under_repo(repo_root, &from)?;
+    let (from_abs, _) = resolve_mutation_target(repo_root, &from)?;
     reject_git_meta(repo_root, &from_abs)?;
 
     let parent = from_abs
@@ -183,7 +171,7 @@ pub fn rename(repo_root: &Path, from: &str, new_name: &str) -> Result<FsRenameRe
     let to_abs = parent.join(&new_name);
     ensure_under_repo(repo_root, &to_abs)?;
 
-    if to_abs.exists() {
+    if fs::symlink_metadata(&to_abs).is_ok() {
         return Err(AppError::new("FS_EXISTS", "目标名称已存在"));
     }
 
@@ -206,8 +194,8 @@ fn normalize_relative(relative: &str) -> Result<String, AppError> {
     if relative.is_empty() {
         return Err(AppError::new("VALIDATION", "缺少路径"));
     }
-    validate_repo_relative_paths(&[relative.clone()])?;
-    if relative == ".git" || relative.starts_with(".git/") {
+    validate_repo_relative_paths(std::slice::from_ref(&relative))?;
+    if relative.split('/').any(|segment| segment == ".git") {
         return Err(AppError::new("VALIDATION", "不能操作 .git"));
     }
     Ok(relative)
@@ -229,8 +217,8 @@ fn resolve_parent_dir(repo_root: &Path, parent_rel: &str) -> Result<PathBuf, App
         });
     }
 
-    let parent_abs = resolve_existing_under_repo(repo_root, parent_rel)?;
-    if !parent_abs.is_dir() {
+    let (parent_abs, metadata) = resolve_mutation_target(repo_root, parent_rel)?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
         return Err(AppError::new("INVALID_PATH", "父路径不是目录"));
     }
     Ok(parent_abs)
@@ -257,13 +245,64 @@ fn parent_relative(relative: &str) -> String {
     }
 }
 
-fn resolve_existing_under_repo(repo_root: &Path, relative: &str) -> Result<PathBuf, AppError> {
-    let candidate = repo_root.join(relative);
-    let canonical = fs::canonicalize(&candidate).map_err(|error| {
-        AppError::new("INVALID_PATH", "路径不存在").with_details(error.to_string())
+/// 变更操作不得穿过符号链接；最终分量若是链接，则返回链接自身。
+fn resolve_mutation_target(
+    repo_root: &Path,
+    relative: &str,
+) -> Result<(PathBuf, fs::Metadata), AppError> {
+    let root = fs::canonicalize(repo_root).map_err(|error| {
+        AppError::new("INVALID_PATH", "无法规范化仓库路径").with_details(error.to_string())
     })?;
-    ensure_under_repo(repo_root, &canonical)?;
-    Ok(canonical)
+    let components: Vec<_> = Path::new(relative).components().collect();
+    if components.is_empty() {
+        return Err(AppError::new("INVALID_PATH", "路径不能为空"));
+    }
+
+    let mut current = root;
+    for (index, component) in components.iter().enumerate() {
+        let Component::Normal(name) = component else {
+            return Err(AppError::new("INVALID_PATH", "非法仓库相对路径"));
+        };
+        current.push(name);
+        let metadata = fs::symlink_metadata(&current).map_err(|error| {
+            AppError::new("INVALID_PATH", "路径不存在").with_details(error.to_string())
+        })?;
+        let is_final = index + 1 == components.len();
+        if !is_final && (metadata.file_type().is_symlink() || !metadata.is_dir()) {
+            return Err(AppError::new(
+                "INVALID_PATH",
+                "变更路径不能穿过符号链接或非目录节点",
+            ));
+        }
+        if is_final {
+            return Ok((current, metadata));
+        }
+    }
+
+    Err(AppError::new("INVALID_PATH", "无法解析仓库相对路径"))
+}
+
+#[cfg(not(test))]
+fn move_to_trash(target: &Path) -> Result<(), AppError> {
+    trash::delete(target).map_err(|error| {
+        AppError::new("FS_FAILED", "无法将文件移到系统废纸篓").with_details(error.to_string())
+    })
+}
+
+#[cfg(test)]
+fn move_to_trash(target: &Path) -> Result<(), AppError> {
+    let metadata = fs::symlink_metadata(target).map_err(|error| {
+        AppError::new("FS_FAILED", "无法读取待删除路径").with_details(error.to_string())
+    })?;
+    if metadata.is_dir() && !metadata.file_type().is_symlink() {
+        fs::remove_dir_all(target).map_err(|error| {
+            AppError::new("FS_FAILED", "无法删除测试目录").with_details(error.to_string())
+        })
+    } else {
+        fs::remove_file(target).map_err(|error| {
+            AppError::new("FS_FAILED", "无法删除测试文件").with_details(error.to_string())
+        })
+    }
 }
 
 fn ensure_under_repo(repo_root: &Path, path: &Path) -> Result<(), AppError> {
@@ -308,23 +347,12 @@ fn reject_git_meta(repo_root: &Path, target: &Path) -> Result<(), AppError> {
 }
 
 fn blob_size(repo_root: &Path, spec: &str) -> Result<Option<u64>, AppError> {
-    let mut command = Command::new("git");
-    crate::process_cmd::configure_background_command(&mut command);
-    let output = command
-        .args(["cat-file", "-s", spec])
-        .current_dir(repo_root)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .map_err(|error| {
-            AppError::new("GIT_FAILED", "无法读取 blob 大小").with_details(error.to_string())
-        })?;
-
-    if !output.status.success() {
+    let output = crate::git::runner::run_git_allow_nonzero(repo_root, &["cat-file", "-s", spec])?;
+    if output.code != 0 {
         return Ok(None);
     }
 
-    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    Ok(text.parse::<u64>().ok())
+    Ok(output.stdout.trim().parse::<u64>().ok())
 }
 
 fn resolve_list_target(repo_root: &Path, relative: &str) -> Result<PathBuf, AppError> {
@@ -414,6 +442,38 @@ mod tests {
         assert!(dir.join("b.txt").exists());
         remove(&dir, "b.txt").unwrap();
         assert!(!dir.join("b.txt").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn removing_symlink_keeps_target() {
+        use std::os::unix::fs::symlink;
+
+        let dir = make_temp_dir();
+        fs::create_dir(dir.join("target")).unwrap();
+        fs::write(dir.join("target/keep.txt"), "keep").unwrap();
+        symlink(dir.join("target"), dir.join("link")).unwrap();
+
+        remove(&dir, "link").unwrap();
+
+        assert!(dir.join("target/keep.txt").is_file());
+        assert!(fs::symlink_metadata(dir.join("link")).is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_mutation_through_symlink_directory() {
+        use std::os::unix::fs::symlink;
+
+        let dir = make_temp_dir();
+        fs::create_dir(dir.join("target")).unwrap();
+        fs::write(dir.join("target/keep.txt"), "keep").unwrap();
+        symlink(dir.join("target"), dir.join("link")).unwrap();
+
+        assert!(remove(&dir, "link/keep.txt").is_err());
+        assert!(dir.join("target/keep.txt").is_file());
         let _ = fs::remove_dir_all(&dir);
     }
 

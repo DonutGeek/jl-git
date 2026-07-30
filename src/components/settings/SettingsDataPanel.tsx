@@ -14,15 +14,17 @@ import { toast } from "sonner";
 import { SettingsPreferenceGroup } from "@/components/settings/SettingsPreferenceGroup";
 import { SettingsPreferenceRow } from "@/components/settings/SettingsPreferenceRow";
 import { SettingsTip } from "@/components/settings/SettingsTip";
-import { Button } from "@/components/ui/button";
+import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
   Item,
   ItemActions,
@@ -385,51 +387,50 @@ export function SettingsDataPanel() {
         </div>
       </section>
 
-      <Dialog
+      <AlertDialog
         open={pendingClear != null}
         onOpenChange={(open) => {
           if (!open) setPendingClear(null);
         }}
       >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
+        <AppAlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
               {pendingClear?.destructive
                 ? t("settings.dataClearAllTitle")
                 : t("settings.dataClearConfirmTitle")}
-            </DialogTitle>
-            <DialogDescription>{pendingClear?.confirm}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setPendingClear(null)}>
+            </AlertDialogTitle>
+            <AlertDialogDescription>{pendingClear?.confirm}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy} onClick={() => setPendingClear(null)}>
               {t("agent.editCancel")}
-            </Button>
-            <Button
-              type="button"
+            </AlertDialogCancel>
+            <AlertDialogAction
               variant={pendingClear?.destructive ? "destructive" : "default"}
               disabled={busy || !pendingClear}
-              onClick={() => {
+              onClick={(event) => {
+                event.preventDefault();
                 if (pendingClear) void runClear(pendingClear);
               }}
             >
               {t("settings.dataClearAction")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AppAlertDialogContent>
+      </AlertDialog>
 
-      <Dialog open={importConfirmOpen} onOpenChange={setImportConfirmOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("settings.dataImportConfirmTitle")}</DialogTitle>
-            <DialogDescription>{t("settings.dataImportConfirm")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setImportConfirmOpen(false)}>
+      <AlertDialog open={importConfirmOpen} onOpenChange={setImportConfirmOpen}>
+        <AppAlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("settings.dataImportConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("settings.dataImportConfirm")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy} onClick={() => setImportConfirmOpen(false)}>
               {t("agent.editCancel")}
-            </Button>
-            <Button
-              type="button"
+            </AlertDialogCancel>
+            <AlertDialogAction
               variant="destructive"
               disabled={busy}
               onClick={() => {
@@ -437,23 +438,22 @@ export function SettingsDataPanel() {
               }}
             >
               {t("settings.dataImport")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AppAlertDialogContent>
+      </AlertDialog>
 
-      <Dialog open={factoryResetOpen} onOpenChange={setFactoryResetOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("settings.dataFactoryResetConfirmTitle")}</DialogTitle>
-            <DialogDescription>{t("settings.dataFactoryResetConfirm")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setFactoryResetOpen(false)}>
+      <AlertDialog open={factoryResetOpen} onOpenChange={setFactoryResetOpen}>
+        <AppAlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("settings.dataFactoryResetConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("settings.dataFactoryResetConfirm")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy} onClick={() => setFactoryResetOpen(false)}>
               {t("agent.editCancel")}
-            </Button>
-            <Button
-              type="button"
+            </AlertDialogCancel>
+            <AlertDialogAction
               variant="destructive"
               disabled={busy}
               onClick={() => {
@@ -461,10 +461,10 @@ export function SettingsDataPanel() {
               }}
             >
               {t("settings.dataFactoryResetAction")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AppAlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -6,7 +6,7 @@ use crate::error::AppError;
 use crate::git::{runner, status};
 
 /// 冲突一侧的提交摘要（标记行展示用）
-#[derive(Debug, Serialize)]
+#[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConflictSideMeta {
     pub label: String,
@@ -208,17 +208,6 @@ fn read_optional_text(path: &Path) -> Option<String> {
         .ok()
         .map(|text| text.trim_end().to_string())
         .filter(|text| !text.is_empty())
-}
-
-impl Default for ConflictSideMeta {
-    fn default() -> Self {
-        Self {
-            label: String::new(),
-            short_id: None,
-            author_name: None,
-            authored_at: None,
-        }
-    }
 }
 
 /// 读取 tip 的短哈希 / 作者 / 时间（失败时返回空字段）

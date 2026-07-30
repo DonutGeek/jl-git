@@ -9,6 +9,8 @@ vi.mock("@/services/git", () => ({
     getLog: vi.fn(),
     commit: vi.fn(),
     push: vi.fn(),
+    pull: vi.fn(),
+    createBranch: vi.fn(),
     getIdentity: vi.fn(),
     listBranches: vi.fn(),
     listTags: vi.fn(),
@@ -204,5 +206,141 @@ describe("useRepoStore 切仓后保留进行中 loading", () => {
     // 切回 A：会话应已被 patch 为推送后的 status
     restoreRepoSession("/repo/a");
     expect(useRepoStore.getState().status?.ahead).toBe(0);
+  });
+
+  it("A 拉取在后台完成时只更新 A 会话，不污染当前 B", async () => {
+    let resolvePull!: (value: {
+      ok: true;
+      conflict: false;
+      remote: string;
+      elapsedMs: number;
+    }) => void;
+    vi.mocked(gitService.pull).mockReturnValue(
+      new Promise((resolve) => {
+        resolvePull = resolve;
+      }),
+    );
+    const pulledStatus = { ...statusA, behind: 0 };
+    vi.mocked(gitService.getStatus).mockResolvedValue(pulledStatus);
+    vi.mocked(gitService.listBranches).mockResolvedValue([branchStub]);
+
+    useRepoStore.setState({
+      repoPath: "/repo/a",
+      status: { ...statusA, behind: 2, upstream: "origin/main" },
+      identity,
+      branches: [branchStub],
+      tags: [],
+      commits: [],
+      loading: false,
+      error: null,
+    });
+
+    const pullTask = useRepoStore.getState().pull({ remote: "origin", branch: "main" });
+    expect(useRepoStore.getState().loading).toBe(true);
+
+    beginRepoSwitch("/repo/b");
+    useRepoStore.setState({
+      status: statusB,
+      identity,
+      branches: [branchStub],
+      loading: false,
+      error: null,
+    });
+
+    resolvePull({ ok: true, conflict: false, remote: "origin", elapsedMs: 20 });
+    await pullTask;
+
+    expect(useRepoStore.getState().repoPath).toBe("/repo/b");
+    expect(useRepoStore.getState().status).toEqual(statusB);
+    expect(useRepoStore.getState().loading).toBe(false);
+    expect(useRepoStore.getState().error).toBeNull();
+
+    restoreRepoSession("/repo/a");
+    expect(useRepoStore.getState().status).toEqual(pulledStatus);
+    expect(useRepoStore.getState().loading).toBe(false);
+  });
+
+  it("A 创建分支未完成时切到 B 再切回 A，仍显示 A 的 loading", async () => {
+    let resolveCreateBranch!: () => void;
+    vi.mocked(gitService.createBranch).mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveCreateBranch = resolve;
+      }),
+    );
+    vi.mocked(gitService.listBranches).mockResolvedValue([
+      branchStub,
+      { ...branchStub, name: "feature/isolated", isCurrent: false, isDefault: false },
+    ]);
+
+    useRepoStore.setState({
+      repoPath: "/repo/a",
+      status: statusA,
+      identity,
+      branches: [branchStub],
+      tags: [],
+      commits: [],
+      loading: false,
+      error: null,
+    });
+
+    const createTask = useRepoStore.getState().createBranch("feature/isolated");
+    beginRepoSwitch("/repo/b");
+    useRepoStore.setState({
+      status: statusB,
+      identity,
+      branches: [branchStub],
+      loading: false,
+    });
+
+    restoreRepoSession("/repo/a");
+    expect(useRepoStore.getState().repoPath).toBe("/repo/a");
+    expect(useRepoStore.getState().loading).toBe(true);
+
+    resolveCreateBranch();
+    await createTask;
+    expect(useRepoStore.getState().loading).toBe(false);
+    expect(useRepoStore.getState().branches.map((branch) => branch.name)).toContain(
+      "feature/isolated",
+    );
+  });
+
+  it("A 后台拉取失败时错误留在 A，不显示到 B", async () => {
+    let rejectPull!: (error: unknown) => void;
+    vi.mocked(gitService.pull).mockReturnValue(
+      new Promise((_, reject) => {
+        rejectPull = reject;
+      }),
+    );
+
+    useRepoStore.setState({
+      repoPath: "/repo/a",
+      status: statusA,
+      identity,
+      branches: [branchStub],
+      tags: [],
+      commits: [],
+      loading: false,
+      error: null,
+    });
+
+    const pullTask = useRepoStore.getState().pull();
+    beginRepoSwitch("/repo/b");
+    useRepoStore.setState({
+      status: statusB,
+      identity,
+      branches: [branchStub],
+      loading: false,
+      error: null,
+    });
+
+    rejectPull({ code: "NETWORK", message: "pull failed" });
+    await expect(pullTask).rejects.toMatchObject({ message: "pull failed" });
+
+    expect(useRepoStore.getState().repoPath).toBe("/repo/b");
+    expect(useRepoStore.getState().error).toBeNull();
+
+    restoreRepoSession("/repo/a");
+    expect(useRepoStore.getState().error).toContain("pull failed");
+    expect(useRepoStore.getState().loading).toBe(false);
   });
 });

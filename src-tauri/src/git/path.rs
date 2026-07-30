@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use crate::git::runner;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 pub fn normalize_existing_dir(path: &str) -> Result<PathBuf, AppError> {
@@ -58,6 +59,44 @@ pub fn validate_repo_relative_paths(paths: &[String]) -> Result<(), AppError> {
     Ok(())
 }
 
+/// 解析工作区内已存在的文件，允许指向仓库内文件的符号链接，但拒绝越界链接。
+pub fn resolve_worktree_file(
+    repo_path: &Path,
+    relative: &str,
+) -> Result<Option<PathBuf>, AppError> {
+    validate_repo_relative_paths(&[relative.to_string()])?;
+    let candidate = repo_path.join(relative);
+
+    match std::fs::symlink_metadata(&candidate) {
+        Ok(_) => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(
+                AppError::new("INVALID_PATH", "无法读取工作区路径").with_details(error.to_string())
+            );
+        }
+    }
+
+    let repo_canonical = std::fs::canonicalize(repo_path).map_err(|error| {
+        AppError::new("INVALID_PATH", "无法规范化仓库路径").with_details(error.to_string())
+    })?;
+    let target = std::fs::canonicalize(&candidate).map_err(|error| {
+        AppError::new("INVALID_PATH", "无法规范化工作区路径").with_details(error.to_string())
+    })?;
+
+    if target == repo_canonical || !target.starts_with(&repo_canonical) {
+        return Err(AppError::new(
+            "INVALID_PATH",
+            "工作区文件指向仓库外部，已拒绝读取",
+        ));
+    }
+    if !target.is_file() {
+        return Ok(None);
+    }
+
+    Ok(Some(target))
+}
+
 pub fn validate_git_ref(name: &str) -> Result<(), AppError> {
     if name.trim().is_empty() || name.starts_with('-') || name.contains('\0') {
         return Err(AppError::new("VALIDATION", "非法 Git 引用"));
@@ -78,6 +117,29 @@ mod tests {
     #[test]
     fn accepts_normal_relative() {
         assert!(validate_repo_relative_paths(&["src/App.tsx".into()]).is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_worktree_symlink_outside_repo() {
+        use std::os::unix::fs::symlink;
+
+        let root = std::env::temp_dir().join(format!(
+            "jlgit-path-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let repo = root.join("repo");
+        let outside = root.join("outside.txt");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::write(&outside, "secret").unwrap();
+        symlink(&outside, repo.join("link.txt")).unwrap();
+
+        assert!(resolve_worktree_file(&repo, "link.txt").is_err());
+
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

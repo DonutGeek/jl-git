@@ -141,11 +141,11 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 | `amendMessage(repoPath, rev, message)` | `git_amend_message` |
 | `undoCommit(repoPath, target?)` | `git_undo_commit` |
 
-`commit` 按 ugit 流程：`reset` → `update-index`（`paths` / `removePaths`）→ `commit -F -`。调用方应传入当前「待提交」路径列表。
+`commit` 按 ugit 流程：备份原始 index → `reset` → `update-index`（`paths` / `removePaths`）→ `commit -F -`。调用方应传入当前「待提交」路径列表；任一步骤或 hook 失败时，后端会恢复原始 index，避免用户原有暂存选择丢失。
 
 `undoCommit`：`git reset --mixed` 到父提交（或传入的 `target`）；变更回到工作区。UI 仅在有未推送提交（`ahead > 0`）时启用。
 
-`discard` 调用前 UI 必须确认。成功后调用方应 `getStatus` 刷新 Store。
+`discard` 调用前 UI 必须确认。后端通过带路径范围的 recovery stash 收起已跟踪和未跟踪改动，不直接永久删除文件；成功后调用方应 `getStatus` 刷新 Store。
 
 `amendMessage` 仅允许 `rev` 为当前 HEAD；成功后调用方应刷新 status / log（提交 id 会变）。已推送时 UI 须二次确认。
 
@@ -203,6 +203,8 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 冲突结果不得被当成成功；类型中应区分 `ok` 与 `conflict`。
 
 `listTags` 返回 `{ tags: GitTag[] }`；`GitTag` 包含 `name`、`target`、`authoredAt`（ISO 时间，可能为空）和可选 `message`。`createTag` 接受 `{ name, message?, ref?, push?, remote? }`；缺省 `ref` 使用 `HEAD`，`message` 为空时创建轻量标签。推送失败不会回滚本地标签，而是返回 `{ ok: true, pushed: false, pushError }`，调用方需刷新列表并提示用户。
+
+`listStash` 返回项包含稳定的 `oid`、当前 `index` 与 `message`。恢复流程按 `oid` 识别本次操作创建的 stash，不能只依赖会变化的序号或可碰撞的消息文本。
 
 ---
 

@@ -6,7 +6,7 @@ use crate::error::AppError;
 use crate::git::{
     diff::{
         binary_to_hex_text, bytes_to_text, looks_binary, read_blob, summarize_binary_diff,
-        GitDiffResult, DEFAULT_MAX_BYTES,
+        truncate_text_to_limit, GitDiffResult, DEFAULT_MAX_BYTES,
     },
     path::{validate_git_ref, validate_repo_relative_paths},
     runner,
@@ -61,7 +61,9 @@ pub fn get_file_diff(
     }
     validate_repo_relative_paths(&[file_path.to_string()])?;
 
-    let limit = max_bytes.unwrap_or(DEFAULT_MAX_BYTES).max(1_024);
+    let limit = max_bytes
+        .unwrap_or(DEFAULT_MAX_BYTES)
+        .clamp(1_024, 8_388_608);
     let encoding = encoding.unwrap_or("utf-8");
     let old = read_blob(repo_path, &format!("{base}:{file_path}"))?;
     let new = read_blob(repo_path, &format!("{target}:{file_path}"))?;
@@ -79,10 +81,7 @@ pub fn get_file_diff(
         return Err(AppError::new("GIT_FAILED", message).with_details(patch_out.stderr));
     }
     let mut patch = patch_out.stdout;
-    let patch_truncated = patch.len() > limit;
-    if patch_truncated {
-        patch.truncate(limit);
-    }
+    let patch_truncated = truncate_text_to_limit(&mut patch, limit);
 
     if looks_binary(old.as_deref()) || looks_binary(new.as_deref()) {
         return Ok(GitDiffResult {

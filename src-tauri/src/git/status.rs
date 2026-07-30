@@ -254,9 +254,7 @@ fn parse_renamed_entry(line: &str) -> Option<GitStatusEntry> {
     let parts: Vec<&str> = line.splitn(9, ' ').collect();
     let (index_status, worktree_status) = parse_status_pair(parts.get(1)?)?;
     let remainder = parts.get(8)?;
-    let mut score_and_paths = remainder.splitn(2, ' ');
-    let _score = score_and_paths.next()?;
-    let paths = score_and_paths.next()?;
+    let (_score, paths) = remainder.split_once(' ')?;
     let mut path_parts = paths.splitn(2, '\t');
     let path = path_parts.next()?.to_string();
     let renamed_from = path_parts.next().map(str::to_string);

@@ -3,11 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Copy, FileDown, Hash, PencilLine, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
+import { AppAlertDialogContent, AppDialogContent } from "@/components/common/AppDialogContent";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
-  AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/context-menu";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -236,7 +235,7 @@ export function HistoryCommitContextMenu({
       </ContextMenu>
 
       <AlertDialog open={confirmPushOpen} onOpenChange={setConfirmPushOpen}>
-        <AlertDialogContent>
+        <AppAlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("repo.amendMessageTitle")}</AlertDialogTitle>
             <AlertDialogDescription>{t("repo.amendMessagePushedHint")}</AlertDialogDescription>
@@ -253,11 +252,11 @@ export function HistoryCommitContextMenu({
               {t("repo.amendMessageContinue")}
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogContent>
+        </AppAlertDialogContent>
       </AlertDialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-lg">
+        <AppDialogContent size="lg">
           <DialogHeader>
             <DialogTitle>{t("repo.amendMessageTitle")}</DialogTitle>
             <DialogDescription>
@@ -327,7 +326,7 @@ export function HistoryCommitContextMenu({
               {saving ? t("common.loading") : t("repo.amendMessageSave")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
     </>
   );

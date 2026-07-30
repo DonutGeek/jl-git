@@ -12,13 +12,8 @@ import {
 import { AppWindowHeader } from "@/components/layout/AppWindowHeader";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -321,7 +316,7 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
           }
         }}
       >
-        <DialogContent className="max-w-md gap-4 p-5 sm:rounded-lg">
+        <AppDialogContent>
           <DialogHeader>
             <DialogTitle>{t("repo.deleteBranchTitle")}</DialogTitle>
           </DialogHeader>
@@ -382,7 +377,7 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
               {t("repo.deleteBranchAction")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
     </main>
   );

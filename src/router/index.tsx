@@ -1,17 +1,55 @@
+import { lazy, Suspense } from "react";
 import {
   createBrowserRouter,
   createRoutesFromElements,
   Route,
   RouterProvider,
 } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { AppLayout } from "@/layouts/AppLayout";
-import { BranchComparePage } from "@/pages/BranchComparePage";
-import { BranchHistoryPage } from "@/pages/BranchHistoryPage";
-import { BranchManagePage } from "@/pages/BranchManagePage";
-import { FileHistoryPage } from "@/pages/FileHistoryPage";
-import { MultiAgentPage } from "@/pages/MultiAgentPage";
-import { ProjectManagePage } from "@/pages/ProjectManagePage";
+import { Spinner } from "@/components/ui/spinner";
+
+const BranchComparePage = lazy(() =>
+  import("@/pages/BranchComparePage").then((module) => ({
+    default: module.BranchComparePage,
+  })),
+);
+const BranchHistoryPage = lazy(() =>
+  import("@/pages/BranchHistoryPage").then((module) => ({
+    default: module.BranchHistoryPage,
+  })),
+);
+const BranchManagePage = lazy(() =>
+  import("@/pages/BranchManagePage").then((module) => ({
+    default: module.BranchManagePage,
+  })),
+);
+const FileHistoryPage = lazy(() =>
+  import("@/pages/FileHistoryPage").then((module) => ({
+    default: module.FileHistoryPage,
+  })),
+);
+const MultiAgentPage = lazy(() =>
+  import("@/pages/MultiAgentPage").then((module) => ({
+    default: module.MultiAgentPage,
+  })),
+);
+const ProjectManagePage = lazy(() =>
+  import("@/pages/ProjectManagePage").then((module) => ({
+    default: module.ProjectManagePage,
+  })),
+);
+
+function RouteLoadingFallback() {
+  const { t } = useTranslation();
+  return (
+    <div className="bg-background text-muted-foreground flex h-screen items-center justify-center gap-2 text-xs">
+      <Spinner className="size-3.5" />
+      <span>{t("common.loading")}</span>
+    </div>
+  );
+}
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -35,5 +73,9 @@ const router = createBrowserRouter(
 );
 
 export function AppRouter() {
-  return <RouterProvider router={router} />;
+  return (
+    <Suspense fallback={<RouteLoadingFallback />}>
+      <RouterProvider router={router} />
+    </Suspense>
+  );
 }

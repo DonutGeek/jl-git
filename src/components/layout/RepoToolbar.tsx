@@ -523,10 +523,11 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
             className="border-border h-8 w-40 shrink-0 justify-start gap-1.5 border px-2.5 shadow-none"
             style={noDragStyle}
             disabled={checkingOut || loading}
+            aria-busy={checkingOut || loading}
             aria-label={t("repo.branchLabel")}
             title={branchLabel}
           >
-            {checkingOut ? (
+            {checkingOut || loading ? (
               <Spinner className="size-3.5 shrink-0" />
             ) : (
               <GitBranchIcon className="size-3.5 shrink-0" aria-hidden="true" />

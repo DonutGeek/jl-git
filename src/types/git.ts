@@ -130,6 +130,7 @@ export interface OkResult {
 
 export interface GitStashEntry {
   index: number;
+  oid: string;
   message: string;
 }
 

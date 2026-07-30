@@ -6,13 +6,8 @@ import { toast } from "sonner";
 
 import { GitRefPicker } from "@/components/git/GitRefPicker";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Field,
   FieldContent,
@@ -24,7 +19,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/store/useRepoStore";
 import { listRemotes } from "@/services/git";
 import { toUserMessage } from "@/types/error";
@@ -165,9 +159,7 @@ export function CreateTagDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className={cn("flex max-w-md flex-col gap-4 overflow-hidden p-5 sm:rounded-lg")}
-      >
+      <AppDialogContent className="flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{t("repo.createTagTitle")}</DialogTitle>
         </DialogHeader>
@@ -260,7 +252,7 @@ export function CreateTagDialog({
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
+      </AppDialogContent>
     </Dialog>
   );
 }

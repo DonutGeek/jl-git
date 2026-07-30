@@ -3,13 +3,8 @@ import { MoreHorizontal, Play, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -302,7 +297,7 @@ export function AgentPluginList({
           }
         }}
       >
-        <DialogContent className="sm:max-w-sm">
+        <AppDialogContent size="sm">
           <DialogHeader>
             <DialogTitle>{t("agent.pluginUninstallTitle")}</DialogTitle>
           </DialogHeader>
@@ -319,7 +314,7 @@ export function AgentPluginList({
               {t("agent.pluginUninstallConfirm")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
     </>
   );

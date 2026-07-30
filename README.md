@@ -118,6 +118,23 @@ pnpm dev
 
 浏览器模式不提供 Tauri 原生能力。开发版使用独立应用标识 `com.jingling.jlgit.dev`，数据目录与正式安装版隔离。
 
+### 本地环境配置
+
+Vite 按 mode 加载环境文件（后者覆盖前者）：
+
+| 文件 | 何时加载 | 是否提交 |
+|------|----------|----------|
+| [`.env.example`](.env.example) | 模板（复制为 `.env` / `.env.local`） | 是 |
+| [`.env.development`](.env.development) | `pnpm dev`、`pnpm tauri dev` | 是 |
+| [`.env.production`](.env.production) | `pnpm build`、`pnpm tauri build` | 是 |
+| `.env` / `.env.local` / `.env.*.local` | 本机覆盖 | 否 |
+
+当前可配置的键：
+
+- `VITE_APP_NAME_ZH` / `VITE_APP_NAME_EN` — 应用中英文展示名（开发英文名为 `JLGit Dev`）
+
+`VITE_*` 会进入前端构建产物，只允许非敏感配置；API Key、token、密码等仍必须使用应用安全存储或系统环境变量。桌面端 `productName` / bundle id 由 `src-tauri/tauri.conf*.json` 控制，与上述前端展示名相互独立。
+
 ### 检查与构建
 
 ```bash

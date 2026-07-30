@@ -2,13 +2,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CompareBranchesAction } from "@/components/ai/AgentRichMessage";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getLog } from "@/services/git";
 import { toUserMessage } from "@/types/error";
@@ -78,7 +73,7 @@ export function AgentBranchComparisonDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl gap-4 p-5 sm:rounded-lg">
+      <AppDialogContent size="2xl">
         <DialogHeader>
           <DialogTitle>
             {t("agent.compareBranchesTitle", { base: action.base, target: action.target })}
@@ -101,7 +96,7 @@ export function AgentBranchComparisonDialog({
             />
           </div>
         ) : null}
-      </DialogContent>
+      </AppDialogContent>
     </Dialog>
   );
 }

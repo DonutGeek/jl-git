@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Trans, useTranslation } from "react-i18next";
 import { Cloud, Monitor, Plus, RefreshCw, Settings, TriangleAlert } from "lucide-react";
@@ -19,13 +19,8 @@ import { MergeBranchDialog } from "@/components/git/MergeBranchDialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -63,6 +58,7 @@ export function BranchList() {
   const { t } = useTranslation();
   const branches = useRepoStore((state) => state.branches);
   const status = useRepoStore((state) => state.status);
+  const repoPath = useRepoStore((state) => state.repoPath);
   const loading = useRepoStore((state) => state.loading);
   const checkout = useRepoStore((state) => state.checkout);
   const refreshBranches = useRepoStore((state) => state.refreshBranches);
@@ -95,6 +91,21 @@ export function BranchList() {
   const [mergeTarget, setMergeTarget] = useState<GitBranch | null>(null);
   const [mergeBusy, setMergeBusy] = useState(false);
   const { guard: guardWriteOp, dialog: conflictGuardDialog } = useConflictOperationGuard();
+
+  useEffect(() => {
+    setCheckingOutName(null);
+    setSelectedName(null);
+    setCreateOpen(false);
+    setRenameTarget(null);
+    setRenameValue("");
+    setRenameBusy(false);
+    setDeleteTarget(null);
+    setDeleteRemoteAlso(false);
+    setDeleteBusy(false);
+    setMergeTarget(null);
+    setMergeBusy(false);
+    setRefreshing(false);
+  }, [repoPath]);
 
   const filteredBranches = useMemo(
     () => filterAndSortBranches(branches, listPrefs, filter),
@@ -164,6 +175,10 @@ export function BranchList() {
     if (!guardWriteOp()) {
       return;
     }
+    const originRepoPath = repoPath;
+    if (!originRepoPath) {
+      return;
+    }
     setCheckingOutName(branch.name);
     setSelectedName(branch.name);
     const toastId = toast.loading(t("repo.checkoutStart", { branch: branch.name }));
@@ -174,7 +189,9 @@ export function BranchList() {
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     } finally {
-      setCheckingOutName(null);
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        setCheckingOutName(null);
+      }
     }
   }
 
@@ -276,20 +293,25 @@ export function BranchList() {
     }
     const from = renameTarget.name;
     const next = renameValue.trim();
-    if (!next || next === from) {
+    const originRepoPath = repoPath;
+    if (!originRepoPath || !next || next === from) {
       return;
     }
 
     setRenameBusy(true);
     try {
       await renameBranch(from, next);
-      setRenameTarget(null);
-      setSelectedName(next);
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        setRenameTarget(null);
+        setSelectedName(next);
+      }
       toast.success(t("repo.renameBranchSuccess", { name: next }));
     } catch (error) {
       toast.error(toUserMessage(error));
     } finally {
-      setRenameBusy(false);
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        setRenameBusy(false);
+      }
     }
   }
 
@@ -319,6 +341,10 @@ export function BranchList() {
 
     const source = mergeTarget.name;
     const target = currentBranch;
+    const originRepoPath = repoPath;
+    if (!originRepoPath) {
+      return;
+    }
     setMergeBusy(true);
 
     try {
@@ -330,11 +356,15 @@ export function BranchList() {
       } else {
         toast.error(t("repo.mergeFailed"));
       }
-      setMergeTarget(null);
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        setMergeTarget(null);
+      }
     } catch (error) {
       toast.error(toUserMessage(error));
     } finally {
-      setMergeBusy(false);
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        setMergeBusy(false);
+      }
     }
   }
 
@@ -353,6 +383,10 @@ export function BranchList() {
 
     const targetName = deleteTarget.name;
     const alsoRemote = deleteHasRemote && deleteRemoteAlso;
+    const originRepoPath = repoPath;
+    if (!originRepoPath) {
+      return;
+    }
 
     setDeleteBusy(true);
     try {
@@ -361,20 +395,28 @@ export function BranchList() {
         deleteRemote: alsoRemote,
         remote: "origin",
       });
-      setDeleteTarget(null);
-      setDeleteRemoteAlso(false);
-      if (selectedName === targetName) {
-        setSelectedName(null);
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        setDeleteTarget(null);
+        setDeleteRemoteAlso(false);
+        if (selectedName === targetName) {
+          setSelectedName(null);
+        }
       }
       toast.success(t("repo.deleteBranchSuccess", { name: targetName }));
     } catch (error) {
       toast.error(toUserMessage(error));
     } finally {
-      setDeleteBusy(false);
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        setDeleteBusy(false);
+      }
     }
   }
 
   async function handleRefresh(): Promise<void> {
+    const originRepoPath = repoPath;
+    if (!originRepoPath) {
+      return;
+    }
     setRefreshing(true);
     const toastId = toast.loading(t("repo.refreshStart"));
     try {
@@ -383,7 +425,9 @@ export function BranchList() {
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     } finally {
-      setRefreshing(false);
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        setRefreshing(false);
+      }
     }
   }
 
@@ -642,7 +686,7 @@ export function BranchList() {
           }
         }}
       >
-        <DialogContent className="max-w-sm gap-4 p-5 sm:rounded-lg">
+        <AppDialogContent size="sm">
           <DialogHeader>
             <DialogTitle>{t("repo.renameBranchTitle")}</DialogTitle>
           </DialogHeader>
@@ -680,7 +724,7 @@ export function BranchList() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
 
       <Dialog
@@ -691,7 +735,7 @@ export function BranchList() {
           }
         }}
       >
-        <DialogContent className="max-w-md gap-4 p-5 sm:rounded-lg">
+        <AppDialogContent>
           <DialogHeader>
             <DialogTitle>{t("repo.deleteBranchTitle")}</DialogTitle>
           </DialogHeader>
@@ -752,7 +796,7 @@ export function BranchList() {
               {t("repo.deleteBranchAction")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
     </div>
   );

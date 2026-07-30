@@ -33,13 +33,8 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -117,6 +112,13 @@ export function TagList({ onSelectTag }: TagListProps) {
 
   // 打开标签面板 / 切仓时自动联网查询远端标签
   useEffect(() => {
+    setCreatingTag(false);
+    setCreateTagFrom(null);
+    setCreateBranchFrom(null);
+    setDeleteTarget(null);
+    setDeleteRemoteAlso(false);
+    setDeleteBusy(false);
+    setBusyName(null);
     if (repoPath) {
       void refreshRemoteTags();
     }
@@ -206,9 +208,15 @@ export function TagList({ onSelectTag }: TagListProps) {
   }
 
   async function select(name: string): Promise<void> {
+    const originRepoPath = repoPath;
+    if (!originRepoPath) {
+      return;
+    }
     try {
       await selectLogRef(name);
-      onSelectTag();
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        onSelectTag();
+      }
     } catch (error) {
       toast.error(toUserMessage(error));
     }
@@ -243,6 +251,10 @@ export function TagList({ onSelectTag }: TagListProps) {
     }
     const { name, scope } = deleteTarget;
     const alsoRemote = deleteHasRemote && deleteRemoteAlso;
+    const originRepoPath = repoPath;
+    if (!originRepoPath) {
+      return;
+    }
     setDeleteBusy(true);
     setBusyName(name);
     try {
@@ -256,45 +268,66 @@ export function TagList({ onSelectTag }: TagListProps) {
       } else {
         await deleteTag(name);
       }
-      setDeleteTarget(null);
+      const stillOnOrigin = useRepoStore.getState().repoPath === originRepoPath;
+      if (stillOnOrigin) {
+        setDeleteTarget(null);
+      }
       // 涉及远端的删除会改变同步状态，刷新远端集合
-      if (scope === "remote" || alsoRemote) {
+      if (stillOnOrigin && (scope === "remote" || alsoRemote)) {
         void refreshRemoteTags();
       }
       toast.success(t(successKey, { name }));
     } catch (error) {
       toast.error(toUserMessage(error));
     } finally {
-      setDeleteBusy(false);
-      setBusyName(null);
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        setDeleteBusy(false);
+        setBusyName(null);
+      }
     }
   }
 
   async function pushTagToRemote(name: string): Promise<void> {
+    const originRepoPath = repoPath;
+    if (!originRepoPath) {
+      return;
+    }
     setBusyName(name);
     const toastId = toast.loading(t("repo.pushTagStart", { name }));
     try {
       await pushTag(name);
-      void refreshRemoteTags();
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        void refreshRemoteTags();
+      }
       toast.success(t("repo.pushTagSuccess", { name }), { id: toastId });
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     } finally {
-      setBusyName(null);
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        setBusyName(null);
+      }
     }
   }
 
   async function fetchTagToLocal(name: string): Promise<void> {
+    const originRepoPath = repoPath;
+    if (!originRepoPath) {
+      return;
+    }
     setBusyName(name);
     const toastId = toast.loading(t("repo.fetchTagStart", { name }));
     try {
       await fetchRemoteTag(name);
-      void refreshRemoteTags();
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        void refreshRemoteTags();
+      }
       toast.success(t("repo.fetchTagSuccess", { name }), { id: toastId });
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     } finally {
-      setBusyName(null);
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        setBusyName(null);
+      }
     }
   }
 
@@ -308,6 +341,10 @@ export function TagList({ onSelectTag }: TagListProps) {
   }
 
   async function checkoutTag(name: string): Promise<void> {
+    const originRepoPath = repoPath;
+    if (!originRepoPath) {
+      return;
+    }
     setBusyName(name);
     const toastId = toast.loading(t("repo.checkoutTagStart", { name }));
     try {
@@ -316,7 +353,9 @@ export function TagList({ onSelectTag }: TagListProps) {
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     } finally {
-      setBusyName(null);
+      if (useRepoStore.getState().repoPath === originRepoPath) {
+        setBusyName(null);
+      }
     }
   }
 
@@ -506,7 +545,7 @@ export function TagList({ onSelectTag }: TagListProps) {
           }
         }}
       >
-        <DialogContent className="max-w-md gap-4 p-5 sm:rounded-lg">
+        <AppDialogContent>
           <DialogHeader>
             <DialogTitle>
               {deleteTarget?.scope === "remote"
@@ -575,7 +614,7 @@ export function TagList({ onSelectTag }: TagListProps) {
               {t("repo.deleteTagAction")}
             </Button>
           </DialogFooter>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
     </div>
   );

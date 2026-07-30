@@ -55,9 +55,9 @@ import {
   shellOptionsForOs,
   shellPathPlaceholderKey,
 } from "@/utils/externalToolsPrefs";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -1320,9 +1320,9 @@ export function SettingsDrawer() {
                     }
                   }}
                 >
-                  <DialogContent>
+                  <AppDialogContent>
                     <form
-                      className="space-y-6"
+                      className="space-y-4"
                       onSubmit={(event) => void handleCreateGitAccount(event)}
                     >
                       <DialogHeader>
@@ -1375,7 +1375,7 @@ export function SettingsDrawer() {
                         </Button>
                       </DialogFooter>
                     </form>
-                  </DialogContent>
+                  </AppDialogContent>
                 </Dialog>
 
                 <Dialog
@@ -1386,9 +1386,9 @@ export function SettingsDrawer() {
                     }
                   }}
                 >
-                  <DialogContent>
+                  <AppDialogContent>
                     <form
-                      className="space-y-6"
+                      className="space-y-4"
                       onSubmit={(event) => void handleUpdateGitAccount(event)}
                     >
                       <DialogHeader>
@@ -1439,7 +1439,7 @@ export function SettingsDrawer() {
                         </Button>
                       </DialogFooter>
                     </form>
-                  </DialogContent>
+                  </AppDialogContent>
                 </Dialog>
 
                 <Dialog
@@ -1450,7 +1450,7 @@ export function SettingsDrawer() {
                     }
                   }}
                 >
-                  <DialogContent>
+                  <AppDialogContent>
                     <DialogHeader>
                       <DialogTitle>{t("settings.deleteGitAccountTitle")}</DialogTitle>
                       <DialogDescription>
@@ -1478,7 +1478,7 @@ export function SettingsDrawer() {
                         {t("settings.delete")}
                       </Button>
                     </DialogFooter>
-                  </DialogContent>
+                  </AppDialogContent>
                 </Dialog>
 
                 {/* 3. SSH */}
@@ -1764,9 +1764,9 @@ export function SettingsDrawer() {
                     }
                   }}
                 >
-                  <DialogContent>
+                  <AppDialogContent>
                     <form
-                      className="space-y-6"
+                      className="space-y-4"
                       onSubmit={(event) => void handleCreateApiKey(event)}
                     >
                       <DialogHeader>
@@ -1826,7 +1826,7 @@ export function SettingsDrawer() {
                         </Button>
                       </DialogFooter>
                     </form>
-                  </DialogContent>
+                  </AppDialogContent>
                 </Dialog>
 
                 <Dialog
@@ -1838,9 +1838,9 @@ export function SettingsDrawer() {
                     }
                   }}
                 >
-                  <DialogContent>
+                  <AppDialogContent>
                     <form
-                      className="space-y-6"
+                      className="space-y-4"
                       onSubmit={(event) => void handleRenameApiKey(event)}
                     >
                       <DialogHeader>
@@ -1874,7 +1874,7 @@ export function SettingsDrawer() {
                         </Button>
                       </DialogFooter>
                     </form>
-                  </DialogContent>
+                  </AppDialogContent>
                 </Dialog>
 
                 <Dialog
@@ -1885,7 +1885,7 @@ export function SettingsDrawer() {
                     }
                   }}
                 >
-                  <DialogContent>
+                  <AppDialogContent>
                     <DialogHeader>
                       <DialogTitle>{t("settings.deleteApiKeyTitle")}</DialogTitle>
                       <DialogDescription>
@@ -1913,7 +1913,7 @@ export function SettingsDrawer() {
                         {t("settings.delete")}
                       </Button>
                     </DialogFooter>
-                  </DialogContent>
+                  </AppDialogContent>
                 </Dialog>
 
                 {/* 5. 外部工具 */}

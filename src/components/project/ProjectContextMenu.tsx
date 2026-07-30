@@ -5,11 +5,11 @@ import { toast } from "sonner";
 
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
 import { ProjectSettingsDialog } from "@/components/project/ProjectSettingsDialog";
+import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
-  AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
@@ -189,7 +189,7 @@ export function ProjectContextMenu({
       <ProjectSettingsDialog project={project} open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
+        <AppAlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("projectManager.deleteProjectTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -210,7 +210,7 @@ export function ProjectContextMenu({
               {deleting ? t("common.loading") : t("projectManager.deleteProject")}
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogContent>
+        </AppAlertDialogContent>
       </AlertDialog>
     </>
   );

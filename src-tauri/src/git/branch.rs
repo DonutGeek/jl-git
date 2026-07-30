@@ -165,7 +165,6 @@ pub fn remote_exists(repo_path: &Path, name: &str) -> Result<bool, AppError> {
 }
 
 /// 创建本地分支；可选基于 start_point，并 checkout 到新分支。
-/// 对齐常见桌面客户端：`branch --no-track` → `checkout --progress` → `submodule update`。
 pub fn create_branch(
     repo_path: &Path,
     name: &str,
@@ -176,15 +175,18 @@ pub fn create_branch(
         return Err(AppError::new("VALIDATION", "本地分支已存在"));
     }
 
-    // 仅创建本地分支，不设置 upstream（发布由 push --set-upstream 完成）
-    if let Some(start) = start_point {
+    if checkout {
+        // 由单条 Git 命令完成创建与切换，避免先创建成功、后切换失败的复合状态。
+        let mut args = vec!["switch", "--no-track", "-c", name];
+        if let Some(start) = start_point {
+            args.push(start);
+        }
+        runner::run_git(repo_path, &args)?;
+        sync_submodules_best_effort(repo_path);
+    } else if let Some(start) = start_point {
         runner::run_git(repo_path, &["branch", "--no-track", "--", name, start])?;
     } else {
         runner::run_git(repo_path, &["branch", "--no-track", "--", name])?;
-    }
-
-    if checkout {
-        checkout_local_branch(repo_path, name)?;
     }
 
     Ok(())
@@ -194,9 +196,14 @@ pub fn create_branch(
 pub fn checkout_local_branch(repo_path: &Path, name: &str) -> Result<(), AppError> {
     // 分支名必须在 `--` 之前；`--` 后是 pathspec（参考：checkout --progress <branch> --）
     runner::run_git(repo_path, &["checkout", "--progress", name, "--"])?;
-    // 无 submodule 时仍成功；有则与工作树对齐
-    runner::run_git(repo_path, &["submodule", "update", "--init", "--recursive"])?;
+    sync_submodules_best_effort(repo_path);
     Ok(())
+}
+
+/// HEAD 已切换后，子模块失败只能作为附加失败记录，不能把切换结果伪装成未发生。
+pub fn sync_submodules_best_effort(repo_path: &Path) {
+    let _ =
+        runner::run_git_allow_nonzero(repo_path, &["submodule", "update", "--init", "--recursive"]);
 }
 
 /// 删除本地分支；`force` 时使用 `-D`
@@ -259,7 +266,7 @@ mod tests {
 
     #[test]
     fn parses_null_separated_branch_rows() {
-        let stdout = "main\0*\0origin/main\0a1b2c3d\02026-01-15T10:00:00+08:00\0Alice\nfeature/task\0 \0\0d4e5f6a\02025-12-01T08:30:00+08:00\0Bob\n";
+        let stdout = "main\x00*\x00origin/main\x00a1b2c3d\x002026-01-15T10:00:00+08:00\x00Alice\nfeature/task\x00 \x00\x00d4e5f6a\x002025-12-01T08:30:00+08:00\x00Bob\n";
 
         let branches = parse_branches(stdout);
 
@@ -294,7 +301,7 @@ mod tests {
     fn parses_remote_branch_rows_and_skips_symbolic_head() {
         // 含 origin/HEAD 与短名收成 origin 两种形式
         let stdout =
-            "origin\0 \0origin/main\0a1b2c3d\02026-01-15T10:00:00+08:00\0Alice\norigin/HEAD\0 \0origin/main\0a1b2c3d\02026-01-15T10:00:00+08:00\0Alice\norigin/main\0 \0\0a1b2c3d\02026-01-15T10:00:00+08:00\0Alice\norigin/feature/task\0 \0\0d4e5f6a\02025-12-01T08:30:00+08:00\0Bob\n";
+            "origin\x00 \x00origin/main\x00a1b2c3d\x002026-01-15T10:00:00+08:00\x00Alice\norigin/HEAD\x00 \x00origin/main\x00a1b2c3d\x002026-01-15T10:00:00+08:00\x00Alice\norigin/main\x00 \x00\x00a1b2c3d\x002026-01-15T10:00:00+08:00\x00Alice\norigin/feature/task\x00 \x00\x00d4e5f6a\x002025-12-01T08:30:00+08:00\x00Bob\n";
 
         let branches = parse_branch_rows(stdout, true);
 

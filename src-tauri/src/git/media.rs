@@ -3,8 +3,8 @@ use serde::Serialize;
 use std::path::Path;
 
 use crate::error::AppError;
-use crate::git::diff::{read_blob, read_worktree_bytes};
-use crate::git::path::{validate_git_ref, validate_repo_relative_paths};
+use crate::git::diff::{read_blob, read_worktree_bytes_capped};
+use crate::git::path::{resolve_worktree_file, validate_git_ref, validate_repo_relative_paths};
 
 /// 图片预览默认上限（大于文本 diff 的 1MB）
 pub(crate) const DEFAULT_MEDIA_MAX_BYTES: usize = 5_242_880;
@@ -51,11 +51,13 @@ pub fn get_file_media(
 
     let raw = match source {
         "worktree" => {
-            let worktree = repo_path.join(file_path);
-            if !worktree.is_file() {
+            let Some(worktree) = resolve_worktree_file(repo_path, file_path)? else {
                 return Ok(empty_media());
-            }
-            Some(read_worktree_bytes(&worktree)?)
+            };
+            Some(read_worktree_bytes_capped(
+                &worktree,
+                limit.saturating_add(1),
+            )?)
         }
         "index" => {
             if let Some(bytes) = read_blob(repo_path, &format!(":0:{file_path}"))? {

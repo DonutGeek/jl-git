@@ -38,6 +38,7 @@ pub fn run_git(cwd: &Path, args: &[&str]) -> Result<GitOutput, AppError> {
 /// commit/push hook 可能刷屏；保留前缀供报错，超额丢弃以免整进程 OOM 闪退
 const CAPPED_STDIN_STDOUT_MAX_BYTES: usize = 256 * 1024;
 const CAPPED_STDIN_STDERR_MAX_BYTES: usize = 128 * 1024;
+const STDIN_COMMAND_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// 向 git 写入 stdin（update-index -z / commit -F -）
 /// 边写 stdin 边读 stdout/stderr，避免管道堵死；输出限长并继续排空，不 kill 子进程（让 hook 有机会收尾还原 stash）
@@ -82,9 +83,38 @@ pub fn run_git_with_stdin(cwd: &Path, args: &[&str], stdin: &[u8]) -> Result<Git
         }
     });
 
-    let status = child.wait().map_err(|error| {
-        AppError::new("GIT_FAILED", "等待 git 进程失败").with_details(error.to_string())
-    })?;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if started.elapsed() >= STDIN_COMMAND_TIMEOUT => {
+                crate::process_cmd::kill_background_child(&mut child);
+                let _ = child.wait();
+                let _ = stdin_handle.join();
+                let stdout = stdout_handle.join().unwrap_or_default();
+                let stderr = stderr_handle.join().unwrap_or_default();
+                oplog::record_command(
+                    args,
+                    &stdout,
+                    &stderr,
+                    -1,
+                    started.elapsed().as_millis() as u64,
+                );
+                return Err(AppError::new(
+                    "GIT_TIMEOUT",
+                    format!(
+                        "Git 操作超时（{}s），已停止子进程",
+                        STDIN_COMMAND_TIMEOUT.as_secs()
+                    ),
+                ));
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(50)),
+            Err(error) => {
+                crate::process_cmd::kill_background_child(&mut child);
+                return Err(AppError::new("GIT_FAILED", "等待 git 进程失败")
+                    .with_details(error.to_string()));
+            }
+        }
+    };
 
     if let Err(error) = stdin_handle.join().unwrap_or(Ok(())) {
         return Err(AppError::new("GIT_FAILED", "写入 git stdin 失败").with_details(error));
@@ -101,6 +131,10 @@ pub fn run_git_with_stdin(cwd: &Path, args: &[&str], stdin: &[u8]) -> Result<Git
 
 /// 读取最多 `max_bytes`，超出部分继续排空但不保留，避免管道堵死与内存暴涨
 fn read_capped_and_drain(mut pipe: impl Read, max_bytes: usize) -> String {
+    String::from_utf8_lossy(&read_bytes_capped_and_drain(&mut pipe, max_bytes)).into_owned()
+}
+
+fn read_bytes_capped_and_drain(mut pipe: impl Read, max_bytes: usize) -> Vec<u8> {
     let max_bytes = max_bytes.max(1);
     let mut kept = Vec::with_capacity(max_bytes.min(64 * 1024));
     let mut chunk = [0_u8; 8_192];
@@ -116,7 +150,7 @@ fn read_capped_and_drain(mut pipe: impl Read, max_bytes: usize) -> String {
         }
         // 超额字节故意丢弃，继续读直到 EOF
     }
-    String::from_utf8_lossy(&kept).into_owned()
+    kept
 }
 
 pub fn run_git_allow_nonzero(cwd: &Path, args: &[&str]) -> Result<GitOutput, AppError> {
@@ -124,6 +158,7 @@ pub fn run_git_allow_nonzero(cwd: &Path, args: &[&str]) -> Result<GitOutput, App
 }
 
 const CAPPED_STDERR_MAX_BYTES: usize = 65_536;
+const GENERAL_STDOUT_MAX_BYTES: usize = 16 * 1024 * 1024;
 
 /// 执行 git 并限制 stdout 读取字节数。
 /// 超限则截断并 kill 子进程，避免大 diff 一次性进内存导致进程/WebView 闪退。
@@ -228,6 +263,51 @@ pub fn run_git_stdout_capped(
     ))
 }
 
+/// 二进制安全的 Git stdout 读取，超过上限继续排空但不保留。
+pub fn run_git_bytes_capped(
+    cwd: &Path,
+    args: &[&str],
+    max_stdout_bytes: usize,
+) -> Result<(i32, Vec<u8>, String), AppError> {
+    let started = Instant::now();
+    oplog::begin_command(args);
+    let mut child = git_command(cwd, args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| AppError::git_not_found(error.to_string()))?;
+    let stdout_pipe = child.stdout.take();
+    let stderr_pipe = child.stderr.take();
+    let stdout_limit = max_stdout_bytes.max(1);
+
+    let stdout_handle = thread::spawn(move || {
+        stdout_pipe
+            .map(|pipe| read_bytes_capped_and_drain(pipe, stdout_limit))
+            .unwrap_or_default()
+    });
+    let stderr_handle = thread::spawn(move || {
+        stderr_pipe
+            .map(|pipe| read_capped_and_drain(pipe, CAPPED_STDERR_MAX_BYTES))
+            .unwrap_or_default()
+    });
+    let status = child.wait().map_err(|error| {
+        AppError::new("GIT_FAILED", "等待 git 进程失败").with_details(error.to_string())
+    })?;
+    let stdout = stdout_handle.join().unwrap_or_default();
+    let stderr = stderr_handle.join().unwrap_or_default();
+    let code = status.code().unwrap_or(-1);
+    let text_preview = String::from_utf8_lossy(&stdout);
+    oplog::record_command(
+        args,
+        &text_preview,
+        &stderr,
+        code,
+        started.elapsed().as_millis() as u64,
+    );
+    Ok((code, stdout, stderr))
+}
+
 /// 带超时的 git 执行（fetch/push 等网络操作必须用，避免 UI/线程永久挂起）
 pub fn run_git_timeout(
     cwd: &Path,
@@ -272,7 +352,12 @@ fn ensure_success(args: &[&str], output: GitOutput) -> Result<GitOutput, AppErro
     }
 
     // hook 输出常混在 stdout / stderr
-    let combined = strip_ansi(&format!("{}\n{}", output.stdout, output.stderr));
+    // Git/远端/hook 可能把带凭据的 URL 或 Authorization 头回显到错误输出。
+    // 领域错误会跨 IPC 返回前端，因此必须与操作日志使用同一套脱敏边界。
+    let combined = oplog::redact_sensitive_text(&strip_ansi(&format!(
+        "{}\n{}",
+        output.stdout, output.stderr
+    )));
     let lower = combined.to_lowercase();
 
     if lower.contains("could not read password")
@@ -510,14 +595,32 @@ fn run_git_allow_nonzero_timeout(
 
     if timeout.is_none() {
         oplog::begin_command(args);
-        let output = git_command(cwd, args)
-            .output()
+        let mut child = git_command(cwd, args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
             .map_err(|error| AppError::git_not_found(error.to_string()))?;
+        let stdout_pipe = child.stdout.take();
+        let stderr_pipe = child.stderr.take();
+        let stdout_handle = thread::spawn(move || {
+            stdout_pipe
+                .map(|pipe| read_capped_and_drain(pipe, GENERAL_STDOUT_MAX_BYTES))
+                .unwrap_or_default()
+        });
+        let stderr_handle = thread::spawn(move || {
+            stderr_pipe
+                .map(|pipe| read_capped_and_drain(pipe, CAPPED_STDERR_MAX_BYTES))
+                .unwrap_or_default()
+        });
+        let status = child.wait().map_err(|error| {
+            AppError::new("GIT_FAILED", "等待 git 进程失败").with_details(error.to_string())
+        })?;
 
         let git_output = GitOutput {
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-            code: output.status.code().unwrap_or(-1),
+            stdout: stdout_handle.join().unwrap_or_default(),
+            stderr: stderr_handle.join().unwrap_or_default(),
+            code: status.code().unwrap_or(-1),
         };
         record(args, &git_output, started);
         return Ok(git_output);
@@ -623,6 +726,24 @@ exit status 1
             pick_error_message(text).as_deref(),
             Some("✖   type may not be empty [type-empty]")
         );
+    }
+
+    #[test]
+    fn redacts_credentials_from_domain_error_details() {
+        let error = ensure_success(
+            &["fetch"],
+            GitOutput {
+                stdout: String::new(),
+                stderr: "fatal: unable to access 'https://user:secret@example.com/repo.git/'"
+                    .to_string(),
+                code: 128,
+            },
+        )
+        .unwrap_err();
+
+        let details = error.details.unwrap_or_default();
+        assert!(!details.contains("secret"));
+        assert!(details.contains("https://***@example.com"));
     }
 
     #[test]

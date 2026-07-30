@@ -14,11 +14,11 @@ import {
 import { toast } from "sonner";
 
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
+import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
-  AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
@@ -245,7 +245,7 @@ export function ChangeFileContextMenu({
       </ContextMenu>
 
       <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
-        <AlertDialogContent>
+        <AppAlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("repo.discardChangesTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -266,7 +266,7 @@ export function ChangeFileContextMenu({
               {busy ? t("common.loading") : t("repo.discardChanges")}
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogContent>
+        </AppAlertDialogContent>
       </AlertDialog>
     </>
   );

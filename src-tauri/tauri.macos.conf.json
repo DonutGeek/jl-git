@@ -12,6 +12,7 @@
         "hiddenTitle": true,
         "acceptFirstMouse": true,
         "dragDropEnabled": false,
+        "backgroundThrottling": "throttle",
         "trafficLightPosition": {
           "x": 16,
           "y": 26

@@ -1,2 +1,0 @@
-# 用 npm 调起，避免 GUI 推送时 PATH 里没有 pnpm
-npm run check

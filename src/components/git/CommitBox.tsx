@@ -36,6 +36,20 @@ const HISTORY_POPOVER_WIDTH = 320;
 const HISTORY_POPOVER_MAX_HEIGHT = 200;
 const HISTORY_VIEWPORT_PADDING = 12;
 
+function updateRepoTaskPaths(
+  current: ReadonlySet<string>,
+  repoPath: string,
+  active: boolean,
+): ReadonlySet<string> {
+  const next = new Set(current);
+  if (active) {
+    next.add(repoPath);
+  } else {
+    next.delete(repoPath);
+  }
+  return next;
+}
+
 interface CommitMessageHistoryItem {
   id: string;
   preview: string;
@@ -103,9 +117,13 @@ export function CommitBox() {
   const openSettingsDrawer = useSettingsDrawerStore((state) => state.openDrawer);
 
   const [pushAfterCommit, setPushAfterCommit] = useState(defaultPushAfterCommit);
-  const [busy, setBusy] = useState(false);
-  const [isCommitting, setIsCommitting] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [busyRepoPaths, setBusyRepoPaths] = useState<ReadonlySet<string>>(() => new Set());
+  const [committingRepoPaths, setCommittingRepoPaths] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [generatingRepoPaths, setGeneratingRepoPaths] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const hasApiKey = useHasAgentApiKey();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPosition, setHistoryPosition] = useState({
@@ -120,6 +138,9 @@ export function CommitBox() {
     setPushAfterCommit(defaultPushAfterCommit);
   }, [defaultPushAfterCommit]);
 
+  const busy = repoPath ? busyRepoPaths.has(repoPath) : false;
+  const isCommitting = repoPath ? committingRepoPaths.has(repoPath) : false;
+  const isGenerating = repoPath ? generatingRepoPaths.has(repoPath) : false;
   const demotedSet = useMemo(() => new Set(demotedConflictPaths), [demotedConflictPaths]);
   const stagedCount =
     status?.entries.filter((entry) => isStagedEntry(entry, demotedSet)).length ?? 0;
@@ -225,16 +246,23 @@ export function CommitBox() {
   }
 
   async function fillCommitMessage(item: CommitMessageHistoryItem): Promise<void> {
+    const originRepoPath = repoPath;
+    if (!originRepoPath) {
+      return;
+    }
     let message = item.message;
-    if (!item.complete && repoPath) {
+    if (!item.complete) {
       try {
-        const result = await getCommitMessage(repoPath, item.id);
+        const result = await getCommitMessage(originRepoPath, item.id);
         message = result.message;
       } catch {
         // 详情读取失败时仍可安全回填列表已有标题。
       }
     }
 
+    if (useRepoStore.getState().repoPath !== originRepoPath) {
+      return;
+    }
     setCommitMessage(message);
     setHistoryOpen(false);
     messageInputRef.current?.focus();
@@ -275,10 +303,10 @@ export function CommitBox() {
       return;
     }
 
-    setBusy(true);
-    setIsCommitting(true);
     // 锁定发起仓：提交后 await 间隙若切标签，push 仍落原仓
     const originRepoPath = repoPath;
+    setBusyRepoPaths((current) => updateRepoTaskPaths(current, originRepoPath, true));
+    setCommittingRepoPaths((current) => updateRepoTaskPaths(current, originRepoPath, true));
     const originBranch = status?.branch;
     const originDetached = Boolean(status?.detached);
     const originUpstream = status?.upstream;
@@ -339,8 +367,8 @@ export function CommitBox() {
       const details = detailLines.length > 0 ? detailLines.join("\n") : undefined;
       toast.error(message, details ? { description: details } : undefined);
     } finally {
-      setBusy(false);
-      setIsCommitting(false);
+      setBusyRepoPaths((current) => updateRepoTaskPaths(current, originRepoPath, false));
+      setCommittingRepoPaths((current) => updateRepoTaskPaths(current, originRepoPath, false));
     }
   }
 
@@ -348,13 +376,17 @@ export function CommitBox() {
     if (working) {
       return;
     }
-    setBusy(true);
+    if (!repoPath) {
+      return;
+    }
+    const originRepoPath = repoPath;
+    setBusyRepoPaths((current) => updateRepoTaskPaths(current, originRepoPath, true));
     try {
       await undoCommit();
     } catch (error) {
       toast.error(toUserMessage(error));
     } finally {
-      setBusy(false);
+      setBusyRepoPaths((current) => updateRepoTaskPaths(current, originRepoPath, false));
     }
   }
 
@@ -363,19 +395,23 @@ export function CommitBox() {
       return;
     }
 
-    setIsGenerating(true);
+    const originRepoPath = repoPath;
+    setGeneratingRepoPaths((current) => updateRepoTaskPaths(current, originRepoPath, true));
     // 先让出一帧，避免点击时同步卡死 UI；大 diff 已在 Rust 侧流式截断
     await new Promise<void>((resolve) => {
       window.requestAnimationFrame(() => resolve());
     });
     try {
-      const message = await generateCommitMessage(repoPath, locale);
+      const message = await generateCommitMessage(originRepoPath, locale);
+      if (useRepoStore.getState().repoPath !== originRepoPath) {
+        return;
+      }
       setCommitMessage(message);
       messageInputRef.current?.focus();
     } catch (error) {
       toastAiFailure(error, t("ai.errors.requestFailed"));
     } finally {
-      setIsGenerating(false);
+      setGeneratingRepoPaths((current) => updateRepoTaskPaths(current, originRepoPath, false));
     }
   }
 

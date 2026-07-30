@@ -13,9 +13,9 @@ import {
   workspaceIconComponent,
 } from "@/components/project/workspaceGroupAppearance";
 import { Button } from "@/components/ui/button";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -160,7 +160,7 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-sm">
+      <AppDialogContent size="sm">
         <DialogHeader>
           <DialogTitle>
             {mode === "edit" ? t("projectManager.editGroup") : t("projectManager.createGroup")}
@@ -174,7 +174,7 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
+        <form className="space-y-4" onSubmit={(event) => void handleSubmit(event)}>
           <FieldGroup className="gap-4">
             <Field data-invalid={error ? true : undefined}>
               <FieldLabel htmlFor="workspace-group-dialog-name">
@@ -291,7 +291,7 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
+      </AppDialogContent>
     </Dialog>
   );
 }

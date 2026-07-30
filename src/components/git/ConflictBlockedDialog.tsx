@@ -2,9 +2,9 @@ import { useTranslation } from "react-i18next";
 import { TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -24,7 +24,7 @@ export function ConflictBlockedDialog({ open, onOpenChange, reason }: ConflictBl
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" showCloseButton>
+      <AppDialogContent showCloseButton>
         <DialogHeader className="gap-3">
           <div className="flex items-center gap-2">
             <span className="border-destructive/40 bg-destructive/10 text-destructive inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium">
@@ -44,7 +44,7 @@ export function ConflictBlockedDialog({ open, onOpenChange, reason }: ConflictBl
             {t("repo.conflictOpBlockedClose")}
           </Button>
         </DialogFooter>
-      </DialogContent>
+      </AppDialogContent>
     </Dialog>
   );
 }

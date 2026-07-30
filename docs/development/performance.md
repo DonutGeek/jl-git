@@ -36,7 +36,9 @@ flowchart TB
 ## 启动
 
 - 首屏只加载 Dashboard 必要代码
-- Monaco、Graph、Markdown 重型库跟路由懒加载
+- 子窗口路由、非首屏仓库模块（目录树、标签、历史、工作区、鲸灵）按需加载
+- 设置抽屉、操作日志首次打开时再加载，加载后保持挂载以保留关闭动画与表单状态
+- Monaco、Graph、Markdown 重型库跟使用它们的模块一起懒加载
 - SQLite 预加载已在配置中；避免启动时跑全表重查询
 
 ---
@@ -46,6 +48,7 @@ flowchart TB
 - 打开仓库：并行「项目元数据（DB）」+ `git_status`，不要串行无谓等待
 - `git_log` 分页；进入 History 再拉
 - 切换仓库：优先还原会话缓存再后台刷新；冷开仓才清空 store，避免闪现旧数据与切标签卡顿
+- 标签高亮走紧急更新，路由 / 仓库大树走 React Transition；禁止在点击帧同步清空 Git Store
 
 ---
 
@@ -92,8 +95,12 @@ flowchart TB
 ## 后台任务
 
 - fetch/push：可显示进度；完成后通知（用户允许时）
+- pull/push/commit/分支与标签写操作按仓库维护 pending 计数；切换标签不取消原仓操作，也不阻塞其它仓库
+- 后台操作的结果与错误写回原仓会话缓存；返回原仓时继续展示 loading，完成后再刷新为真实 Git 状态
 - 未来：文件监听 debounce → 刷新 status
 - 重任务不阻塞 UI 线程（Rust 异步 / spawn）
+- macOS WebView 使用 `backgroundThrottling: "throttle"`，避免后台数分钟后整页挂起 / 卸载
+- 从后台恢复时先让 WebView 完成两帧合成，再合并 focus / visibility 触发的状态刷新
 
 ---
 
@@ -101,6 +108,7 @@ flowchart TB
 
 - Store 用 selector
 - 列表 item 回调稳定（必要时再优化）
+- 已访问的主模块用 React `Activity` 保留状态；隐藏时清理 Effects，减少后台订阅
 - 先 Profiler / 实测，再加 `memo`
 
 ---

@@ -40,6 +40,7 @@ base64 = "0.22"
 pdf-extract = "0.12"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tauri-plugin-process = "2.3.1"
+trash = "5.2.6"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-autostart = "2.5.1"
@@ -54,4 +55,3 @@ windows-sys = { version = "0.59", features = [
   "Win32_System_WindowsProgramming",
   "Win32_Storage_FileSystem",
 ] }
-

@@ -22,3 +22,4 @@ pub mod stash;
 pub mod status;
 pub mod tag;
 pub mod version;
+pub mod write_lock;

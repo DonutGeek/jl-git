@@ -7,21 +7,14 @@ import { toast } from "sonner";
 import { GenerateBranchNameDialog } from "@/components/git/GenerateBranchNameDialog";
 import { GitRefPicker } from "@/components/git/GitRefPicker";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
-import { cn } from "@/lib/utils";
-
 import { useAppPrefsStore } from "@/store/useAppPrefsStore";
 import { useRepoStore } from "@/store/useRepoStore";
 
@@ -199,9 +192,7 @@ export function CreateBranchDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent
-          className={cn("flex max-w-md flex-col gap-4 overflow-hidden p-5 sm:rounded-lg")}
-        >
+        <AppDialogContent className="flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>{t("repo.createBranchTitle")}</DialogTitle>
           </DialogHeader>
@@ -325,7 +316,7 @@ export function CreateBranchDialog({
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
+        </AppDialogContent>
       </Dialog>
 
       <GenerateBranchNameDialog
