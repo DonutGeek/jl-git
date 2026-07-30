@@ -415,13 +415,11 @@ export function BranchLeaf({
       </Tooltip>
 
       <ContextMenuContent className="min-w-40">
+        {/* 主操作 → 编辑 → 复制 → 同步 → 危险（ui-guidelines §2.3） */}
         <ContextMenuItem disabled={!canCheckout} onSelect={() => contextActions.onCheckout(branch)}>
           <GitBranchIcon aria-hidden="true" />
           {t("repo.checkoutBranch")}
         </ContextMenuItem>
-
-        <ContextMenuSeparator />
-
         <ContextMenuItem
           disabled={!canMergeIntoCurrent}
           onSelect={() => contextActions.onMergeIntoCurrent(branch)}
@@ -429,7 +427,6 @@ export function BranchLeaf({
           <GitMerge className="size-3.5" aria-hidden="true" />
           {t("repo.mergeIntoCurrent")}
         </ContextMenuItem>
-
         <ContextMenuItem
           disabled={!canCompareWithCurrent}
           onSelect={() => contextActions.onCompareWithCurrent(branch)}
@@ -437,6 +434,22 @@ export function BranchLeaf({
           <GitCompareArrows className="size-3.5" aria-hidden="true" />
           {t("repo.compareCurrentWithBranch")}
         </ContextMenuItem>
+
+        <ContextMenuSeparator />
+
+        <ContextMenuItem disabled={!canRename} onSelect={() => contextActions.onRename(branch)}>
+          <Pencil aria-hidden="true" />
+          {t("repo.renameBranch")}
+        </ContextMenuItem>
+
+        <ContextMenuSeparator />
+
+        <ContextMenuItem onSelect={() => contextActions.onCopyName(branch)}>
+          <Copy aria-hidden="true" />
+          {t("repo.copyBranchName")}
+        </ContextMenuItem>
+
+        <ContextMenuSeparator />
 
         <ContextMenuItem disabled={!canPull} onSelect={() => contextActions.onPull(branch)}>
           <Download aria-hidden="true" />
@@ -456,20 +469,9 @@ export function BranchLeaf({
 
         <ContextMenuSeparator />
 
-        <ContextMenuItem disabled={!canRename} onSelect={() => contextActions.onRename(branch)}>
-          <Pencil aria-hidden="true" />
-          {t("repo.renameBranch")}
-        </ContextMenuItem>
-        <ContextMenuItem onSelect={() => contextActions.onCopyName(branch)}>
-          <Copy aria-hidden="true" />
-          {t("repo.copyBranchName")}
-        </ContextMenuItem>
-
-        <ContextMenuSeparator />
-
         <ContextMenuItem
+          variant="destructive"
           disabled={!canDelete}
-          className="text-destructive focus:text-destructive"
           onSelect={() => contextActions.onDelete(branch)}
         >
           <Trash2 aria-hidden="true" />

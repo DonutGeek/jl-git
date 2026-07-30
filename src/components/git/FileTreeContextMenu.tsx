@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 import {
   Copy,
   ExternalLink,
-  Eye,
   FilePlus,
+  FolderOpen,
   FolderPlus,
   Pencil,
   Terminal,
@@ -74,7 +74,7 @@ function isValidBasename(name: string): boolean {
   );
 }
 
-/** 目录树节点右键：新建（仅目录）→ 复制/访达 → 编辑器/终端 → 重命名/删除 */
+/** 目录树节点右键：主操作 → 编辑 → 复制 → 系统打开 → 危险（ui-guidelines §2.3） */
 export function FileTreeContextMenu({
   entry,
   repoPath,
@@ -217,7 +217,7 @@ export function FileTreeContextMenu({
           {withContextMenuHighlight(children, menuOpen)}
         </ContextMenuTrigger>
         <ContextMenuContent className="min-w-52">
-          {/* 新建 → 定位/复制 → 打开 → 重命名/删除 */}
+          {/* 1 主操作：新建空目录 → 新文件 */}
           {entry.isDir ? (
             <>
               <ContextMenuItem
@@ -248,10 +248,27 @@ export function FileTreeContextMenu({
             </>
           ) : null}
 
+          {/* 2 编辑 */}
+          <ContextMenuItem
+            disabled={disabled || busy || protectedEntry}
+            onSelect={() =>
+              deferUi(() => {
+                setNameValue(entry.name);
+                setNameDialog("rename");
+              })
+            }
+          >
+            <Pencil aria-hidden="true" />
+            {t("repo.fileTreeRename")}
+          </ContextMenuItem>
+
+          <ContextMenuSeparator />
+
+          {/* 3 复制 */}
           <ContextMenuSub>
             <ContextMenuSubTrigger disabled={disabled || busy}>
               <Copy aria-hidden="true" />
-              {t("repo.copyFilePath")}
+              {t("common.copy")}
             </ContextMenuSubTrigger>
             <ContextMenuSubContent className="min-w-44">
               <ContextMenuItem
@@ -270,18 +287,19 @@ export function FileTreeContextMenu({
               </ContextMenuItem>
             </ContextMenuSubContent>
           </ContextMenuSub>
+
+          <ContextMenuSeparator />
+
+          {/* 5 系统打开：访达 → 编辑器 → 终端 */}
           <ContextMenuItem
             disabled={disabled || busy}
             onSelect={() =>
               void runAction(() => systemOpenService.revealInFileManager(absolutePath))
             }
           >
-            <Eye aria-hidden="true" />
+            <FolderOpen aria-hidden="true" />
             {revealLabel}
           </ContextMenuItem>
-
-          <ContextMenuSeparator />
-
           <ContextMenuItem
             disabled={disabled || busy}
             onSelect={() => void runAction(() => systemOpenService.openInEditor(absolutePath))}
@@ -299,18 +317,7 @@ export function FileTreeContextMenu({
 
           <ContextMenuSeparator />
 
-          <ContextMenuItem
-            disabled={disabled || busy || protectedEntry}
-            onSelect={() =>
-              deferUi(() => {
-                setNameValue(entry.name);
-                setNameDialog("rename");
-              })
-            }
-          >
-            <Pencil aria-hidden="true" />
-            {t("repo.fileTreeRename")}
-          </ContextMenuItem>
+          {/* 7 危险置底 */}
           <ContextMenuItem
             variant="destructive"
             disabled={disabled || busy || protectedEntry}

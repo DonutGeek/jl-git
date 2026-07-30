@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { groupRepoTabs, resolveRepoTabDropAction } from "@/utils/repoTabGroups";
+import {
+  groupRepoTabs,
+  reorderNamedGroupIds,
+  resolveRepoTabDropAction,
+  resolveWorkspaceGroupSortOrders,
+} from "@/utils/repoTabGroups";
 
 describe("groupRepoTabs", () => {
   it("keeps group and item order stable", () => {
@@ -48,7 +53,7 @@ describe("resolveRepoTabDropAction", () => {
     ).toBe("ungroup");
   });
 
-  it("does not move an ungrouped tab into a workspace", () => {
+  it("joins a named group when an ungrouped tab is dropped on it", () => {
     expect(
       resolveRepoTabDropAction({
         activeWorkspaceId: null,
@@ -56,6 +61,56 @@ describe("resolveRepoTabDropAction", () => {
         hasOverTarget: true,
         overIsTab: true,
       }),
-    ).toBe("none");
+    ).toBe("join-group");
+    expect(
+      resolveRepoTabDropAction({
+        activeWorkspaceId: null,
+        overWorkspaceId: "team-a",
+        hasOverTarget: true,
+        overIsTab: false,
+      }),
+    ).toBe("join-group");
+  });
+
+  it("reorders ungrouped tabs among themselves", () => {
+    expect(
+      resolveRepoTabDropAction({
+        activeWorkspaceId: null,
+        overWorkspaceId: null,
+        hasOverTarget: true,
+        overIsTab: true,
+      }),
+    ).toBe("reorder");
+  });
+});
+
+describe("reorderNamedGroupIds", () => {
+  it("moves a named group across peers", () => {
+    expect(reorderNamedGroupIds(["a", "b", "c"], "c", "a")).toEqual(["c", "a", "b"]);
+  });
+
+  it("returns null when ids are invalid or unchanged", () => {
+    expect(reorderNamedGroupIds(["a", "b"], "a", "a")).toBeNull();
+    expect(reorderNamedGroupIds(["a", "b"], "x", "a")).toBeNull();
+  });
+});
+
+describe("resolveWorkspaceGroupSortOrders", () => {
+  it("reassigns the existing sortOrder pool in the new order", () => {
+    expect(
+      resolveWorkspaceGroupSortOrders({
+        orderedWorkspaceIds: ["c", "a", "b"],
+        workspaces: [
+          { id: "a", sortOrder: 0 },
+          { id: "b", sortOrder: 5 },
+          { id: "c", sortOrder: 10 },
+          { id: "hidden", sortOrder: 99 },
+        ],
+      }),
+    ).toEqual([
+      { id: "c", sortOrder: 0 },
+      { id: "a", sortOrder: 5 },
+      { id: "b", sortOrder: 10 },
+    ]);
   });
 });

@@ -11,7 +11,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AtSign, MoreHorizontal, Pin, SquarePen, Trash2 } from "lucide-react";
+import { AtSign, MoreHorizontal, Pin, PinOff, SquarePen, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -190,9 +190,11 @@ function SortableConversationRow({
               onCloseAutoFocus={(event) => event.preventDefault()}
             >
               <DropdownMenuItem onSelect={() => onRename(conversation.id)}>
+                <SquarePen aria-hidden="true" />
                 {labels.rename}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => onPin(conversation.id, !conversation.pinned)}>
+                {conversation.pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
                 {conversation.pinned ? labels.unpin : labels.pin}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -201,7 +203,7 @@ function SortableConversationRow({
                 variant="destructive"
                 onSelect={() => onDelete(conversation.id)}
               >
-                <Trash2 className="size-3.5" aria-hidden="true" />
+                <Trash2 aria-hidden="true" />
                 {labels.delete}
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -209,10 +211,13 @@ function SortableConversationRow({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="min-w-36">
+        {/* 编辑 → 危险（与单仓会话 Tab 同构，ui-guidelines §2.3） */}
         <ContextMenuItem onSelect={() => onRename(conversation.id)}>
+          <SquarePen aria-hidden="true" />
           {labels.rename}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => onPin(conversation.id, !conversation.pinned)}>
+          {conversation.pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
           {conversation.pinned ? labels.unpin : labels.pin}
         </ContextMenuItem>
         <ContextMenuSeparator />
@@ -221,7 +226,7 @@ function SortableConversationRow({
           variant="destructive"
           onSelect={() => onDelete(conversation.id)}
         >
-          <Trash2 className="size-3.5" aria-hidden="true" />
+          <Trash2 aria-hidden="true" />
           {labels.delete}
         </ContextMenuItem>
       </ContextMenuContent>

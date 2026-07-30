@@ -377,6 +377,42 @@ pnpm dlx shadcn@latest add sonner
 
 **禁止**：可点区域悬停仍是箭头；可拖分隔线悬停仍是箭头；用改布局宽度制造「加粗」反馈。
 
+### 2.3 右键菜单（硬性）
+
+全应用 Context Menu（及与之同构的行内「⋯」Dropdown）必须共用同一套**分组顺序、图标与危险项样式**。禁止同一动作在 A 处排第一、B 处排第二，或图标/文案各写一套。
+
+自上而下固定分组（无内容的组整组省略；分隔线只出现在有内容的组之间）：
+
+| 顺序 | 分组 | 示例 |
+|------|------|------|
+| 1 | **主操作** | 打开、Checkout、Stage/Unstage、新建… |
+| 2 | **编辑** | 重命名、别名、Amend、Pin… |
+| 3 | **复制** | 多个复制项收入「复制」子菜单；仅一项时可平铺 |
+| 4 | **导航 / 历史** | 文件历史、在目录树中显示、查看标签历史… |
+| 5 | **系统打开** | 固定顺序见下 |
+| 6 | **同步** | Pull / Push / Publish / Fetch… |
+| 7 | **危险** | 删除、丢弃、从应用移除… |
+
+**系统打开**固定顺序（缺项跳过，不打乱相对序）：
+
+1. 在访达 / 资源管理器中显示 — 图标一律 `FolderOpen`
+2. 在编辑器中打开 — `ExternalLink`
+3. 在终端中打开 — `Terminal`
+4. （可选）用默认程序打开 — `AppWindow`
+
+**新建类**固定顺序：先「添加空目录」`FolderPlus`，后「添加新文件」`FilePlus`。
+
+**其它硬规则：**
+
+| 规则 | 说明 |
+|------|------|
+| 图标 | 同类动作全局同图标；有图标的菜单勿出现「一半有一半无」 |
+| 危险项 | 一律置底；用 `variant="destructive"`；删除类优先 `Trash2`（远端删标签可用 `CloudOff`） |
+| 文案 | 能共用 i18n key 就共用（如 `common.copy`、`repo.openInEditor`）；平台访达文案用 `revealInFileManagerLabel` |
+| 同构菜单 | 单仓/多仓会话等平行入口，结构与图标必须一致 |
+
+参考实现：`ProjectContextMenu`、`FileTreeContextMenu`、`ChangeFileContextMenu`、`RepoTabItem`。
+
 ### 3. 加载与异步
 
 - 切换仓库：保留顶栏/工具栏/分栏壳，只刷新 Git 数据；禁止用整页 loading 替换导致「闪一下」
@@ -412,6 +448,7 @@ pnpm dlx shadcn@latest add sonner
 - [ ] 面板主滚动使用 shadcn `ScrollArea`（无裸 `overflow-*-auto` 交付）
 - [ ] 新增/更新 `src/components/ui/` 仅经官方 `pnpm dlx shadcn@latest add …`（无手写、无私改）
 - [ ] 无硬编码产品文案（除品牌名）
+- [ ] 右键菜单分组顺序 / 系统打开顺序 / 危险项样式符合 §2.3
 
 ---
 
@@ -425,3 +462,4 @@ pnpm dlx shadcn@latest add sonner
 - 可点区域光标仍是默认箭头；可拖分隔线无 `col-resize`
 - 悬停加粗导致内容左右抖动
 - 为「炫技」加入与任务无关的长动画
+- 右键菜单同类动作顺序/图标不一致（违反 §2.3）

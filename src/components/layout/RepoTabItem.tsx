@@ -2,7 +2,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ExternalLink, Eye, Terminal, X } from "lucide-react";
+import { Copy, ExternalLink, FolderOpen, Link, SquarePen, Terminal, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
@@ -63,6 +63,8 @@ interface RepoTabChromeProps {
   tab: TabDisplayItem;
   isActive: boolean;
   dragging?: boolean;
+  /** 拖拽幽灵边框色（命名组时用分组色） */
+  dragBorderClassName?: string;
   onSelect?: (tabId: string) => void;
   onClose?: (event: MouseEvent | KeyboardEvent, tabId: string) => void;
   closeLabel?: string;
@@ -72,6 +74,7 @@ export function RepoTabChrome({
   tab,
   isActive,
   dragging = false,
+  dragBorderClassName,
   onSelect,
   onClose,
   closeLabel,
@@ -81,7 +84,8 @@ export function RepoTabChrome({
       className={cn(
         "group relative flex h-7 max-w-44 items-center rounded-md font-mono text-xs leading-none transition-colors",
         isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/60",
-        dragging && "bg-primary/10 text-primary ring-1 ring-border",
+        dragging && "bg-primary/10 text-primary ring-1",
+        dragging && (dragBorderClassName ?? "ring-border"),
       )}
     >
       <button
@@ -217,7 +221,11 @@ export function SortableRepoTab(props: SortableRepoTabProps) {
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="min-w-40">
-        <ContextMenuItem onSelect={() => onCloseTab(tab.id)}>{labels.close}</ContextMenuItem>
+        {/* 主操作 → 编辑 → 复制 → 系统打开 → 危险（ui-guidelines §2.3） */}
+        <ContextMenuItem onSelect={() => onCloseTab(tab.id)}>
+          <X aria-hidden="true" />
+          {labels.close}
+        </ContextMenuItem>
         <ContextMenuSub>
           <ContextMenuSubTrigger disabled={tabCount <= 1}>{labels.closeMore}</ContextMenuSubTrigger>
           <ContextMenuSubContent className="min-w-40">
@@ -238,44 +246,55 @@ export function SortableRepoTab(props: SortableRepoTabProps) {
         {project ? (
           <>
             <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => onSetAlias(project)}>
+              <SquarePen aria-hidden="true" />
+              {labels.setAlias}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
             <ContextMenuSub>
-              <ContextMenuSubTrigger>{labels.copy}</ContextMenuSubTrigger>
+              <ContextMenuSubTrigger>
+                <Copy aria-hidden="true" />
+                {labels.copy}
+              </ContextMenuSubTrigger>
               <ContextMenuSubContent className="min-w-40">
                 <ContextMenuItem onSelect={() => onCopyRemote(project)}>
+                  <Link aria-hidden="true" />
                   {labels.copyRemote}
                 </ContextMenuItem>
                 <ContextMenuItem onSelect={() => onCopyPath(project)}>
+                  <Copy aria-hidden="true" />
                   {labels.copyPath}
                 </ContextMenuItem>
               </ContextMenuSubContent>
             </ContextMenuSub>
-            <ContextMenuItem onSelect={() => onSetAlias(project)}>
-              {labels.setAlias}
-            </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem
               onSelect={() =>
                 void runSystemOpen(() => systemOpenService.revealInFileManager(project.path))
               }
             >
-              <Eye aria-hidden="true" />
+              <FolderOpen aria-hidden="true" />
               {revealLabel}
             </ContextMenuItem>
-            <ContextMenuSeparator />
             <ContextMenuItem
-              onSelect={() => void runSystemOpen(() => systemOpenService.openInEditor(project.path))}
+              onSelect={() =>
+                void runSystemOpen(() => systemOpenService.openInEditor(project.path))
+              }
             >
               <ExternalLink aria-hidden="true" />
               {t("repo.openInEditor")}
             </ContextMenuItem>
             <ContextMenuItem
-              onSelect={() => void runSystemOpen(() => systemOpenService.openTerminal(project.path))}
+              onSelect={() =>
+                void runSystemOpen(() => systemOpenService.openTerminal(project.path))
+              }
             >
               <Terminal aria-hidden="true" />
               {t("repo.openInTerminal")}
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem variant="destructive" onSelect={() => onRemove(project)}>
+              <Trash2 aria-hidden="true" />
               {labels.remove}
             </ContextMenuItem>
           </>

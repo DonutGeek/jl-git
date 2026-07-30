@@ -151,6 +151,7 @@ export function ProjectContextMenu({
             </ContextMenuSubContent>
           </ContextMenuSub>
           <ContextMenuSeparator />
+          {/* 系统打开：访达 → 编辑器 → 终端（见 ui-guidelines §2.3） */}
           <ContextMenuItem
             disabled={disabled}
             onSelect={() =>
@@ -162,17 +163,17 @@ export function ProjectContextMenu({
           </ContextMenuItem>
           <ContextMenuItem
             disabled={disabled}
-            onSelect={() => void runSystemOpen(() => systemOpenService.openTerminal(project.path))}
-          >
-            <Terminal aria-hidden="true" />
-            {t("repo.openInTerminal")}
-          </ContextMenuItem>
-          <ContextMenuItem
-            disabled={disabled}
             onSelect={() => void runSystemOpen(() => systemOpenService.openInEditor(project.path))}
           >
             <ExternalLink aria-hidden="true" />
             {t("repo.openInEditor")}
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={disabled}
+            onSelect={() => void runSystemOpen(() => systemOpenService.openTerminal(project.path))}
+          >
+            <Terminal aria-hidden="true" />
+            {t("repo.openInTerminal")}
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem

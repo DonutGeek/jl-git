@@ -4,6 +4,7 @@ import { Copy, FileDown, Hash, PencilLine, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppAlertDialogContent, AppDialogContent } from "@/components/common/AppDialogContent";
+import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +19,8 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
@@ -214,23 +217,32 @@ export function HistoryCommitContextMenu({
           {withContextMenuHighlight(children, menuOpen, CONTEXT_MENU_HISTORY_HIGHLIGHT_CLASS)}
         </ContextMenuTrigger>
         <ContextMenuContent className="min-w-48">
-          <ContextMenuItem onSelect={() => void handleCopySha()}>
-            <Hash aria-hidden="true" />
-            {t("repo.copySha")}
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={() => void handleCopyMessage()}>
-            <Copy aria-hidden="true" />
-            {t("repo.copyCommitMessage")}
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={() => void handleExportMessage()}>
-            <FileDown aria-hidden="true" />
-            {t("repo.exportCommitMessage")}
-          </ContextMenuItem>
-          <ContextMenuSeparator />
+          {/* 编辑 → 复制（ui-guidelines §2.3） */}
           <ContextMenuItem disabled={!isHead || writeBlocked} onSelect={() => handleRequestEdit()}>
             <PencilLine aria-hidden="true" />
             {t("repo.amendMessage")}
           </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <Copy aria-hidden="true" />
+              {t("common.copy")}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="min-w-44">
+              <ContextMenuItem onSelect={() => void handleCopySha()}>
+                <Hash aria-hidden="true" />
+                {t("repo.copySha")}
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => void handleCopyMessage()}>
+                <Copy aria-hidden="true" />
+                {t("repo.copyCommitMessage")}
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => void handleExportMessage()}>
+                <FileDown aria-hidden="true" />
+                {t("repo.exportCommitMessage")}
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
         </ContextMenuContent>
       </ContextMenu>
 

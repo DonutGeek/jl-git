@@ -11,7 +11,7 @@ import {
 } from "@dnd-kit/core";
 import { horizontalListSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AtSign, Pin, SquarePen, X } from "lucide-react";
+import { AtSign, Pin, PinOff, SquarePen, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -186,10 +186,13 @@ function SortableConversationTab({
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent className="min-w-36">
+        {/* 编辑 → 危险（与多仓侧栏同构，ui-guidelines §2.3） */}
         <ContextMenuItem onSelect={() => onRename(conversation.id)}>
+          <SquarePen aria-hidden="true" />
           {labels.rename}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => onPin(conversation.id, !conversation.pinned)}>
+          {conversation.pinned ? <PinOff aria-hidden="true" /> : <Pin aria-hidden="true" />}
           {conversation.pinned ? labels.unpin : labels.pin}
         </ContextMenuItem>
         <ContextMenuSeparator />
@@ -198,6 +201,7 @@ function SortableConversationTab({
           variant="destructive"
           onSelect={() => onDelete(conversation.id)}
         >
+          <Trash2 aria-hidden="true" />
           {labels.delete}
         </ContextMenuItem>
       </ContextMenuContent>

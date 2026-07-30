@@ -25,13 +25,14 @@ import { FolderPlus, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { MultiAgentWindowButton } from "@/components/agent/MultiAgentWindowButton";
-import { RepositoryTabGroup } from "@/components/layout/RepoTabGroup";
+import { RepoTabGroupChrome, RepositoryTabGroup } from "@/components/layout/RepoTabGroup";
 import {
   readRepoTabDragData,
   RepoTabChrome,
   SortableRepoTab,
   type TabDisplayItem,
 } from "@/components/layout/RepoTabItem";
+import { WORKSPACE_RING_CLASS } from "@/components/project/workspaceGroupAppearance";
 import { OpenRepoDialog } from "@/components/project/OpenRepoDialog";
 import { Button } from "@/components/ui/button";
 import { AppDialogContent } from "@/components/common/AppDialogContent";
@@ -49,7 +50,12 @@ import { gitService } from "@/services/git";
 import { pickPrimaryRemoteUrl } from "@/services/git/git.remote";
 import { copyToClipboard } from "@/utils/clipboard";
 import { cn } from "@/lib/utils";
-import { groupRepoTabs, resolveRepoTabDropAction } from "@/utils/repoTabGroups";
+import {
+  groupRepoTabs,
+  reorderNamedGroupIds,
+  resolveRepoTabDropAction,
+  resolveWorkspaceGroupSortOrders,
+} from "@/utils/repoTabGroups";
 import { toUserMessage } from "@/types/error";
 import type { Project } from "@/types/project";
 
@@ -98,8 +104,10 @@ export function RepoTabBar() {
   const removeProject = useProjectStore((state) => state.removeProject);
   const updateAlias = useProjectStore((state) => state.updateAlias);
   const updateProject = useProjectStore((state) => state.updateProject);
+  const reorderGroupedItems = useProjectStore((state) => state.reorderGroupedItems);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [draggingGroupWorkspaceId, setDraggingGroupWorkspaceId] = useState<string | null>(null);
   const [aliasTarget, setAliasTarget] = useState<Project | null>(null);
   const [aliasValue, setAliasValue] = useState("");
   const [aliasBusy, setAliasBusy] = useState(false);
@@ -291,6 +299,11 @@ export function RepoTabBar() {
     () => tabs.find((tab) => tab.id === draggingId) ?? null,
     [draggingId, tabs],
   );
+  const draggingGroupWorkspace = useMemo(
+    () => (draggingGroupWorkspaceId ? (workspaceById.get(draggingGroupWorkspaceId) ?? null) : null),
+    [draggingGroupWorkspaceId, workspaceById],
+  );
+  const isDraggingAnything = Boolean(draggingId || draggingGroupWorkspaceId);
 
   /** 路由只负责切壳；仓库数据由 RepoPage 后台加载。 */
   function navigateToTab(tabId: string): void {
@@ -417,11 +430,62 @@ export function RepoTabBar() {
     }
   }
 
-  async function handleTabDragEnd(event: DragEndEvent): Promise<void> {
+  function clearDragState(): void {
     setDraggingId(null);
+    setDraggingGroupWorkspaceId(null);
+  }
+
+  async function handleGroupDragEnd(event: DragEndEvent): Promise<void> {
     const activeData = readRepoTabDragData(event.active.data.current);
     const overData = readRepoTabDragData(event.over?.data.current);
-    if (!activeData || activeData.type !== "tab") {
+    if (!activeData || activeData.type !== "group") {
+      return;
+    }
+    if (typeof activeData.workspaceId !== "string") {
+      return;
+    }
+    const overWorkspaceId = overData?.workspaceId;
+    if (typeof overWorkspaceId !== "string" || overWorkspaceId === activeData.workspaceId) {
+      return;
+    }
+
+    const namedIds = tabGroups
+      .map((group) => group.workspaceId)
+      .filter((id): id is string => typeof id === "string");
+    const nextIds = reorderNamedGroupIds(namedIds, activeData.workspaceId, overWorkspaceId);
+    if (!nextIds) {
+      return;
+    }
+
+    const workspaceOrders = resolveWorkspaceGroupSortOrders({
+      orderedWorkspaceIds: nextIds,
+      workspaces,
+    });
+
+    try {
+      await reorderGroupedItems({
+        workspaces: workspaceOrders,
+        projects: [],
+      });
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    }
+  }
+
+  async function handleTabDragEnd(event: DragEndEvent): Promise<void> {
+    clearDragState();
+    const activeData = readRepoTabDragData(event.active.data.current);
+    const overData = readRepoTabDragData(event.over?.data.current);
+    if (!activeData) {
+      return;
+    }
+
+    if (activeData.type === "group") {
+      await handleGroupDragEnd(event);
+      return;
+    }
+
+    if (activeData.type !== "tab") {
       return;
     }
 
@@ -434,6 +498,25 @@ export function RepoTabBar() {
 
     if (action === "reorder" && event.over) {
       reorderTabs(String(event.active.id), String(event.over.id));
+      return;
+    }
+
+    if (
+      action === "join-group" &&
+      activeData.projectId &&
+      typeof overData?.workspaceId === "string"
+    ) {
+      if (event.over && overData.type === "tab") {
+        reorderTabs(String(event.active.id), String(event.over.id));
+      }
+      try {
+        await updateProject({
+          id: activeData.projectId,
+          workspaceId: overData.workspaceId,
+        });
+      } catch (error) {
+        toast.error(toUserMessage(error));
+      }
       return;
     }
 
@@ -455,14 +538,27 @@ export function RepoTabBar() {
     }
   }
 
+  function handleDragStart(event: DragStartEvent): void {
+    const data = readRepoTabDragData(event.active.data.current);
+    if (data?.type === "group" && typeof data.workspaceId === "string") {
+      setDraggingGroupWorkspaceId(data.workspaceId);
+      setDraggingId(null);
+      return;
+    }
+    if (data?.type === "tab") {
+      setDraggingId(String(event.active.id));
+      setDraggingGroupWorkspaceId(null);
+    }
+  }
+
   return (
     <>
       <DndContext
         sensors={sensors}
         collisionDetection={pointerWithin}
-        onDragStart={(event: DragStartEvent) => setDraggingId(String(event.active.id))}
+        onDragStart={handleDragStart}
         onDragEnd={(event: DragEndEvent) => void handleTabDragEnd(event)}
-        onDragCancel={() => setDraggingId(null)}
+        onDragCancel={clearDragState}
       >
         <header
           {...dragProps}
@@ -472,7 +568,7 @@ export function RepoTabBar() {
             "bg-muted/40 relative flex h-12 shrink-0 items-center pr-0",
             "after:bg-border after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:content-['']",
             headerPaddingClass,
-            draggingId ? "z-[60]" : "z-40",
+            isDraggingAnything ? "z-[60]" : "z-40",
           )}
         >
           {/* 交互控件 no-drag；拖拽留白必须是兄弟节点，不能包在 no-drag 里（否则加载页无工具栏时窗口无法拖动） */}
@@ -494,10 +590,14 @@ export function RepoTabBar() {
             </Tooltip>
             <div className="bg-border h-3.5 w-px shrink-0 self-center" aria-hidden="true" />
           </div>
-          <div className="flex h-full min-w-0 items-center gap-1" style={noDragStyle}>
+          {/* flex-1：标签区吃满至右侧控件前，避免 + 与鲸灵按钮之间大片空位 */}
+          <div className="flex h-full min-w-0 flex-1 items-center gap-1" style={noDragStyle}>
             {/* 主滚动用 shadcn ScrollArea：细滚动条、悬停/滚动时才显示，不再用裸 overflow-x-auto */}
             {/* 内容 h-12 与视口高度一致（表头已去掉占位边框），纵向不溢出，无需隐藏纵向滚动条 */}
-            <ScrollArea ref={bindScrollArea} className="h-full min-w-0">
+            <ScrollArea
+              ref={bindScrollArea}
+              className="h-full min-w-0 flex-1 [&>[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:hidden"
+            >
               <div className="flex h-12 w-max items-center gap-1.5">
                 {tabGroups.map((group) => (
                   <RepositoryTabGroup
@@ -510,6 +610,10 @@ export function RepoTabBar() {
                     }
                     tabIds={group.values.map((tab) => tab.id)}
                     ungroupedLabel={t("projectManager.ungrouped")}
+                    isGroupDragging={
+                      typeof group.workspaceId === "string" &&
+                      group.workspaceId === draggingGroupWorkspaceId
+                    }
                   >
                     {group.values.map((tab) => (
                       <SortableRepoTab
@@ -567,8 +671,9 @@ export function RepoTabBar() {
               <TooltipContent>{t("repo.addTab")}</TooltipContent>
             </Tooltip>
           </div>
-          <div {...dragProps} className="h-full min-w-8 flex-1" />
-          <div className="flex h-7 shrink-0 items-center pr-3" style={noDragStyle}>
+          {/* 窄拖拽缝：窗口拖动仍可用，又不拉开标签与右侧按钮 */}
+          <div {...dragProps} className="h-full w-1.5 shrink-0" />
+          <div className="flex h-7 shrink-0 items-center pr-2" style={noDragStyle}>
             <MultiAgentWindowButton
               label={t("multiAgent.openButton")}
               className="size-7 shrink-0"
@@ -579,7 +684,20 @@ export function RepoTabBar() {
         </header>
         <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
           {draggingTab ? (
-            <RepoTabChrome tab={draggingTab} isActive={draggingTab.id === activeId} dragging />
+            <RepoTabChrome
+              tab={draggingTab}
+              isActive={draggingTab.id === activeId}
+              dragging
+              dragBorderClassName={(() => {
+                if (typeof draggingTab.workspaceId !== "string") {
+                  return undefined;
+                }
+                const color = workspaceById.get(draggingTab.workspaceId)?.color;
+                return color ? WORKSPACE_RING_CLASS[color] : undefined;
+              })()}
+            />
+          ) : draggingGroupWorkspace ? (
+            <RepoTabGroupChrome workspace={draggingGroupWorkspace} dragging />
           ) : null}
         </DragOverlay>
       </DndContext>

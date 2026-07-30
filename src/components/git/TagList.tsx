@@ -711,6 +711,7 @@ function TagRow({
       </Tooltip>
 
       <ContextMenuContent className="min-w-44">
+        {/* 主操作 → 复制 → 导航 → 同步 → 危险（ui-guidelines §2.3） */}
         <ContextMenuItem disabled={busy} onSelect={onCheckout}>
           <GitBranchIcon className="size-3.5" aria-hidden="true" />
           {t("repo.checkoutTag", { name: tag.name })}
@@ -724,14 +725,16 @@ function TagRow({
           {t("repo.createTagFromTag")}
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem disabled={busy} onSelect={onSelect}>
-          <History className="size-3.5" aria-hidden="true" />
-          {t("repo.viewTagHistory")}
-        </ContextMenuItem>
         <ContextMenuItem disabled={busy} onSelect={onCopyName}>
           <Copy className="size-3.5" aria-hidden="true" />
           {t("repo.copyTagName")}
         </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem disabled={busy} onSelect={onSelect}>
+          <History className="size-3.5" aria-hidden="true" />
+          {t("repo.viewTagHistory")}
+        </ContextMenuItem>
+        <ContextMenuSeparator />
         {/* 已在远端则无需再推送，按状态禁用 */}
         <ContextMenuItem disabled={busy || (remoteKnown && onRemote)} onSelect={onPushRemote}>
           <Upload className="size-3.5" aria-hidden="true" />
@@ -739,11 +742,7 @@ function TagRow({
         </ContextMenuItem>
         <ContextMenuSeparator />
         {/* 删除走确认弹窗，本地标签在弹窗内勾选是否同时删远端（与分支一致） */}
-        <ContextMenuItem
-          disabled={busy}
-          className="text-destructive focus:text-destructive"
-          onSelect={onDelete}
-        >
+        <ContextMenuItem variant="destructive" disabled={busy} onSelect={onDelete}>
           <Trash2 className="size-3.5" aria-hidden="true" />
           {t("repo.deleteTag")}
         </ContextMenuItem>
@@ -803,20 +802,18 @@ function RemoteTagRow({ tag, busy, onFetch, onCopyName, onDeleteRemote }: Remote
       </Tooltip>
 
       <ContextMenuContent className="min-w-44">
+        {/* 主操作 / 同步 → 复制 → 危险（ui-guidelines §2.3） */}
         <ContextMenuItem disabled={busy} onSelect={onFetch}>
           <Download className="size-3.5" aria-hidden="true" />
           {t("repo.fetchTagToLocal")}
         </ContextMenuItem>
+        <ContextMenuSeparator />
         <ContextMenuItem disabled={busy} onSelect={onCopyName}>
           <Copy className="size-3.5" aria-hidden="true" />
           {t("repo.copyTagName")}
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem
-          disabled={busy}
-          className="text-destructive focus:text-destructive"
-          onSelect={onDeleteRemote}
-        >
+        <ContextMenuItem variant="destructive" disabled={busy} onSelect={onDeleteRemote}>
           <CloudOff className="size-3.5" aria-hidden="true" />
           {t("repo.deleteTagAction")}
         </ContextMenuItem>

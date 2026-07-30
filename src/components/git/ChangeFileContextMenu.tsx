@@ -6,7 +6,7 @@ import {
   ArrowUpFromLine,
   Copy,
   ExternalLink,
-  Eye,
+  FolderOpen,
   FolderTree,
   History,
   RotateCcw,
@@ -67,7 +67,7 @@ function isMissingOnDisk(entry: GitStatusEntry, side: ChangeFileSide): boolean {
   return letter.toUpperCase() === "D";
 }
 
-/** 变更 / 待提交文件行右键菜单 */
+/** 变更 / 待提交文件行右键菜单（分组顺序见 ui-guidelines §2.3） */
 export function ChangeFileContextMenu({
   entry,
   side,
@@ -151,6 +151,7 @@ export function ChangeFileContextMenu({
           {withContextMenuHighlight(children, menuOpen)}
         </ContextMenuTrigger>
         <ContextMenuContent className="min-w-52">
+          {/* 1 主操作 */}
           {side === "worktree" ? (
             <ContextMenuItem
               disabled={disabled || busy || conflictLocked}
@@ -168,21 +169,14 @@ export function ChangeFileContextMenu({
               {t("repo.removeFromStaged")}
             </ContextMenuItem>
           )}
-          <ContextMenuItem
-            variant="destructive"
-            disabled={disabled || busy || conflictLocked}
-            onSelect={() => deferUi(() => setDiscardOpen(true))}
-          >
-            <RotateCcw aria-hidden="true" />
-            {t("repo.discardChanges")}
-          </ContextMenuItem>
 
           <ContextMenuSeparator />
 
+          {/* 3 复制 */}
           <ContextMenuSub>
             <ContextMenuSubTrigger disabled={disabled || busy}>
               <Copy aria-hidden="true" />
-              {t("repo.copyFilePath")}
+              {t("common.copy")}
             </ContextMenuSubTrigger>
             <ContextMenuSubContent className="min-w-44">
               <ContextMenuItem
@@ -190,7 +184,7 @@ export function ChangeFileContextMenu({
                 onSelect={() => void handleCopy(entry.path, "repo.copyRepoPathSuccess")}
               >
                 <Copy aria-hidden="true" />
-                {t("repo.copyRepoAbsolutePath")}
+                {t("repo.copyRepoRelativePath")}
               </ContextMenuItem>
               <ContextMenuItem
                 disabled={disabled || busy}
@@ -202,21 +196,10 @@ export function ChangeFileContextMenu({
             </ContextMenuSubContent>
           </ContextMenuSub>
 
+          {/* 4 导航 / 历史 */}
           <ContextMenuItem disabled={disabled || busy} onSelect={() => handleOpenHistory()}>
             <History aria-hidden="true" />
             {t("repo.viewFileHistory")}
-          </ContextMenuItem>
-
-          <ContextMenuSeparator />
-
-          <ContextMenuItem
-            disabled={disabled || busy || missing}
-            onSelect={() =>
-              void runAction(() => systemOpenService.revealInFileManager(absolutePath))
-            }
-          >
-            <Eye aria-hidden="true" />
-            {revealLabel}
           </ContextMenuItem>
           <ContextMenuItem
             disabled={disabled || busy}
@@ -224,6 +207,19 @@ export function ChangeFileContextMenu({
           >
             <FolderTree aria-hidden="true" />
             {t("repo.showInFileTree")}
+          </ContextMenuItem>
+
+          <ContextMenuSeparator />
+
+          {/* 5 系统打开：访达 → 编辑器 → 默认程序 */}
+          <ContextMenuItem
+            disabled={disabled || busy || missing}
+            onSelect={() =>
+              void runAction(() => systemOpenService.revealInFileManager(absolutePath))
+            }
+          >
+            <FolderOpen aria-hidden="true" />
+            {revealLabel}
           </ContextMenuItem>
           <ContextMenuItem
             disabled={disabled || busy || missing}
@@ -240,6 +236,18 @@ export function ChangeFileContextMenu({
           >
             <AppWindow aria-hidden="true" />
             {t("repo.openWithDefaultApp")}
+          </ContextMenuItem>
+
+          <ContextMenuSeparator />
+
+          {/* 7 危险置底 */}
+          <ContextMenuItem
+            variant="destructive"
+            disabled={disabled || busy || conflictLocked}
+            onSelect={() => deferUi(() => setDiscardOpen(true))}
+          >
+            <RotateCcw aria-hidden="true" />
+            {t("repo.discardChanges")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
