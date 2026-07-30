@@ -59,6 +59,7 @@ pub struct WorkspaceRow {
     pub name: String,
     pub icon: String,
     pub color: String,
+    pub locked: bool,
     pub sort_order: i64,
     pub created_at: String,
     pub updated_at: String,
@@ -108,6 +109,7 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
           id TEXT PRIMARY KEY,
           parent_id TEXT NULL REFERENCES workspaces(id) ON DELETE SET NULL,
           name TEXT NOT NULL,
+          locked INTEGER NOT NULL DEFAULT 0,
           sort_order INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
@@ -211,6 +213,7 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
     for (column, definition) in [
         ("icon", "TEXT NOT NULL DEFAULT 'folder'"),
         ("color", "TEXT NOT NULL DEFAULT 'blue'"),
+        ("locked", "INTEGER NOT NULL DEFAULT 0"),
     ] {
         let exists = workspace_columns.iter().any(|item| {
             item.try_get::<String, _>("name")
@@ -280,6 +283,21 @@ pub async fn add_project(
     let icon = normalize_project_icon(icon)?;
     let timestamp = now();
     let id = uuid::Uuid::new_v4().to_string();
+    let path_key = path_to_string(&repo_path);
+
+    // 新建或 upsert 改分组时，锁定分组禁止移入；已存在记录还需校验移出
+    let existing = sqlx::query_scalar::<_, Option<String>>(
+        "SELECT workspace_id FROM projects WHERE path = ?1",
+    )
+    .bind(&path_key)
+    .fetch_optional(pool)
+    .await
+    .map_err(to_db_error)?
+    .flatten();
+    if existing.as_ref() != workspace_id.as_ref() {
+        ensure_workspace_unlocked_for_move(pool, existing.as_deref(), "移出").await?;
+        ensure_workspace_unlocked_for_move(pool, workspace_id.as_deref(), "移入").await?;
+    }
 
     sqlx::query(
         r#"
@@ -298,14 +316,14 @@ pub async fn add_project(
     .bind(display_name)
     .bind(&description)
     .bind(icon)
-    .bind(path_to_string(&repo_path))
+    .bind(&path_key)
     .bind(timestamp)
     .bind(has_explicit_icon)
     .execute(pool)
     .await
     .map_err(to_db_error)?;
 
-    get_project_by_path(pool, &path_to_string(&repo_path)).await
+    get_project_by_path(pool, &path_key).await
 }
 
 pub async fn list_projects(
@@ -382,6 +400,22 @@ pub async fn update_project(
         return Err(AppError::new("VALIDATION", "没有可更新的项目字段"));
     }
 
+    if let Some(next_workspace_id) = workspace_id.as_ref() {
+        let current_workspace_id = sqlx::query_scalar::<_, Option<String>>(
+            "SELECT workspace_id FROM projects WHERE id = ?1",
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .map_err(to_db_error)?
+        .flatten();
+        if current_workspace_id.as_ref() != next_workspace_id.as_ref() {
+            ensure_workspace_unlocked_for_move(pool, current_workspace_id.as_deref(), "移出")
+                .await?;
+            ensure_workspace_unlocked_for_move(pool, next_workspace_id.as_deref(), "移入").await?;
+        }
+    }
+
     let timestamp = now();
     let result = sqlx::query(
         r#"
@@ -413,9 +447,32 @@ pub async fn update_project(
     get_project_by_id(pool, id).await
 }
 
+async fn ensure_workspace_unlocked_for_move(
+    pool: &SqlitePool,
+    workspace_id: Option<&str>,
+    action: &str,
+) -> Result<(), AppError> {
+    let Some(workspace_id) = workspace_id else {
+        return Ok(());
+    };
+    let locked = sqlx::query_scalar::<_, i64>("SELECT locked FROM workspaces WHERE id = ?1")
+        .bind(workspace_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(to_db_error)?
+        .unwrap_or(0);
+    if locked != 0 {
+        return Err(AppError::new(
+            "VALIDATION",
+            &format!("锁定的分组不能{action}仓库"),
+        ));
+    }
+    Ok(())
+}
+
 pub async fn list_workspaces(pool: &SqlitePool) -> Result<Vec<WorkspaceRow>, AppError> {
     sqlx::query(
-        "SELECT id, parent_id, name, icon, color, sort_order, created_at, updated_at FROM workspaces ORDER BY sort_order, name COLLATE NOCASE",
+        "SELECT id, parent_id, name, icon, color, locked, sort_order, created_at, updated_at FROM workspaces ORDER BY sort_order, name COLLATE NOCASE",
     )
     .fetch_all(pool)
     .await
@@ -477,7 +534,7 @@ pub async fn create_workspace(
     let id = uuid::Uuid::new_v4().to_string();
     let timestamp = now();
     sqlx::query(
-        "INSERT INTO workspaces (id, parent_id, name, icon, color, sort_order, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, ?6)",
+        "INSERT INTO workspaces (id, parent_id, name, icon, color, locked, sort_order, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, ?6)",
     )
     .bind(&id)
     .bind(parent_id)
@@ -499,6 +556,7 @@ pub async fn update_workspace(
     parent_id: Option<Option<String>>,
     icon: Option<String>,
     color: Option<String>,
+    locked: Option<bool>,
 ) -> Result<WorkspaceRow, AppError> {
     let name = name
         .map(|value| value.trim().to_string())
@@ -507,9 +565,20 @@ pub async fn update_workspace(
         .as_deref()
         .map(normalize_workspace_color)
         .transpose()?;
-    if name.is_none() && parent_id.is_none() && icon.is_none() && color.is_none() {
+    if name.is_none()
+        && parent_id.is_none()
+        && icon.is_none()
+        && color.is_none()
+        && locked.is_none()
+    {
         return Err(AppError::new("VALIDATION", "没有可更新的分组字段"));
     }
+
+    let current = get_workspace(pool, id).await?;
+    if current.locked && parent_id.is_some() {
+        return Err(AppError::new("VALIDATION", "锁定的分组不能调整父级"));
+    }
+
     if let Some(Some(parent_id)) = parent_id.as_ref() {
         if parent_id == id {
             return Err(AppError::new("VALIDATION", "不能将分组设为自己的父级"));
@@ -523,12 +592,12 @@ pub async fn update_workspace(
             return Err(AppError::new("NOT_FOUND", "父分组不存在"));
         }
         // 禁止把祖先挂到子孙下，避免环
-        let mut current = Some(parent_id.clone());
-        while let Some(cursor) = current {
+        let mut current_parent = Some(parent_id.clone());
+        while let Some(cursor) = current_parent {
             if cursor == id {
                 return Err(AppError::new("VALIDATION", "不能将分组移动到其子分组下"));
             }
-            current = sqlx::query_scalar::<_, Option<String>>(
+            current_parent = sqlx::query_scalar::<_, Option<String>>(
                 "SELECT parent_id FROM workspaces WHERE id = ?1",
             )
             .bind(&cursor)
@@ -546,14 +615,16 @@ pub async fn update_workspace(
              parent_id = CASE WHEN ?2 THEN ?3 ELSE parent_id END,
              icon = COALESCE(?4, icon),
              color = COALESCE(?5, color),
-             updated_at = ?6
-         WHERE id = ?7",
+             locked = COALESCE(?6, locked),
+             updated_at = ?7
+         WHERE id = ?8",
     )
     .bind(&name)
     .bind(parent_id.is_some())
     .bind(parent_id.clone().flatten())
     .bind(&icon)
     .bind(&color)
+    .bind(locked.map(|value| if value { 1 } else { 0 }))
     .bind(&timestamp)
     .bind(id)
     .execute(pool)
@@ -568,6 +639,11 @@ pub async fn update_workspace(
 }
 
 pub async fn delete_workspace(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    let current = get_workspace(pool, id).await?;
+    if current.locked {
+        return Err(AppError::new("VALIDATION", "锁定的分组不能删除"));
+    }
+
     let mut transaction = pool.begin().await.map_err(to_db_error)?;
     let deleted = sqlx::query("DELETE FROM workspaces WHERE id = ?1")
         .bind(id)
@@ -619,6 +695,39 @@ pub async fn reorder_projects_and_workspaces(
         if exists == 0 {
             return Err(AppError::new("NOT_FOUND", "项目不存在"));
         }
+        let current_workspace_id = sqlx::query_scalar::<_, Option<String>>(
+            "SELECT workspace_id FROM projects WHERE id = ?1",
+        )
+        .bind(&project.id)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(to_db_error)?;
+        if current_workspace_id != project.workspace_id {
+            if let Some(source_id) = current_workspace_id.as_deref() {
+                let source_locked =
+                    sqlx::query_scalar::<_, i64>("SELECT locked FROM workspaces WHERE id = ?1")
+                        .bind(source_id)
+                        .fetch_optional(&mut *transaction)
+                        .await
+                        .map_err(to_db_error)?
+                        .unwrap_or(0);
+                if source_locked != 0 {
+                    return Err(AppError::new("VALIDATION", "锁定的分组不能移出仓库"));
+                }
+            }
+            if let Some(target_id) = project.workspace_id.as_deref() {
+                let target_locked =
+                    sqlx::query_scalar::<_, i64>("SELECT locked FROM workspaces WHERE id = ?1")
+                        .bind(target_id)
+                        .fetch_optional(&mut *transaction)
+                        .await
+                        .map_err(to_db_error)?
+                        .unwrap_or(0);
+                if target_locked != 0 {
+                    return Err(AppError::new("VALIDATION", "锁定的分组不能移入仓库"));
+                }
+            }
+        }
         if let Some(workspace_id) = &project.workspace_id {
             let workspace_exists =
                 sqlx::query_scalar::<_, i64>("SELECT COUNT(1) FROM workspaces WHERE id = ?1")
@@ -660,7 +769,7 @@ pub async fn reorder_projects_and_workspaces(
 
 async fn get_workspace(pool: &SqlitePool, id: &str) -> Result<WorkspaceRow, AppError> {
     let row = sqlx::query(
-        "SELECT id, parent_id, name, icon, color, sort_order, created_at, updated_at FROM workspaces WHERE id = ?1",
+        "SELECT id, parent_id, name, icon, color, locked, sort_order, created_at, updated_at FROM workspaces WHERE id = ?1",
     )
     .bind(id)
     .fetch_one(pool)
@@ -672,6 +781,7 @@ async fn get_workspace(pool: &SqlitePool, id: &str) -> Result<WorkspaceRow, AppE
 
 fn row_to_workspace(row: sqlx::sqlite::SqliteRow) -> Result<WorkspaceRow, AppError> {
     let stored_color: String = row.try_get("color").map_err(to_db_error)?;
+    let locked: i64 = row.try_get("locked").map_err(to_db_error)?;
     Ok(WorkspaceRow {
         id: row.try_get("id").map_err(to_db_error)?,
         parent_id: row.try_get("parent_id").map_err(to_db_error)?,
@@ -679,6 +789,7 @@ fn row_to_workspace(row: sqlx::sqlite::SqliteRow) -> Result<WorkspaceRow, AppErr
         icon: row.try_get("icon").map_err(to_db_error)?,
         color: normalize_workspace_color(&stored_color)
             .unwrap_or_else(|_| DEFAULT_WORKSPACE_COLOR.to_string()),
+        locked: locked != 0,
         sort_order: row.try_get("sort_order").map_err(to_db_error)?,
         created_at: row.try_get("created_at").map_err(to_db_error)?,
         updated_at: row.try_get("updated_at").map_err(to_db_error)?,

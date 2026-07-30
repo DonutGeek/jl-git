@@ -13,6 +13,7 @@ import {
   Search,
   Trash2,
   TriangleAlert,
+  Lock,
 } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import {
@@ -107,6 +108,7 @@ function SortableGroupItem({
   id,
   entry,
   acceptProjectDrop = false,
+  disabled = false,
   className,
   children,
 }: {
@@ -114,6 +116,7 @@ function SortableGroupItem({
   entry: DragEntry;
   /** 分组行可作为项目投放目标 */
   acceptProjectDrop?: boolean;
+  disabled?: boolean;
   className?: string;
   children: ReactNode;
 }) {
@@ -121,6 +124,7 @@ function SortableGroupItem({
     useSortable({
       id,
       data: entry,
+      disabled,
     });
 
   return (
@@ -133,8 +137,8 @@ function SortableGroupItem({
         isDragging && "opacity-0",
         acceptProjectDrop && isOver && !isDragging && "bg-primary/10 ring-primary/25 ring-1",
       )}
-      {...attributes}
-      {...listeners}
+      {...(disabled ? {} : attributes)}
+      {...(disabled ? {} : listeners)}
     >
       {children}
     </div>
@@ -343,6 +347,13 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
     if (fromWorkspaceId === toWorkspaceId) {
       return;
     }
+    if (
+      (fromWorkspaceId && workspaces.find((item) => item.id === fromWorkspaceId)?.locked) ||
+      (toWorkspaceId && workspaces.find((item) => item.id === toWorkspaceId)?.locked)
+    ) {
+      toast.error(t("projectManager.lockedGroupMoveBlocked"));
+      return;
+    }
     const source = projectsInWorkspace(fromWorkspaceId);
     const target = projectsInWorkspace(toWorkspaceId);
     if (!source.some((item) => item.id === projectId)) {
@@ -385,6 +396,11 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
     try {
       // 拖动分组：与同级分组或同级仓库重排
       if (active.type === "workspace") {
+        const activeWorkspace = workspaces.find((item) => item.id === active.workspaceId);
+        if (activeWorkspace?.locked) {
+          toast.error(t("projectManager.lockedGroupDragBlocked"));
+          return;
+        }
         const sameLevelWorkspace = over.type === "workspace" && over.parentId === active.parentId;
         const sameLevelProject = over.type === "project" && over.workspaceId === active.parentId;
         if (sameLevelWorkspace || sameLevelProject) {
@@ -418,6 +434,13 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
       }
 
       // 跨分组：落到目标组内指定位置
+      if (
+        (active.workspaceId && workspaces.find((item) => item.id === active.workspaceId)?.locked) ||
+        (over.workspaceId && workspaces.find((item) => item.id === over.workspaceId)?.locked)
+      ) {
+        toast.error(t("projectManager.lockedGroupMoveBlocked"));
+        return;
+      }
       const source = projectsInWorkspace(active.workspaceId);
       const target = projectsInWorkspace(over.workspaceId);
       const sourceIndex = source.findIndex((item) => item.id === activeId);
@@ -554,6 +577,10 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
     if (!deleteTarget || deleteBusy) {
       return;
     }
+    if (deleteTarget.locked) {
+      toast.error(t("projectManager.lockedGroupDeleteBlocked"));
+      return;
+    }
     setDeleteBusy(true);
     try {
       await removeWorkspace(deleteTarget.id);
@@ -651,12 +678,16 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
               parentId: workspace.parentId,
               label: workspace.name,
             }}
-            acceptProjectDrop
+            acceptProjectDrop={!workspace.locked}
+            disabled={workspace.locked}
             className="group/row hover:bg-accent/60 flex h-9 w-full items-center gap-0.5 rounded-md transition-colors"
           >
             <button
               type="button"
-              className="focus-visible:ring-ring flex h-full min-w-0 flex-1 cursor-grab items-center gap-1.5 rounded-md px-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing"
+              className={cn(
+                "focus-visible:ring-ring flex h-full min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none",
+                workspace.locked ? "cursor-default" : "cursor-grab active:cursor-grabbing",
+              )}
               onClick={() =>
                 setCollapsedWorkspaceIds((current) => {
                   const next = new Set(current);
@@ -678,6 +709,12 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
               />
               <Folder className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
               <span className="min-w-0 truncate font-medium">{workspace.name}</span>
+              {workspace.locked ? (
+                <Lock
+                  className="text-muted-foreground size-3.5 shrink-0 opacity-80"
+                  aria-hidden="true"
+                />
+              ) : null}
             </button>
             <div className="mr-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
               <Tooltip delayDuration={300}>
@@ -722,14 +759,18 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
                     size="icon-xs"
                     className="text-destructive hover:text-destructive"
                     aria-label={t("projectManager.deleteGroup")}
-                    disabled={opening || dragging}
+                    disabled={opening || dragging || workspace.locked}
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={() => setDeleteTarget(workspace)}
                   >
                     <Trash2 aria-hidden="true" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>{t("projectManager.deleteGroup")}</TooltipContent>
+                <TooltipContent>
+                  {workspace.locked
+                    ? t("projectManager.lockedGroupDeleteBlocked")
+                    : t("projectManager.deleteGroup")}
+                </TooltipContent>
               </Tooltip>
             </div>
           </SortableGroupItem>

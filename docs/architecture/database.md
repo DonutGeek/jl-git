@@ -49,6 +49,9 @@ erDiagram
 | `id` | TEXT PK | UUID |
 | `parent_id` | TEXT NULL | 父分组 ID；NULL 表示根分组 |
 | `name` | TEXT NOT NULL | 显示名 |
+| `icon` | TEXT NOT NULL | 受控分组图标键 |
+| `color` | TEXT NOT NULL | 分组强调色 `#RRGGBB` |
+| `locked` | INTEGER NOT NULL DEFAULT 0 | 1=锁定：禁止拖动、移入/移出仓库、删除与调整父级 |
 | `sort_order` | INTEGER NOT NULL DEFAULT 0 | 排序 |
 | `created_at` | TEXT NOT NULL | ISO-8601 |
 | `updated_at` | TEXT NOT NULL | ISO-8601 |

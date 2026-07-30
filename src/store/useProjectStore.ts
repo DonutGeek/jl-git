@@ -39,6 +39,7 @@ interface ProjectStoreActions {
     parentId?: string | null;
     icon?: WorkspaceIcon;
     color?: WorkspaceColor;
+    locked?: boolean;
   }) => Promise<Workspace>;
   removeWorkspace: (id: string) => Promise<void>;
   updateProject: (input: {

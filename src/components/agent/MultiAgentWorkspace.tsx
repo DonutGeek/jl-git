@@ -573,6 +573,10 @@ export function MultiAgentWorkspace() {
         messages: history,
         profiles: profilesForStream,
         resumeAuthors,
+        codeToolRoots: explicitTargets.map((profile) => ({
+          path: profile.jlgitMeta.path,
+          label: profile.jlgitMeta.alias || profile.projectName,
+        })),
         locale,
         signal: controller.signal,
         model: modelId,

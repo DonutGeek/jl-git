@@ -10,6 +10,7 @@ use crate::git::{
     conflict::{self, ConflictSide, GitWorktreeFileResult},
     diff::{self, GitDiffResult, GitStagedDiffResult},
     fs_list::{self, FsCreateResult, FsFileSizeResult, FsListResult, FsRenameResult},
+    grep::{self, GrepResult},
     identity::{self, GitIdentity},
     log::{self, GitLogResult},
     media::{self, GitFileMedia},
@@ -906,6 +907,23 @@ pub fn git_read_worktree_file(
 ) -> Result<GitWorktreeFileResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
     conflict::read_worktree_file(&repo_path, &file_path, max_bytes, encoding.as_deref())
+}
+
+/// 仓库内固定字符串代码搜索（只读；跳过二进制）
+#[tauri::command]
+pub fn git_grep(
+    path: String,
+    pattern: String,
+    pathspec: Option<String>,
+    max_matches: Option<u32>,
+) -> Result<GrepResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    grep::grep_code(
+        &repo_path,
+        &pattern,
+        pathspec.as_deref(),
+        max_matches,
+    )
 }
 
 /// 写入工作区文件；可选 stage 标记已解决

@@ -4,6 +4,7 @@ import { DEFAULT_AGENT_MODEL } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getAgentSafetyRefusal } from "@/services/ai/ai.safety";
 import { getAgentSkillMode } from "@/services/ai/ai.skillMode";
+import { runAgentCodeToolLoop, shouldEnableAgentCodeTools } from "@/services/ai/ai.toolLoop";
 import {
   buildResumeIdentityRequest,
   extractDeclaredResumeAuthors,
@@ -111,8 +112,33 @@ export async function streamAgentReply({
   signal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeoutId = window.setTimeout(() => controller.abort(), AGENT_REQUEST_TIMEOUT_MS);
   const modelId = model.trim() || DEFAULT_AGENT_MODEL;
+  const history = messages.slice(-AGENT_HISTORY_LIMIT).map((message) => ({
+    role: message.role,
+    content: redactSecrets(message.content),
+  }));
+  const temperature = skillMode === "resume" ? 0.55 : skillMode === "skill-creator" ? 0.45 : 0.3;
+  const enableCodeTools = shouldEnableAgentCodeTools({
+    skillMode,
+    allowedRepos: [{ path: repoPath, label: jlgitMeta?.alias }],
+  });
 
   try {
+    if (enableCodeTools) {
+      await runAgentCodeToolLoop({
+        apiKey,
+        model: modelId,
+        systemPrompt,
+        history,
+        allowedRepos: [{ path: repoPath, label: jlgitMeta?.alias }],
+        multiRepo: false,
+        temperature,
+        signal: controller.signal,
+        failureMessage: i18n.t("agent.replyFailed"),
+        onDelta,
+      });
+      return;
+    }
+
     const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
       method: "POST",
       headers: {
@@ -123,7 +149,7 @@ export async function streamAgentReply({
         model: modelId,
         stream: true,
         // 成稿类技能略高；通用 Git 问答更克制
-        temperature: skillMode === "resume" ? 0.55 : skillMode === "skill-creator" ? 0.45 : 0.3,
+        temperature,
         ...(enableThinking
           ? {
               thinking: { type: "enabled" },
@@ -138,10 +164,7 @@ export async function streamAgentReply({
             content: systemPrompt,
           },
           // 只回传正文；reasoning 仅 UI 展示，不进入下一轮上下文
-          ...messages.slice(-AGENT_HISTORY_LIMIT).map((message) => ({
-            role: message.role,
-            content: redactSecrets(message.content),
-          })),
+          ...history,
         ],
       }),
       signal: controller.signal,

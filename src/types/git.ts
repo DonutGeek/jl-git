@@ -425,3 +425,14 @@ export interface FsCreateResult {
   path: string;
   isDir: boolean;
 }
+
+export interface GitGrepMatch {
+  path: string;
+  line: number;
+  text: string;
+}
+
+export interface GitGrepResult {
+  matches: GitGrepMatch[];
+  truncated: boolean;
+}

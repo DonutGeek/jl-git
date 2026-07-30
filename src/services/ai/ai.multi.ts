@@ -5,6 +5,7 @@ import { DEFAULT_AGENT_MODEL } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getAgentSafetyRefusal } from "@/services/ai/ai.safety";
 import { getAgentSkillMode } from "@/services/ai/ai.skillMode";
+import { runAgentCodeToolLoop, shouldEnableAgentCodeTools } from "@/services/ai/ai.toolLoop";
 import { buildMultiAgentSystemPrompt } from "@/prompts/agent/multi";
 import { buildResumeSystemPrompt } from "@/prompts/resume";
 import { buildSkillCreatorSystemPrompt } from "@/prompts/skillCreator";
@@ -30,6 +31,8 @@ interface StreamMultiAgentReplyOptions {
   profiles: readonly AgentProjectProfile[];
   /** 仅来自本次简历对话中用户主动声明的 Git 作者身份 */
   resumeAuthors: ReadonlyArray<{ name: string; email: string }>;
+  /** 允许代码工具访问的仓根；多仓须由 @项目 / 点名解析后传入 */
+  codeToolRoots?: ReadonlyArray<{ path: string; label?: string }>;
   locale: string;
   signal?: AbortSignal;
   /** DeepSeek model id，如 deepseek-v4-pro / deepseek-v4-flash */
@@ -46,6 +49,7 @@ export async function streamMultiAgentReply({
   messages,
   profiles,
   resumeAuthors,
+  codeToolRoots = [],
   locale,
   signal,
   model = DEFAULT_AGENT_MODEL,
@@ -79,8 +83,34 @@ export async function streamMultiAgentReply({
   signal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const modelId = model.trim() || DEFAULT_AGENT_MODEL;
+  const history = messages.slice(-HISTORY_LIMIT).map((message) => ({
+    role: message.role,
+    content: redactSecrets(message.content),
+  }));
+  const temperature = skillMode === "resume" ? 0.55 : skillMode === "skill-creator" ? 0.45 : 0.3;
+  const allowedRepos = codeToolRoots.map((item) => ({
+    path: item.path,
+    label: item.label,
+  }));
+  const enableCodeTools = shouldEnableAgentCodeTools({ skillMode, allowedRepos });
 
   try {
+    if (enableCodeTools) {
+      await runAgentCodeToolLoop({
+        apiKey,
+        model: modelId,
+        systemPrompt,
+        history,
+        allowedRepos,
+        multiRepo: true,
+        temperature,
+        signal: controller.signal,
+        failureMessage: i18n.t("multiAgent.replyFailed"),
+        onDelta,
+      });
+      return;
+    }
+
     const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
       method: "POST",
       headers: {
@@ -91,7 +121,7 @@ export async function streamMultiAgentReply({
         model: modelId,
         stream: true,
         // 成稿类技能略高；通用多仓问答更克制
-        temperature: skillMode === "resume" ? 0.55 : skillMode === "skill-creator" ? 0.45 : 0.3,
+        temperature,
         ...(enableThinking
           ? {
               thinking: { type: "enabled" },
@@ -105,10 +135,7 @@ export async function streamMultiAgentReply({
             role: "system",
             content: systemPrompt,
           },
-          ...messages.slice(-HISTORY_LIMIT).map((message) => ({
-            role: message.role,
-            content: redactSecrets(message.content),
-          })),
+          ...history,
         ],
       }),
       signal: controller.signal,

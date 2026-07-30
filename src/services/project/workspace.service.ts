@@ -16,7 +16,11 @@ import {
 } from "@/utils/workspaceColor";
 
 function normalizeWorkspace(workspace: Workspace): Workspace {
-  return { ...workspace, color: normalizeWorkspaceColor(workspace.color) };
+  return {
+    ...workspace,
+    color: normalizeWorkspaceColor(workspace.color),
+    locked: Boolean(workspace.locked),
+  };
 }
 
 async function list(): Promise<Workspace[]> {
@@ -44,6 +48,7 @@ async function update(input: {
   parentId?: string | null;
   icon?: WorkspaceIcon;
   color?: WorkspaceColor;
+  locked?: boolean;
 }): Promise<Workspace> {
   const result = await invokeCommand<WorkspaceResult>("workspace_update", {
     id: input.id,
@@ -51,6 +56,7 @@ async function update(input: {
     parentId: input.parentId === undefined ? undefined : input.parentId,
     icon: input.icon,
     color: input.color === undefined ? undefined : requireWorkspaceColor(input.color),
+    locked: input.locked,
   });
   return normalizeWorkspace(result.workspace);
 }

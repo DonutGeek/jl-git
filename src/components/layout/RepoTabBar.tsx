@@ -417,6 +417,29 @@ export function RepoTabBar() {
     }
   }
 
+  function closeGroupTabs(workspaceId: string): void {
+    const groupTabIds = tabs
+      .filter((tab) => tab.type === "repository" && tab.workspaceId === workspaceId)
+      .map((tab) => tab.id);
+    if (groupTabIds.length === 0) {
+      toast.message(t("projectManager.closeGroupEmpty"));
+      return;
+    }
+    const closingActive = Boolean(activeId && groupTabIds.includes(activeId));
+    let nextId: string | null = null;
+    for (const tabId of groupTabIds) {
+      nextId = closeTab(tabId);
+    }
+    if (closingActive) {
+      if (nextId) {
+        activateTab(nextId);
+      } else {
+        activateTab(openNewTab());
+      }
+    }
+    toast.success(t("projectManager.closeGroupSuccess", { count: groupTabIds.length }));
+  }
+
   function handleClose(event: MouseEvent | KeyboardEvent, tabId: string): void {
     event.stopPropagation();
     event.preventDefault();
@@ -492,6 +515,10 @@ export function RepoTabBar() {
     if (typeof activeData.workspaceId !== "string") {
       return;
     }
+    if (workspaceById.get(activeData.workspaceId)?.locked) {
+      toast.error(t("projectManager.lockedGroupDragBlocked"));
+      return;
+    }
     const overWorkspaceId = overData?.workspaceId;
     if (typeof overWorkspaceId !== "string" || overWorkspaceId === activeData.workspaceId) {
       return;
@@ -554,6 +581,14 @@ export function RepoTabBar() {
       activeData.projectId &&
       typeof overData?.workspaceId === "string"
     ) {
+      const sourceLocked =
+        typeof activeData.workspaceId === "string" &&
+        Boolean(workspaceById.get(activeData.workspaceId)?.locked);
+      const targetLocked = Boolean(workspaceById.get(overData.workspaceId)?.locked);
+      if (sourceLocked || targetLocked) {
+        toast.error(t("projectManager.lockedGroupMoveBlocked"));
+        return;
+      }
       if (event.over && overData.type === "tab") {
         reorderTabs(String(event.active.id), String(event.over.id));
       }
@@ -569,6 +604,14 @@ export function RepoTabBar() {
     }
 
     if (action !== "ungroup" || !activeData.projectId) {
+      return;
+    }
+
+    if (
+      typeof activeData.workspaceId === "string" &&
+      workspaceById.get(activeData.workspaceId)?.locked
+    ) {
+      toast.error(t("projectManager.lockedGroupMoveBlocked"));
       return;
     }
 
@@ -620,7 +663,7 @@ export function RepoTabBar() {
           )}
         >
           {/* 交互控件 no-drag；拖拽留白必须是兄弟节点，不能包在 no-drag 里（否则加载页无工具栏时窗口无法拖动） */}
-          <div className="flex h-7 shrink-0 items-center gap-1.5" style={noDragStyle}>
+          <div className="flex h-7 shrink-0 items-center" style={noDragStyle}>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <Button
@@ -636,12 +679,10 @@ export function RepoTabBar() {
               </TooltipTrigger>
               <TooltipContent>{t("dashboard.openRepoAction")}</TooltipContent>
             </Tooltip>
-            <div className="bg-border h-3.5 w-px shrink-0 self-center" aria-hidden="true" />
           </div>
           {/* flex-1：标签区吃满至右侧控件前，避免 + 与鲸灵按钮之间大片空位 */}
           <div className="flex h-full min-w-0 flex-1 items-center gap-1" style={noDragStyle}>
             {/* 主滚动用 shadcn ScrollArea：细滚动条、悬停/滚动时才显示，不再用裸 overflow-x-auto */}
-            {/* 视口底部为横向滚动条预留 10px，避免覆盖标签组边框 */}
             <div className="relative h-full min-w-0 flex-1">
               <ScrollArea ref={bindScrollArea} className={REPO_TAB_SCROLL_AREA_CLASSNAME}>
                 <div className={REPO_TAB_CONTENT_CLASSNAME}>
@@ -660,6 +701,7 @@ export function RepoTabBar() {
                         typeof group.workspaceId === "string" &&
                         group.workspaceId === draggingGroupWorkspaceId
                       }
+                      onCloseGroup={closeGroupTabs}
                     >
                       {group.values.map((tab) => (
                         <SortableRepoTab
@@ -700,13 +742,13 @@ export function RepoTabBar() {
               </ScrollArea>
               {canScrollTabsLeft ? (
                 <div
-                  className="from-background via-background/80 pointer-events-none absolute top-0 bottom-2.5 left-0 z-10 w-8 bg-linear-to-r to-transparent"
+                  className="from-background via-background/80 pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-linear-to-r to-transparent"
                   aria-hidden="true"
                 />
               ) : null}
               {canScrollTabsRight ? (
                 <div
-                  className="from-background via-background/80 pointer-events-none absolute top-0 right-0 bottom-2.5 z-10 w-8 bg-linear-to-l to-transparent"
+                  className="from-background via-background/80 pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-linear-to-l to-transparent"
                   aria-hidden="true"
                 />
               ) : null}

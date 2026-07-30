@@ -50,6 +50,7 @@ export interface Workspace {
   name: string;
   icon: WorkspaceIcon;
   color: WorkspaceColor;
+  locked: boolean;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;

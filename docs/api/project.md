@@ -48,7 +48,12 @@ type ProjectIcon =
 
 interface Workspace {
   id: string;
+  parentId: string | null;
   name: string;
+  icon: WorkspaceIcon;
+  color: WorkspaceColor;
+  /** 锁定后禁止拖动、移入/移出、删除与调整父级 */
+  locked: boolean;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
@@ -124,9 +129,10 @@ interface RecentItem {
 | 方法 | Command |
 |------|---------|
 | `list()` | `workspace_list` |
-| `create(name, parentId?)` | `workspace_create` |
-| `update({ id, name?, parentId?, icon?, color? })` | `workspace_update` |
+| `create(name, parentId?, icon?, color?)` | `workspace_create` |
+| `update({ id, name?, parentId?, icon?, color?, locked? })` | `workspace_update` |
 | `remove(id)` | `workspace_delete` |
+| `reorder({ workspaces, projects })` | `workspace_reorder` |
 
 ---
 

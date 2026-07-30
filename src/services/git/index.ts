@@ -6,6 +6,7 @@ export * from "./git.conflict";
 export * from "./git.clone";
 export * from "./git.diff";
 export * from "./git.fs";
+export * from "./git.grep";
 export * from "./git.accounts";
 export * from "./git.identity";
 export * from "./git.log";
@@ -46,6 +47,7 @@ import {
   getStagedDiff,
 } from "./git.diff";
 import { createPath, getFileSize, listDir, removePath, renamePath } from "./git.fs";
+import { searchCode } from "./git.grep";
 import {
   createGitIdentityAccount,
   deleteGitIdentityAccount,
@@ -95,6 +97,7 @@ export const gitService = {
   listRemoteTags,
   listDir,
   getFileSize,
+  searchCode,
   removePath,
   renamePath,
   createPath,

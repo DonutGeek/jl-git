@@ -2,13 +2,13 @@ import { useEffect, useId, useState, type KeyboardEvent, type PointerEvent } fro
 import { Check, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { SelectMenu } from "@/components/common/SelectMenu";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
-  PopoverDescription,
   PopoverHeader,
   PopoverTitle,
   PopoverTrigger,
@@ -16,10 +16,14 @@ import {
 import { Slider } from "@/components/ui/slider";
 import {
   APP_THEME_COLOR_SUGGESTIONS,
+  COLOR_INPUT_FORMATS,
   contrastingForeground,
+  formatColor,
   hexToHsv,
   hsvToHex,
   normalizeHexColor,
+  parseCssColor,
+  type ColorInputFormat,
 } from "@/design/editor-themes";
 import { cn } from "@/lib/utils";
 
@@ -50,22 +54,24 @@ export function SettingsColorSwatch({
   const presetHex = normalizeHexColor(presetValue, fallbackHex);
   const hex = normalizeHexColor(value, presetHex);
   const inputId = useId();
+  const formatId = useId();
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(hex);
+  const [format, setFormat] = useState<ColorInputFormat>("hex");
+  const [draft, setDraft] = useState(() => formatColor(hex, "hex"));
   const [hue, setHue] = useState(() => hexToHsv(hex).hue);
   const [saturation, setSaturation] = useState(() => hexToHsv(hex).saturation);
   const [brightness, setBrightness] = useState(() => hexToHsv(hex).value);
 
   useEffect(() => {
     const hsv = hexToHsv(hex);
-    setDraft(hex);
+    setDraft(formatColor(hex, format));
     setHue(hsv.hue);
     setSaturation(hsv.saturation);
     setBrightness(hsv.value);
-  }, [hex]);
+  }, [format, hex]);
 
   const applyHex = (next: string): void => {
-    setDraft(next);
+    setDraft(formatColor(next, format));
     if (next !== hex) {
       onChange(next);
     }
@@ -79,7 +85,7 @@ export function SettingsColorSwatch({
   };
 
   const applyDraft = (nextDraft: string): boolean => {
-    const next = normalizeHexColor(nextDraft, "");
+    const next = parseCssColor(nextDraft);
     if (!next) {
       return false;
     }
@@ -126,13 +132,19 @@ export function SettingsColorSwatch({
     }
   };
 
+  const draftValid = Boolean(parseCssColor(draft));
+  const formatOptions = COLOR_INPUT_FORMATS.map((item) => ({
+    value: item,
+    label: t(`settings.themeColorFormat${item.toUpperCase()}`),
+  }));
+
   return (
     <Popover
       open={open}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
         if (nextOpen) {
-          setDraft(hex);
+          setDraft(formatColor(hex, format));
         }
       }}
     >
@@ -143,7 +155,7 @@ export function SettingsColorSwatch({
           aria-label={ariaLabel}
           disabled={disabled}
           className={cn(
-            "border-input bg-background hover:bg-accent h-8 w-44 max-w-[40vw] cursor-pointer justify-start gap-2 px-2 shadow-none",
+            "border-input bg-background hover:bg-accent h-8 w-full max-w-none justify-start gap-2 px-2.5 font-normal shadow-none",
             className,
           )}
         >
@@ -155,24 +167,20 @@ export function SettingsColorSwatch({
             style={{ backgroundColor: hex }}
             aria-hidden
           />
-          <span className="text-muted-foreground truncate font-mono text-[11px] tabular-nums">
-            {hex}
-          </span>
+          <span className="text-foreground truncate font-mono text-xs tabular-nums">{hex}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent
         side="left"
+        align="start"
         sideOffset={8}
         collisionPadding={12}
-        className="max-h-[calc(100vh-1.5rem)] w-72 overflow-y-auto p-3"
+        className="w-72 p-4"
       >
-        <PopoverHeader className="gap-0.5">
-          <PopoverTitle className="text-xs">
+        <PopoverHeader>
+          <PopoverTitle className="text-sm">
             {t("settings.themeColorPickerTitle", { name: ariaLabel })}
           </PopoverTitle>
-          <PopoverDescription className="text-[11px]">
-            {t("settings.themeColorPickerHint")}
-          </PopoverDescription>
         </PopoverHeader>
 
         <div
@@ -186,7 +194,7 @@ export function SettingsColorSwatch({
             saturation: Math.round(saturation),
             brightness: Math.round(brightness),
           })}
-          className="border-border focus-visible:ring-ring relative mt-3 h-32 touch-none cursor-crosshair overflow-hidden rounded-md border outline-none focus-visible:ring-2"
+          className="border-input focus-visible:ring-ring relative mt-3 h-36 touch-none cursor-crosshair overflow-hidden rounded-md border outline-none focus-visible:ring-2"
           style={{
             backgroundColor: `hsl(${hue} 100% 50%)`,
             backgroundImage:
@@ -208,7 +216,7 @@ export function SettingsColorSwatch({
           onKeyDown={handleColorFieldKeyDown}
         >
           <span
-            className="pointer-events-none absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--color-picker-white)] shadow-[0_0_0_1px_var(--color-picker-outline)]"
+            className="pointer-events-none absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--color-picker-white)] shadow-[0_0_0_1px_var(--color-picker-outline)]"
             style={{
               left: `${saturation}%`,
               top: `${100 - brightness}%`,
@@ -217,10 +225,10 @@ export function SettingsColorSwatch({
           />
         </div>
 
-        <div className="mt-3 space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground text-[11px]">{t("settings.themeHue")}</span>
-            <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-muted-foreground text-xs">{t("settings.themeHue")}</span>
+            <span className="text-muted-foreground font-mono text-xs tabular-nums">
               {Math.round(hue)}°
             </span>
           </div>
@@ -271,7 +279,7 @@ export function SettingsColorSwatch({
               </div>
             </div>
 
-            <div className="text-muted-foreground mt-3 text-[11px]">
+            <div className="text-muted-foreground mt-3 text-xs">
               {t("settings.themeSuggestedColors")}
             </div>
             <div className="mt-1.5 grid grid-cols-8 gap-1">
@@ -303,46 +311,60 @@ export function SettingsColorSwatch({
           </>
         ) : null}
 
-        <Field className="mt-3 gap-1.5" data-invalid={!normalizeHexColor(draft, "") || undefined}>
-          <FieldLabel htmlFor={inputId} className="text-muted-foreground text-[11px]">
-            {t("settings.themeHexValue")}
+        <Field className="mt-3 gap-1.5" data-invalid={!draftValid || undefined}>
+          <FieldLabel htmlFor={inputId} className="text-muted-foreground text-xs">
+            {t("settings.themeColorValue")}
           </FieldLabel>
-          <Input
-            id={inputId}
-            value={draft}
-            maxLength={7}
-            spellCheck={false}
-            aria-invalid={normalizeHexColor(draft, "") ? undefined : true}
-            className="h-8 font-mono text-xs uppercase"
-            onChange={(event) => {
-              const nextDraft = event.target.value.toUpperCase();
-              setDraft(nextDraft);
-              const next = normalizeHexColor(nextDraft, "");
-              if (next && next !== hex) {
-                onChange(next);
-              }
-            }}
-            onBlur={() => {
-              if (!applyDraft(draft)) {
-                setDraft(hex);
-              }
-            }}
-            onKeyDown={handleDraftKeyDown}
-          />
+          <div className="flex items-center gap-2">
+            <SelectMenu
+              value={format}
+              ariaLabel={t("settings.themeColorFormat")}
+              options={formatOptions}
+              triggerClassName="h-8 w-[5.5rem] shrink-0"
+              size="sm"
+              onChange={(next) => {
+                if (COLOR_INPUT_FORMATS.includes(next as ColorInputFormat)) {
+                  setFormat(next as ColorInputFormat);
+                }
+              }}
+            />
+            <Input
+              id={inputId}
+              value={draft}
+              spellCheck={false}
+              aria-invalid={draftValid ? undefined : true}
+              aria-describedby={formatId}
+              className="h-8 min-w-0 flex-1 font-mono text-xs"
+              onChange={(event) => {
+                const nextDraft = event.target.value;
+                setDraft(nextDraft);
+                const next = parseCssColor(nextDraft);
+                if (next && next !== hex) {
+                  onChange(next);
+                }
+              }}
+              onBlur={() => {
+                if (!applyDraft(draft)) {
+                  setDraft(formatColor(hex, format));
+                }
+              }}
+              onKeyDown={handleDraftKeyDown}
+            />
+          </div>
+          <span id={formatId} className="sr-only">
+            {t("settings.themeColorFormatHint")}
+          </span>
         </Field>
 
         {showPresets ? (
           <Button
             type="button"
             variant="ghost"
-            size="xs"
+            size="sm"
             disabled={hex === presetHex}
-            className="mt-2 cursor-pointer px-1.5 disabled:cursor-default"
+            className="mt-2 h-8 cursor-pointer px-2 disabled:cursor-default"
             onClick={() => {
-              setDraft(presetHex);
-              if (presetHex !== hex) {
-                onChange(presetHex);
-              }
+              applyHex(presetHex);
             }}
           >
             <RotateCcw aria-hidden />

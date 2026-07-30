@@ -4,6 +4,7 @@ export interface WorkspaceTreeNode {
   value: string;
   label: string;
   children: WorkspaceTreeNode[];
+  disabled?: boolean;
 }
 
 /** 将分组树展平为「上级 / 子级」标签选项；可排除指定节点（如编辑时防成环） */
@@ -27,21 +28,36 @@ export function buildWorkspaceOptions(
   return flatten(buildWorkspaceTree(workspaces, excludeIds), "");
 }
 
+export interface BuildWorkspaceTreeOptions {
+  /** 锁定分组不可选（仍可展示当前值） */
+  disableLocked?: boolean;
+  /** 当前已选值：即使锁定也保持可选，避免触发器空白 */
+  allowLockedValue?: string;
+}
+
 /** 构建可折叠的分组树（排除指定节点及其展示） */
 export function buildWorkspaceTree(
   workspaces: readonly Workspace[],
   excludeIds: ReadonlySet<string> = new Set(),
+  options: BuildWorkspaceTreeOptions = {},
 ): WorkspaceTreeNode[] {
   const workspaceIds = new Set(workspaces.map((workspace) => workspace.id));
+  const { disableLocked = false, allowLockedValue } = options;
+
+  function toNode(workspace: Workspace): WorkspaceTreeNode {
+    const lockedDisabled = disableLocked && workspace.locked && workspace.id !== allowLockedValue;
+    return {
+      value: workspace.id,
+      label: workspace.name,
+      children: childrenOf(workspace.id),
+      ...(lockedDisabled ? { disabled: true } : {}),
+    };
+  }
 
   function childrenOf(parentId: string | null): WorkspaceTreeNode[] {
     return workspaces
       .filter((workspace) => workspace.parentId === parentId && !excludeIds.has(workspace.id))
-      .map((workspace) => ({
-        value: workspace.id,
-        label: workspace.name,
-        children: childrenOf(workspace.id),
-      }));
+      .map(toNode);
   }
 
   const roots = workspaces.filter(
@@ -50,11 +66,7 @@ export function buildWorkspaceTree(
       (workspace.parentId === null || !workspaceIds.has(workspace.parentId)),
   );
 
-  return roots.map((workspace) => ({
-    value: workspace.id,
-    label: workspace.name,
-    children: childrenOf(workspace.id),
-  }));
+  return roots.map(toNode);
 }
 
 /** 编辑时排除自身及子孙，避免成环 */

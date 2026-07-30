@@ -23,6 +23,7 @@ export function buildMultiAgentSystemPrompt(locale: string, projectContext: stri
     "- Prefer jlgitMeta (alias / description / path / group) when identifying a project, then README, then folder name and commit themes.",
     "- When listing registered projects, list all of them from the snapshot.",
     "- Do not invent claims or metrics that are absent from the repository data.",
+    "- Code tools require an @project (or a named project). Pass repo_path from jlgitMeta.path. Without a target project, ask the user to @mention one before reading code.",
     ...AGENT_ACTIONS_PROMPT,
     "Registered repositories snapshot:",
     projectContext,

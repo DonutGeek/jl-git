@@ -51,8 +51,12 @@ export function WorkspaceSelectMenu({
   const resolvedEmptyLabel = emptyLabel ?? t("projectManager.ungrouped");
 
   const tree = useMemo(
-    () => buildWorkspaceTree(workspaces, excludeIds ?? new Set()),
-    [workspaces, excludeIds],
+    () =>
+      buildWorkspaceTree(workspaces, excludeIds ?? new Set(), {
+        disableLocked: true,
+        allowLockedValue: value || undefined,
+      }),
+    [workspaces, excludeIds, value],
   );
 
   const currentLabel = useMemo(() => {

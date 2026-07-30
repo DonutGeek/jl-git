@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
+import { Lock } from "lucide-react";
 
+import { WorkspaceGroupContextMenu } from "@/components/project/WorkspaceGroupContextMenu";
 import { workspaceIconComponent } from "@/components/project/workspaceGroupAppearance";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -25,6 +27,7 @@ interface RepositoryTabGroupProps {
   children: ReactNode;
   ungroupedLabel: string;
   isGroupDragging?: boolean;
+  onCloseGroup?: (workspaceId: string) => void;
 }
 
 interface RepoTabGroupChromeProps {
@@ -46,6 +49,7 @@ export function RepoTabGroupChrome({ workspace, dragging = false }: RepoTabGroup
     >
       <WorkspaceIcon className="size-3 shrink-0" aria-hidden="true" />
       <span className="truncate">{workspace.name}</span>
+      {workspace.locked ? <Lock className="size-3 shrink-0 opacity-80" aria-hidden="true" /> : null}
     </Badge>
   );
 }
@@ -57,12 +61,15 @@ export function RepositoryTabGroup({
   children,
   ungroupedLabel,
   isGroupDragging = false,
+  onCloseGroup,
 }: RepositoryTabGroupProps) {
   const droppableId = `repo-tab-group:${repoTabGroupKey(workspaceId)}`;
   const draggableId = `repo-tab-group-drag:${repoTabGroupKey(workspaceId)}`;
   const isNamedGroup = typeof workspaceId === "string" && Boolean(workspace);
+  const locked = Boolean(workspace?.locked);
   const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: droppableId,
+    disabled: locked,
     data: {
       type: "group",
       workspaceId,
@@ -75,7 +82,7 @@ export function RepositoryTabGroup({
     isDragging,
   } = useDraggable({
     id: draggableId,
-    disabled: !isNamedGroup,
+    disabled: !isNamedGroup || locked,
     data: {
       type: "group",
       workspaceId,
@@ -83,6 +90,31 @@ export function RepositoryTabGroup({
   });
   const WorkspaceIcon = workspace ? workspaceIconComponent(workspace.icon) : null;
   const groupColor = workspace ? normalizeWorkspaceColor(workspace.color) : null;
+
+  const groupLabel =
+    isNamedGroup && workspace ? (
+      <Badge
+        variant="secondary"
+        className="rounded-md border-transparent p-0"
+        style={{ backgroundColor: workspaceColorTint(workspace.color) }}
+        asChild
+      >
+        <div
+          ref={setDragRef}
+          className={cn(
+            "text-muted-foreground flex h-7 max-w-28 shrink-0 items-center gap-1 px-2.5 font-mono text-xs leading-none font-medium",
+            locked ? "cursor-default" : "cursor-grab active:cursor-grabbing",
+          )}
+          title={workspace.name}
+          {...(locked ? {} : attributes)}
+          {...(locked ? {} : listeners)}
+        >
+          {WorkspaceIcon ? <WorkspaceIcon className="size-3 shrink-0" aria-hidden="true" /> : null}
+          <span className="truncate">{workspace.name}</span>
+          {locked ? <Lock className="size-3 shrink-0 opacity-80" aria-hidden="true" /> : null}
+        </div>
+      </Badge>
+    ) : null;
 
   return (
     <div
@@ -97,34 +129,21 @@ export function RepositoryTabGroup({
         groupColor
           ? {
               borderColor: groupColor,
-              boxShadow: isOver ? `0 0 0 1px ${workspaceColorRing(groupColor)}` : undefined,
+              boxShadow:
+                isOver && !locked ? `0 0 0 1px ${workspaceColorRing(groupColor)}` : undefined,
             }
           : undefined
       }
       data-repo-tab-group={repoTabGroupKey(workspaceId)}
       aria-label={workspaceId === null ? ungroupedLabel : undefined}
     >
-      {isNamedGroup && workspace ? (
-        <Badge
-          variant="secondary"
-          className="rounded-md border-transparent p-0"
-          style={{ backgroundColor: workspaceColorTint(workspace.color) }}
-          asChild
-        >
-          <div
-            ref={setDragRef}
-            className="text-muted-foreground flex h-7 max-w-28 shrink-0 cursor-grab items-center gap-1 px-2.5 font-mono text-xs leading-none font-medium active:cursor-grabbing"
-            title={workspace.name}
-            {...attributes}
-            {...listeners}
-          >
-            {WorkspaceIcon ? (
-              <WorkspaceIcon className="size-3 shrink-0" aria-hidden="true" />
-            ) : null}
-            <span className="truncate">{workspace.name}</span>
-          </div>
-        </Badge>
-      ) : null}
+      {groupLabel && workspace && onCloseGroup ? (
+        <WorkspaceGroupContextMenu workspace={workspace} onCloseGroup={onCloseGroup}>
+          {groupLabel}
+        </WorkspaceGroupContextMenu>
+      ) : (
+        groupLabel
+      )}
       <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
         <div className="flex items-center gap-1">{children}</div>
       </SortableContext>

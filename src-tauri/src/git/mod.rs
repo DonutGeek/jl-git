@@ -6,6 +6,7 @@ pub mod conflict;
 pub mod diff;
 pub mod env_path;
 pub mod fs_list;
+pub mod grep;
 pub mod identity;
 pub mod log;
 pub mod media;

@@ -148,9 +148,10 @@ pub async fn workspace_update(
     parent_id: Option<Option<String>>,
     icon: Option<String>,
     color: Option<String>,
+    locked: Option<bool>,
 ) -> Result<WorkspaceResult, AppError> {
     Ok(WorkspaceResult {
-        workspace: db::update_workspace(&pool, &id, name, parent_id, icon, color).await?,
+        workspace: db::update_workspace(&pool, &id, name, parent_id, icon, color, locked).await?,
     })
 }
 #[tauri::command]

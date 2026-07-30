@@ -129,7 +129,8 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
         const workspace = await updateWorkspace({
           id: props.workspace.id,
           name: nextName,
-          parentId: parentId || null,
+          // 锁定分组禁止调整父级；提交时也不带 parentId，避免后端拒绝
+          ...(props.workspace.locked ? {} : { parentId: parentId || null }),
           icon,
           color,
         });
@@ -196,7 +197,7 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
                 onChange={setParentId}
                 nodes={parentTree}
                 ariaLabel={t("projectManager.parentGroup")}
-                disabled={saving}
+                disabled={saving || Boolean(editWorkspace?.locked)}
                 triggerIcon={folderIcon}
                 nodeIcon={folderIcon}
                 emptyOption={{

@@ -34,12 +34,17 @@ interface ProjectSettingsDialogProps {
 export function ProjectSettingsDialog({ project, open, onOpenChange }: ProjectSettingsDialogProps) {
   const { t } = useTranslation();
   const updateProject = useProjectStore((state) => state.updateProject);
+  const workspaces = useProjectStore((state) => state.workspaces);
   const [name, setName] = useState(project.name);
   const [icon, setIcon] = useState<ProjectIcon>(project.icon);
   const [workspaceId, setWorkspaceId] = useState(project.workspaceId ?? "");
   const [description, setDescription] = useState(project.description ?? "");
   const [descriptionGenerating, setDescriptionGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const sourceLocked = Boolean(
+    project.workspaceId && workspaces.find((item) => item.id === project.workspaceId)?.locked,
+  );
 
   useEffect(() => {
     if (!open) {
@@ -65,13 +70,25 @@ export function ProjectSettingsDialog({ project, open, onOpenChange }: ProjectSe
       return;
     }
 
+    const nextWorkspaceId = workspaceId || null;
+    if (nextWorkspaceId !== (project.workspaceId ?? null)) {
+      if (sourceLocked) {
+        toast.error(t("projectManager.lockedGroupMoveBlocked"));
+        return;
+      }
+      if (nextWorkspaceId && workspaces.find((item) => item.id === nextWorkspaceId)?.locked) {
+        toast.error(t("projectManager.lockedGroupMoveBlocked"));
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       await updateProject({
         id: project.id,
         name: nextName,
         icon,
-        workspaceId: workspaceId || null,
+        workspaceId: nextWorkspaceId,
         description: description.trim() || null,
       });
       toast.success(t("projectManager.projectSettingsSuccess"));
@@ -138,7 +155,7 @@ export function ProjectSettingsDialog({ project, open, onOpenChange }: ProjectSe
                     value={workspaceId}
                     onChange={setWorkspaceId}
                     ariaLabel={t("projectManager.workspaceLabel")}
-                    disabled={saving || descriptionGenerating}
+                    disabled={saving || descriptionGenerating || sourceLocked}
                     triggerClassName="h-9"
                   />
                 </Field>

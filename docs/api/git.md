@@ -182,6 +182,8 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 | `conflictTake(repoPath, filePath, side)` | `git_conflict_take` | 整文件 ours/theirs + add |
 | `conflictMarkResolved(repoPath, filePath)` | `git_conflict_mark_resolved` | `git add` |
 | `readWorktreeFile(repoPath, filePath, options?)` | `git_read_worktree_file` | 含冲突标记的工作区文本 |
+| `searchCode(repoPath, pattern, options?)` | `git_grep` | 固定字符串代码搜索（鲸灵只读工具） |
+| `writeWorktreeFile(...)` | `git_write_worktree_file` | 写回；可选 stage |
 | `writeWorktreeFile(repoPath, filePath, content, options?)` | `git_write_worktree_file` | 写回；`stage` 时一并 add |
 | `push(repoPath, options?: { remote?; branch?; setUpstream?; force? })` | `git_push` | 返回 `{ ok, remote, elapsedMs }` |
 

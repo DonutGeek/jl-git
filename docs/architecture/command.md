@@ -149,7 +149,7 @@ interface AppError {
 |------|------|------|------|------|
 | `workspace_list` | 列出工作区 | `{}` | `{ workspaces: WorkspaceRow[] }` | `DB_ERROR` |
 | `workspace_create` | 创建 | `{ name: string }` | `{ workspace: WorkspaceRow }` | `VALIDATION` `DB_ERROR` |
-| `workspace_update` | 改名/上级/图标/颜色 | `{ id; name?; parentId?; icon?; color? }` | `{ workspace }` | `NOT_FOUND` `VALIDATION` `DB_ERROR` |
+| `workspace_update` | 改名/上级/图标/颜色/锁定 | `{ id; name?; parentId?; icon?; color?; locked? }` | `{ workspace }` | `NOT_FOUND` `VALIDATION` `DB_ERROR` |
 | `workspace_delete` | 删除（项目 workspace_id 置空） | `{ id }` | `{ ok: true }` | `NOT_FOUND` `DB_ERROR` |
 
 ### `favorite_set` / `favorite_list`
@@ -636,9 +636,10 @@ interface GitBranch {
 | `git_conflict_take` | `{ path; filePath; side: "ours" \| "theirs" }` | `{ ok: true }` |
 | `git_conflict_mark_resolved` | `{ path; filePath }` | `{ ok: true }` |
 | `git_read_worktree_file` | `{ path; filePath; encoding?; maxBytes? }` | `{ text; binary; truncated }` |
+| `git_grep` | `{ path; pattern; pathspec?; maxMatches? }` | `{ matches: [{ path; line; text }]; truncated }` |
 | `git_write_worktree_file` | `{ path; filePath; content; stage?; encoding? }` | `{ ok: true }` |
 
-路径须相对仓库根且不得含 `..`。`git_conflict_take` 执行 `checkout --ours/--theirs` 后 `git add`。`git_write_worktree_file` 在 `stage=true` 时写回后 `git add`。
+路径须相对仓库根且不得含 `..`。`git_conflict_take` 执行 `checkout --ours/--theirs` 后 `git add`。`git_write_worktree_file` 在 `stage=true` 时写回后 `git add`。`git_grep` 为固定字符串（`-F -n -I`）只读搜索，供鲸灵代码工具使用；命中条数有上限。
 
 ### `git_tag_create` / `git_tag_delete`
 

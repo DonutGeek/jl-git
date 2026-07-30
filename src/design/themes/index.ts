@@ -56,12 +56,16 @@ export {
 } from "@/design/themes/registry";
 
 export {
+  COLOR_INPUT_FORMATS,
   contrastingForeground,
+  formatColor,
   hexToHsv,
   hsvToHex,
   isDocumentDark,
   normalizeContrast,
   normalizeHexColor,
+  parseCssColor,
+  type ColorInputFormat,
 } from "@/design/themes/color-utils";
 
 export {
