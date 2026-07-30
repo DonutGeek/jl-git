@@ -9,8 +9,6 @@ import {
   GitBranch as GitBranchIcon,
   History,
   Monitor,
-  Plus,
-  RefreshCw,
   Tag,
   Trash2,
   TriangleAlert,
@@ -21,7 +19,7 @@ import { toast } from "sonner";
 import { BranchGroup, IndentGuides } from "@/components/git/BranchTree";
 import { CreateBranchDialog } from "@/components/git/CreateBranchDialog";
 import { CreateTagDialog } from "@/components/git/CreateTagDialog";
-import { TagListFilterMenu } from "@/components/git/TagListFilterMenu";
+import { TagListChrome } from "@/components/git/TagListChrome";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -36,7 +34,6 @@ import {
 import { AppDialogContent } from "@/components/common/AppDialogContent";
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
@@ -360,160 +357,118 @@ export function TagList({ onSelectTag }: TagListProps) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0">
-        <div className="flex h-10 items-center gap-1 px-3">
-          <h2 className="text-muted-foreground min-w-0 flex-1 text-xs font-semibold">
-            {t("repo.tags")}
-          </h2>
-          <TagListFilterMenu prefs={listPrefs} onChange={handleListPrefsChange} />
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground size-7 [&_svg]:size-3.5"
-                aria-label={t("repo.newTag")}
-                onClick={() => {
-                  setCreateTagFrom(null);
-                  setCreatingTag(true);
-                }}
-              >
-                <Plus aria-hidden="true" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t("repo.newTag")}</TooltipContent>
-          </Tooltip>
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground size-7 [&_svg]:size-3.5"
-                aria-label={t("repo.refresh")}
-                disabled={loading || remoteTagsLoading}
-                onClick={() => void refresh()}
-              >
-                {loading || remoteTagsLoading ? (
-                  <Spinner className="size-3.5" />
-                ) : (
-                  <RefreshCw aria-hidden="true" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t("repo.refresh")}</TooltipContent>
-          </Tooltip>
-        </div>
-        <div className="px-3 pb-1">
-          <Input
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder={t("repo.filter")}
-            className="h-8 w-full min-w-0 text-xs shadow-none"
-            aria-label={t("repo.filter")}
-          />
-        </div>
-      </div>
-
-      <ScrollArea
-        ref={bindScrollArea}
-        className="min-h-0 flex-1 px-3 py-0.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
+    <>
+      <TagListChrome
+        filter={filter}
+        prefs={listPrefs}
+        dataPending={loading}
+        refreshing={loading || remoteTagsLoading}
+        onFilterChange={setFilter}
+        onPrefsChange={handleListPrefsChange}
+        onCreate={() => {
+          setCreateTagFrom(null);
+          setCreatingTag(true);
+        }}
+        onRefresh={() => void refresh()}
       >
-        {isEmpty ? (
-          <EmptyState
-            compact
-            className="h-full"
-            icon={<Tag />}
-            title={t("repo.tagsEmpty")}
-            description={t("repo.tagsEmptyDescription")}
-          />
-        ) : noMatch ? (
-          <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.tagsNoMatch")}</p>
-        ) : (
-          <div
-            className="relative w-full min-w-0"
-            style={{ height: `${virtualizer.getTotalSize()}px` }}
-          >
-            {virtualizer.getVirtualItems().map((virtualItem) => {
-              const row = visibleRows[virtualItem.index];
-              if (!row) {
-                return null;
-              }
-              return (
-                <div
-                  key={virtualItem.key}
-                  data-index={virtualItem.index}
-                  className="absolute top-0 left-0 w-full min-w-0"
-                  style={{
-                    height: `${virtualItem.size}px`,
-                    transform: `translateY(${virtualItem.start}px)`,
-                  }}
-                >
-                  {row.kind === "group" ? (
-                    row.id === "local" ? (
-                      <BranchGroup
-                        icon={<Monitor aria-hidden="true" />}
-                        label={`${t("repo.tagsLocal")} (${row.count})`}
-                        open={localOpen}
-                        onToggle={() => setLocalOpen((prev) => !prev)}
+        <ScrollArea
+          ref={bindScrollArea}
+          className="min-h-0 flex-1 px-3 py-0.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
+        >
+          {isEmpty ? (
+            <EmptyState
+              compact
+              className="h-full"
+              icon={<Tag />}
+              title={t("repo.tagsEmpty")}
+              description={t("repo.tagsEmptyDescription")}
+            />
+          ) : noMatch ? (
+            <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.tagsNoMatch")}</p>
+          ) : (
+            <div
+              className="relative w-full min-w-0"
+              style={{ height: `${virtualizer.getTotalSize()}px` }}
+            >
+              {virtualizer.getVirtualItems().map((virtualItem) => {
+                const row = visibleRows[virtualItem.index];
+                if (!row) {
+                  return null;
+                }
+                return (
+                  <div
+                    key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    className="absolute top-0 left-0 w-full min-w-0"
+                    style={{
+                      height: `${virtualItem.size}px`,
+                      transform: `translateY(${virtualItem.start}px)`,
+                    }}
+                  >
+                    {row.kind === "group" ? (
+                      row.id === "local" ? (
+                        <BranchGroup
+                          icon={<Monitor aria-hidden="true" />}
+                          label={`${t("repo.tagsLocal")} (${row.count})`}
+                          open={localOpen}
+                          onToggle={() => setLocalOpen((prev) => !prev)}
+                        />
+                      ) : (
+                        <BranchGroup
+                          icon={<Cloud aria-hidden="true" />}
+                          label={`${t("repo.tagsRemote")} (${row.count})`}
+                          open={remoteOpen}
+                          onToggle={() => setRemoteOpen((prev) => !prev)}
+                        />
+                      )
+                    ) : row.kind === "local" ? (
+                      <TagRow
+                        tag={row.tag}
+                        selected={logRef === row.tag.name}
+                        busy={busyName === row.tag.name}
+                        remoteKnown={remoteKnown}
+                        onRemote={row.onRemote}
+                        onSelect={() => void select(row.tag.name)}
+                        onCheckout={() => void checkoutTag(row.tag.name)}
+                        onCreateBranch={() => deferUi(() => setCreateBranchFrom(row.tag.name))}
+                        onCreateTag={() =>
+                          deferUi(() => {
+                            setCreateTagFrom(row.tag.name);
+                            setCreatingTag(true);
+                          })
+                        }
+                        onCopyName={() => void copyName(row.tag.name)}
+                        onPushRemote={() => void pushTagToRemote(row.tag.name)}
+                        onDelete={() =>
+                          openDelete({
+                            name: row.tag.name,
+                            scope: "local",
+                            onRemote: row.onRemote,
+                          })
+                        }
                       />
                     ) : (
-                      <BranchGroup
-                        icon={<Cloud aria-hidden="true" />}
-                        label={`${t("repo.tagsRemote")} (${row.count})`}
-                        open={remoteOpen}
-                        onToggle={() => setRemoteOpen((prev) => !prev)}
+                      <RemoteTagRow
+                        tag={row.tag}
+                        busy={busyName === row.tag.name}
+                        onFetch={() => void fetchTagToLocal(row.tag.name)}
+                        onCopyName={() => void copyName(row.tag.name)}
+                        onDeleteRemote={() =>
+                          openDelete({
+                            name: row.tag.name,
+                            scope: "remote",
+                            onRemote: true,
+                          })
+                        }
                       />
-                    )
-                  ) : row.kind === "local" ? (
-                    <TagRow
-                      tag={row.tag}
-                      selected={logRef === row.tag.name}
-                      busy={busyName === row.tag.name}
-                      remoteKnown={remoteKnown}
-                      onRemote={row.onRemote}
-                      onSelect={() => void select(row.tag.name)}
-                      onCheckout={() => void checkoutTag(row.tag.name)}
-                      onCreateBranch={() => deferUi(() => setCreateBranchFrom(row.tag.name))}
-                      onCreateTag={() =>
-                        deferUi(() => {
-                          setCreateTagFrom(row.tag.name);
-                          setCreatingTag(true);
-                        })
-                      }
-                      onCopyName={() => void copyName(row.tag.name)}
-                      onPushRemote={() => void pushTagToRemote(row.tag.name)}
-                      onDelete={() =>
-                        openDelete({
-                          name: row.tag.name,
-                          scope: "local",
-                          onRemote: row.onRemote,
-                        })
-                      }
-                    />
-                  ) : (
-                    <RemoteTagRow
-                      tag={row.tag}
-                      busy={busyName === row.tag.name}
-                      onFetch={() => void fetchTagToLocal(row.tag.name)}
-                      onCopyName={() => void copyName(row.tag.name)}
-                      onDeleteRemote={() =>
-                        openDelete({
-                          name: row.tag.name,
-                          scope: "remote",
-                          onRemote: true,
-                        })
-                      }
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </ScrollArea>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </ScrollArea>
+      </TagListChrome>
 
       <CreateTagDialog
         open={creatingTag}
@@ -616,7 +571,7 @@ export function TagList({ onSelectTag }: TagListProps) {
           </DialogFooter>
         </AppDialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
 

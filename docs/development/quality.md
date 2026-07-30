@@ -1,6 +1,6 @@
 # 质量与自检
 
-> **相关文档：** [testing](testing.md) · [ui-guidelines](ui-guidelines.md) · [AGENTS.md](../../AGENTS.md) · [CONTRIBUTING](../../CONTRIBUTING.md)
+> **相关文档：** [testing](testing.md) · [ui-guidelines](ui-guidelines.md) · [AGENTS.md](../../AGENTS.md)
 
 JLGit 是桌面工具型产品，**写完必须自检**，不能把「能编译」当成完成。  
 本文定义：**Bug 严重级别**、**交付前自检清单**、**AI / 人类共同遵守的门禁**。

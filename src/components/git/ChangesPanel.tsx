@@ -4,19 +4,11 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import {
   ArrowDown,
-  ArrowDownWideNarrow,
   ArrowUp,
-  Check,
   ChevronDown,
   ChevronRight,
-  ChevronsDownUp,
-  ChevronsUpDown,
   FileDiff,
   Inbox,
-  List,
-  ListTree,
-  MoreVertical,
-  Search,
   TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -24,25 +16,17 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import { ChangeFileContextMenu } from "@/components/git/ChangeFileContextMenu";
+import { ChangeTreeFolderRow } from "@/components/git/ChangeTree";
 import {
-  ChangeTreeFolderRow,
-  flattenChangeTreeRows,
-  getChangeTreeFolderKeys,
-  type ChangeTreeVisibleRow,
-} from "@/components/git/ChangeTree";
+  ChangeGroupChrome,
+  ChangesPanelChrome,
+  type ChangeListGroupMode,
+  type ChangeSortMode,
+} from "@/components/git/ChangesPanelChrome";
 import { DiffLineStats } from "@/components/git/DiffLineStats";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
-import { ResizableSplit } from "@/components/layout/ResizableSplit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
@@ -54,6 +38,13 @@ import { gitService } from "@/services/git";
 
 import { toUserMessage } from "@/types/error";
 import type { GitStatusEntry } from "@/types/git";
+import {
+  buildChangeTree,
+  flattenChangeTreeRows,
+  getChangeTreeFolderKeys,
+  type ChangeTreeNode,
+  type ChangeTreeVisibleRow,
+} from "@/utils/changeTree";
 import { filterChangeEntries } from "@/utils/filterChangeEntries";
 import { formatFileSize } from "@/utils/formatFileSize";
 import { getPathBasename } from "@/utils/getPathBasename";
@@ -69,8 +60,6 @@ const EMPTY_ENTRIES: GitStatusEntry[] = [];
 /** 变更行固定高度（h-7） */
 const CHANGE_ROW_HEIGHT_PX = 28;
 const CHANGE_VIRTUAL_OVERSCAN = 10;
-
-type ChangeSortMode = "default" | "status" | "name";
 
 /** 按增/改/删/重命名分类（与常见 Git 客户端一致） */
 type ChangeStatusCategory = "conflict" | "added" | "modified" | "deleted" | "renamed";
@@ -89,9 +78,6 @@ const CHANGE_STATUS_CATEGORY_ORDER: readonly ChangeStatusCategory[] = [
   "deleted",
   "renamed",
 ] as const;
-
-/** 列表分组方式：Default / 状态分类 / 修改日期（后两者互斥） */
-type ListGroupMode = "default" | "status" | "date";
 
 type ChangeListVisibleRow =
   | { kind: "default-header" }
@@ -461,10 +447,7 @@ function ChangeRow({
 }
 
 interface ChangeGroupProps {
-  title: string;
-  /** 若提供则替换分区标题行（如冲突警告标签） */
-  titleSlot?: ReactNode;
-  actionIcon: ReactNode;
+  ariaLabel: string;
   actionLabel: string;
   onAction: () => void;
   actionDisabled: boolean;
@@ -484,6 +467,7 @@ interface ChangeGroupProps {
   onToggleDateKey?: (dateKey: string) => void;
   dateGroupLabel?: (dateKey: string, count: number) => string;
   entries: GitStatusEntry[];
+  changeTree: ChangeTreeNode[];
   rootName: string;
   side: "index" | "worktree";
   selectedPath: string | null;
@@ -520,9 +504,7 @@ function changeRowKey(row: ChangeVisibleRow, index: number): string {
 
 /** 变更 / 待提交分区；列表模式变更区以 Default 为根路径分组 */
 function ChangeGroup({
-  title,
-  titleSlot,
-  actionIcon,
+  ariaLabel,
   actionLabel,
   onAction,
   actionDisabled,
@@ -539,6 +521,7 @@ function ChangeGroup({
   onToggleDateKey,
   dateGroupLabel,
   entries,
+  changeTree,
   rootName,
   side,
   selectedPath,
@@ -561,7 +544,7 @@ function ChangeGroup({
 
   const visibleRows = useMemo((): ChangeVisibleRow[] => {
     if (view === "tree") {
-      return flattenChangeTreeRows(entries, rootName, side, expandedTreePaths);
+      return flattenChangeTreeRows(changeTree, rootName, side, expandedTreePaths);
     }
     if (groupByStatus) {
       if (isEmpty) {
@@ -580,6 +563,7 @@ function ChangeGroup({
   }, [
     collapsed,
     collapsedDates,
+    changeTree,
     entries,
     expandedTreePaths,
     groupByDate,
@@ -713,43 +697,7 @@ function ChangeGroup({
   }
 
   return (
-    <section className="flex h-full min-h-0 flex-col overflow-hidden">
-      {/* 标题与列表同用 px-3，左右留缝（对齐侧栏分支列表） */}
-      <div className="shrink-0 px-3">
-        <div className="group/header hover:bg-accent/60 flex h-7 items-center justify-between gap-1 rounded-md px-2 transition-colors">
-          <div className="flex min-w-0 flex-1 items-center">
-            {titleSlot ? (
-              titleSlot
-            ) : (
-              <h3 className="text-muted-foreground min-w-0 truncate text-[11px] font-medium">
-                {title}
-              </h3>
-            )}
-          </div>
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "size-6 shrink-0 [&_svg]:size-3",
-                  "opacity-0 transition-opacity",
-                  "group-hover/header:opacity-100 focus-visible:opacity-100",
-                  "disabled:opacity-0 group-hover/header:disabled:opacity-40",
-                )}
-                onClick={onAction}
-                disabled={actionDisabled || isEmpty}
-                aria-label={actionLabel}
-              >
-                {actionIcon}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">{actionLabel}</TooltipContent>
-          </Tooltip>
-        </div>
-      </div>
-
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-hidden">
         {/* 内边距在 ScrollArea：内容左右留缝，滚动条叠在右侧 padding */}
         <ScrollArea
@@ -770,7 +718,7 @@ function ChangeGroup({
                 className="relative w-full"
                 style={{ height: `${virtualizer.getTotalSize()}px` }}
                 role={view === "tree" ? "tree" : "listbox"}
-                aria-label={title}
+                aria-label={ariaLabel}
               >
                 {virtualizer.getVirtualItems().map((virtualItem) => {
                   const row = visibleRows[virtualItem.index];
@@ -805,7 +753,7 @@ function ChangeGroup({
           )}
         </ScrollArea>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -828,7 +776,7 @@ export function ChangesPanel() {
   const [sortMode, setSortMode] = useState<ChangeSortMode>("default");
   const [showLineStats, setShowLineStats] = useState(false);
   /** 列表分组：Default / 状态 / 日期（状态与日期互斥） */
-  const [listGroupMode, setListGroupMode] = useState<ListGroupMode>("default");
+  const [listGroupMode, setListGroupMode] = useState<ChangeListGroupMode>("default");
   const [collapsedStatusCategories, setCollapsedStatusCategories] = useState(
     () => new Set<ChangeStatusCategory>(),
   );
@@ -866,12 +814,14 @@ export function ChangesPanel() {
     [activeSearchQuery, demotedSet, entries, sortMode],
   );
   const busy = loading || mutating;
+  const unstagedTree = useMemo(() => buildChangeTree(unstagedEntries), [unstagedEntries]);
+  const stagedTree = useMemo(() => buildChangeTree(stagedEntries), [stagedEntries]);
   const treeFolderKeys = useMemo(
     () => [
-      ...getChangeTreeFolderKeys(unstagedEntries, "worktree"),
-      ...getChangeTreeFolderKeys(stagedEntries, "index"),
+      ...getChangeTreeFolderKeys(unstagedTree, "worktree"),
+      ...getChangeTreeFolderKeys(stagedTree, "index"),
     ],
-    [stagedEntries, unstagedEntries],
+    [stagedTree, unstagedTree],
   );
 
   const unstagedSelectedPath = selectedChange?.side === "worktree" ? selectedChange.path : null;
@@ -987,327 +937,149 @@ export function ChangesPanel() {
   const rootName = getPathBasename(repoPath ?? "") || t("project.repoLabel");
   const listGroupByStatus = view === "list" && listGroupMode === "status";
   const listGroupByDate = view === "list" && listGroupMode === "date";
-
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="border-border relative flex h-8 shrink-0 items-center border-b px-2">
-        {searchOpen ? (
-          <Input
-            autoFocus
-            type="search"
-            value={searchQuery}
-            placeholder={t("repo.changesSearchPlaceholder")}
-            aria-label={t("repo.changesSearch")}
-            className="mr-2 h-6 min-w-0 flex-1 px-2 text-xs"
-            onChange={(event) => setSearchQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                setSearchOpen(false);
-                setSearchQuery("");
-              }
-            }}
-          />
-        ) : null}
-
-        {/* 左侧：排序 */}
-        {!searchOpen && view === "list" ? (
-          <DropdownMenu>
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      "size-6",
-                      sortMode === "default"
-                        ? "text-muted-foreground"
-                        : "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary",
-                    )}
-                    aria-label={t("repo.changesSort")}
-                  >
-                    <ArrowDownWideNarrow className="size-3.5" aria-hidden="true" />
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>{t("repo.changesSort")}</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="start" className="w-36">
-              {(
-                [
-                  ["default", t("repo.changesSortDefault")],
-                  ["status", t("repo.changesSortStatus")],
-                  ["name", t("repo.changesSortName")],
-                ] as const
-              ).map(([mode, label]) => (
-                <DropdownMenuItem key={mode} onSelect={() => setSortMode(mode)}>
-                  <span className="flex-1">{label}</span>
-                  {sortMode === mode ? <Check className="size-3.5" aria-hidden="true" /> : null}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
-
-        {/* 中间：列表 / 树形居中，略缩小 */}
-        {!searchOpen ? (
-          <div
-            className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5"
-            role="group"
-            aria-label={t("repo.changesViewMode")}
-          >
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "h-6 gap-1 px-2 text-xs transition-colors",
-                view === "list"
-                  ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                  : "text-muted-foreground",
-              )}
-              aria-pressed={view === "list"}
-              onClick={() => setView("list")}
-            >
-              <List className="size-3.5" aria-hidden="true" />
-              {t("repo.viewList")}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className={cn(
-                "h-6 gap-1 px-2 text-xs transition-colors",
-                view === "tree"
-                  ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                  : "text-muted-foreground",
-              )}
-              aria-pressed={view === "tree"}
-              onClick={showTreeView}
-            >
-              <ListTree className="size-3.5" aria-hidden="true" />
-              {t("repo.viewTree")}
-            </Button>
-          </div>
-        ) : null}
-
-        {/* 右侧：树形展开控制 / 搜索 / 更多 */}
-        <div
-          className={cn(
-            "ml-auto flex shrink-0 items-center gap-0.5",
-            !searchOpen && view === "tree" && "-translate-x-1",
-          )}
+    <ChangesPanelChrome
+      view={view}
+      sortMode={sortMode}
+      searchOpen={searchOpen}
+      searchQuery={searchQuery}
+      showLineStats={showLineStats}
+      listGroupMode={listGroupMode}
+      treeActionsDisabled={treeFolderKeys.length === 0}
+      onViewChange={(nextView) => {
+        if (nextView === "tree") {
+          showTreeView();
+          return;
+        }
+        setView("list");
+      }}
+      onSortModeChange={setSortMode}
+      onExpandAll={expandAllTrees}
+      onCollapseAll={collapseAllTrees}
+      onToggleSearch={toggleSearch}
+      onSearchQueryChange={setSearchQuery}
+      onSearchEscape={() => {
+        setSearchOpen(false);
+        setSearchQuery("");
+      }}
+      onShowLineStatsChange={setShowLineStats}
+      onListGroupModeChange={setListGroupMode}
+      unstaged={
+        <ChangeGroupChrome
+          title={t("repo.changesCount", { count: unstagedEntries.length })}
+          action={<ArrowDown aria-hidden="true" />}
+          actionLabel={t("repo.stageAll")}
+          onAction={() => void handleStageAll()}
+          actionDisabled={busy || unstagedEntries.length === 0}
         >
-          {!searchOpen && view === "tree" ? (
-            <>
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground size-6"
-                    aria-label={t("repo.expandAll")}
-                    onClick={expandAllTrees}
-                    disabled={treeFolderKeys.length === 0}
-                  >
-                    <ChevronsUpDown className="size-3.5" aria-hidden="true" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("repo.expandAll")}</TooltipContent>
-              </Tooltip>
-              <Tooltip delayDuration={300}>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground size-6"
-                    aria-label={t("repo.collapseAll")}
-                    onClick={collapseAllTrees}
-                    disabled={treeFolderKeys.length === 0}
-                  >
-                    <ChevronsDownUp className="size-3.5" aria-hidden="true" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("repo.collapseAll")}</TooltipContent>
-              </Tooltip>
-            </>
-          ) : null}
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "text-muted-foreground size-6",
-                  searchOpen && "bg-accent text-accent-foreground",
-                )}
-                aria-label={t("repo.changesSearch")}
-                aria-pressed={searchOpen}
-                onClick={toggleSearch}
-              >
-                <Search className="size-3.5" aria-hidden="true" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t("repo.changesSearch")}</TooltipContent>
-          </Tooltip>
-          <DropdownMenu>
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground size-6 data-[state=open]:bg-accent"
-                    aria-label={t("repo.historyMore")}
-                  >
-                    <MoreVertical className="size-3.5" aria-hidden="true" />
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>{t("repo.historyMore")}</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="end" className="min-w-[14rem]">
-              <DropdownMenuCheckboxItem
-                checked={showLineStats}
-                onCheckedChange={(checked) => setShowLineStats(checked === true)}
-                onSelect={(event) => event.preventDefault()}
-              >
-                {t("repo.commitShowLineStats")}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={listGroupMode === "status"}
-                onCheckedChange={(checked) =>
-                  setListGroupMode(checked === true ? "status" : "default")
-                }
-                onSelect={(event) => event.preventDefault()}
-              >
-                {t("repo.changesGroupByStatus")}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={listGroupMode === "date"}
-                onCheckedChange={(checked) =>
-                  setListGroupMode(checked === true ? "date" : "default")
-                }
-                onSelect={(event) => event.preventDefault()}
-              >
-                {t("repo.changesGroupByDate")}
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-
-      {/* 左右留白在各区 ScrollArea 上；此处只留上下与两区间细缝 */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-1 pb-1">
-        <ResizableSplit
-          orientation="vertical"
-          defaultRatio={55}
-          minFirstPx={120}
-          minSecondPx={120}
-          storageKey="jlgit:split:changes-staged"
-          first={
-            <ChangeGroup
-              title={t("repo.changesCount", { count: unstagedEntries.length })}
-              actionIcon={<ArrowDown aria-hidden="true" />}
-              actionLabel={t("repo.stageAll")}
-              onAction={() => void handleStageAll()}
-              actionDisabled={busy}
-              showDefaultGroup={view === "list" && listGroupMode === "default"}
-              groupOpen={unstagedGroupOpen}
-              onToggleGroup={() => setUnstagedGroupOpen((prev) => !prev)}
-              groupLabel={groupLabel}
-              groupByStatus={listGroupByStatus}
-              collapsedStatusCategories={collapsedStatusCategories}
-              onToggleStatusCategory={toggleStatusCategory}
-              statusCategoryLabel={statusCategoryLabel}
-              groupByDate={listGroupByDate}
-              collapsedDateKeys={collapsedDateKeys}
-              onToggleDateKey={toggleDateKey}
-              dateGroupLabel={dateGroupLabel}
-              entries={unstagedEntries}
-              rootName={rootName}
-              side="worktree"
-              selectedPath={unstagedSelectedPath}
-              onSelectEntry={(path, side) => {
-                // 再次点击当前项则取消选中
-                if (selectedChange?.path === path && selectedChange.side === side) {
-                  selectChange(null);
-                  return;
-                }
-                selectChange({ path, side });
-              }}
-              onToggleEntry={(path) => void handleStage(path)}
-              disabled={busy}
-              toggleLabelFor={(path) => t("repo.stageFile", { path })}
-              emptyIcon={<FileDiff />}
-              emptyTitle={t("repo.changesEmpty")}
-              emptyDescription={t("repo.changesEmptyHint")}
-              view={view}
-              expandedTreePaths={expandedTreePaths}
-              onToggleTreeFolder={toggleTreeFolder}
-              showLineStats={showLineStats}
-            />
-          }
-          second={
-            <ChangeGroup
-              title={t("repo.stagedCount", { count: stagedEntries.length })}
-              titleSlot={
-                conflictCount > 0 ? (
-                  <Badge
-                    variant="outline"
-                    role="status"
-                    className="border-destructive/40 bg-destructive/10 text-destructive gap-1 rounded-md px-1.5 py-0 text-[11px] font-medium [&>svg]:size-3"
-                  >
-                    <TriangleAlert aria-hidden="true" />
-                    {t("repo.conflictBanner", { count: conflictCount })}
-                  </Badge>
-                ) : undefined
+          <ChangeGroup
+            ariaLabel={t("repo.changesCount", { count: unstagedEntries.length })}
+            actionLabel={t("repo.stageAll")}
+            onAction={() => void handleStageAll()}
+            actionDisabled={busy}
+            showDefaultGroup={view === "list" && listGroupMode === "default"}
+            groupOpen={unstagedGroupOpen}
+            onToggleGroup={() => setUnstagedGroupOpen((prev) => !prev)}
+            groupLabel={groupLabel}
+            groupByStatus={listGroupByStatus}
+            collapsedStatusCategories={collapsedStatusCategories}
+            onToggleStatusCategory={toggleStatusCategory}
+            statusCategoryLabel={statusCategoryLabel}
+            groupByDate={listGroupByDate}
+            collapsedDateKeys={collapsedDateKeys}
+            onToggleDateKey={toggleDateKey}
+            dateGroupLabel={dateGroupLabel}
+            entries={unstagedEntries}
+            changeTree={unstagedTree}
+            rootName={rootName}
+            side="worktree"
+            selectedPath={unstagedSelectedPath}
+            onSelectEntry={(path, side) => {
+              // 再次点击当前项则取消选中
+              if (selectedChange?.path === path && selectedChange.side === side) {
+                selectChange(null);
+                return;
               }
-              actionIcon={<ArrowUp aria-hidden="true" />}
-              actionLabel={t("repo.unstageAll")}
-              onAction={() => void handleUnstageAll()}
-              actionDisabled={
-                busy ||
-                (stagedEntries.length > 0 && stagedEntries.every((entry) => isConflictEntry(entry)))
-              }
-              groupByStatus={listGroupByStatus}
-              collapsedStatusCategories={collapsedStatusCategories}
-              onToggleStatusCategory={toggleStatusCategory}
-              statusCategoryLabel={statusCategoryLabel}
-              groupByDate={listGroupByDate}
-              collapsedDateKeys={collapsedDateKeys}
-              onToggleDateKey={toggleDateKey}
-              dateGroupLabel={dateGroupLabel}
-              entries={stagedEntries}
-              rootName={rootName}
-              side="index"
-              selectedPath={stagedSelectedPath}
-              onSelectEntry={(path, side) => {
-                if (selectedChange?.path === path && selectedChange.side === side) {
-                  selectChange(null);
-                  return;
-                }
-                selectChange({ path, side });
-              }}
-              onToggleEntry={(path) => void handleUnstage(path)}
-              disabled={busy}
-              toggleLabelFor={(path) => t("repo.unstageFile", { path })}
-              emptyIcon={<Inbox />}
-              emptyTitle={t("repo.stagedEmpty")}
-              emptyDescription={t("repo.stagedEmptyHint")}
-              view={view}
-              expandedTreePaths={expandedTreePaths}
-              onToggleTreeFolder={toggleTreeFolder}
-              showLineStats={showLineStats}
-            />
+              selectChange({ path, side });
+            }}
+            onToggleEntry={(path) => void handleStage(path)}
+            disabled={busy}
+            toggleLabelFor={(path) => t("repo.stageFile", { path })}
+            emptyIcon={<FileDiff />}
+            emptyTitle={t("repo.changesEmpty")}
+            emptyDescription={t("repo.changesEmptyHint")}
+            view={view}
+            expandedTreePaths={expandedTreePaths}
+            onToggleTreeFolder={toggleTreeFolder}
+            showLineStats={showLineStats}
+          />
+        </ChangeGroupChrome>
+      }
+      staged={
+        <ChangeGroupChrome
+          title={t("repo.stagedCount", { count: stagedEntries.length })}
+          titleSlot={
+            conflictCount > 0 ? (
+              <Badge
+                variant="outline"
+                role="status"
+                className="border-destructive/40 bg-destructive/10 text-destructive gap-1 rounded-md px-1.5 py-0 text-[11px] font-medium [&>svg]:size-3"
+              >
+                <TriangleAlert aria-hidden="true" />
+                {t("repo.conflictBanner", { count: conflictCount })}
+              </Badge>
+            ) : undefined
           }
-        />
-      </div>
-    </div>
+          action={<ArrowUp aria-hidden="true" />}
+          actionLabel={t("repo.unstageAll")}
+          onAction={() => void handleUnstageAll()}
+          actionDisabled={
+            busy ||
+            stagedEntries.length === 0 ||
+            stagedEntries.every((entry) => isConflictEntry(entry))
+          }
+        >
+          <ChangeGroup
+            ariaLabel={t("repo.stagedCount", { count: stagedEntries.length })}
+            actionLabel={t("repo.unstageAll")}
+            onAction={() => void handleUnstageAll()}
+            actionDisabled={
+              busy ||
+              (stagedEntries.length > 0 && stagedEntries.every((entry) => isConflictEntry(entry)))
+            }
+            groupByStatus={listGroupByStatus}
+            collapsedStatusCategories={collapsedStatusCategories}
+            onToggleStatusCategory={toggleStatusCategory}
+            statusCategoryLabel={statusCategoryLabel}
+            groupByDate={listGroupByDate}
+            collapsedDateKeys={collapsedDateKeys}
+            onToggleDateKey={toggleDateKey}
+            dateGroupLabel={dateGroupLabel}
+            entries={stagedEntries}
+            changeTree={stagedTree}
+            rootName={rootName}
+            side="index"
+            selectedPath={stagedSelectedPath}
+            onSelectEntry={(path, side) => {
+              if (selectedChange?.path === path && selectedChange.side === side) {
+                selectChange(null);
+                return;
+              }
+              selectChange({ path, side });
+            }}
+            onToggleEntry={(path) => void handleUnstage(path)}
+            disabled={busy}
+            toggleLabelFor={(path) => t("repo.unstageFile", { path })}
+            emptyIcon={<Inbox />}
+            emptyTitle={t("repo.stagedEmpty")}
+            emptyDescription={t("repo.stagedEmptyHint")}
+            view={view}
+            expandedTreePaths={expandedTreePaths}
+            onToggleTreeFolder={toggleTreeFolder}
+            showLineStats={showLineStats}
+          />
+        </ChangeGroupChrome>
+      }
+    />
   );
 }

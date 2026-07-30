@@ -77,6 +77,7 @@ function resolveDefaultCompareTarget(
 }
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
+const EMPTY_BRANCHES: GitBranch[] = [];
 
 export type RepoMainView = "workspace" | "changes" | "history";
 
@@ -84,10 +85,16 @@ interface RepoToolbarProps {
   project: Project;
   mainView: RepoMainView;
   onMainViewChange: (view: RepoMainView) => void;
+  loadingShell?: boolean;
 }
 
 /** 顶栏标签下方的仓库工具条：仓库 / 视图 / 分支 / 同步 */
-export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbarProps) {
+export function RepoToolbar({
+  project,
+  mainView,
+  onMainViewChange,
+  loadingShell = false,
+}: RepoToolbarProps) {
   const { t } = useTranslation();
   const { os, isMacOverlay } = useWindowChromeLayout();
   const dragProps = isMacOverlay ? ({ "data-tauri-drag-region": true } as const) : {};
@@ -97,9 +104,9 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
   const projects = useProjectStore((state) => state.projects);
   const openRepositoryTab = useOpenTabsStore((state) => state.openRepositoryTab);
 
-  const status = useRepoStore((state) => state.status);
-  const branches = useRepoStore((state) => state.branches);
-  const loading = useRepoStore((state) => state.loading);
+  const status = useRepoStore((state) => (loadingShell ? null : state.status));
+  const branches = useRepoStore((state) => (loadingShell ? EMPTY_BRANCHES : state.branches));
+  const loading = useRepoStore((state) => loadingShell || state.loading);
   const checkout = useRepoStore((state) => state.checkout);
   const fetchRemote = useRepoStore((state) => state.fetch);
   const pullRemote = useRepoStore((state) => state.pull);
@@ -386,6 +393,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
     <div
       {...dragProps}
       className="border-border bg-background flex h-11 shrink-0 items-center gap-2 border-b px-2"
+      data-repo-toolbar-loading-shell={loadingShell || undefined}
     >
       {/* 仓库切换 */}
       <DropdownMenu
@@ -522,6 +530,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
             variant="ghost"
             className="border-border h-8 w-40 shrink-0 justify-start gap-1.5 border px-2.5 shadow-none"
             style={noDragStyle}
+            data-repo-git-control="branch-switch"
             disabled={checkingOut || loading}
             aria-busy={checkingOut || loading}
             aria-label={t("repo.branchLabel")}
@@ -563,6 +572,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
               variant="ghost"
               size="sm"
               className="h-8"
+              data-repo-git-control="fetch"
               disabled={syncBusy}
               onClick={() => void handleCheckUpdate()}
             >
@@ -585,6 +595,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
                 variant="ghost"
                 size="sm"
                 className="relative h-8 gap-1.5"
+                data-repo-git-control="pull"
                 disabled={syncBusy || needsPublish}
                 onClick={() => void handlePull()}
               >
@@ -626,6 +637,7 @@ export function RepoToolbar({ project, mainView, onMainViewChange }: RepoToolbar
                       variant="ghost"
                       size="sm"
                       className="relative h-8 gap-1.5"
+                      data-repo-git-control="push"
                       disabled={syncBusy || ahead <= 0}
                       onClick={() => void handlePush()}
                     >

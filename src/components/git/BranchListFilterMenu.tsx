@@ -19,11 +19,16 @@ import {
 
 interface BranchListFilterMenuProps {
   prefs: BranchListPrefs;
+  disabled?: boolean;
   onChange: (patch: Partial<BranchListPrefs>) => void;
 }
 
 /** 侧栏分支排序菜单（仅升序 / 降序，按名称） */
-export function BranchListFilterMenu({ prefs, onChange }: BranchListFilterMenuProps) {
+export function BranchListFilterMenu({
+  prefs,
+  disabled = false,
+  onChange,
+}: BranchListFilterMenuProps) {
   const { t } = useTranslation();
   const modified = !isBranchListPrefsDefault(prefs);
 
@@ -45,6 +50,7 @@ export function BranchListFilterMenu({ prefs, onChange }: BranchListFilterMenuPr
                 modified && "bg-accent text-foreground",
               )}
               aria-label={t("repo.branchFilterActions")}
+              disabled={disabled}
             >
               <ListFilter aria-hidden="true" />
             </Button>

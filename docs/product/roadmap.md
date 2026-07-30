@@ -1,6 +1,6 @@
 # 产品路线图
 
-> **相关文档：** [feature-list](feature-list.md) · [releases](releases.md) · [ai](ai.md) · [CHANGELOG](../../CHANGELOG.md)
+> **相关文档：** [feature-list](feature-list.md) · [releases](releases.md) · [ai](ai.md)
 
 路线图描述 **v0.1 → v1.0** 的交付切片。日期为意向，以实际发布为准。
 

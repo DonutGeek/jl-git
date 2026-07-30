@@ -292,10 +292,8 @@ Local State → Zustand → SQLite
 
 - 主分支：`main`
 - 功能分支：`feat/<topic>`、`fix/<topic>`、`docs/<topic>`
-- PR 需通过类型检查与约定检查（见 CONTRIBUTING）
+- PR 需通过类型检查与约定检查
 - 不强制 push；不改他人 git config
-
-贡献流程：[CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
 
@@ -380,8 +378,6 @@ AI 修改代码时必须：
 | 文档 | 职责 |
 |------|------|
 | [README.md](README.md) | 人类入口 |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南 |
-| [CHANGELOG.md](CHANGELOG.md) | 已发布变更 |
 | [architecture/overview](docs/architecture/overview.md) | 总架构 |
 | [architecture/frontend](docs/architecture/frontend.md) | 前端分层 |
 | [architecture/tauri](docs/architecture/tauri.md) | Tauri / Rust |

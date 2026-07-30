@@ -7,6 +7,7 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { RepoPage } from "@/pages/RepoPage";
 
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
+import { resolveActiveOpenTab, shouldClearPendingActivation } from "@/utils/repoTabActivation";
 
 /**
  * 工作区宿主（性能约束）：
@@ -16,10 +17,23 @@ import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 export function WorkspaceHost() {
   const location = useLocation();
   const tabs = useOpenTabsStore((state) => state.tabs);
+  const pendingActiveId = useOpenTabsStore((state) => state.pendingActiveId);
+  const pendingOriginLocationKey = useOpenTabsStore((state) => state.pendingOriginLocationKey);
 
-  const repoMatch = location.pathname.match(/^\/repo\/([^/]+)/);
-  const activeRepoId = repoMatch?.[1] ?? null;
-  const showDashboard = location.pathname === "/" || location.pathname.startsWith("/tab/");
+  const pendingActivationStale = shouldClearPendingActivation({
+    pendingActiveId,
+    originLocationKey: pendingOriginLocationKey,
+    currentLocationKey: location.key,
+  });
+  const activeTab = resolveActiveOpenTab(
+    location.pathname,
+    tabs,
+    pendingActivationStale ? null : pendingActiveId,
+  );
+  const activeRepoId = activeTab?.type === "repository" ? activeTab.projectId : null;
+  const showDashboard =
+    activeTab?.type === "new-tab" ||
+    (!activeTab && (location.pathname === "/" || location.pathname.startsWith("/tab/")));
   const hasNewTab = tabs.some((tab) => tab.type === "new-tab");
 
   const openRepoIdsKey = useMemo(

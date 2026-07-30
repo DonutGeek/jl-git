@@ -4,15 +4,11 @@ import { useTranslation } from "react-i18next";
 import { CommitFileDiffPane } from "@/components/git/CommitFileDiffPane";
 import { HistoryDetailPane } from "@/components/git/HistoryDetailPane";
 import { HistoryList } from "@/components/git/HistoryList";
+import { HistoryWorkspaceChrome } from "@/components/git/HistoryWorkspaceChrome";
 import { HistoryWorkspaceProvider } from "@/components/git/HistoryWorkspaceContext";
-import { ResizableSplit } from "@/components/layout/ResizableSplit";
-import { cn } from "@/lib/utils";
 
 import { useRepoStore } from "@/store/useRepoStore";
 
-const HISTORY_DETAIL_SPLIT_KEY = "jlgit:split:history-detail";
-/** 历史详情栏标记：弹层右缘相对此元素左缘对齐 */
-const HISTORY_DETAIL_PANE_ATTR = "data-history-detail-pane";
 /** ResizableSplit 水平分隔线 1px；弹层右缘让出，露出拖拽线 */
 const HISTORY_SPLIT_SEPARATOR_PX = 1;
 
@@ -47,7 +43,7 @@ export function HistoryWorkspace({
       if (!root) {
         return;
       }
-      const detail = root.querySelector<HTMLElement>(`[${HISTORY_DETAIL_PANE_ATTR}]`);
+      const detail = root.querySelector<HTMLElement>("[data-history-detail-pane]");
       if (!detail) {
         return;
       }
@@ -68,7 +64,7 @@ export function HistoryWorkspace({
     }
     const observer = new ResizeObserver(measureOverlayWidth);
     observer.observe(root);
-    const detail = root.querySelector<HTMLElement>(`[${HISTORY_DETAIL_PANE_ATTR}]`);
+    const detail = root.querySelector<HTMLElement>("[data-history-detail-pane]");
     if (detail) {
       observer.observe(detail);
     }
@@ -77,46 +73,26 @@ export function HistoryWorkspace({
 
   return (
     <HistoryWorkspaceProvider allowOpenInNewWindow={allowOpenInNewWindow}>
-      <div
-        ref={rootRef}
-        className={cn("relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden", className)}
-      >
-        <ResizableSplit
-          orientation="horizontal"
-          defaultRatio={68}
-          minFirstPx={420}
-          minSecondPx={280}
-          storageKey={HISTORY_DETAIL_SPLIT_KEY}
-          separatorClassName={showCommitFileDiff ? "z-40" : undefined}
-          first={
-            <aside
-              className={cn(
-                "h-full min-h-0 min-w-0 overflow-hidden",
-                showCommitFileDiff && "pointer-events-none",
-              )}
+      <HistoryWorkspaceChrome
+        containerRef={rootRef}
+        className={className}
+        overlayOpen={showCommitFileDiff}
+        list={<HistoryList />}
+        detail={<HistoryDetailPane />}
+        overlay={
+          showCommitFileDiff && commitFileDiffLeftPx > 0 ? (
+            <div
+              className="bg-background absolute inset-y-0 left-0 z-30 overflow-hidden"
+              style={{ width: commitFileDiffLeftPx }}
+              role="dialog"
+              aria-modal="true"
+              aria-label={t("repo.commitFileDiffDialog")}
             >
-              <HistoryList />
-            </aside>
-          }
-          second={
-            <aside className="h-full min-h-0 min-w-0 overflow-hidden" data-history-detail-pane="">
-              <HistoryDetailPane />
-            </aside>
-          }
-        />
-
-        {showCommitFileDiff && commitFileDiffLeftPx > 0 ? (
-          <div
-            className="bg-background absolute inset-y-0 left-0 z-30 overflow-hidden"
-            style={{ width: commitFileDiffLeftPx }}
-            role="dialog"
-            aria-modal="true"
-            aria-label={t("repo.commitFileDiffDialog")}
-          >
-            <CommitFileDiffPane />
-          </div>
-        ) : null}
-      </div>
+              <CommitFileDiffPane />
+            </div>
+          ) : null
+        }
+      />
     </HistoryWorkspaceProvider>
   );
 }

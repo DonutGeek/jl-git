@@ -4,6 +4,7 @@ import { GitBranch as GitBranchIcon, RefreshCw, Search, TriangleAlert } from "lu
 import { Trans, useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import { AppLoadingScreen } from "@/components/common/AppLoadingScreen";
 import { EmptyState } from "@/components/common/EmptyState";
 import {
   BranchManageTable,
@@ -211,6 +212,10 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
     }
   }
 
+  if (loading) {
+    return <AppLoadingScreen />;
+  }
+
   return (
     <main className="bg-background text-foreground flex h-screen min-h-0 w-full flex-col overflow-hidden">
       <AppWindowHeader heightClassName="h-11">
@@ -277,18 +282,12 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
         </div>
       </div>
 
-      {loading ? (
-        <p className="text-muted-foreground flex flex-1 items-center justify-center gap-2 text-sm">
-          <Spinner className="size-4" />
-          {t("branchManage.loading")}
-        </p>
-      ) : null}
       {error ? (
         <p className="text-destructive flex flex-1 items-center justify-center px-4 text-center text-sm">
           {error}
         </p>
       ) : null}
-      {!loading && !error && visibleBranches.length === 0 ? (
+      {!error && visibleBranches.length === 0 ? (
         <EmptyState
           compact
           className="min-h-0 flex-1"
@@ -297,7 +296,7 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
           description={t("branchManage.emptyDescription")}
         />
       ) : null}
-      {!loading && !error && visibleBranches.length > 0 ? (
+      {!error && visibleBranches.length > 0 ? (
         <BranchManageTable
           branches={visibleBranches}
           sortDir={sortDir}

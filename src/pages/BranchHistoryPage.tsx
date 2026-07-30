@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import { AppLoadingScreen } from "@/components/common/AppLoadingScreen";
 import { BranchHistoryWorkspace } from "@/components/git/BranchHistoryWorkspace";
 import { projectService } from "@/services/project";
 import { useProjectStore } from "@/store/useProjectStore";
@@ -58,7 +59,7 @@ export function BranchHistoryPage() {
     };
   }, [request?.projectId, t]);
 
-  if (loading) return <StatusMessage message={t("branchHistory.loading")} />;
+  if (loading) return <AppLoadingScreen />;
   if (error || !request || !project) {
     return <StatusMessage message={error || t("branchHistory.projectNotFound")} />;
   }

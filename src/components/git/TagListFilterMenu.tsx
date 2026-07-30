@@ -19,11 +19,12 @@ import {
 
 interface TagListFilterMenuProps {
   prefs: TagListPrefs;
+  disabled?: boolean;
   onChange: (patch: Partial<TagListPrefs>) => void;
 }
 
 /** 侧栏标签排序菜单（仅升序 / 降序，按名称） */
-export function TagListFilterMenu({ prefs, onChange }: TagListFilterMenuProps) {
+export function TagListFilterMenu({ prefs, disabled = false, onChange }: TagListFilterMenuProps) {
   const { t } = useTranslation();
   const modified = !isTagListPrefsDefault(prefs);
 
@@ -45,6 +46,7 @@ export function TagListFilterMenu({ prefs, onChange }: TagListFilterMenuProps) {
                 modified && "bg-accent text-foreground",
               )}
               aria-label={t("repo.tagFilterActions")}
+              disabled={disabled}
             >
               <ListFilter aria-hidden="true" />
             </Button>

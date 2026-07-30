@@ -1,21 +1,14 @@
-import {
-  Activity,
-  lazy,
-  Suspense,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { ActivityBar, type SidebarView } from "@/components/layout/ActivityBar";
-import { RepoToolbar, type RepoMainView } from "@/components/layout/RepoToolbar";
+import type { SidebarView } from "@/components/layout/ActivityBar";
+import { RepoLoadingWorkspace } from "@/components/layout/RepoLoadingWorkspace";
+import type { RepoMainView } from "@/components/layout/RepoToolbar";
+import { RepoWorkspaceLayout } from "@/components/layout/RepoWorkspaceLayout";
 import { ResizableSplit } from "@/components/layout/ResizableSplit";
 import { BranchList } from "@/components/git/BranchList";
 import { CommitBox } from "@/components/git/CommitBox";
@@ -29,16 +22,16 @@ import { useRepoNavStore } from "@/store/useRepoNavStore";
 import {
   hasRepoSession,
   restoreRepoSession,
+  restoreRepoSessionHistory,
   beginRepoSwitch,
   useRepoStore,
 } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
 import type { Project } from "@/types/project";
+import { resolveRepoBootstrapMode, shouldShowRepoLoadingShell } from "@/utils/repoPageBootstrap";
+import { finishRepoTabSwitchMeasure } from "@/utils/repoTabPerformance";
 
-const SIDEBAR_MAIN_SPLIT_KEY = "jlgit:split:sidebar-main";
-/** 目录树、分支与 Agent 共用的侧栏最小可拖拽宽度。 */
-const SIDEBAR_MIN_WIDTH_PX = 240;
 /** 变更列表在纵向分栏中的最小高度。 */
 const CHANGES_LIST_MIN_HEIGHT_PX = 320;
 const HISTORY_DETAIL_SPLIT_KEY = "jlgit:split:history-detail";
@@ -129,32 +122,54 @@ interface RepoPageProps {
   active: boolean;
 }
 
+interface RepoPageLoadError {
+  projectId: string;
+  message: string;
+}
+
 export function RepoPage({ projectId, active }: RepoPageProps) {
   const { t } = useTranslation();
   const { isMacOverlay } = useWindowChromeLayout();
   const dragProps = isMacOverlay ? ({ "data-tauri-drag-region": true } as const) : {};
 
-  const findById = useProjectStore((state) => state.findById);
+  const project = useProjectStore(
+    (state) => state.projects.find((item) => item.id === projectId) ?? null,
+  );
   const loadProjects = useProjectStore((state) => state.loadProjects);
   const openExisting = useProjectStore((state) => state.openExisting);
   const loadAll = useRepoStore((state) => state.loadAll);
   const refreshStatus = useRepoStore((state) => state.refreshStatus);
   const reset = useRepoStore((state) => state.reset);
+  const activeRepoPath = useRepoStore((state) => state.repoPath);
   const conflictFocusEpoch = useRepoStore((state) => state.conflictFocusEpoch);
   const fileTreeReveal = useRepoNavStore((state) => state.fileTreeReveal);
 
-  const [project, setProject] = useState<Project | null>(() => lookupProject(projectId));
-  const [bootstrapping, setBootstrapping] = useState(() => !lookupProject(projectId));
-  const [error, setError] = useState<string | null>(null);
-  /** 跟踪 props id，在 render 阶段只换轻量壳 */
-  const [routeProjectId, setRouteProjectId] = useState(projectId);
+  const [readyRepoPath, setReadyRepoPath] = useState<string | null>(() => {
+    const initialProject = lookupProject(projectId);
+    if (
+      initialProject &&
+      useRepoStore.getState().repoPath === initialProject.path &&
+      hasRepoSession(initialProject.path)
+    ) {
+      return initialProject.path;
+    }
+    return null;
+  });
+  const [loadError, setLoadError] = useState<RepoPageLoadError | null>(null);
+  const [bootstrapEpoch, setBootstrapEpoch] = useState(0);
   const [sidebarView, setSidebarView] = useState<SidebarView>("branches");
   const [mainView, setMainView] = useState<RepoMainView>("changes");
-  /** 已访问过的主视图保活，避免来回切换反复挂载 */
-  const [visitedViews, setVisitedViews] = useState<ReadonlySet<RepoMainView>>(
-    () => new Set<RepoMainView>(["changes"]),
-  );
+  const mainViewRef = useRef(mainView);
+  mainViewRef.current = mainView;
   const hasApiKey = useHasAgentApiKey();
+  const error = loadError?.projectId === projectId ? loadError.message : null;
+  const bootstrapping = project
+    ? shouldShowRepoLoadingShell({
+        targetPath: project.path,
+        activeStorePath: activeRepoPath,
+        readyRepoPath,
+      })
+    : !error;
 
   // 无 API Key 时不可停留在鲸灵侧栏
   useEffect(() => {
@@ -176,7 +191,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
   // 活动栏切换时静默刷新对应数据（目录树靠重新挂载拉取）
   const prevSidebarViewRef = useRef<SidebarView | null>(null);
   useEffect(() => {
-    if (!active || !project) {
+    if (!active || !project || bootstrapping) {
       return;
     }
     const prev = prevSidebarViewRef.current;
@@ -201,16 +216,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
           console.warn("[RepoPage] refreshTags on sidebar switch failed", refreshError);
         });
     }
-  }, [active, project, sidebarView]);
-
-  // 换仓：本帧只换工具栏元数据，不碰 Git store（避免点击同步重渲）
-  if (projectId !== routeProjectId) {
-    setRouteProjectId(projectId);
-    const next = lookupProject(projectId);
-    setProject(next);
-    setBootstrapping(!next);
-    setError(null);
-  }
+  }, [active, bootstrapping, project, sidebarView]);
 
   useEffect(() => {
     return () => {
@@ -224,14 +230,6 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       return;
     }
     setMainView("changes");
-    setVisitedViews((prev) => {
-      if (prev.has("changes")) {
-        return prev;
-      }
-      const next = new Set(prev);
-      next.add("changes");
-      return next;
-    });
   }, [active, conflictFocusEpoch]);
 
   useEffect(() => {
@@ -242,19 +240,26 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
     const id = projectId;
     let cancelled = false;
 
-    let loadTimer: number | null = null;
-    // rAF 内只安排宏任务：浏览器会先提交标签 / 工具栏这一帧，再切 Store 与拉 Git。
-    const raf = window.requestAnimationFrame(() => {
-      loadTimer = window.setTimeout(() => {
+    let hydrationFrame: number | null = null;
+    let historyFrame: number | null = null;
+    // 双 rAF 给目标仓库轻量壳一次独立绘制机会，再恢复大型会话或拉取 Git。
+    const shellFrame = window.requestAnimationFrame(() => {
+      hydrationFrame = window.requestAnimationFrame(() => {
+        const metric = finishRepoTabSwitchMeasure(id);
+        if (metric && import.meta.env.DEV) {
+          console.debug(
+            `[performance] repo tab shell painted in ${metric.durationMs.toFixed(1)}ms`,
+          );
+        }
         void (async () => {
-          setError(null);
+          setLoadError(null);
 
           try {
-            let target = findById(id) ?? lookupProject(id);
+            let target = useProjectStore.getState().findById(id);
 
             if (!target) {
               await loadProjects();
-              target = lookupProject(id);
+              target = useProjectStore.getState().findById(id);
             }
 
             if (!target) {
@@ -265,23 +270,40 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
               return;
             }
 
-            // 每次重新激活都先尝试还原会话。
-            // 否则「同 path 但列表已被 beginRepoSwitch 清空」时会误判 alreadyShowing，
-            // 只刷 status → 分支一直空，还会把空列表写回缓存。
             const cacheHit = hasRepoSession(target.path);
-            if (cacheHit) {
-              restoreRepoSession(target.path);
-            } else if (useRepoStore.getState().repoPath !== target.path) {
-              beginRepoSwitch(target.path);
-            }
+            const mode = resolveRepoBootstrapMode({
+              targetPath: target.path,
+              activeStorePath: useRepoStore.getState().repoPath,
+              hasCachedSession: cacheHit,
+            });
 
-            setProject(target);
-            setBootstrapping(false);
+            if (mode === "restore-cache") {
+              restoreRepoSession(target.path, {
+                deferHistory: mainViewRef.current !== "history",
+              });
+            } else if (mode === "load") {
+              beginRepoSwitch(target.path, true);
+            }
 
             void openExisting(target.id).catch((touchError) => {
               console.warn("[RepoPage] touchOpened failed", touchError);
             });
 
+            if (mode === "load") {
+              await loadAll(target.path);
+              if (!cancelled) {
+                setReadyRepoPath(target.path);
+              }
+              return;
+            }
+
+            setReadyRepoPath(target.path);
+            if (mode === "restore-cache" && mainViewRef.current !== "history") {
+              const restoredPath = target.path;
+              historyFrame = window.requestAnimationFrame(() => {
+                restoreRepoSessionHistory(restoredPath);
+              });
+            }
             const hydrated = useRepoStore.getState();
             const canSoftRefresh =
               hydrated.repoPath === target.path && hydrated.branches.length > 0;
@@ -297,26 +319,28 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
           } catch (initError) {
             if (!cancelled) {
               const message = toUserMessage(initError);
-              setError(message);
-              setBootstrapping(false);
+              setLoadError({ projectId: id, message });
               toast.error(message);
             }
           }
         })();
-      }, 0);
+      });
     });
 
     return () => {
       cancelled = true;
-      window.cancelAnimationFrame(raf);
-      if (loadTimer !== null) {
-        window.clearTimeout(loadTimer);
+      window.cancelAnimationFrame(shellFrame);
+      if (hydrationFrame !== null) {
+        window.cancelAnimationFrame(hydrationFrame);
+      }
+      if (historyFrame !== null) {
+        window.cancelAnimationFrame(historyFrame);
       }
     };
-  }, [projectId, active]);
+  }, [active, bootstrapEpoch, loadAll, loadProjects, openExisting, projectId, refreshStatus]);
 
   useEffect(() => {
-    if (!active || !project) {
+    if (!active || !project || bootstrapping) {
       return;
     }
 
@@ -372,17 +396,9 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [active, project, refreshStatus]);
+  }, [active, bootstrapping, project, refreshStatus]);
 
   function handleMainViewChange(view: RepoMainView): void {
-    setVisitedViews((prev) => {
-      if (prev.has(view)) {
-        return prev;
-      }
-      const next = new Set(prev);
-      next.add(view);
-      return next;
-    });
     setMainView(view);
   }
 
@@ -394,25 +410,49 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
     handleMainViewChange("workspace");
   }, [workspacePreview]);
 
-  if (bootstrapping && !project) {
+  if (bootstrapping && !error) {
+    if (project) {
+      return (
+        <RepoLoadingWorkspace
+          project={project}
+          sidebarView={sidebarView}
+          mainView={mainView}
+          label={t("repo.opening")}
+          onSidebarViewChange={setSidebarView}
+          onMainViewChange={handleMainViewChange}
+        />
+      );
+    }
     return (
-      // 加载期无 RepoToolbar：整页可拖窗口，避免只能点到失效的标签栏留白
-      <section {...dragProps} className="flex h-full flex-col">
-        <div className="flex flex-1 items-center justify-center">
-          <p className="text-muted-foreground text-sm">{t("repo.opening")}</p>
+      <section {...dragProps} className="flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="text-muted-foreground flex min-h-0 flex-1 items-center justify-center text-sm">
+          {t("repo.opening")}
         </div>
       </section>
     );
   }
 
-  if ((error && !project) || !project) {
+  if (error || !project) {
     return (
       <section {...dragProps} className="flex h-full flex-col">
         <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
           <p className="text-destructive text-sm" role="alert">
             {error ?? t("repo.notFound")}
           </p>
-          <div style={noDragStyle}>
+          <div className="flex items-center gap-2" style={noDragStyle}>
+            {project ? (
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                onClick={() => {
+                  setLoadError(null);
+                  setBootstrapEpoch((epoch) => epoch + 1);
+                }}
+              >
+                {t("repo.refresh")}
+              </Button>
+            ) : null}
             <Button asChild variant="outline" size="sm">
               <Link to="/">{t("common.back")}</Link>
             </Button>
@@ -501,47 +541,18 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
     </Suspense>
   );
 
-  function renderKeptPane(view: RepoMainView, pane: ReactNode): ReactNode {
-    if (!visitedViews.has(view)) {
-      return null;
-    }
-    return (
-      <Activity mode={mainView === view ? "visible" : "hidden"}>
-        <div className="h-full min-h-0 min-w-0 overflow-hidden">{pane}</div>
-      </Activity>
-    );
-  }
+  const activeMainPane =
+    mainView === "workspace" ? workspacePane : mainView === "history" ? historyPane : changesPane;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <RepoToolbar
-        key={project.path}
-        project={project}
-        mainView={mainView}
-        onMainViewChange={handleMainViewChange}
-      />
-
-      <div className="relative flex min-h-0 flex-1">
-        <div className="relative flex min-h-0 min-w-0 flex-1">
-          <ActivityBar active={sidebarView} onChange={setSidebarView} />
-
-          <ResizableSplit
-            orientation="horizontal"
-            defaultRatio={5}
-            minFirstPx={SIDEBAR_MIN_WIDTH_PX}
-            minSecondPx={320}
-            storageKey={SIDEBAR_MAIN_SPLIT_KEY}
-            first={sidebar}
-            second={
-              <div className="h-full min-h-0 min-w-0 overflow-hidden">
-                {renderKeptPane("workspace", workspacePane)}
-                {renderKeptPane("changes", changesPane)}
-                {renderKeptPane("history", historyPane)}
-              </div>
-            }
-          />
-        </div>
-      </div>
-    </div>
+    <RepoWorkspaceLayout
+      project={project}
+      sidebarView={sidebarView}
+      mainView={mainView}
+      sidebar={sidebar}
+      main={<div className="h-full min-h-0 min-w-0 overflow-hidden">{activeMainPane}</div>}
+      onSidebarViewChange={setSidebarView}
+      onMainViewChange={handleMainViewChange}
+    />
   );
 }

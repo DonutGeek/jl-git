@@ -141,9 +141,6 @@ Vite 按 mode 加载环境文件（后者覆盖前者）：
 # TypeScript 检查与前端生产构建
 pnpm build
 
-# 单元测试
-pnpm test
-
 # 构建当前平台的桌面安装包
 pnpm tauri build
 ```
@@ -197,7 +194,6 @@ JLGit/
 ├── scripts/             # 开发与发版脚本
 ├── docs/                # 架构、开发、产品与 API 文档
 ├── AGENTS.md            # 项目宪法与硬性约束
-├── CONTRIBUTING.md      # 贡献指南
 └── package.json
 ```
 
@@ -208,7 +204,6 @@ JLGit/
 | 想了解 | 文档 |
 |--------|------|
 | 项目原则与硬性约束 | [AGENTS.md](AGENTS.md) |
-| 如何参与开发 | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | 产品功能状态 | [docs/product/feature-list.md](docs/product/feature-list.md) |
 | 产品路线图 | [docs/product/roadmap.md](docs/product/roadmap.md) |
 | 前后端分层 | [docs/architecture/overview.md](docs/architecture/overview.md) |
@@ -217,11 +212,10 @@ JLGit/
 | UI 与主题规范 | [docs/development/ui-guidelines.md](docs/development/ui-guidelines.md) |
 | 测试与质量标准 | [docs/development/quality.md](docs/development/quality.md) |
 | 发布与线上升级 | [docs/product/releases.md](docs/product/releases.md) |
-| 版本变更 | [CHANGELOG.md](CHANGELOG.md) |
 
 ## 参与贡献
 
-欢迎提交 [Issue](https://github.com/DonutGeek/jl-git/issues) 和 Pull Request。开始前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)、[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) 与 [AGENTS.md](AGENTS.md)。
+欢迎提交 [Issue](https://github.com/DonutGeek/jl-git/issues) 和 Pull Request。开始前请阅读 [AGENTS.md](AGENTS.md)。
 
 提交信息遵循 Conventional Commits，例如：
 
@@ -231,6 +225,3 @@ fix(diff): 修复二进制文件误判为文本
 docs(readme): 更新安装与功能说明
 ```
 
-## License
-
-[MIT](LICENSE) © 2026 JLGit Contributors

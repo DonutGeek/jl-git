@@ -1,6 +1,6 @@
 # 发布规范
 
-> **相关文档：** [roadmap](roadmap.md) · [CHANGELOG](../../CHANGELOG.md) · [CONTRIBUTING](../../CONTRIBUTING.md)
+> **相关文档：** [roadmap](roadmap.md)
 
 ---
 
@@ -40,23 +40,13 @@
 ## 发布检查清单
 
 1. [ ] `feature-list` 状态已更新
-2. [ ] `CHANGELOG.md` 的 `[Unreleased]` 已归入新版本节
-3. [ ] Command/API 文档与实现一致
-4. [ ] 版本已同步（`pnpm version:set X.Y.Z` 或依赖 CI 按 tag 写入）
-5. [ ] `pnpm build` 与 `pnpm tauri build` 通过
-6. [ ] 手工验收关键路径（见 [testing](../development/testing.md)）
-7. [ ] 无密钥提交；updater 公钥不进错误渠道
-8. [ ] 打 tag：`vX.Y.Z`（小写 `v`）并 push
-9. [ ] 确认 Release 含安装包与 `latest.json`（线上升级）
-
----
-
-## CHANGELOG 写法
-
-- 分类：`Added` / `Changed` / `Fixed` / `Security` / `Deprecated` / `Removed`
-- 面向用户与贡献者，写清影响
-- 关联 PR/Issue 可选
-- **不**把未完成计划写进已发布版本节（计划在 roadmap）
+2. [ ] Command/API 文档与实现一致
+3. [ ] 版本已同步（`pnpm version:set X.Y.Z` 或依赖 CI 按 tag 写入）
+4. [ ] `pnpm build` 与 `pnpm tauri build` 通过
+5. [ ] 手工验收关键路径（见 [testing](../development/testing.md)）
+6. [ ] 无密钥提交；updater 公钥不进错误渠道
+7. [ ] 打 tag：`vX.Y.Z`（小写 `v`）并 push
+8. [ ] 确认 Release 含安装包与 `latest.json`（线上升级）
 
 ---
 
@@ -78,7 +68,7 @@ GitHub Release 正文建议结构：
 - …
 ```
 
-AI 生成 Release Notes 时，必须以 CHANGELOG 与提交记录为输入，并经人工审阅。见 [ai](ai.md)。
+AI 生成 Release Notes 时，必须以提交记录为输入，并经人工审阅。见 [ai](ai.md)。
 
 ---
 

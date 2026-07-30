@@ -1,14 +1,13 @@
 import {
-  startTransition,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
+import { flushSync } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -25,6 +24,11 @@ import { FolderPlus, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { MultiAgentWindowButton } from "@/components/agent/MultiAgentWindowButton";
+import {
+  REPO_TAB_CONTENT_CLASSNAME,
+  REPO_TAB_SCROLL_AREA_CLASSNAME,
+  resolveRepoTabWheelDelta,
+} from "@/components/layout/repoLoadingLayout";
 import { RepoTabGroupChrome, RepositoryTabGroup } from "@/components/layout/RepoTabGroup";
 import {
   readRepoTabDragData,
@@ -44,12 +48,18 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
-import { useOpenTabsStore, type OpenTab } from "@/store/useOpenTabsStore";
+import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { useProjectStore } from "@/store/useProjectStore";
 import { gitService } from "@/services/git";
 import { pickPrimaryRemoteUrl } from "@/services/git/git.remote";
 import { copyToClipboard } from "@/utils/clipboard";
 import { cn } from "@/lib/utils";
+import {
+  resolveActiveOpenTab,
+  resolveRoutedTabId,
+  shouldClearPendingActivation,
+} from "@/utils/repoTabActivation";
+import { beginRepoTabSwitchMeasure } from "@/utils/repoTabPerformance";
 import {
   groupRepoTabs,
   reorderNamedGroupIds,
@@ -60,22 +70,6 @@ import { toUserMessage } from "@/types/error";
 import type { Project } from "@/types/project";
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
-
-function resolveActiveTabId(pathname: string, tabs: OpenTab[]): string | null {
-  const repositoryMatch = pathname.match(/^\/repo\/([^/]+)/);
-  if (repositoryMatch) {
-    return repositoryMatch[1] ?? null;
-  }
-  const newTabMatch = pathname.match(/^\/tab\/([^/]+)/);
-  if (newTabMatch?.[1]) {
-    return newTabMatch[1];
-  }
-  // 根路径也在展示新标签页内容时，高亮已有「新标签页」
-  if (pathname === "/") {
-    return tabs.find((tab) => tab.type === "new-tab")?.id ?? null;
-  }
-  return null;
-}
 
 /** 仓库标签顶栏（Win/Linux 用系统窗口按钮，不再挂自绘三键） */
 export function RepoTabBar() {
@@ -95,6 +89,7 @@ export function RepoTabBar() {
   const orderTabs = useOpenTabsStore((state) => state.orderTabs);
   const pruneTabs = useOpenTabsStore((state) => state.pruneTabs);
   const pendingActiveId = useOpenTabsStore((state) => state.pendingActiveId);
+  const pendingOriginLocationKey = useOpenTabsStore((state) => state.pendingOriginLocationKey);
   const setPendingActiveId = useOpenTabsStore((state) => state.setPendingActiveId);
   const setLastActiveTabId = useOpenTabsStore((state) => state.setLastActiveTabId);
   const projects = useProjectStore((state) => state.projects);
@@ -111,14 +106,17 @@ export function RepoTabBar() {
   const [aliasTarget, setAliasTarget] = useState<Project | null>(null);
   const [aliasValue, setAliasValue] = useState("");
   const [aliasBusy, setAliasBusy] = useState(false);
-  const navigationFrameRef = useRef<number | null>(null);
-  const navigationTimerRef = useRef<number | null>(null);
-  const routedActiveId = resolveActiveTabId(location.pathname, tabEntries);
-  /** 点击态优先：标签先响应，路由与仓库数据随后以低优先级落地。 */
-  const activeId =
-    pendingActiveId && tabEntries.some((tab) => tab.id === pendingActiveId)
-      ? pendingActiveId
-      : routedActiveId;
+  const [optimisticActiveId, setOptimisticActiveId] = useState<string | null>(null);
+  const pendingActivationStale = shouldClearPendingActivation({
+    pendingActiveId,
+    originLocationKey: pendingOriginLocationKey,
+    currentLocationKey: location.key,
+  });
+  const effectivePendingActiveId = pendingActivationStale ? null : pendingActiveId;
+  const routedActiveId = resolveRoutedTabId(location.pathname, tabEntries);
+  const resolvedActiveId =
+    resolveActiveOpenTab(location.pathname, tabEntries, effectivePendingActiveId)?.id ?? null;
+  const activeId = optimisticActiveId ?? resolvedActiveId;
   const { viewport: tabScrollViewport, bindScrollArea } = useScrollAreaViewport();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const labels = useMemo(
@@ -173,25 +171,23 @@ export function RepoTabBar() {
   }, [activeId, location.pathname, openRepositoryTab, tabEntries]);
 
   useEffect(() => {
-    if (pendingActiveId && routedActiveId === pendingActiveId) {
+    if ((pendingActiveId && routedActiveId === pendingActiveId) || pendingActivationStale) {
       setPendingActiveId(null);
     }
-  }, [pendingActiveId, routedActiveId, setPendingActiveId]);
+  }, [pendingActivationStale, pendingActiveId, routedActiveId, setPendingActiveId]);
 
-  useEffect(
-    () => () => {
-      if (navigationFrameRef.current !== null) {
-        window.cancelAnimationFrame(navigationFrameRef.current);
-      }
-      if (navigationTimerRef.current !== null) {
-        window.clearTimeout(navigationTimerRef.current);
-      }
-    },
-    [],
-  );
+  useEffect(() => {
+    if (
+      optimisticActiveId &&
+      (routedActiveId === optimisticActiveId ||
+        !tabEntries.some((tab) => tab.id === optimisticActiveId))
+    ) {
+      setOptimisticActiveId(null);
+    }
+  }, [optimisticActiveId, routedActiveId, tabEntries]);
 
   // 同步上次激活标签，供冷启动「恢复上次」使用。
-  // 根路径 `/` 只是冷启动占位：resolveActiveTabId 会把「新标签」当成高亮，
+  // 根路径 `/` 只是冷启动占位：resolveRoutedTabId 会把「新标签」当成高亮，
   // 若此时写入 lastActive，会覆盖已持久化的仓库标签，导致下次总进新标签页。
   useEffect(() => {
     if (location.pathname === "/") {
@@ -214,6 +210,30 @@ export function RepoTabBar() {
     });
     return () => window.cancelAnimationFrame(raf);
   }, [activeId, tabScrollViewport, tabEntries]);
+
+  useEffect(() => {
+    if (!tabScrollViewport) {
+      return;
+    }
+    const handleWheel = (event: WheelEvent): void => {
+      const delta = resolveRepoTabWheelDelta({
+        deltaX: event.deltaX,
+        deltaY: event.deltaY,
+        hasOverflow: tabScrollViewport.scrollWidth > tabScrollViewport.clientWidth,
+      });
+      if (delta === 0) {
+        return;
+      }
+      const previousScrollLeft = tabScrollViewport.scrollLeft;
+      tabScrollViewport.scrollLeft += delta;
+      if (tabScrollViewport.scrollLeft !== previousScrollLeft) {
+        event.preventDefault();
+      }
+    };
+
+    tabScrollViewport.addEventListener("wheel", handleWheel, { passive: false });
+    return () => tabScrollViewport.removeEventListener("wheel", handleWheel);
+  }, [tabScrollViewport]);
 
   const tabs = useMemo(() => {
     const byId = new Map(projects.map((project) => [project.id, project]));
@@ -318,22 +338,18 @@ export function RepoTabBar() {
     }
   }
 
-  /** 标签高亮为紧急更新，路由与仓库大树放入 Transition。 */
+  /** 同步提交激活意图与路由；工作区首帧只渲染目标仓库轻量壳。 */
   function activateTab(tabId: string): void {
-    if (navigationFrameRef.current !== null) {
-      window.cancelAnimationFrame(navigationFrameRef.current);
+    const target = useOpenTabsStore.getState().tabs.find((tab) => tab.id === tabId);
+    if (target?.type === "repository") {
+      beginRepoTabSwitchMeasure(target.projectId);
     }
-    if (navigationTimerRef.current !== null) {
-      window.clearTimeout(navigationTimerRef.current);
-    }
-    setPendingActiveId(tabId);
-    navigationFrameRef.current = window.requestAnimationFrame(() => {
-      navigationFrameRef.current = null;
-      navigationTimerRef.current = window.setTimeout(() => {
-        navigationTimerRef.current = null;
-        startTransition(() => navigateToTab(tabId));
-      }, 0);
+    // 先独立提交标签视觉态；随后全局激活才触发 WorkspaceHost 与 RepoPage。
+    flushSync(() => {
+      setOptimisticActiveId(tabId);
     });
+    setPendingActiveId(tabId, location.key);
+    navigateToTab(tabId);
   }
 
   function syncRouteAfterTabsChange(preferredId?: string): void {
@@ -568,7 +584,7 @@ export function RepoTabBar() {
             "bg-muted/40 relative flex h-12 shrink-0 items-center pr-0",
             "after:bg-border after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:content-['']",
             headerPaddingClass,
-            isDraggingAnything ? "z-[60]" : "z-40",
+            isDraggingAnything ? "z-60" : "z-40",
           )}
         >
           {/* 交互控件 no-drag；拖拽留白必须是兄弟节点，不能包在 no-drag 里（否则加载页无工具栏时窗口无法拖动） */}
@@ -594,11 +610,8 @@ export function RepoTabBar() {
           <div className="flex h-full min-w-0 flex-1 items-center gap-1" style={noDragStyle}>
             {/* 主滚动用 shadcn ScrollArea：细滚动条、悬停/滚动时才显示，不再用裸 overflow-x-auto */}
             {/* 内容 h-12 与视口高度一致（表头已去掉占位边框），纵向不溢出，无需隐藏纵向滚动条 */}
-            <ScrollArea
-              ref={bindScrollArea}
-              className="h-full min-w-0 flex-1 [&>[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:hidden"
-            >
-              <div className="flex h-12 w-max items-center gap-1.5">
+            <ScrollArea ref={bindScrollArea} className={REPO_TAB_SCROLL_AREA_CLASSNAME}>
+              <div className={REPO_TAB_CONTENT_CLASSNAME}>
                 {tabGroups.map((group) => (
                   <RepositoryTabGroup
                     key={group.key}

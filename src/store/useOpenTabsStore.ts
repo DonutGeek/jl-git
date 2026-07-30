@@ -11,7 +11,9 @@ interface OpenTabsState {
   lastActiveTabId: string | null;
   /** 点击后立刻高亮的标签，路由落地后清除 */
   pendingActiveId: string | null;
-  setPendingActiveId: (id: string | null) => void;
+  /** 发起临时激活时所在的路由 entry，用于同步忽略已过期点击态 */
+  pendingOriginLocationKey: string | null;
+  setPendingActiveId: (id: string | null, originLocationKey?: string) => void;
   setLastActiveTabId: (id: string | null) => void;
   /** 新建仓库选择标签并返回其唯一标识 */
   openNewTab: () => string;
@@ -110,9 +112,13 @@ export const useOpenTabsStore = create<OpenTabsState>()(
       tabs: [],
       lastActiveTabId: null,
       pendingActiveId: null,
+      pendingOriginLocationKey: null,
 
-      setPendingActiveId(id) {
-        set({ pendingActiveId: id });
+      setPendingActiveId(id, originLocationKey) {
+        set({
+          pendingActiveId: id,
+          pendingOriginLocationKey: id ? (originLocationKey ?? null) : null,
+        });
       },
 
       setLastActiveTabId(id) {
@@ -276,7 +282,12 @@ export const useOpenTabsStore = create<OpenTabsState>()(
 
       resetToFreshStartup() {
         const tab = createNewTab();
-        set({ tabs: [tab], lastActiveTabId: tab.id, pendingActiveId: null });
+        set({
+          tabs: [tab],
+          lastActiveTabId: tab.id,
+          pendingActiveId: null,
+          pendingOriginLocationKey: null,
+        });
         return tab.id;
       },
     }),

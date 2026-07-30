@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { AppLoadingScreen } from "@/components/common/AppLoadingScreen";
 import { HistoryWorkspace } from "@/components/git/HistoryWorkspace";
 import { AppWindowHeader } from "@/components/layout/AppWindowHeader";
 
@@ -56,6 +57,10 @@ export function BranchHistoryWorkspace({ project, initialRef }: BranchHistoryWor
     };
   }, [initialRef, loadAll, project.path, selectLogRef, t]);
 
+  if (!ready && !error) {
+    return <AppLoadingScreen />;
+  }
+
   return (
     <main className="bg-background text-foreground flex h-screen min-h-0 w-full flex-col overflow-hidden">
       <AppWindowHeader>
@@ -64,11 +69,6 @@ export function BranchHistoryWorkspace({ project, initialRef }: BranchHistoryWor
         </span>
       </AppWindowHeader>
 
-      {!ready && !error ? (
-        <p className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
-          {t("branchHistory.loading")}
-        </p>
-      ) : null}
       {error ? (
         <p className="text-destructive flex flex-1 items-center justify-center px-4 text-center text-sm">
           {error}

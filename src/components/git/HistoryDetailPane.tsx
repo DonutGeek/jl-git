@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { CommitFileTree, getCommitFileTreeFolderPaths } from "@/components/git/CommitFileTree";
 import { DiffLineStats } from "@/components/git/DiffLineStats";
 import { CopyableGitRefTag } from "@/components/git/GitRefTag";
+import { HistoryDetailChrome } from "@/components/git/HistoryWorkspaceChrome";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -823,7 +824,7 @@ export function HistoryDetailPane() {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       {/* 顶栏：仅 hash 可点复制；悬停手型 + 下划线，与列表 CopyableHash 一致 */}
-      <header className="border-border flex h-11 shrink-0 items-center justify-center border-b px-3">
+      <HistoryDetailChrome>
         <p className="text-foreground flex max-w-full items-baseline gap-0 text-sm leading-none">
           <span className="shrink-0">{t("repo.commitLabelPrefix")}</span>
           <Tooltip open={hashCopied ? true : undefined} delayDuration={200}>
@@ -842,7 +843,7 @@ export function HistoryDetailPane() {
             <TooltipContent>{hashCopied ? t("repo.copySuccess") : t("repo.copy")}</TooltipContent>
           </Tooltip>
         </p>
-      </header>
+      </HistoryDetailChrome>
 
       {/* 元信息区固定；外层不滚动 */}
       <div className="border-border min-w-0 shrink-0 space-y-2 overflow-x-hidden border-b px-3 py-2.5">

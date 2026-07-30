@@ -12,10 +12,6 @@
 JLGit/
 ├── AGENTS.md
 ├── README.md
-├── CONTRIBUTING.md
-├── CHANGELOG.md
-├── LICENSE
-├── CODE_OF_CONDUCT.md
 ├── docs/
 │   ├── architecture/
 │   ├── development/

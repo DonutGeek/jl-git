@@ -5,10 +5,9 @@ import {
   Route,
   RouterProvider,
 } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 
+import { AppLoadingScreen } from "@/components/common/AppLoadingScreen";
 import { AppLayout } from "@/layouts/AppLayout";
-import { Spinner } from "@/components/ui/spinner";
 
 const BranchComparePage = lazy(() =>
   import("@/pages/BranchComparePage").then((module) => ({
@@ -41,16 +40,6 @@ const ProjectManagePage = lazy(() =>
   })),
 );
 
-function RouteLoadingFallback() {
-  const { t } = useTranslation();
-  return (
-    <div className="bg-background text-muted-foreground flex h-screen items-center justify-center gap-2 text-xs">
-      <Spinner className="size-3.5" />
-      <span>{t("common.loading")}</span>
-    </div>
-  );
-}
-
 const router = createBrowserRouter(
   createRoutesFromElements(
     <>
@@ -74,7 +63,7 @@ const router = createBrowserRouter(
 
 export function AppRouter() {
   return (
-    <Suspense fallback={<RouteLoadingFallback />}>
+    <Suspense fallback={<AppLoadingScreen />}>
       <RouterProvider router={router} />
     </Suspense>
   );

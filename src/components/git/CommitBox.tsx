@@ -35,6 +35,8 @@ const COMMIT_MESSAGE_HISTORY_LIMIT = 5;
 const HISTORY_POPOVER_WIDTH = 320;
 const HISTORY_POPOVER_MAX_HEIGHT = 200;
 const HISTORY_VIEWPORT_PADDING = 12;
+const EMPTY_COMMITS: GitCommitSummary[] = [];
+const EMPTY_DEMOTED_CONFLICT_PATHS: ReadonlySet<string> = new Set();
 
 function updateRepoTaskPaths(
   current: ReadonlySet<string>,
@@ -91,28 +93,38 @@ function isStagedEntry(entry: GitStatusEntry, demotedConflictPaths: ReadonlySet<
   return isStagedChangeEntry(entry, demotedConflictPaths);
 }
 
+interface CommitBoxProps {
+  loadingShell?: boolean;
+}
+
 /** 中栏底部：推送勾选、提交信息、提交按钮、未推送提示 */
-export function CommitBox() {
+export function CommitBox({ loadingShell = false }: CommitBoxProps) {
   const { t } = useTranslation();
   const locale = useLocaleStore((state) => state.locale);
   // 跟随应用语言切换相对/绝对日期 locale
   dayjs.locale(locale === "zh-CN" ? "zh-cn" : "en");
-  const commitMessage = useRepoStore((state) => state.commitMessage);
+  const commitMessage = useRepoStore((state) => (loadingShell ? "" : state.commitMessage));
   const setCommitMessage = useRepoStore((state) => state.setCommitMessage);
-  const loading = useRepoStore((state) => state.loading);
+  const loading = useRepoStore((state) => loadingShell || state.loading);
   const commit = useRepoStore((state) => state.commit);
   const undoCommit = useRepoStore((state) => state.undoCommit);
   const push = useRepoStore((state) => state.push);
   const pull = useRepoStore((state) => state.pull);
   const fetchRemote = useRepoStore((state) => state.fetch);
   const holdLoading = useRepoStore((state) => state.holdLoading);
-  const status = useRepoStore((state) => state.status);
-  const identity = useRepoStore((state) => state.identity);
-  const commits = useRepoStore((state) => state.commits);
-  const repoPath = useRepoStore((state) => state.repoPath);
-  const conflictCount = useRepoStore((state) => state.repoState?.conflictCount ?? 0);
-  const sequencerInProgress = useRepoStore((state) => Boolean(state.repoState?.merging));
-  const demotedConflictPaths = useRepoStore((state) => state.demotedConflictPaths);
+  const status = useRepoStore((state) => (loadingShell ? null : state.status));
+  const identity = useRepoStore((state) => (loadingShell ? null : state.identity));
+  const commits = useRepoStore((state) => (loadingShell ? EMPTY_COMMITS : state.commits));
+  const repoPath = useRepoStore((state) => (loadingShell ? null : state.repoPath));
+  const conflictCount = useRepoStore((state) =>
+    loadingShell ? 0 : (state.repoState?.conflictCount ?? 0),
+  );
+  const sequencerInProgress = useRepoStore((state) =>
+    loadingShell ? false : Boolean(state.repoState?.merging),
+  );
+  const demotedConflictPaths = useRepoStore((state) =>
+    loadingShell ? EMPTY_DEMOTED_CONFLICT_PATHS : state.demotedConflictPaths,
+  );
   const defaultPushAfterCommit = useAppPrefsStore((state) => state.pushAfterCommit);
   const openSettingsDrawer = useSettingsDrawerStore((state) => state.openDrawer);
 
@@ -497,11 +509,15 @@ export function CommitBox() {
       : null;
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2 p-3">
+    <div
+      className="flex h-full min-h-0 flex-col gap-2 p-3"
+      data-commit-box-loading-shell={loadingShell || undefined}
+    >
       <div className="flex shrink-0 items-center justify-between gap-2">
         <Field orientation="horizontal" className="w-auto gap-2">
           <Checkbox
             id="commit-push-remote"
+            data-repo-git-control="push-after-commit"
             className="size-3.5"
             checked={pushAfterCommit}
             onCheckedChange={(checked) => setPushAfterCommit(checked === true)}
@@ -552,6 +568,7 @@ export function CommitBox() {
       <div className="relative min-h-0 flex-1">
         <Textarea
           ref={messageInputRef}
+          data-repo-git-control="commit-message"
           value={commitMessage}
           onChange={(event) => setCommitMessage(event.target.value)}
           onFocus={openCommitMessageHistory}
@@ -606,6 +623,7 @@ export function CommitBox() {
                   type="button"
                   size="sm"
                   className="h-7 w-full min-w-0 gap-1 px-2 text-xs"
+                  data-repo-git-control="commit"
                   onClick={() => void handleCommit()}
                   disabled={!canCommit}
                 >

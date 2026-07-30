@@ -1,8 +1,8 @@
 # 测试
 
-> **相关文档：** [coding-style](coding-style.md) · [quality](quality.md) · [command](../architecture/command.md) · [CONTRIBUTING](../../CONTRIBUTING.md)
+> **相关文档：** [coding-style](coding-style.md) · [quality](quality.md) · [command](../architecture/command.md)
 
-交付前除自动化测试外，必须按 [quality](quality.md) 做 **Bug 分级自检** 与运行时冒烟。S0/S1 未清不得声称完成。
+交付前必须按 [quality](quality.md) 做 **Bug 分级自检** 与运行时冒烟。S0/S1 未清不得声称完成。
 
 ---
 
@@ -26,17 +26,7 @@
 
 ## 前端
 
-| 类型 | 测什么 | 工具方向 |
-|------|--------|----------|
-| 单元 | `utils`、status 映射、错误文案 | Vitest（落地时加入） |
-| 组件 | 关键交互（Commit 按钮禁用条件） | Testing Library |
-| Service | mock `invoke` 返回与错误分支 | Vitest |
-
-原则：
-
-- 不测 Tailwind 类名细节
-- 不测第三方库内部
-- 对 Git porcelain 解析：固定 fixture 字符串
+当前不配置 JavaScript 单元测试框架。前端改动通过 `pnpm check`、`pnpm build` 与相关桌面运行时冒烟验收。
 
 ---
 
@@ -80,16 +70,15 @@
 pnpm install
 pnpm build          # tsc + vite
 cargo test          # src-tauri
-# 后续：vitest / clippy / rustfmt
 ```
 
-当前脚手架可先本地执行；CI 配置落地时更新本文与 CONTRIBUTING。
+当前脚手架可先本地执行；CI 配置落地时更新本文。
 
 ---
 
-## 何时必须补测试
+## 高风险改动验收
 
-- 新增/修改 Git 输出解析
-- 路径安全相关函数
-- 易回归的状态机（冲突、detached HEAD 展示）
-- 曾线上/本地出现过的 bug（先复现测试再修）
+- 新增/修改 Git 输出解析：补 Rust 测试或固定 fixture 验证
+- 路径安全相关函数：必须补 Rust 测试
+- 易回归的状态机：执行对应桌面冒烟
+- 曾线上/本地出现过的 bug：记录复现步骤并验证修复

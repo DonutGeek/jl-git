@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 import { FileTreeContextMenu, type FileTreeMutation } from "@/components/git/FileTreeContextMenu";
+import { FileTreeChrome } from "@/components/git/FileTreeChrome";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { cn } from "@/lib/utils";
 
 import { gitService } from "@/services/git";
@@ -18,15 +19,17 @@ import { useRepoStore } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
 import type { FsEntry } from "@/types/git";
+import { flattenVisibleFileTreeRows, type FileTreeVisibleRow } from "@/utils/fileTreeRows";
 
 interface FileTreeProps {
   repoPath: string;
 }
 
-interface TreeNodeProps {
-  entry: FsEntry;
-  depth: number;
-  filter: string;
+const FILE_TREE_ROW_HEIGHT_PX = 28;
+const FILE_TREE_VIRTUAL_OVERSCAN = 12;
+
+interface FileTreeRowProps {
+  row: FileTreeVisibleRow;
   expanded: Set<string>;
   selectedPath: string | null;
   repoPath: string;
@@ -35,15 +38,12 @@ interface TreeNodeProps {
   /** 点击文件时打开工作区预览 */
   onOpenFile?: (path: string) => void;
   onMutated?: (mutation: FileTreeMutation) => void;
-  childrenCache: Map<string, FsEntry[]>;
   ensureChildren: (path: string) => Promise<void>;
   loadingPaths: Set<string>;
 }
 
-function TreeNode({
-  entry,
-  depth,
-  filter,
+function FileTreeRow({
+  row,
   expanded,
   selectedPath,
   repoPath,
@@ -51,26 +51,13 @@ function TreeNode({
   onSelect,
   onOpenFile,
   onMutated,
-  childrenCache,
   ensureChildren,
   loadingPaths,
-}: TreeNodeProps) {
+}: FileTreeRowProps) {
+  const { entry, depth } = row;
   const isOpen = expanded.has(entry.path);
   const selected = selectedPath === entry.path;
-  const children = childrenCache.get(entry.path) ?? [];
   const loading = loadingPaths.has(entry.path);
-  const rowRef = useRef<HTMLButtonElement | null>(null);
-
-  const filterLower = filter.trim().toLowerCase();
-  const selfMatch = filterLower.length === 0 || entry.name.toLowerCase().includes(filterLower);
-  // 过滤时：目录若自身不匹配，仍可能因子孙匹配而显示（懒加载限制下仅匹配已加载层）
-  const hidden = filterLower.length > 0 && !selfMatch && !entry.isDir;
-
-  useEffect(() => {
-    if (selected && rowRef.current) {
-      rowRef.current.scrollIntoView({ block: "nearest" });
-    }
-  }, [selected]);
 
   async function handleToggle(): Promise<void> {
     onSelect(entry.path);
@@ -85,81 +72,39 @@ function TreeNode({
     onToggle(entry.path);
   }
 
-  if (hidden) {
-    return null;
-  }
-
   return (
-    <div>
-      <FileTreeContextMenu
-        entry={entry}
-        repoPath={repoPath}
-        onMenuOpen={() => onSelect(entry.path)}
-        onMutated={onMutated}
+    <FileTreeContextMenu
+      entry={entry}
+      repoPath={repoPath}
+      onMenuOpen={() => onSelect(entry.path)}
+      onMutated={onMutated}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        className={cn(
+          "h-7 w-full justify-start gap-1 rounded-md px-1.5 py-0 text-left font-normal cursor-pointer",
+          selected && "bg-accent text-accent-foreground",
+        )}
+        style={{ paddingLeft: `${6 + depth * 12}px` }}
+        onClick={() => void handleToggle()}
       >
-        <Button
-          ref={rowRef}
-          type="button"
-          variant="ghost"
-          className={cn(
-            "h-7 w-full justify-start gap-1 rounded-md px-1.5 py-0 text-left font-normal cursor-pointer",
-            selected && "bg-accent text-accent-foreground",
-          )}
-          style={{ paddingLeft: `${6 + depth * 12}px` }}
-          onClick={() => void handleToggle()}
-          disabled={!entry.isDir && filterLower.length > 0 && !selfMatch}
-        >
-          {entry.isDir ? (
-            isOpen ? (
-              <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
-            ) : (
-              <ChevronRight
-                className="text-muted-foreground size-3.5 shrink-0"
-                aria-hidden="true"
-              />
-            )
+        {entry.isDir ? (
+          isOpen ? (
+            <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
           ) : (
-            <span className="size-3.5 shrink-0" aria-hidden="true" />
-          )}
+            <ChevronRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+          )
+        ) : (
+          <span className="size-3.5 shrink-0" aria-hidden="true" />
+        )}
 
-          <MaterialFileIcon name={entry.name} isDir={entry.isDir} className="size-3.5" />
+        <MaterialFileIcon name={entry.name} isDir={entry.isDir} className="size-3.5" />
 
-          <span className="min-w-0 flex-1 truncate text-xs">{entry.name}</span>
-        </Button>
-      </FileTreeContextMenu>
-
-      {entry.isDir && isOpen ? (
-        <div>
-          {loading ? (
-            <p
-              className="text-muted-foreground px-2 py-1 text-[11px]"
-              style={{ paddingLeft: `${18 + depth * 12}px` }}
-            >
-              …
-            </p>
-          ) : (
-            children.map((child) => (
-              <TreeNode
-                key={child.path}
-                entry={child}
-                depth={depth + 1}
-                filter={filter}
-                expanded={expanded}
-                selectedPath={selectedPath}
-                repoPath={repoPath}
-                onToggle={onToggle}
-                onSelect={onSelect}
-                onOpenFile={onOpenFile}
-                onMutated={onMutated}
-                childrenCache={childrenCache}
-                ensureChildren={ensureChildren}
-                loadingPaths={loadingPaths}
-              />
-            ))
-          )}
-        </div>
-      ) : null}
-    </div>
+        <span className="min-w-0 flex-1 truncate text-xs">{entry.name}</span>
+        {loading ? <span className="text-muted-foreground text-[11px]">…</span> : null}
+      </Button>
+    </FileTreeContextMenu>
   );
 }
 
@@ -186,6 +131,7 @@ export function FileTree({ repoPath }: FileTreeProps) {
   const loadGenerationRef = useRef(0);
   const ensureChildrenRef = useRef<(path: string) => Promise<void>>(async () => {});
   const revealNonceRef = useRef(0);
+  const { viewport, bindScrollArea } = useScrollAreaViewport();
 
   const loadRoot = useCallback(async (): Promise<void> => {
     const generation = loadGenerationRef.current + 1;
@@ -382,54 +328,42 @@ export function FileTree({ repoPath }: FileTreeProps) {
     void refreshStatus();
   }
 
-  const filterLower = filter.trim().toLowerCase();
-  const visibleRoot =
-    filterLower.length === 0
-      ? rootEntries
-      : rootEntries.filter(
-          (entry) => entry.name.toLowerCase().includes(filterLower) || entry.isDir,
-        );
+  const visibleRows = useMemo(
+    () => flattenVisibleFileTreeRows(rootEntries, expanded, childrenCache, filter),
+    [childrenCache, expanded, filter, rootEntries],
+  );
+  const virtualizer = useVirtualizer({
+    count: loadingRoot ? 0 : visibleRows.length,
+    getScrollElement: () => viewport,
+    estimateSize: () => FILE_TREE_ROW_HEIGHT_PX,
+    overscan: FILE_TREE_VIRTUAL_OVERSCAN,
+    getItemKey: (index) => visibleRows[index]?.entry.path ?? index,
+  });
+
+  useEffect(() => {
+    if (!selectedPath) {
+      return;
+    }
+    const selectedIndex = visibleRows.findIndex((row) => row.entry.path === selectedPath);
+    if (selectedIndex >= 0) {
+      virtualizer.scrollToIndex(selectedIndex, { align: "auto" });
+    }
+  }, [selectedPath, virtualizer, visibleRows]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0">
-        <div className="flex h-10 items-center gap-1 px-3">
-          <h2 className="text-muted-foreground min-w-0 flex-1 text-xs font-semibold">
-            {t("repo.fileTree")}
-          </h2>
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground size-7 shrink-0 [&_svg]:size-3.5"
-                aria-label={t("repo.refresh")}
-                disabled={refreshing || loadingRoot}
-                onClick={() => {
-                  void handleRefresh();
-                }}
-              >
-                {refreshing ? <Spinner className="size-3.5" /> : <RefreshCw aria-hidden="true" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t("repo.refresh")}</TooltipContent>
-          </Tooltip>
-        </div>
-        <div className="px-3 pb-1">
-          <Input
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder={t("repo.filter")}
-            className="h-8 text-xs shadow-none"
-            aria-label={t("repo.filter")}
-          />
-        </div>
-      </div>
-
+    <FileTreeChrome
+      filter={filter}
+      refreshing={refreshing}
+      dataPending={loadingRoot}
+      onFilterChange={setFilter}
+      onRefresh={() => void handleRefresh()}
+    >
       {/* ScrollArea 需明确高度：外层 flex-1 定高，内层 h-full 滚动 */}
       <div className="min-h-0 flex-1">
-        <ScrollArea className="h-full px-3 py-1">
+        <ScrollArea
+          ref={bindScrollArea}
+          className="h-full px-3 py-1 [&_[data-slot=scroll-area-viewport]>div]:block! [&_[data-slot=scroll-area-viewport]>div]:min-w-0! [&_[data-slot=scroll-area-viewport]>div]:w-full"
+        >
           {error ? (
             <p className="text-destructive px-2 py-2 text-sm" role="alert">
               {error}
@@ -441,32 +375,46 @@ export function FileTree({ repoPath }: FileTreeProps) {
               <Spinner className="size-4" />
               {t("common.loading")}
             </p>
-          ) : visibleRoot.length === 0 ? (
+          ) : visibleRows.length === 0 ? (
             <p className="text-muted-foreground px-2 py-4 text-sm">{t("repo.fileTreeEmpty")}</p>
           ) : (
-            visibleRoot.map((entry) => (
-              <TreeNode
-                key={entry.path}
-                entry={entry}
-                depth={0}
-                filter={filter}
-                expanded={expanded}
-                selectedPath={selectedPath}
-                repoPath={repoPath}
-                onToggle={toggleExpand}
-                onSelect={setSelectedPath}
-                onOpenFile={handleOpenFile}
-                onMutated={(mutation) => {
-                  void handleMutated(mutation);
-                }}
-                childrenCache={childrenCache}
-                ensureChildren={ensureChildren}
-                loadingPaths={loadingPaths}
-              />
-            ))
+            <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+              {virtualizer.getVirtualItems().map((virtualItem) => {
+                const row = visibleRows[virtualItem.index];
+                if (!row) {
+                  return null;
+                }
+                return (
+                  <div
+                    key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    className="absolute top-0 left-0 w-full"
+                    style={{
+                      height: `${virtualItem.size}px`,
+                      transform: `translateY(${virtualItem.start}px)`,
+                    }}
+                  >
+                    <FileTreeRow
+                      row={row}
+                      expanded={expanded}
+                      selectedPath={selectedPath}
+                      repoPath={repoPath}
+                      onToggle={toggleExpand}
+                      onSelect={setSelectedPath}
+                      onOpenFile={handleOpenFile}
+                      onMutated={(mutation) => {
+                        void handleMutated(mutation);
+                      }}
+                      ensureChildren={ensureChildren}
+                      loadingPaths={loadingPaths}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           )}
         </ScrollArea>
       </div>
-    </div>
+    </FileTreeChrome>
   );
 }

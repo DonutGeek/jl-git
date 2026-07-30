@@ -2,7 +2,7 @@ import type { FormEvent } from "react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Trans, useTranslation } from "react-i18next";
-import { Cloud, Monitor, Plus, RefreshCw, Settings, TriangleAlert } from "lucide-react";
+import { Cloud, Monitor, Plus, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -13,7 +13,7 @@ import {
   type BranchContextActions,
   type BranchVisibleRow,
 } from "@/components/git/BranchTree";
-import { BranchListFilterMenu } from "@/components/git/BranchListFilterMenu";
+import { BranchListChrome } from "@/components/git/BranchListChrome";
 import { CreateBranchDialog } from "@/components/git/CreateBranchDialog";
 import { MergeBranchDialog } from "@/components/git/MergeBranchDialog";
 import { Button } from "@/components/ui/button";
@@ -551,115 +551,55 @@ export function BranchList() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0">
-        <div className="flex h-10 items-center gap-1 px-3">
-          <h2 className="text-muted-foreground min-w-0 flex-1 text-xs font-semibold">
-            {t("repo.branches")}
-          </h2>
-
-          <div className="flex shrink-0 items-center gap-0.5">
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground size-7 [&_svg]:size-3.5"
-                  aria-label={t("repo.newBranch")}
-                  onClick={() => {
-                    if (!guardWriteOp()) {
-                      return;
-                    }
-                    setCreateOpen(true);
-                  }}
-                >
-                  <Plus aria-hidden="true" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t("repo.newBranch")}</TooltipContent>
-            </Tooltip>
-
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground size-7 [&_svg]:size-3.5"
-                  aria-label={t("repo.refresh")}
-                  disabled={refreshing || loading}
-                  onClick={() => void handleRefresh()}
-                >
-                  {refreshing ? <Spinner className="size-3.5" /> : <RefreshCw aria-hidden="true" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t("repo.refresh")}</TooltipContent>
-            </Tooltip>
-
-            <BranchListFilterMenu prefs={listPrefs} onChange={handleListPrefsChange} />
-
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground size-7 [&_svg]:size-3.5"
-                  aria-label={t("repo.branchSettings")}
-                  onClick={handleOpenBranchManage}
-                >
-                  <Settings aria-hidden="true" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t("repo.branchSettings")}</TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-
-        <div className="px-3 pb-1">
-          <Input
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder={t("repo.branchFilterKeyword")}
-            className="h-8 text-xs shadow-none"
-            aria-label={t("repo.branchFilterKeyword")}
-          />
-        </div>
-      </div>
-
-      <ScrollArea
-        ref={bindScrollArea}
-        className="min-h-0 flex-1 px-3 py-0.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
+    <>
+      <BranchListChrome
+        filter={filter}
+        prefs={listPrefs}
+        refreshing={refreshing}
+        dataPending={loading}
+        onFilterChange={setFilter}
+        onPrefsChange={handleListPrefsChange}
+        onCreate={() => {
+          if (guardWriteOp()) {
+            setCreateOpen(true);
+          }
+        }}
+        onRefresh={() => void handleRefresh()}
+        onManage={handleOpenBranchManage}
       >
-        {isEmpty ? (
-          <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.branchesEmpty")}</p>
-        ) : noMatch ? (
-          <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.branchesNoMatch")}</p>
-        ) : (
-          <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
-            {virtualizer.getVirtualItems().map((virtualItem) => {
-              const row = visibleRows[virtualItem.index];
-              if (!row) {
-                return null;
-              }
-              return (
-                <div
-                  key={virtualItem.key}
-                  data-index={virtualItem.index}
-                  className="absolute top-0 left-0 w-full"
-                  style={{
-                    height: `${virtualItem.size}px`,
-                    transform: `translateY(${virtualItem.start}px)`,
-                  }}
-                >
-                  {renderBranchRow(row)}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </ScrollArea>
+        <ScrollArea
+          ref={bindScrollArea}
+          className="min-h-0 flex-1 px-3 py-0.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
+        >
+          {isEmpty ? (
+            <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.branchesEmpty")}</p>
+          ) : noMatch ? (
+            <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.branchesNoMatch")}</p>
+          ) : (
+            <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+              {virtualizer.getVirtualItems().map((virtualItem) => {
+                const row = visibleRows[virtualItem.index];
+                if (!row) {
+                  return null;
+                }
+                return (
+                  <div
+                    key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    className="absolute top-0 left-0 w-full"
+                    style={{
+                      height: `${virtualItem.size}px`,
+                      transform: `translateY(${virtualItem.start}px)`,
+                    }}
+                  >
+                    {renderBranchRow(row)}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </ScrollArea>
+      </BranchListChrome>
 
       <CreateBranchDialog open={createOpen} onOpenChange={setCreateOpen} />
 
@@ -798,6 +738,6 @@ export function BranchList() {
           </DialogFooter>
         </AppDialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

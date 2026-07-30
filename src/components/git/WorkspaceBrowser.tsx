@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronRight, LayoutGrid, List } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { WorkspaceFilePreview } from "@/components/git/WorkspaceFilePreview";
-import { Button } from "@/components/ui/button";
+import {
+  WorkspaceBrowserChrome,
+  type BrowserViewMode,
+} from "@/components/git/WorkspaceBrowserChrome";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { gitService } from "@/services/git";
@@ -17,8 +19,6 @@ import { useRepoNavStore } from "@/store/useRepoNavStore";
 
 import { toUserMessage } from "@/types/error";
 import type { FsEntry } from "@/types/git";
-
-type BrowserViewMode = "grid" | "list";
 
 interface WorkspaceBrowserProps {
   repoPath: string;
@@ -266,9 +266,11 @@ export function WorkspaceBrowser({ repoPath, repoName, active = true }: Workspac
     "hover:bg-accent/60 hover:text-accent-foreground max-w-40 shrink-0 truncate rounded-sm px-1.5 py-0.5 text-xs leading-none transition-colors";
 
   return (
-    <section className="flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="border-border flex h-10 shrink-0 items-center gap-2 border-b px-3">
-        {editingPath ? (
+    <WorkspaceBrowserChrome
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      pathContent={
+        editingPath ? (
           <div className="border-input bg-background flex h-8 min-w-0 flex-1 items-center gap-1.5 overflow-hidden rounded-md border px-2">
             <span className="text-muted-foreground shrink-0 text-xs leading-none">
               {t("repo.pathLabel")}
@@ -350,164 +352,120 @@ export function WorkspaceBrowser({ repoPath, repoName, active = true }: Workspac
               onClick={startEditPath}
             />
           </div>
-        )}
-
-        <div
-          className="flex h-8 shrink-0 items-center gap-0.5"
-          role="group"
-          aria-label={t("repo.workspaceViewMode")}
-        >
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "size-7 transition-colors",
-                  viewMode === "grid"
-                    ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                    : "text-muted-foreground",
-                )}
-                aria-pressed={viewMode === "grid"}
-                aria-label={t("repo.viewGrid")}
-                onClick={() => setViewMode("grid")}
-              >
-                <LayoutGrid className="size-3.5" aria-hidden="true" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("repo.viewGrid")}</TooltipContent>
-          </Tooltip>
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "size-7 transition-colors",
-                  viewMode === "list"
-                    ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                    : "text-muted-foreground",
-                )}
-                aria-pressed={viewMode === "list"}
-                aria-label={t("repo.viewList")}
-                onClick={() => setViewMode("list")}
-              >
-                <List className="size-3.5" aria-hidden="true" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">{t("repo.viewList")}</TooltipContent>
-          </Tooltip>
-        </div>
-      </header>
-
+        )
+      }
+    >
       {previewPath ? (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <WorkspaceFilePreview repoPath={repoPath} filePath={previewPath} />
         </div>
       ) : (
         <div className="min-h-0 flex-1">
-          <ScrollArea className="h-full p-4">
-            {error ? (
-              <p className="text-destructive text-sm" role="alert">
-                {error}
-              </p>
-            ) : null}
+          {loading ? (
+            <div
+              className="text-muted-foreground flex h-full min-h-0 items-center justify-center gap-2 text-sm"
+              data-workspace-loading="true"
+            >
+              <Spinner className="size-4" aria-label={t("common.loading")} />
+              {t("common.loading")}
+            </div>
+          ) : (
+            <ScrollArea className="h-full p-4">
+              {error ? (
+                <p className="text-destructive text-sm" role="alert">
+                  {error}
+                </p>
+              ) : null}
 
-            {loading ? (
-              <p className="text-muted-foreground flex items-center gap-2 text-sm">
-                <Spinner className="size-4" />
-                {t("common.loading")}
-              </p>
-            ) : entries.length === 0 && !showParentEntry ? (
-              <p className="text-muted-foreground text-sm">{t("repo.fileTreeEmpty")}</p>
-            ) : viewMode === "grid" ? (
-              <ul className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-3">
-                {showParentEntry ? (
-                  <li>
-                    <button
-                      type="button"
-                      title={t("repo.workspaceParentDir")}
-                      aria-label={t("repo.workspaceParentDir")}
-                      className="hover:bg-accent/60 focus-visible:ring-ring flex w-full cursor-pointer flex-col items-center gap-1.5 rounded-md px-1.5 py-2 text-center transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                      onClick={goParent}
-                    >
-                      <MaterialFileIcon name="folder" isDir className="size-10" />
-                      <span className="line-clamp-2 w-full break-all text-xs leading-tight">
-                        ..
-                      </span>
-                    </button>
-                  </li>
-                ) : null}
-                {entries.map((entry) => {
-                  const selected = selectedPath === entry.path;
-                  return (
-                    <li key={entry.path}>
+              {entries.length === 0 && !showParentEntry ? (
+                <p className="text-muted-foreground text-sm">{t("repo.fileTreeEmpty")}</p>
+              ) : viewMode === "grid" ? (
+                <ul className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-3">
+                  {showParentEntry ? (
+                    <li>
                       <button
                         type="button"
-                        title={entry.name}
-                        className={cn(
-                          "hover:bg-accent/60 focus-visible:ring-ring flex w-full cursor-pointer flex-col items-center gap-1.5 rounded-md px-1.5 py-2 text-center transition-colors focus-visible:ring-2 focus-visible:outline-none",
-                          selected && "bg-accent text-accent-foreground hover:bg-accent",
-                        )}
-                        onClick={(event) => handleEntryClick(event, entry)}
+                        title={t("repo.workspaceParentDir")}
+                        aria-label={t("repo.workspaceParentDir")}
+                        className="hover:bg-accent/60 focus-visible:ring-ring flex w-full cursor-pointer flex-col items-center gap-1.5 rounded-md px-1.5 py-2 text-center transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                        onClick={goParent}
                       >
-                        <MaterialFileIcon
-                          name={entry.name}
-                          isDir={entry.isDir}
-                          className="size-10"
-                        />
+                        <MaterialFileIcon name="folder" isDir className="size-10" />
                         <span className="line-clamp-2 w-full break-all text-xs leading-tight">
-                          {entry.name}
+                          ..
                         </span>
                       </button>
                     </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <ul className="space-y-0.5">
-                {showParentEntry ? (
-                  <li>
-                    <button
-                      type="button"
-                      aria-label={t("repo.workspaceParentDir")}
-                      className="hover:bg-accent/60 focus-visible:ring-ring flex h-7 w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 text-left text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none"
-                      onClick={goParent}
-                    >
-                      <MaterialFileIcon name="folder" isDir className="size-3.5" />
-                      <span className="min-w-0 flex-1 truncate">..</span>
-                    </button>
-                  </li>
-                ) : null}
-                {entries.map((entry) => {
-                  const selected = selectedPath === entry.path;
-                  return (
-                    <li key={entry.path}>
+                  ) : null}
+                  {entries.map((entry) => {
+                    const selected = selectedPath === entry.path;
+                    return (
+                      <li key={entry.path}>
+                        <button
+                          type="button"
+                          title={entry.name}
+                          className={cn(
+                            "hover:bg-accent/60 focus-visible:ring-ring flex w-full cursor-pointer flex-col items-center gap-1.5 rounded-md px-1.5 py-2 text-center transition-colors focus-visible:ring-2 focus-visible:outline-none",
+                            selected && "bg-accent text-accent-foreground hover:bg-accent",
+                          )}
+                          onClick={(event) => handleEntryClick(event, entry)}
+                        >
+                          <MaterialFileIcon
+                            name={entry.name}
+                            isDir={entry.isDir}
+                            className="size-10"
+                          />
+                          <span className="line-clamp-2 w-full break-all text-xs leading-tight">
+                            {entry.name}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <ul className="space-y-0.5">
+                  {showParentEntry ? (
+                    <li>
                       <button
                         type="button"
-                        className={cn(
-                          "hover:bg-accent/60 focus-visible:ring-ring flex h-7 w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 text-left text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none",
-                          selected && "bg-accent text-accent-foreground hover:bg-accent",
-                        )}
-                        onClick={(event) => handleEntryClick(event, entry)}
+                        aria-label={t("repo.workspaceParentDir")}
+                        className="hover:bg-accent/60 focus-visible:ring-ring flex h-7 w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 text-left text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                        onClick={goParent}
                       >
-                        <MaterialFileIcon
-                          name={entry.name}
-                          isDir={entry.isDir}
-                          className="size-3.5"
-                        />
-                        <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                        <MaterialFileIcon name="folder" isDir className="size-3.5" />
+                        <span className="min-w-0 flex-1 truncate">..</span>
                       </button>
                     </li>
-                  );
-                })}
-              </ul>
-            )}
-          </ScrollArea>
+                  ) : null}
+                  {entries.map((entry) => {
+                    const selected = selectedPath === entry.path;
+                    return (
+                      <li key={entry.path}>
+                        <button
+                          type="button"
+                          className={cn(
+                            "hover:bg-accent/60 focus-visible:ring-ring flex h-7 w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 text-left text-xs transition-colors focus-visible:ring-2 focus-visible:outline-none",
+                            selected && "bg-accent text-accent-foreground hover:bg-accent",
+                          )}
+                          onClick={(event) => handleEntryClick(event, entry)}
+                        >
+                          <MaterialFileIcon
+                            name={entry.name}
+                            isDir={entry.isDir}
+                            className="size-3.5"
+                          />
+                          <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </ScrollArea>
+          )}
         </div>
       )}
-    </section>
+    </WorkspaceBrowserChrome>
   );
 }

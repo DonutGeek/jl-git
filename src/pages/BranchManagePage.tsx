@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import { AppLoadingScreen } from "@/components/common/AppLoadingScreen";
 import { BranchManageWorkspace } from "@/components/git/BranchManageWorkspace";
 import { projectService } from "@/services/project";
 import { useProjectStore } from "@/store/useProjectStore";
@@ -55,7 +56,7 @@ export function BranchManagePage() {
     };
   }, [request?.projectId, t]);
 
-  if (loading) return <StatusMessage message={t("branchManage.loading")} />;
+  if (loading) return <AppLoadingScreen />;
   if (error || !request || !project) {
     return <StatusMessage message={error || t("branchManage.projectNotFound")} />;
   }

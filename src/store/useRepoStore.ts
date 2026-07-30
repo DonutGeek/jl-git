@@ -76,6 +76,17 @@ function applyLogCommits(
   };
 }
 
+/** Store 内提交数组按不可变方式更新，会话可直接复用未超限引用，避免切仓重复复制。 */
+function capLogCommitsForSession(commits: GitCommitSummary[]): {
+  commits: GitCommitSummary[];
+  capped: boolean;
+} {
+  if (commits.length <= LOG_COMMITS_HARD_CAP) {
+    return { commits, capped: false };
+  }
+  return { commits: commits.slice(0, LOG_COMMITS_HARD_CAP), capped: true };
+}
+
 /** 历史默认范围：当前检出分支；游离 HEAD 用 HEAD */
 function historyLogRefFromStatus(status: GitStatusResult | null): string {
   if (!status || status.detached || !status.branch) {
@@ -126,6 +137,56 @@ interface RepoSessionSnapshot {
 }
 
 const repoSessionCache = new Map<string, RepoSessionSnapshot>();
+const repoLoadGenerations = new Map<string, number>();
+const repoActiveLoadGenerations = new Map<string, number>();
+const repoColdLoadGenerations = new Map<string, number>();
+const repoStatusRefreshGenerations = new Map<string, number>();
+const hydratedRepoPaths = new Set<string>();
+
+function beginRepoLoadGeneration(repoPath: string): number {
+  const generation = (repoLoadGenerations.get(repoPath) ?? 0) + 1;
+  repoLoadGenerations.set(repoPath, generation);
+  repoActiveLoadGenerations.set(repoPath, generation);
+  return generation;
+}
+
+function isLatestRepoLoad(repoPath: string, generation: number): boolean {
+  return repoLoadGenerations.get(repoPath) === generation;
+}
+
+function beginStatusRefreshGeneration(repoPath: string): number {
+  const generation = (repoStatusRefreshGenerations.get(repoPath) ?? 0) + 1;
+  repoStatusRefreshGenerations.set(repoPath, generation);
+  return generation;
+}
+
+function invalidateStatusRefresh(repoPath: string): void {
+  repoStatusRefreshGenerations.set(repoPath, (repoStatusRefreshGenerations.get(repoPath) ?? 0) + 1);
+}
+
+function isLatestStatusRefresh(repoPath: string, generation: number): boolean {
+  return repoStatusRefreshGenerations.get(repoPath) === generation;
+}
+
+function endActiveRepoLoad(repoPath: string, generation: number): void {
+  if (repoActiveLoadGenerations.get(repoPath) === generation) {
+    repoActiveLoadGenerations.delete(repoPath);
+  }
+}
+
+function hasActiveRepoLoad(repoPath: string): boolean {
+  return repoActiveLoadGenerations.has(repoPath);
+}
+
+function beginColdRepoLoad(repoPath: string, generation: number): void {
+  repoColdLoadGenerations.set(repoPath, generation);
+}
+
+function endColdRepoLoad(repoPath: string, generation: number): void {
+  if (repoColdLoadGenerations.get(repoPath) === generation) {
+    repoColdLoadGenerations.delete(repoPath);
+  }
+}
 
 function commitDetailCacheKey(repoPath: string, commitId: string): string {
   return `${repoPath}\0${commitId}`;
@@ -178,12 +239,9 @@ function ensureSelectedCommitDetail(): void {
 }
 
 function saveRepoSession(repoPath: string, state: RepoStoreState): void {
-  const { commits, capped } = applyLogCommits([], state.commits, true);
+  const { commits, capped } = capLogCommitsForSession(state.commits);
 
-  if (repoSessionCache.has(repoPath)) {
-    repoSessionCache.delete(repoPath);
-  }
-  repoSessionCache.set(repoPath, {
+  putRepoSession(repoPath, {
     status: state.status,
     identity: state.identity,
     branches: state.branches,
@@ -201,6 +259,13 @@ function saveRepoSession(repoPath: string, state: RepoStoreState): void {
     demotedConflictPaths: state.demotedConflictPaths,
     error: state.error,
   });
+}
+
+function putRepoSession(repoPath: string, snapshot: RepoSessionSnapshot): void {
+  if (repoSessionCache.has(repoPath)) {
+    repoSessionCache.delete(repoPath);
+  }
+  repoSessionCache.set(repoPath, snapshot);
   while (repoSessionCache.size > REPO_SESSION_CACHE_MAX) {
     const oldest = repoSessionCache.keys().next().value;
     if (!oldest) {
@@ -241,7 +306,7 @@ function endLoadingOp(
 ): void {
   endRepoPendingOp(repoPath);
   if (get().repoPath === repoPath) {
-    set({ loading: hasRepoPendingOp(repoPath) });
+    set({ loading: hasRepoPendingOp(repoPath) || hasActiveRepoLoad(repoPath) });
   }
 }
 
@@ -250,19 +315,27 @@ export function hasRepoSession(repoPath: string): boolean {
   return repoSessionCache.has(repoPath);
 }
 
+interface RestoreRepoSessionOptions {
+  deferHistory?: boolean;
+}
+
 /** 同步还原会话到 store；命中则返回 true（切标签首帧即可出数） */
-export function restoreRepoSession(repoPath: string): boolean {
+export function restoreRepoSession(
+  repoPath: string,
+  { deferHistory = false }: RestoreRepoSessionOptions = {},
+): boolean {
   const cached = repoSessionCache.get(repoPath);
   if (!cached) {
     return false;
   }
+  hydratedRepoPaths.add(repoPath);
 
-  const detail = cached.selectedCommitId
-    ? getCachedCommitDetail(repoPath, cached.selectedCommitId)
-    : null;
-  const needsDetail = Boolean(cached.selectedCommitId && !detail);
+  const detail =
+    !deferHistory && cached.selectedCommitId
+      ? getCachedCommitDetail(repoPath, cached.selectedCommitId)
+      : null;
+  const needsDetail = Boolean(!deferHistory && cached.selectedCommitId && !detail);
 
-  const { commits, capped } = applyLogCommits([], cached.commits, true);
   useRepoStore.setState({
     repoPath,
     status: cached.status,
@@ -271,20 +344,20 @@ export function restoreRepoSession(repoPath: string): boolean {
     tags: cached.tags,
     remoteTags: cached.remoteTags,
     remoteTagsLoading: false,
-    commits,
-    hasMore: capped ? false : cached.hasMore,
-    logRef: cached.logRef,
+    commits: deferHistory ? [] : cached.commits,
+    hasMore: deferHistory ? false : cached.hasMore,
+    logRef: deferHistory ? null : cached.logRef,
     logOrder: cached.logOrder ?? "default",
     historyAdvanced: cached.historyAdvanced ?? { ...EMPTY_HISTORY_ADVANCED_FILTERS },
     commitMessage: cached.commitMessage,
-    selectedCommitId: cached.selectedCommitId,
+    selectedCommitId: deferHistory ? null : cached.selectedCommitId,
     selectedCommitDetail: detail,
     detailLoading: needsDetail,
     selectedChange: cached.selectedChange,
     selectedCommitFile: null,
     repoState: cached.repoState,
     demotedConflictPaths: cached.demotedConflictPaths,
-    loading: hasRepoPendingOp(repoPath),
+    loading: hasRepoPendingOp(repoPath) || hasActiveRepoLoad(repoPath),
     error: cached.error,
   });
   if (needsDetail) {
@@ -293,14 +366,50 @@ export function restoreRepoSession(repoPath: string): boolean {
   return true;
 }
 
+/** 非历史首屏绘制后补回提交列表与历史选中项；目标已切走时不写当前 Store。 */
+export function restoreRepoSessionHistory(repoPath: string): boolean {
+  const cached = repoSessionCache.get(repoPath);
+  if (!cached || useRepoStore.getState().repoPath !== repoPath) {
+    return false;
+  }
+  const detail = cached.selectedCommitId
+    ? getCachedCommitDetail(repoPath, cached.selectedCommitId)
+    : null;
+  const needsDetail = Boolean(cached.selectedCommitId && !detail);
+  useRepoStore.setState({
+    commits: cached.commits,
+    hasMore: cached.hasMore,
+    logRef: cached.logRef,
+    logOrder: cached.logOrder ?? "default",
+    historyAdvanced: cached.historyAdvanced ?? { ...EMPTY_HISTORY_ADVANCED_FILTERS },
+    selectedCommitId: cached.selectedCommitId,
+    selectedCommitDetail: detail,
+    detailLoading: needsDetail,
+    selectedCommitFile: null,
+  });
+  if (needsDetail) {
+    ensureSelectedCommitDetail();
+  }
+  return true;
+}
+
 /** 轻量切仓：只改路径并清空列表，避免同步灌入大缓存造成点击卡顿 */
-export function beginRepoSwitch(repoPath: string): void {
+export function beginRepoSwitch(repoPath: string, resetCurrent = false): void {
   const current = useRepoStore.getState();
-  if (current.repoPath === repoPath) {
+  const switchingPath = current.repoPath !== repoPath;
+  if (!switchingPath && !resetCurrent) {
     return;
   }
-  // 离开前写入会话，保留 A 仓的选中提交，返回时可还原
   if (current.repoPath) {
+    invalidateStatusRefresh(current.repoPath);
+  }
+  // 离开前写入会话，保留 A 仓的选中提交，返回时可还原
+  if (
+    switchingPath &&
+    current.repoPath &&
+    !repoColdLoadGenerations.has(current.repoPath) &&
+    (!repoLoadGenerations.has(current.repoPath) || hydratedRepoPaths.has(current.repoPath))
+  ) {
     saveRepoSession(current.repoPath, current);
   }
   useRepoStore.setState({
@@ -810,8 +919,17 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
   },
 
   async loadAll(repoPath) {
+    const generation = beginRepoLoadGeneration(repoPath);
     const cached = repoSessionCache.get(repoPath);
-    beginLoadingOp(repoPath, set, get);
+    const coldLoad = !cached;
+    if (coldLoad) {
+      hydratedRepoPaths.delete(repoPath);
+      beginColdRepoLoad(repoPath, generation);
+    }
+    patchRepoSession(repoPath, { error: null });
+    if (get().repoPath === repoPath) {
+      set({ loading: true, error: null });
+    }
 
     // 命中会话缓存：立刻还原 UI，再后台静默刷新（切标签不再整页等待）
     if (cached) {
@@ -819,7 +937,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         ? getCachedCommitDetail(repoPath, cached.selectedCommitId)
         : null;
       const needsDetail = Boolean(cached.selectedCommitId && !detail);
-      if (get().repoPath === repoPath) {
+      if (isLatestRepoLoad(repoPath, generation) && get().repoPath === repoPath) {
         set({
           repoPath,
           status: cached.status,
@@ -864,6 +982,9 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         ]);
 
         // 用户已切到其他仓库则写回缓存，勿污染当前仓
+        if (!isLatestRepoLoad(repoPath, generation)) {
+          return;
+        }
         if (get().repoPath !== repoPath) {
           patchRepoSession(repoPath, {
             status,
@@ -887,20 +1008,29 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           ...statusSelectionPatch(get, status),
           repoState,
         });
+        hydratedRepoPaths.add(repoPath);
         saveRepoSession(repoPath, get());
         // 刷新后选中提交可能已不在列表；仍在则补详情
         ensureSelectedCommitDetail();
       } catch (error) {
-        setError(set, get, repoPath, error);
+        if (isLatestRepoLoad(repoPath, generation)) {
+          setError(set, get, repoPath, error);
+        }
         throw error;
       } finally {
-        endLoadingOp(repoPath, set, get);
+        endActiveRepoLoad(repoPath, generation);
+        if (isLatestRepoLoad(repoPath, generation) && get().repoPath === repoPath) {
+          set({ loading: hasRepoPendingOp(repoPath) || hasActiveRepoLoad(repoPath) });
+        }
+        if (coldLoad) {
+          endColdRepoLoad(repoPath, generation);
+        }
       }
       return;
     }
 
     // 冷启动：清空旧数据；历史默认「当前分支」（先 status 再 log）
-    if (get().repoPath === repoPath) {
+    if (isLatestRepoLoad(repoPath, generation) && get().repoPath === repoPath) {
       set({
         repoPath,
         status: null,
@@ -928,7 +1058,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const logOrder = get().logOrder;
       const historyAdvanced = get().historyAdvanced;
       const applyIfCurrent = (patch: Partial<RepoStoreState>): void => {
-        if (get().repoPath === repoPath) {
+        if (isLatestRepoLoad(repoPath, generation) && get().repoPath === repoPath) {
           set(patch);
         }
       };
@@ -998,17 +1128,30 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         repoStatePromise,
       ]);
 
+      if (!isLatestRepoLoad(repoPath, generation)) {
+        return;
+      }
       if (get().repoPath !== repoPath) {
-        patchRepoSession(repoPath, {
+        const { commits, capped } = applyLogCommits([], logResult.log.commits, true);
+        putRepoSession(repoPath, {
           status,
           identity,
           branches,
           tags: tags.tags,
-          commits: logResult.log.commits,
-          hasMore: logResult.log.hasMore,
+          remoteTags: null,
+          commits,
+          hasMore: capped ? false : logResult.log.hasMore,
           logRef: logResult.defaultLogRef,
+          logOrder,
+          historyAdvanced,
+          commitMessage: "",
+          selectedCommitId: null,
+          selectedChange: null,
           repoState,
+          demotedConflictPaths: [],
+          error: null,
         });
+        hydratedRepoPaths.add(repoPath);
         return;
       }
 
@@ -1022,17 +1165,27 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         logRef: logResult.defaultLogRef,
         repoState,
       });
+      hydratedRepoPaths.add(repoPath);
       saveRepoSession(repoPath, get());
     } catch (error) {
-      setError(set, get, repoPath, error);
+      if (isLatestRepoLoad(repoPath, generation)) {
+        setError(set, get, repoPath, error);
+      }
       throw error;
     } finally {
-      endLoadingOp(repoPath, set, get);
+      endActiveRepoLoad(repoPath, generation);
+      if (isLatestRepoLoad(repoPath, generation) && get().repoPath === repoPath) {
+        set({ loading: hasRepoPendingOp(repoPath) || hasActiveRepoLoad(repoPath) });
+      }
+      if (coldLoad) {
+        endColdRepoLoad(repoPath, generation);
+      }
     }
   },
 
   async refreshStatus() {
     const repoPath = requireRepoPath(get().repoPath);
+    const generation = beginStatusRefreshGeneration(repoPath);
     beginLoadingOp(repoPath, set, get);
 
     try {
@@ -1050,6 +1203,9 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         // 刷新时救场失败不阻断，但保留诊断信息。
         console.warn("[repo] restore interrupted commit on refresh failed", restoreError);
       }
+      if (!isLatestStatusRefresh(repoPath, generation)) {
+        return;
+      }
       if (get().repoPath !== repoPath) {
         patchRepoSession(repoPath, { status, repoState });
         return;
@@ -1061,7 +1217,9 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       });
       saveRepoSession(repoPath, get());
     } catch (error) {
-      setError(set, get, repoPath, error);
+      if (isLatestStatusRefresh(repoPath, generation)) {
+        setError(set, get, repoPath, error);
+      }
       throw error;
     } finally {
       endLoadingOp(repoPath, set, get);

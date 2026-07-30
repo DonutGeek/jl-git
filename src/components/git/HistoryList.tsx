@@ -34,6 +34,7 @@ import { GitRefTag } from "@/components/git/GitRefTag";
 import { HistoryAdvancedFilterPopover } from "@/components/git/HistoryAdvancedFilterPopover";
 import { HistoryCommitContextMenu } from "@/components/git/HistoryCommitContextMenu";
 import { HistoryGraph } from "@/components/git/HistoryGraph";
+import { HistoryListChrome } from "@/components/git/HistoryWorkspaceChrome";
 import { useHistoryWorkspace } from "@/components/git/HistoryWorkspaceContext";
 import { RESIZABLE_HANDLE_CLASSNAME } from "@/components/layout/ResizableSplit";
 import { Button } from "@/components/ui/button";
@@ -844,11 +845,7 @@ export function HistoryList() {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       {/* 筛选条：左=范围+搜索+用户/日期；右=排序/更多 */}
-      <div
-        className="border-border flex h-11 shrink-0 items-center gap-1.5 border-b px-2"
-        role="toolbar"
-        aria-label={t("repo.historyFilters")}
-      >
+      <HistoryListChrome aria-label={t("repo.historyFilters")}>
         <DropdownMenu
           onOpenChange={(open) => {
             if (!open) {
@@ -1249,7 +1246,7 @@ export function HistoryList() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
+      </HistoryListChrome>
 
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         {commits.length === 0 || filteredCommits.length === 0 ? (

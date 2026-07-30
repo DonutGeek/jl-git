@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import { AppLoadingScreen } from "@/components/common/AppLoadingScreen";
 import { BranchCompareWorkspace } from "@/components/git/BranchCompareWorkspace";
 import { listBranches } from "@/services/git";
 import { projectService } from "@/services/project";
@@ -69,7 +70,7 @@ export function BranchComparePage() {
     };
   }, [request?.projectId, t]);
 
-  if (loading) return <StatusMessage message={t("branchCompare.loading")} />;
+  if (loading) return <AppLoadingScreen />;
   if (error || !request || !project)
     return <StatusMessage message={error || t("branchCompare.projectNotFound")} />;
 

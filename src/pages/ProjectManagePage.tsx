@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FolderKanban } from "lucide-react";
 
+import { AppLoadingScreen } from "@/components/common/AppLoadingScreen";
 import { AppWindowHeader } from "@/components/layout/AppWindowHeader";
 import { ProjectManagePanel } from "@/components/project/ProjectManagePanel";
 import {
@@ -60,6 +61,10 @@ export function ProjectManagePage() {
     }
   }
 
+  if (loading) {
+    return <AppLoadingScreen />;
+  }
+
   return (
     <div className="bg-background text-foreground flex h-screen flex-col overflow-hidden">
       <AppWindowHeader>
@@ -73,20 +78,14 @@ export function ProjectManagePage() {
             {error}
           </p>
         ) : null}
-        {loading ? (
-          <p className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
-            {t("common.loading")}
-          </p>
-        ) : (
-          <ProjectManagePanel
-            onOpenProject={(projectId) => {
-              void handleOpenProject(projectId);
-            }}
-            onProjectsMutated={() => {
-              void handleProjectsMutated();
-            }}
-          />
-        )}
+        <ProjectManagePanel
+          onOpenProject={(projectId) => {
+            void handleOpenProject(projectId);
+          }}
+          onProjectsMutated={() => {
+            void handleProjectsMutated();
+          }}
+        />
       </main>
     </div>
   );
