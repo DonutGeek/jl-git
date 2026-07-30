@@ -21,10 +21,6 @@ function AppContent() {
   const { t } = useTranslation();
   const theme = useThemeStore((state) => state.mode);
 
-  React.useEffect(() => {
-    document.getElementById("app-loading")?.remove();
-  }, []);
-
   return (
     <>
       <App />
