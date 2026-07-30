@@ -171,8 +171,18 @@ export function ChangesPreviewPane() {
         ) : null}
         <MaterialFileIcon name={selectedChange.path} isDir={false} className="size-3.5 shrink-0" />
         <CopyablePathLabel path={selectedChange.path} className="hover:text-foreground min-w-0" />
-        {statusConflict ? (
-          <div className="ml-auto flex shrink-0 items-center gap-1">
+      </div>
+
+      {statusConflict ? (
+        <div
+          className="border-border flex h-8 shrink-0 items-center justify-between gap-3 border-b px-2"
+          role="region"
+          aria-label={t("repo.conflictWarning")}
+        >
+          <p className="text-muted-foreground min-w-0 truncate text-xs">
+            {t("repo.conflictPreviewActionHint")}
+          </p>
+          <div className="flex shrink-0 items-center gap-1">
             <Button
               type="button"
               size="sm"
@@ -205,8 +215,8 @@ export function ChangesPreviewPane() {
               {t("repo.conflictMarkResolved")}
             </Button>
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {statusConflict ? (
         <ConflictFilePreview

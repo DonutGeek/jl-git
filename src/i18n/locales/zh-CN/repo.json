@@ -194,6 +194,7 @@
   "mergeFailed": "合并未完成，请查看操作日志。",
   "pullConflict": "更新发生冲突，请在变更区解决后继续处理。",
   "conflictBanner": "合并中，有 {{count}} 个冲突待解决",
+  "conflictPreviewActionHint": "检测到合并冲突，可逐块处理或选择整文件版本",
   "conflictUseOurs": "使用 {{branch}}（本地）版本",
   "conflictUseTheirs": "使用 {{branch}} 版本",
   "conflictMarkResolved": "标记为已解决",

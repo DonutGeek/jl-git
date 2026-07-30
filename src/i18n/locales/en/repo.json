@@ -194,6 +194,7 @@
   "mergeFailed": "The merge did not finish. Check the operation log.",
   "pullConflict": "The update has conflicts. Resolve them in Changes before continuing.",
   "conflictBanner": "Merging — {{count}} conflict(s) remaining",
+  "conflictPreviewActionHint": "Merge conflicts detected. Resolve them individually or choose a whole-file version.",
   "conflictUseOurs": "Use {{branch}} (local)",
   "conflictUseTheirs": "Use {{branch}}",
   "conflictMarkResolved": "Mark as resolved",
