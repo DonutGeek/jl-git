@@ -38,8 +38,8 @@ interface GraphHoverTooltip {
   shape: "circle" | "square";
 }
 
-/** 与 HistoryList 行高 / pt-1.5 对齐 */
-const ROW_HEIGHT = 32;
+/** 与 HistoryList 34px 行槽位 / pt-1.5 对齐 */
+const ROW_HEIGHT = 34;
 const LIST_PADDING_TOP = 6;
 const LANE_SPACING = 18;
 const PAD_X = 10;

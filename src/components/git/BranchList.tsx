@@ -27,6 +27,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useConflictOperationGuard } from "@/hooks/useConflictOperationGuard";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
+import { cn } from "@/lib/utils";
 
 import { useRepoStore } from "@/store/useRepoStore";
 import { useProjectStore } from "@/store/useProjectStore";
@@ -47,7 +48,8 @@ import { buildBranchTree } from "@/utils/branchTree";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
 import { isPushRejectedError, toastPushError } from "@/utils/gitPushError";
 
-const BRANCH_ROW_HEIGHT_PX = 28;
+const BRANCH_ROW_HEIGHT_PX = 30;
+const BRANCH_GROUP_HEIGHT_PX = 36;
 const BRANCH_VIRTUAL_OVERSCAN = 12;
 
 type BranchListVisibleRow =
@@ -148,7 +150,8 @@ export function BranchList() {
   const virtualizer = useVirtualizer({
     count: isEmpty || noMatch ? 0 : visibleRows.length,
     getScrollElement: () => viewport,
-    estimateSize: () => BRANCH_ROW_HEIGHT_PX,
+    estimateSize: (index) =>
+      visibleRows[index]?.kind === "group" ? BRANCH_GROUP_HEIGHT_PX : BRANCH_ROW_HEIGHT_PX,
     overscan: BRANCH_VIRTUAL_OVERSCAN,
     getItemKey: (index) => {
       const row = visibleRows[index];
@@ -586,7 +589,10 @@ export function BranchList() {
                   <div
                     key={virtualItem.key}
                     data-index={virtualItem.index}
-                    className="absolute top-0 left-0 w-full"
+                    className={cn(
+                      "absolute top-0 left-0 w-full",
+                      row.kind === "group" ? "py-1" : "py-px",
+                    )}
                     style={{
                       height: `${virtualItem.size}px`,
                       transform: `translateY(${virtualItem.start}px)`,

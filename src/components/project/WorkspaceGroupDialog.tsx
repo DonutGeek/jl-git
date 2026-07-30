@@ -7,11 +7,10 @@ import { toast } from "sonner";
 import { SelectMenu } from "@/components/common/SelectMenu";
 import { TreeSelect } from "@/components/common/TreeSelect";
 import {
-  WORKSPACE_COLOR_CLASS,
-  WORKSPACE_COLOR_OPTIONS,
   WORKSPACE_ICON_OPTIONS,
   workspaceIconComponent,
 } from "@/components/project/workspaceGroupAppearance";
+import { SettingsColorSwatch } from "@/components/settings/SettingsColorSwatch";
 import { Button } from "@/components/ui/button";
 import { AppDialogContent } from "@/components/common/AppDialogContent";
 import {
@@ -23,7 +22,6 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import { useProjectStore } from "@/store/useProjectStore";
 import { toUserMessage } from "@/types/error";
 import type { Workspace, WorkspaceColor, WorkspaceIcon } from "@/types/project";
@@ -32,6 +30,7 @@ import {
   collectWorkspaceSubtreeIds,
   findWorkspaceTreeLabel,
 } from "@/utils/workspaceOptions";
+import { DEFAULT_WORKSPACE_COLOR, normalizeWorkspaceColor } from "@/utils/workspaceColor";
 
 interface WorkspaceGroupDialogCreateProps {
   open: boolean;
@@ -64,7 +63,7 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
   const [name, setName] = useState("");
   const [parentId, setParentId] = useState("");
   const [icon, setIcon] = useState<WorkspaceIcon>("code");
-  const [color, setColor] = useState<WorkspaceColor>("blue");
+  const [color, setColor] = useState<WorkspaceColor>(DEFAULT_WORKSPACE_COLOR);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -102,13 +101,13 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
       setName(editWorkspace.name);
       setParentId(editWorkspace.parentId ?? "");
       setIcon(editWorkspace.icon);
-      setColor(editWorkspace.color);
+      setColor(normalizeWorkspaceColor(editWorkspace.color));
       return;
     }
     setName("");
     setParentId(createParentId ?? "");
     setIcon("code");
-    setColor("blue");
+    setColor(DEFAULT_WORKSPACE_COLOR);
   }, [open, mode, editWorkspace, createParentId]);
 
   const Icon = workspaceIconComponent(icon);
@@ -237,31 +236,15 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
               </Field>
               <Field>
                 <FieldLabel>{t("projectManager.groupColor")}</FieldLabel>
-                <SelectMenu
+                <SettingsColorSwatch
                   value={color}
-                  disabled={saving}
-                  displayLabel={
-                    <span className="flex items-center gap-2">
-                      <span
-                        className={cn("block size-3 rounded-full", WORKSPACE_COLOR_CLASS[color])}
-                      />
-                      {t(`projectManager.color${color[0].toUpperCase()}${color.slice(1)}`)}
-                    </span>
-                  }
-                  options={WORKSPACE_COLOR_OPTIONS.map((option) => ({
-                    value: option.value,
-                    label: t(option.labelKey),
-                    preview: (
-                      <span
-                        className={cn(
-                          "block size-3 rounded-full",
-                          WORKSPACE_COLOR_CLASS[option.value],
-                        )}
-                      />
-                    ),
-                  }))}
-                  onChange={(next) => setColor(next as WorkspaceColor)}
                   ariaLabel={t("projectManager.groupColor")}
+                  presetValue={DEFAULT_WORKSPACE_COLOR}
+                  solid
+                  showPresets={false}
+                  className="w-full max-w-none"
+                  disabled={saving}
+                  onChange={(next) => setColor(normalizeWorkspaceColor(next))}
                 />
               </Field>
             </div>

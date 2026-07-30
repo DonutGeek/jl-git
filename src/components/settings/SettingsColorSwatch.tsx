@@ -30,6 +30,9 @@ export function SettingsColorSwatch({
   ariaLabel,
   presetValue,
   solid = false,
+  showPresets = true,
+  className,
+  disabled = false,
 }: {
   value: string;
   onChange: (hex: string) => void;
@@ -37,6 +40,10 @@ export function SettingsColorSwatch({
   presetValue: string;
   /** 强调色用实心块；背景/前景用描边圆点样式 */
   solid?: boolean;
+  /** 是否展示默认色、建议色与重置操作 */
+  showPresets?: boolean;
+  className?: string;
+  disabled?: boolean;
 }) {
   const { t } = useTranslation();
   const fallbackHex = APP_THEME_COLOR_SUGGESTIONS[0] ?? presetValue;
@@ -134,7 +141,11 @@ export function SettingsColorSwatch({
           type="button"
           variant="outline"
           aria-label={ariaLabel}
-          className="border-input bg-background hover:bg-accent h-8 w-44 max-w-[40vw] cursor-pointer justify-start gap-2 px-2 shadow-none"
+          disabled={disabled}
+          className={cn(
+            "border-input bg-background hover:bg-accent h-8 w-44 max-w-[40vw] cursor-pointer justify-start gap-2 px-2 shadow-none",
+            className,
+          )}
         >
           <span
             className={cn(
@@ -229,64 +240,68 @@ export function SettingsColorSwatch({
           />
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <div className="border-border bg-muted/40 rounded-md border p-2">
-            <div className="text-muted-foreground text-[10px]">
-              {t("settings.themeCurrentColor")}
+        {showPresets ? (
+          <>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="border-border bg-muted/40 rounded-md border p-2">
+                <div className="text-muted-foreground text-[10px]">
+                  {t("settings.themeCurrentColor")}
+                </div>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span
+                    className="border-border size-4 rounded-sm border"
+                    style={{ backgroundColor: hex }}
+                    aria-hidden
+                  />
+                  <span className="font-mono text-[10px] tabular-nums">{hex}</span>
+                </div>
+              </div>
+              <div className="border-border bg-muted/40 rounded-md border p-2">
+                <div className="text-muted-foreground text-[10px]">
+                  {t("settings.themeDefaultColor")}
+                </div>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span
+                    className="border-border size-4 rounded-sm border"
+                    style={{ backgroundColor: presetHex }}
+                    aria-hidden
+                  />
+                  <span className="font-mono text-[10px] tabular-nums">{presetHex}</span>
+                </div>
+              </div>
             </div>
-            <div className="mt-1 flex items-center gap-1.5">
-              <span
-                className="border-border size-4 rounded-sm border"
-                style={{ backgroundColor: hex }}
-                aria-hidden
-              />
-              <span className="font-mono text-[10px] tabular-nums">{hex}</span>
-            </div>
-          </div>
-          <div className="border-border bg-muted/40 rounded-md border p-2">
-            <div className="text-muted-foreground text-[10px]">
-              {t("settings.themeDefaultColor")}
-            </div>
-            <div className="mt-1 flex items-center gap-1.5">
-              <span
-                className="border-border size-4 rounded-sm border"
-                style={{ backgroundColor: presetHex }}
-                aria-hidden
-              />
-              <span className="font-mono text-[10px] tabular-nums">{presetHex}</span>
-            </div>
-          </div>
-        </div>
 
-        <div className="text-muted-foreground mt-3 text-[11px]">
-          {t("settings.themeSuggestedColors")}
-        </div>
-        <div className="mt-1.5 grid grid-cols-8 gap-1">
-          {APP_THEME_COLOR_SUGGESTIONS.map((color) => {
-            const selected = color === hex;
-            return (
-              <Button
-                key={color}
-                type="button"
-                variant="outline"
-                size="icon-xs"
-                title={color}
-                aria-label={`${ariaLabel} ${color}`}
-                aria-pressed={selected}
-                className="border-border relative cursor-pointer rounded-sm p-0 shadow-none"
-                style={{
-                  backgroundColor: color,
-                  color: contrastingForeground(color),
-                }}
-                onClick={() => {
-                  applyHex(color);
-                }}
-              >
-                {selected ? <Check className="absolute inset-1 size-4" aria-hidden /> : null}
-              </Button>
-            );
-          })}
-        </div>
+            <div className="text-muted-foreground mt-3 text-[11px]">
+              {t("settings.themeSuggestedColors")}
+            </div>
+            <div className="mt-1.5 grid grid-cols-8 gap-1">
+              {APP_THEME_COLOR_SUGGESTIONS.map((color) => {
+                const selected = color === hex;
+                return (
+                  <Button
+                    key={color}
+                    type="button"
+                    variant="outline"
+                    size="icon-xs"
+                    title={color}
+                    aria-label={`${ariaLabel} ${color}`}
+                    aria-pressed={selected}
+                    className="border-border relative cursor-pointer rounded-sm p-0 shadow-none"
+                    style={{
+                      backgroundColor: color,
+                      color: contrastingForeground(color),
+                    }}
+                    onClick={() => {
+                      applyHex(color);
+                    }}
+                  >
+                    {selected ? <Check className="absolute inset-1 size-4" aria-hidden /> : null}
+                  </Button>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
 
         <Field className="mt-3 gap-1.5" data-invalid={!normalizeHexColor(draft, "") || undefined}>
           <FieldLabel htmlFor={inputId} className="text-muted-foreground text-[11px]">
@@ -316,22 +331,24 @@ export function SettingsColorSwatch({
           />
         </Field>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          disabled={hex === presetHex}
-          className="mt-2 cursor-pointer px-1.5 disabled:cursor-default"
-          onClick={() => {
-            setDraft(presetHex);
-            if (presetHex !== hex) {
-              onChange(presetHex);
-            }
-          }}
-        >
-          <RotateCcw aria-hidden />
-          {t("settings.themeResetColor")}
-        </Button>
+        {showPresets ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            disabled={hex === presetHex}
+            className="mt-2 cursor-pointer px-1.5 disabled:cursor-default"
+            onClick={() => {
+              setDraft(presetHex);
+              if (presetHex !== hex) {
+                onChange(presetHex);
+              }
+            }}
+          >
+            <RotateCcw aria-hidden />
+            {t("settings.themeResetColor")}
+          </Button>
+        ) : null}
       </PopoverContent>
     </Popover>
   );

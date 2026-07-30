@@ -66,7 +66,7 @@ export function CommitFileTree({
 }: CommitFileTreeProps) {
   const nodes = useMemo(() => buildCommitFileTree(files), [files]);
   return (
-    <ul className="flex flex-col" role="tree">
+    <ul className="flex flex-col gap-0.5 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-0.5" role="tree">
       <RepositoryTreeRoot
         name={rootName}
         rootKey="__root__"

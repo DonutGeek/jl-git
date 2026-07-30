@@ -78,8 +78,8 @@ const HISTORY_GRAPH_MAX_WIDTH = 320;
  * 滚动条悬停才出现，不为滚动条额外加宽右侧。
  */
 const HISTORY_EDGE_GAP_PX = 8;
-/** 与 HistoryGraph commit.spacing 对齐 */
-const HISTORY_ROW_HEIGHT_PX = 32;
+/** 与 HistoryGraph commit.spacing 对齐：32px 内容 + 2px 上下间隙 */
+const HISTORY_ROW_HEIGHT_PX = 34;
 /** 列表上下内边距（与 py-1.5 一致，供虚拟列表 padding） */
 const HISTORY_LIST_PAD_Y_PX = 6;
 const HISTORY_VIRTUAL_OVERSCAN = 12;
@@ -351,7 +351,10 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
       alreadyPushed={alreadyPushed}
       onMenuOpen={() => onSelect(commit.id)}
     >
-      <li className={cn("border-0", className)} style={{ height: HISTORY_ROW_HEIGHT_PX, ...style }}>
+      <li
+        className={cn("border-0 py-px", className)}
+        style={{ height: HISTORY_ROW_HEIGHT_PX, ...style }}
+      >
         <button
           type="button"
           role="option"

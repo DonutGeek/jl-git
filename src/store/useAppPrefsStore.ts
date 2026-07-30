@@ -16,6 +16,7 @@ import {
   listenGlobalPreferenceChange,
   notifyGlobalPreferenceChange,
 } from "@/services/window/globalPreferences";
+import { getFontPreferences, setFontPreferences } from "@/services/settings/fontPreferences";
 import {
   DEFAULT_ACTIVITY_BAR_ORDER,
   normalizeActivityBarOrder,
@@ -32,27 +33,13 @@ export const CLIENT_FONT_SYSTEM = "system";
 /** 编辑器字体：`system-mono` 表示系统默认等宽栈，其它为字体族名 */
 export const EDITOR_FONT_SYSTEM = "system-mono";
 /** 客户端 / 编辑器字体的产品默认值 */
-export const DEFAULT_APP_FONT = "JetBrains Mono";
+export const DEFAULT_APP_FONT = "JetBrains Mono Variable";
 const APP_PREFS_STORAGE_KEY = "jlgit-app-prefs";
 
 const SYSTEM_SANS =
   'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 const SYSTEM_MONO =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
-
-const LEGACY_CLIENT_FONT: Record<string, string> = {
-  system: CLIENT_FONT_SYSTEM,
-  inter: "Inter",
-  noto: "Noto Sans SC",
-  mono: CLIENT_FONT_SYSTEM,
-};
-
-const LEGACY_EDITOR_FONT: Record<string, string> = {
-  "system-mono": EDITOR_FONT_SYSTEM,
-  jetbrains: "JetBrains Mono",
-  fira: "Fira Code",
-  cascadia: "Cascadia Code",
-};
 
 export type StartupTabsMode = "restore" | "fresh";
 
@@ -153,15 +140,18 @@ export function applyAppFonts(clientFont: string, editorFont: string): void {
   root.style.setProperty("--font-mono", resolveEditorStack(editorFont));
 }
 
-function migrateFontId(
-  value: string | undefined,
-  legacy: Record<string, string>,
-  fallback: string,
-): string {
-  if (!value) {
-    return fallback;
-  }
-  return legacy[value] ?? value;
+function normalizeClientFont(value: unknown): string {
+  return value === CLIENT_FONT_SYSTEM ? CLIENT_FONT_SYSTEM : DEFAULT_APP_FONT;
+}
+
+function normalizeEditorFont(value: unknown): string {
+  return value === EDITOR_FONT_SYSTEM ? EDITOR_FONT_SYSTEM : DEFAULT_APP_FONT;
+}
+
+function persistFonts(clientFont: string, editorFont: string): void {
+  void setFontPreferences({ clientFont, editorFont }).catch((error: unknown) => {
+    console.warn("持久化字体设置失败", error);
+  });
 }
 
 function applyThemePack(themeId: AppThemeId): {
@@ -201,13 +191,19 @@ export const useAppPrefsStore = create<AppPrefsState>()(
       activityBarOrder: [...DEFAULT_ACTIVITY_BAR_ORDER],
 
       setClientFont(font) {
-        applyAppFonts(font, get().editorFont);
-        set({ clientFont: font });
+        const next = normalizeClientFont(font);
+        const editorFont = get().editorFont;
+        applyAppFonts(next, editorFont);
+        set({ clientFont: next });
+        persistFonts(next, editorFont);
         notifyGlobalPreferenceChange("app-prefs");
       },
       setEditorFont(font) {
-        applyAppFonts(get().clientFont, font);
-        set({ editorFont: font });
+        const next = normalizeEditorFont(font);
+        const clientFont = get().clientFont;
+        applyAppFonts(clientFont, next);
+        set({ editorFont: next });
+        persistFonts(clientFont, next);
         notifyGlobalPreferenceChange("app-prefs");
       },
       setAppThemeId(themeId) {
@@ -405,8 +401,8 @@ export const useAppPrefsStore = create<AppPrefsState>()(
         if (!state) {
           return;
         }
-        state.clientFont = migrateFontId(state.clientFont, LEGACY_CLIENT_FONT, DEFAULT_APP_FONT);
-        state.editorFont = migrateFontId(state.editorFont, LEGACY_EDITOR_FONT, DEFAULT_APP_FONT);
+        state.clientFont = normalizeClientFont(state.clientFont);
+        state.editorFont = normalizeEditorFont(state.editorFont);
         const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
         state.appThemeId = id;
         state.editorThemeId = id;
@@ -459,14 +455,30 @@ export function initAppPrefs(): void {
       }
     })();
   };
+  const syncFonts = (): void => {
+    void getFontPreferences()
+      .then((persisted) => {
+        const current = useAppPrefsStore.getState();
+        const clientFont = normalizeClientFont(persisted.clientFont ?? current.clientFont);
+        const editorFont = normalizeEditorFont(persisted.editorFont ?? current.editorFont);
+        useAppPrefsStore.setState({ clientFont, editorFont });
+        applyAppFonts(clientFont, editorFont);
+        persistFonts(clientFont, editorFont);
+      })
+      .catch((error: unknown) => {
+        console.warn("读取字体设置失败", error);
+      });
+  };
   if (useAppPrefsStore.persist.hasHydrated()) {
     syncAutostart();
     syncGitExtraPath();
+    syncFonts();
   } else {
     const unsub = useAppPrefsStore.persist.onFinishHydration(() => {
       unsub();
       syncAutostart();
       syncGitExtraPath();
+      syncFonts();
       applyActiveTheme(useAppPrefsStore.getState());
     });
   }

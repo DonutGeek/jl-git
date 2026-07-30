@@ -36,7 +36,6 @@ import {
   SortableRepoTab,
   type TabDisplayItem,
 } from "@/components/layout/RepoTabItem";
-import { WORKSPACE_RING_CLASS } from "@/components/project/workspaceGroupAppearance";
 import { OpenRepoDialog } from "@/components/project/OpenRepoDialog";
 import { Button } from "@/components/ui/button";
 import { AppDialogContent } from "@/components/common/AppDialogContent";
@@ -107,6 +106,8 @@ export function RepoTabBar() {
   const [aliasValue, setAliasValue] = useState("");
   const [aliasBusy, setAliasBusy] = useState(false);
   const [optimisticActiveId, setOptimisticActiveId] = useState<string | null>(null);
+  const [canScrollTabsLeft, setCanScrollTabsLeft] = useState(false);
+  const [canScrollTabsRight, setCanScrollTabsRight] = useState(false);
   const pendingActivationStale = shouldClearPendingActivation({
     pendingActiveId,
     originLocationKey: pendingOriginLocationKey,
@@ -210,6 +211,37 @@ export function RepoTabBar() {
     });
     return () => window.cancelAnimationFrame(raf);
   }, [activeId, tabScrollViewport, tabEntries]);
+
+  useEffect(() => {
+    if (!tabScrollViewport) {
+      setCanScrollTabsLeft(false);
+      setCanScrollTabsRight(false);
+      return;
+    }
+
+    const updateScrollEdges = (): void => {
+      const maxScrollLeft = Math.max(
+        0,
+        tabScrollViewport.scrollWidth - tabScrollViewport.clientWidth,
+      );
+      setCanScrollTabsLeft(tabScrollViewport.scrollLeft > 1);
+      setCanScrollTabsRight(tabScrollViewport.scrollLeft < maxScrollLeft - 1);
+    };
+    const content = tabScrollViewport.firstElementChild;
+    const resizeObserver = new ResizeObserver(updateScrollEdges);
+    resizeObserver.observe(tabScrollViewport);
+    if (content instanceof HTMLElement) {
+      resizeObserver.observe(content);
+    }
+    tabScrollViewport.addEventListener("scroll", updateScrollEdges, { passive: true });
+    const raf = window.requestAnimationFrame(updateScrollEdges);
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      resizeObserver.disconnect();
+      tabScrollViewport.removeEventListener("scroll", updateScrollEdges);
+    };
+  }, [tabScrollViewport]);
 
   useEffect(() => {
     if (!tabScrollViewport) {
@@ -609,62 +641,76 @@ export function RepoTabBar() {
           {/* flex-1：标签区吃满至右侧控件前，避免 + 与鲸灵按钮之间大片空位 */}
           <div className="flex h-full min-w-0 flex-1 items-center gap-1" style={noDragStyle}>
             {/* 主滚动用 shadcn ScrollArea：细滚动条、悬停/滚动时才显示，不再用裸 overflow-x-auto */}
-            {/* 内容 h-12 与视口高度一致（表头已去掉占位边框），纵向不溢出，无需隐藏纵向滚动条 */}
-            <ScrollArea ref={bindScrollArea} className={REPO_TAB_SCROLL_AREA_CLASSNAME}>
-              <div className={REPO_TAB_CONTENT_CLASSNAME}>
-                {tabGroups.map((group) => (
-                  <RepositoryTabGroup
-                    key={group.key}
-                    workspaceId={group.workspaceId}
-                    workspace={
-                      typeof group.workspaceId === "string"
-                        ? workspaceById.get(group.workspaceId)
-                        : undefined
-                    }
-                    tabIds={group.values.map((tab) => tab.id)}
-                    ungroupedLabel={t("projectManager.ungrouped")}
-                    isGroupDragging={
-                      typeof group.workspaceId === "string" &&
-                      group.workspaceId === draggingGroupWorkspaceId
-                    }
-                  >
-                    {group.values.map((tab) => (
-                      <SortableRepoTab
-                        key={tab.id}
-                        tab={tab}
-                        isActive={tab.id === activeId}
-                        tabIndex={orderedTabIds.indexOf(tab.id)}
-                        tabCount={tabs.length}
-                        onSelect={handleSelect}
-                        onClose={handleClose}
-                        onCloseTab={closeOneTab}
-                        onCloseOthers={(id) => {
-                          closeOtherTabs(id);
-                          syncRouteAfterTabsChange(id);
-                        }}
-                        onCloseLeft={(id) => {
-                          closeTabsToLeft(id);
-                          syncRouteAfterTabsChange(id);
-                        }}
-                        onCloseRight={(id) => {
-                          closeTabsToRight(id);
-                          syncRouteAfterTabsChange(id);
-                        }}
-                        onRemove={(project) => void handleRemove(project)}
-                        onSetAlias={(project) => {
-                          setAliasTarget(project);
-                          setAliasValue(project.name);
-                        }}
-                        onCopyRemote={(project) => void handleCopyRemote(project)}
-                        onCopyPath={(project) => void handleCopyPath(project)}
-                        closeLabel={t("repo.closeTab", { name: tab.label })}
-                        labels={labels}
-                      />
-                    ))}
-                  </RepositoryTabGroup>
-                ))}
-              </div>
-            </ScrollArea>
+            {/* 视口底部为横向滚动条预留 10px，避免覆盖标签组边框 */}
+            <div className="relative h-full min-w-0 flex-1">
+              <ScrollArea ref={bindScrollArea} className={REPO_TAB_SCROLL_AREA_CLASSNAME}>
+                <div className={REPO_TAB_CONTENT_CLASSNAME}>
+                  {tabGroups.map((group) => (
+                    <RepositoryTabGroup
+                      key={group.key}
+                      workspaceId={group.workspaceId}
+                      workspace={
+                        typeof group.workspaceId === "string"
+                          ? workspaceById.get(group.workspaceId)
+                          : undefined
+                      }
+                      tabIds={group.values.map((tab) => tab.id)}
+                      ungroupedLabel={t("projectManager.ungrouped")}
+                      isGroupDragging={
+                        typeof group.workspaceId === "string" &&
+                        group.workspaceId === draggingGroupWorkspaceId
+                      }
+                    >
+                      {group.values.map((tab) => (
+                        <SortableRepoTab
+                          key={tab.id}
+                          tab={tab}
+                          isActive={tab.id === activeId}
+                          tabIndex={orderedTabIds.indexOf(tab.id)}
+                          tabCount={tabs.length}
+                          onSelect={handleSelect}
+                          onClose={handleClose}
+                          onCloseTab={closeOneTab}
+                          onCloseOthers={(id) => {
+                            closeOtherTabs(id);
+                            syncRouteAfterTabsChange(id);
+                          }}
+                          onCloseLeft={(id) => {
+                            closeTabsToLeft(id);
+                            syncRouteAfterTabsChange(id);
+                          }}
+                          onCloseRight={(id) => {
+                            closeTabsToRight(id);
+                            syncRouteAfterTabsChange(id);
+                          }}
+                          onRemove={(project) => void handleRemove(project)}
+                          onSetAlias={(project) => {
+                            setAliasTarget(project);
+                            setAliasValue(project.name);
+                          }}
+                          onCopyRemote={(project) => void handleCopyRemote(project)}
+                          onCopyPath={(project) => void handleCopyPath(project)}
+                          closeLabel={t("repo.closeTab", { name: tab.label })}
+                          labels={labels}
+                        />
+                      ))}
+                    </RepositoryTabGroup>
+                  ))}
+                </div>
+              </ScrollArea>
+              {canScrollTabsLeft ? (
+                <div
+                  className="from-background via-background/80 pointer-events-none absolute top-0 bottom-2.5 left-0 z-10 w-8 bg-linear-to-r to-transparent"
+                  aria-hidden="true"
+                />
+              ) : null}
+              {canScrollTabsRight ? (
+                <div
+                  className="from-background via-background/80 pointer-events-none absolute top-0 right-0 bottom-2.5 z-10 w-8 bg-linear-to-l to-transparent"
+                  aria-hidden="true"
+                />
+              ) : null}
+            </div>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <Button
@@ -701,12 +747,11 @@ export function RepoTabBar() {
               tab={draggingTab}
               isActive={draggingTab.id === activeId}
               dragging
-              dragBorderClassName={(() => {
+              dragBorderColor={(() => {
                 if (typeof draggingTab.workspaceId !== "string") {
                   return undefined;
                 }
-                const color = workspaceById.get(draggingTab.workspaceId)?.color;
-                return color ? WORKSPACE_RING_CLASS[color] : undefined;
+                return workspaceById.get(draggingTab.workspaceId)?.color;
               })()}
             />
           ) : draggingGroupWorkspace ? (

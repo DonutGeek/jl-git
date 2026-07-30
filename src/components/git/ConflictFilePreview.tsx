@@ -80,6 +80,8 @@ export const ConflictFilePreview = forwardRef<ConflictFilePreviewHandle, Conflic
     const appThemeId = useAppPrefsStore((state) => state.appThemeId);
     const themeChromeLight = useAppPrefsStore((state) => state.themeChromeLight);
     const themeChromeDark = useAppPrefsStore((state) => state.themeChromeDark);
+    const clientFont = useAppPrefsStore((state) => state.clientFont);
+    const editorFont = useAppPrefsStore((state) => state.editorFont);
     const [mode, setMode] = useState<DiffPreviewMode>("file");
     const [diffLayout, setDiffLayout] = useState<DiffPreviewLayout>("sideBySide");
     const [foldUnchanged, setFoldUnchanged] = useState(false);
@@ -548,7 +550,7 @@ export const ConflictFilePreview = forwardRef<ConflictFilePreviewHandle, Conflic
         wordWrap: viewPrefs.wordWrap ? "on" : "off",
         fontFamily,
       });
-    }, [fontFamily, mode, viewPrefs.wordWrap]);
+    }, [clientFont, editorFont, fontFamily, mode, viewPrefs.wordWrap]);
 
     // 文件视图行追溯
     useEffect(() => {

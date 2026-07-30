@@ -9,9 +9,20 @@ import type {
   WorkspaceOrderItem,
   WorkspaceResult,
 } from "@/types/project";
+import {
+  DEFAULT_WORKSPACE_COLOR,
+  normalizeWorkspaceColor,
+  requireWorkspaceColor,
+} from "@/utils/workspaceColor";
+
+function normalizeWorkspace(workspace: Workspace): Workspace {
+  return { ...workspace, color: normalizeWorkspaceColor(workspace.color) };
+}
 
 async function list(): Promise<Workspace[]> {
-  return (await invokeCommand<WorkspaceListResult>("workspace_list")).workspaces;
+  return (await invokeCommand<WorkspaceListResult>("workspace_list")).workspaces.map(
+    normalizeWorkspace,
+  );
 }
 async function create(
   name: string,
@@ -19,8 +30,13 @@ async function create(
   icon?: WorkspaceIcon,
   color?: WorkspaceColor,
 ): Promise<Workspace> {
-  return (await invokeCommand<WorkspaceResult>("workspace_create", { name, parentId, icon, color }))
-    .workspace;
+  const result = await invokeCommand<WorkspaceResult>("workspace_create", {
+    name,
+    parentId,
+    icon,
+    color: requireWorkspaceColor(color ?? DEFAULT_WORKSPACE_COLOR),
+  });
+  return normalizeWorkspace(result.workspace);
 }
 async function update(input: {
   id: string;
@@ -29,15 +45,14 @@ async function update(input: {
   icon?: WorkspaceIcon;
   color?: WorkspaceColor;
 }): Promise<Workspace> {
-  return (
-    await invokeCommand<WorkspaceResult>("workspace_update", {
-      id: input.id,
-      name: input.name,
-      parentId: input.parentId === undefined ? undefined : input.parentId,
-      icon: input.icon,
-      color: input.color,
-    })
-  ).workspace;
+  const result = await invokeCommand<WorkspaceResult>("workspace_update", {
+    id: input.id,
+    name: input.name,
+    parentId: input.parentId === undefined ? undefined : input.parentId,
+    icon: input.icon,
+    color: input.color === undefined ? undefined : requireWorkspaceColor(input.color),
+  });
+  return normalizeWorkspace(result.workspace);
 }
 async function remove(id: string): Promise<void> {
   await invokeCommand<OkResult>("workspace_delete", { id });

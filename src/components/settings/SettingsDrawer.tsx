@@ -100,13 +100,13 @@ import {
   type GitIdentityAccount,
 } from "@/services/git/git.accounts";
 import { pickDirectory } from "@/services/project/project.service";
-import { listSystemFonts } from "@/services/system/system.info";
 import { setLaunchAtLoginEnabled } from "@/services/system/system.autostart";
 import { openExternalUrl } from "@/services/system/open-url";
 import { resolveEffective, type ThemeMode } from "@/services/theme/theme.service";
 import { APP_THEME_OPTIONS, chromeFromPreset, normalizeAppThemeId } from "@/design/editor-themes";
 import {
   CLIENT_FONT_SYSTEM,
+  DEFAULT_APP_FONT,
   EDITOR_FONT_SYSTEM,
   useAppPrefsStore,
   type StartupTabsMode,
@@ -318,9 +318,6 @@ export function SettingsDrawer() {
   const [instructionsReady, setInstructionsReady] = useState(false);
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("appearance");
 
-  const [systemFonts, setSystemFonts] = useState<string[]>([]);
-  const [fontsLoading, setFontsLoading] = useState(false);
-
   const savedInstructionsRef = useRef({ commit: "", pullRequest: "" });
   const instructionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -359,7 +356,6 @@ export function SettingsDrawer() {
     setApiKeysLoading(true);
     setInstructionsLoading(true);
     setInstructionsReady(false);
-    setFontsLoading(true);
 
     void listGitIdentityAccounts()
       .then((accounts) => {
@@ -415,24 +411,6 @@ export function SettingsDrawer() {
       .finally(() => {
         if (!cancelled) {
           setInstructionsLoading(false);
-        }
-      });
-
-    void listSystemFonts()
-      .then((fonts) => {
-        if (!cancelled) {
-          setSystemFonts(fonts);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setSystemFonts([]);
-          toast.error(toUserMessage(error));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setFontsLoading(false);
         }
       });
 
@@ -1002,71 +980,42 @@ export function SettingsDrawer() {
                       </SettingsPreferenceRow>
                     </SettingsPreferenceGroup>
                     <SettingsPreferenceGroup>
-                      <SettingsPreferenceRow
-                        label={t("settings.clientFont")}
-                        description={fontsLoading ? t("settings.fontsLoading") : undefined}
-                      >
+                      <SettingsPreferenceRow label={t("settings.clientFont")}>
                         <SelectMenu
                           value={clientFont}
-                          disabled={fontsLoading}
                           ariaLabel={t("settings.clientFont")}
                           onChange={setClientFont}
                           triggerClassName="h-8 w-48 max-w-[40vw]"
                           options={[
-                            { value: CLIENT_FONT_SYSTEM, label: t("settings.fontSystem") },
-                            ...(clientFont !== CLIENT_FONT_SYSTEM &&
-                            !systemFonts.includes(clientFont)
-                              ? [
-                                  {
-                                    value: clientFont,
-                                    label: clientFont,
-                                    style: {
-                                      fontFamily: `"${clientFont}", ui-sans-serif, system-ui, sans-serif`,
-                                    },
-                                  },
-                                ]
-                              : []),
-                            ...systemFonts.map((family) => ({
-                              value: family,
-                              label: family,
+                            {
+                              value: DEFAULT_APP_FONT,
+                              label: "JetBrains Mono",
                               style: {
-                                fontFamily: `"${family}", ui-sans-serif, system-ui, sans-serif`,
+                                fontFamily: `"${DEFAULT_APP_FONT}", ui-monospace, monospace`,
                               },
-                            })),
+                            },
+                            { value: CLIENT_FONT_SYSTEM, label: t("settings.fontSystem") },
                           ]}
                         />
                       </SettingsPreferenceRow>
                       <SettingsPreferenceRow label={t("settings.editorFont")}>
                         <SelectMenu
                           value={editorFont}
-                          disabled={fontsLoading}
                           ariaLabel={t("settings.editorFont")}
                           onChange={setEditorFont}
                           triggerClassName="h-8 w-48 max-w-[40vw]"
                           options={[
                             {
+                              value: DEFAULT_APP_FONT,
+                              label: "JetBrains Mono",
+                              style: {
+                                fontFamily: `"${DEFAULT_APP_FONT}", ui-monospace, monospace`,
+                              },
+                            },
+                            {
                               value: EDITOR_FONT_SYSTEM,
                               label: t("settings.fontSystemMono"),
                             },
-                            ...(editorFont !== EDITOR_FONT_SYSTEM &&
-                            !systemFonts.includes(editorFont)
-                              ? [
-                                  {
-                                    value: editorFont,
-                                    label: editorFont,
-                                    style: {
-                                      fontFamily: `"${editorFont}", ui-monospace, monospace`,
-                                    },
-                                  },
-                                ]
-                              : []),
-                            ...systemFonts.map((family) => ({
-                              value: family,
-                              label: family,
-                              style: {
-                                fontFamily: `"${family}", ui-monospace, monospace`,
-                              },
-                            })),
                           ]}
                         />
                       </SettingsPreferenceRow>

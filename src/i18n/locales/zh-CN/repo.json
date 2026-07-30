@@ -398,7 +398,6 @@
   "changesSortDefault": "默认",
   "changesSortStatus": "文件状态",
   "changesSortName": "字符",
-  "groupDefault": "Default",
   "changesGroupByStatus": "按增/改/删/重命名分类显示",
   "changesGroupByDate": "按修改日期显示",
   "changesGroupConflict": "冲突",

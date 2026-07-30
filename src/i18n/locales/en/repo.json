@@ -397,7 +397,6 @@
   "changesSortDefault": "Default",
   "changesSortStatus": "File status",
   "changesSortName": "Name",
-  "groupDefault": "Default",
   "changesGroupByStatus": "Group by added/modified/deleted/renamed",
   "changesGroupByDate": "Group by modification date",
   "changesGroupConflict": "Conflict",

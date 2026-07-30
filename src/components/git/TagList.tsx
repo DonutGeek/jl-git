@@ -68,8 +68,10 @@ type TagVisibleRow =
   | { kind: "local"; tag: GitTag; onRemote: boolean }
   | { kind: "remote"; tag: GitRemoteTag };
 
-/** 行高与分支树保持一致（分组头 / 标签行统一 28px），保证虚线引导连续 */
-const TAG_ROW_HEIGHT_PX = 28;
+/** 标签行槽位：28px 内容 + 2px 上下间隙 */
+const TAG_ROW_HEIGHT_PX = 30;
+/** 分组头槽位：28px 内容 + 8px 分组边界间隙 */
+const TAG_GROUP_HEIGHT_PX = 36;
 const TAG_VIRTUAL_OVERSCAN = 12;
 
 interface TagListProps {
@@ -186,7 +188,8 @@ export function TagList({ onSelectTag }: TagListProps) {
   const virtualizer = useVirtualizer({
     count: isEmpty || noMatch ? 0 : visibleRows.length,
     getScrollElement: () => viewport,
-    estimateSize: () => TAG_ROW_HEIGHT_PX,
+    estimateSize: (index) =>
+      visibleRows[index]?.kind === "group" ? TAG_GROUP_HEIGHT_PX : TAG_ROW_HEIGHT_PX,
     overscan: TAG_VIRTUAL_OVERSCAN,
     getItemKey: (index) => {
       const row = visibleRows[index];
@@ -399,7 +402,10 @@ export function TagList({ onSelectTag }: TagListProps) {
                   <div
                     key={virtualItem.key}
                     data-index={virtualItem.index}
-                    className="absolute top-0 left-0 w-full min-w-0"
+                    className={cn(
+                      "absolute top-0 left-0 w-full min-w-0",
+                      row.kind === "group" ? "py-1" : "py-px",
+                    )}
                     style={{
                       height: `${virtualItem.size}px`,
                       transform: `translateY(${virtualItem.start}px)`,

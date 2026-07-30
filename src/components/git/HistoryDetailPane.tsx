@@ -567,7 +567,7 @@ function ParentDiffSection({
                 }
               />
             ) : (
-              <ul className="w-full min-w-0">
+              <ul className="flex w-full min-w-0 flex-col gap-0.5">
                 {visible.map((file) => {
                   const clickable = Boolean(file.status);
                   const selected = isFileSelected(file);

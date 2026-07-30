@@ -425,6 +425,30 @@ pub async fn list_workspaces(pool: &SqlitePool) -> Result<Vec<WorkspaceRow>, App
     .collect()
 }
 
+const DEFAULT_WORKSPACE_COLOR: &str = "#5F75C1";
+
+fn normalize_workspace_color(value: &str) -> Result<String, AppError> {
+    let trimmed = value.trim();
+    let legacy = match trimmed.to_ascii_lowercase().as_str() {
+        "blue" => Some("#5F75C1"),
+        "green" => Some("#4E925E"),
+        "orange" => Some("#D27830"),
+        "purple" => Some("#AA6BAE"),
+        "red" => Some("#CD6055"),
+        _ => None,
+    };
+    if let Some(color) = legacy {
+        return Ok(color.to_string());
+    }
+    let Some(hex) = trimmed.strip_prefix('#') else {
+        return Err(AppError::new("VALIDATION", "分组颜色必须是 #RRGGBB 格式"));
+    };
+    if hex.len() != 6 || !hex.chars().all(|character| character.is_ascii_hexdigit()) {
+        return Err(AppError::new("VALIDATION", "分组颜色必须是 #RRGGBB 格式"));
+    }
+    Ok(format!("#{}", hex.to_ascii_uppercase()))
+}
+
 pub async fn create_workspace(
     pool: &SqlitePool,
     name: String,
@@ -438,7 +462,7 @@ pub async fn create_workspace(
     }
     let parent_id = parent_id.filter(|value| !value.trim().is_empty());
     let icon = icon.unwrap_or_else(|| "code".to_string());
-    let color = color.unwrap_or_else(|| "blue".to_string());
+    let color = normalize_workspace_color(color.as_deref().unwrap_or(DEFAULT_WORKSPACE_COLOR))?;
     if let Some(parent_id) = parent_id.as_deref() {
         let exists = sqlx::query_scalar::<_, i64>("SELECT COUNT(1) FROM workspaces WHERE id = ?1")
             .bind(parent_id)
@@ -479,6 +503,10 @@ pub async fn update_workspace(
     let name = name
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    let color = color
+        .as_deref()
+        .map(normalize_workspace_color)
+        .transpose()?;
     if name.is_none() && parent_id.is_none() && icon.is_none() && color.is_none() {
         return Err(AppError::new("VALIDATION", "没有可更新的分组字段"));
     }
@@ -643,12 +671,14 @@ async fn get_workspace(pool: &SqlitePool, id: &str) -> Result<WorkspaceRow, AppE
 }
 
 fn row_to_workspace(row: sqlx::sqlite::SqliteRow) -> Result<WorkspaceRow, AppError> {
+    let stored_color: String = row.try_get("color").map_err(to_db_error)?;
     Ok(WorkspaceRow {
         id: row.try_get("id").map_err(to_db_error)?,
         parent_id: row.try_get("parent_id").map_err(to_db_error)?,
         name: row.try_get("name").map_err(to_db_error)?,
         icon: row.try_get("icon").map_err(to_db_error)?,
-        color: row.try_get("color").map_err(to_db_error)?,
+        color: normalize_workspace_color(&stored_color)
+            .unwrap_or_else(|_| DEFAULT_WORKSPACE_COLOR.to_string()),
         sort_order: row.try_get("sort_order").map_err(to_db_error)?,
         created_at: row.try_get("created_at").map_err(to_db_error)?,
         updated_at: row.try_get("updated_at").map_err(to_db_error)?,

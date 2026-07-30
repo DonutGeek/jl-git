@@ -57,8 +57,8 @@ import { gitStatusLetterClass, normalizeGitStatusLetter } from "@/utils/gitStatu
 
 /** 稳定空数组：避免 selector 每次返回新 [] 触发 useSyncExternalStore 无限重渲染 */
 const EMPTY_ENTRIES: GitStatusEntry[] = [];
-/** 变更行固定高度（h-7） */
-const CHANGE_ROW_HEIGHT_PX = 28;
+/** 变更行槽位高度：28px 内容 + 2px 上下间隙 */
+const CHANGE_ROW_HEIGHT_PX = 30;
 const CHANGE_VIRTUAL_OVERSCAN = 10;
 
 /** 按增/改/删/重命名分类（与常见 Git 客户端一致） */
@@ -80,7 +80,6 @@ const CHANGE_STATUS_CATEGORY_ORDER: readonly ChangeStatusCategory[] = [
 ] as const;
 
 type ChangeListVisibleRow =
-  | { kind: "default-header" }
   | { kind: "status-header"; category: ChangeStatusCategory; count: number; open: boolean }
   | { kind: "date-header"; dateKey: string; count: number; open: boolean }
   | { kind: "file"; entry: GitStatusEntry };
@@ -109,24 +108,6 @@ function classifyChangeStatus(
     return "renamed";
   }
   return "modified";
-}
-
-function flattenChangeListRows(
-  entries: GitStatusEntry[],
-  showDefaultGroup: boolean,
-  groupOpen: boolean,
-): ChangeListVisibleRow[] {
-  if (!showDefaultGroup) {
-    return entries.map((entry) => ({ kind: "file" as const, entry }));
-  }
-  // 空列表也保留 Default 头，与有文件时结构一致
-  const rows: ChangeListVisibleRow[] = [{ kind: "default-header" }];
-  if (groupOpen) {
-    for (const entry of entries) {
-      rows.push({ kind: "file", entry });
-    }
-  }
-  return rows;
 }
 
 /** 列表：按冲突 / 新增 / 修改 / 删除 / 重命名分组（含 0 计数空组） */
@@ -448,14 +429,6 @@ function ChangeRow({
 
 interface ChangeGroupProps {
   ariaLabel: string;
-  actionLabel: string;
-  onAction: () => void;
-  actionDisabled: boolean;
-  /** 仅「变更」区展示 Default 级联分组 */
-  showDefaultGroup?: boolean;
-  groupOpen?: boolean;
-  onToggleGroup?: () => void;
-  groupLabel?: string;
   /** 按增/改/删/重命名分类（列表模式） */
   groupByStatus?: boolean;
   collapsedStatusCategories?: ReadonlySet<ChangeStatusCategory>;
@@ -486,8 +459,6 @@ interface ChangeGroupProps {
 
 function changeRowKey(row: ChangeVisibleRow, index: number): string {
   switch (row.kind) {
-    case "default-header":
-      return "default-header";
     case "status-header":
       return `status:${row.category}`;
     case "date-header":
@@ -502,16 +473,9 @@ function changeRowKey(row: ChangeVisibleRow, index: number): string {
   }
 }
 
-/** 变更 / 待提交分区；列表模式变更区以 Default 为根路径分组 */
+/** 变更 / 待提交分区 */
 function ChangeGroup({
   ariaLabel,
-  actionLabel,
-  onAction,
-  actionDisabled,
-  showDefaultGroup = false,
-  groupOpen = true,
-  onToggleGroup,
-  groupLabel,
   groupByStatus = false,
   collapsedStatusCategories,
   onToggleStatusCategory,
@@ -558,8 +522,7 @@ function ChangeGroup({
       }
       return flattenChangeDateGroupRows(entries, collapsedDates);
     }
-    // Default 列表：空时仍保留分组头
-    return flattenChangeListRows(entries, showDefaultGroup, groupOpen);
+    return entries.map((entry) => ({ kind: "file" as const, entry }));
   }, [
     collapsed,
     collapsedDates,
@@ -568,10 +531,8 @@ function ChangeGroup({
     expandedTreePaths,
     groupByDate,
     groupByStatus,
-    groupOpen,
     isEmpty,
     rootName,
-    showDefaultGroup,
     side,
     view,
   ]);
@@ -584,49 +545,9 @@ function ChangeGroup({
     getItemKey: (index) => changeRowKey(visibleRows[index], index),
   });
 
-  /** 纯空态：无 Default 头可挂时才整区 EmptyState */
-  const showBareEmpty =
-    view === "list" && isEmpty && !(showDefaultGroup && !groupByStatus && !groupByDate);
-  /** Default 下为空：头下方再展示空提示 */
-  const showEmptyUnderDefault =
-    view === "list" && isEmpty && showDefaultGroup && !groupByStatus && !groupByDate && groupOpen;
+  const showBareEmpty = view === "list" && isEmpty;
 
   function renderRow(row: ChangeVisibleRow): ReactNode {
-    if (row.kind === "default-header") {
-      return (
-        <div className="hover:bg-accent/60 group flex h-7 items-center rounded-md transition-colors">
-          <button
-            type="button"
-            className="text-muted-foreground flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-2 text-left text-xs"
-            onClick={onToggleGroup}
-          >
-            {groupOpen ? (
-              <ChevronDown className="size-3 shrink-0" aria-hidden="true" />
-            ) : (
-              <ChevronRight className="size-3 shrink-0" aria-hidden="true" />
-            )}
-            <span className="truncate">{groupLabel}</span>
-          </button>
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="mr-0.5 size-6 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0 group-hover:disabled:opacity-50 [&_svg]:size-3"
-                onClick={onAction}
-                disabled={actionDisabled || isEmpty}
-                aria-label={actionLabel}
-              >
-                <ArrowDown aria-hidden="true" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">{actionLabel}</TooltipContent>
-          </Tooltip>
-        </div>
-      );
-    }
-
     if (row.kind === "status-header") {
       return (
         <div className="hover:bg-accent/60 flex h-7 items-center rounded-md transition-colors">
@@ -689,7 +610,7 @@ function ChangeGroup({
         onToggle={onToggleEntry}
         disabled={disabled}
         toggleLabel={toggleLabelFor(row.entry.path)}
-        indented={view === "list" && (showDefaultGroup || groupByStatus || groupByDate)}
+        indented={view === "list" && (groupByStatus || groupByDate)}
         indentDepth={view === "tree" && "depth" in row ? row.depth : undefined}
         showLineStats={showLineStats}
       />
@@ -699,10 +620,10 @@ function ChangeGroup({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-hidden">
-        {/* 内边距在 ScrollArea：内容左右留缝，滚动条叠在右侧 padding */}
+        {/* 与分组标题统一 8px 外侧间隙，滚动条叠在右侧 padding */}
         <ScrollArea
           ref={bindScrollArea}
-          className="h-full px-3 pb-1 [&_[data-slot=scroll-area-viewport]>div]:!block"
+          className="h-full px-2 pb-1 [&_[data-slot=scroll-area-viewport]>div]:!block"
         >
           {showBareEmpty ? (
             <EmptyState
@@ -713,43 +634,32 @@ function ChangeGroup({
               description={emptyDescription}
             />
           ) : (
-            <>
-              <div
-                className="relative w-full"
-                style={{ height: `${virtualizer.getTotalSize()}px` }}
-                role={view === "tree" ? "tree" : "listbox"}
-                aria-label={ariaLabel}
-              >
-                {virtualizer.getVirtualItems().map((virtualItem) => {
-                  const row = visibleRows[virtualItem.index];
-                  if (!row) {
-                    return null;
-                  }
-                  return (
-                    <div
-                      key={virtualItem.key}
-                      data-index={virtualItem.index}
-                      className="absolute top-0 left-0 w-full"
-                      style={{
-                        height: `${virtualItem.size}px`,
-                        transform: `translateY(${virtualItem.start}px)`,
-                      }}
-                    >
-                      {renderRow(row)}
-                    </div>
-                  );
-                })}
-              </div>
-              {showEmptyUnderDefault ? (
-                <EmptyState
-                  compact
-                  className="min-h-30 py-6"
-                  icon={emptyIcon}
-                  title={emptyTitle}
-                  description={emptyDescription}
-                />
-              ) : null}
-            </>
+            <div
+              className="relative w-full"
+              style={{ height: `${virtualizer.getTotalSize()}px` }}
+              role={view === "tree" ? "tree" : "listbox"}
+              aria-label={ariaLabel}
+            >
+              {virtualizer.getVirtualItems().map((virtualItem) => {
+                const row = visibleRows[virtualItem.index];
+                if (!row) {
+                  return null;
+                }
+                return (
+                  <div
+                    key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    className="absolute top-0 left-0 w-full py-px"
+                    style={{
+                      height: `${virtualItem.size}px`,
+                      transform: `translateY(${virtualItem.start}px)`,
+                    }}
+                  >
+                    {renderRow(row)}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </ScrollArea>
       </div>
@@ -757,7 +667,7 @@ function ChangeGroup({
   );
 }
 
-/** 中栏：变更（含 Default）/ 待提交（扁平列表） */
+/** 中栏：变更 / 待提交 */
 export function ChangesPanel() {
   const { t } = useTranslation();
   const entries = useRepoStore((state) => state.status?.entries ?? EMPTY_ENTRIES);
@@ -781,7 +691,6 @@ export function ChangesPanel() {
     () => new Set<ChangeStatusCategory>(),
   );
   const [collapsedDateKeys, setCollapsedDateKeys] = useState(() => new Set<string>());
-  const [unstagedGroupOpen, setUnstagedGroupOpen] = useState(true);
   const [expandedTreePaths, setExpandedTreePaths] = useState<Set<string>>(() => new Set());
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -933,7 +842,6 @@ export function ChangesPanel() {
     setSearchOpen(true);
   }
 
-  const groupLabel = t("repo.groupDefault");
   const rootName = getPathBasename(repoPath ?? "") || t("project.repoLabel");
   const listGroupByStatus = view === "list" && listGroupMode === "status";
   const listGroupByDate = view === "list" && listGroupMode === "date";
@@ -974,13 +882,6 @@ export function ChangesPanel() {
         >
           <ChangeGroup
             ariaLabel={t("repo.changesCount", { count: unstagedEntries.length })}
-            actionLabel={t("repo.stageAll")}
-            onAction={() => void handleStageAll()}
-            actionDisabled={busy}
-            showDefaultGroup={view === "list" && listGroupMode === "default"}
-            groupOpen={unstagedGroupOpen}
-            onToggleGroup={() => setUnstagedGroupOpen((prev) => !prev)}
-            groupLabel={groupLabel}
             groupByStatus={listGroupByStatus}
             collapsedStatusCategories={collapsedStatusCategories}
             onToggleStatusCategory={toggleStatusCategory}
@@ -1041,12 +942,6 @@ export function ChangesPanel() {
         >
           <ChangeGroup
             ariaLabel={t("repo.stagedCount", { count: stagedEntries.length })}
-            actionLabel={t("repo.unstageAll")}
-            onAction={() => void handleUnstageAll()}
-            actionDisabled={
-              busy ||
-              (stagedEntries.length > 0 && stagedEntries.every((entry) => isConflictEntry(entry)))
-            }
             groupByStatus={listGroupByStatus}
             collapsedStatusCategories={collapsedStatusCategories}
             onToggleStatusCategory={toggleStatusCategory}

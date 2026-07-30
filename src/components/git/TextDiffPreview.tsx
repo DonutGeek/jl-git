@@ -181,6 +181,8 @@ export const TextDiffPreview = forwardRef<TextDiffPreviewHandle, TextDiffPreview
     const appThemeId = useAppPrefsStore((state) => state.appThemeId);
     const themeChromeLight = useAppPrefsStore((state) => state.themeChromeLight);
     const themeChromeDark = useAppPrefsStore((state) => state.themeChromeDark);
+    const clientFont = useAppPrefsStore((state) => state.clientFont);
+    const editorFont = useAppPrefsStore((state) => state.editorFont);
     const showEditor = !diff.binary || allowBinaryEditor;
     const sideBySide = diffLayout === "sideBySide";
     const language = diff.binary ? "plaintext" : languageFromPath(path);
@@ -392,7 +394,14 @@ export const TextDiffPreview = forwardRef<TextDiffPreviewHandle, TextDiffPreview
         diffEditor.getModifiedEditor().updateOptions({ wordWrap: wrap, fontFamily: font });
       }
       fileEditorRef.current?.updateOptions({ wordWrap: wrap, fontFamily: font });
-    }, [sideBySide, viewPrefs.ignoreWhitespace, viewPrefs.monospace, viewPrefs.wordWrap]);
+    }, [
+      clientFont,
+      editorFont,
+      sideBySide,
+      viewPrefs.ignoreWhitespace,
+      viewPrefs.monospace,
+      viewPrefs.wordWrap,
+    ]);
 
     // 行追溯：按需拉取 blame 并装饰「新侧 / 文件视图」
     useEffect(() => {

@@ -75,8 +75,8 @@ export function ChangeGroupChrome({
   children,
 }: ChangeGroupChromeProps) {
   return (
-    <section className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="shrink-0 px-3">
+    <section className="flex h-full min-h-0 flex-col overflow-hidden py-1">
+      <div className="shrink-0 px-2">
         <div className="group/header hover:bg-accent/60 flex h-7 items-center justify-between gap-1 rounded-md px-2 transition-colors">
           <div className="flex min-w-0 flex-1 items-center">
             {titleSlot ?? (
@@ -349,7 +349,7 @@ export function ChangesPanelChrome({
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden pt-1 pb-1">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <ResizableSplit
           orientation="vertical"
           defaultRatio={55}

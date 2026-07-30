@@ -55,7 +55,8 @@ export interface Workspace {
   updatedAt: string;
 }
 export type WorkspaceIcon = "folder" | "briefcase" | "code" | "layers" | "box";
-export type WorkspaceColor = "blue" | "green" | "orange" | "purple" | "red";
+/** 规范化的大写 #RRGGBB 颜色 */
+export type WorkspaceColor = `#${string}`;
 
 export interface WorkspaceListResult {
   workspaces: Workspace[];

@@ -25,6 +25,7 @@ import type { Project } from "@/types/project";
 import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
 import { revealInFileManagerLabel } from "@/utils/platformLabels";
 import type { RepoTabWorkspaceId } from "@/utils/repoTabGroups";
+import { workspaceColorRing } from "@/utils/workspaceColor";
 
 export interface TabDisplayItem {
   id: string;
@@ -64,7 +65,7 @@ interface RepoTabChromeProps {
   isActive: boolean;
   dragging?: boolean;
   /** 拖拽幽灵边框色（命名组时用分组色） */
-  dragBorderClassName?: string;
+  dragBorderColor?: string;
   onSelect?: (tabId: string) => void;
   onClose?: (event: MouseEvent | KeyboardEvent, tabId: string) => void;
   closeLabel?: string;
@@ -74,7 +75,7 @@ export function RepoTabChrome({
   tab,
   isActive,
   dragging = false,
-  dragBorderClassName,
+  dragBorderColor,
   onSelect,
   onClose,
   closeLabel,
@@ -84,9 +85,17 @@ export function RepoTabChrome({
       className={cn(
         "group relative flex h-7 max-w-44 items-center rounded-md font-mono text-xs leading-none transition-colors",
         isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/60",
-        dragging && "bg-primary/10 text-primary ring-1",
-        dragging && (dragBorderClassName ?? "ring-border"),
+        dragging && "bg-primary/10 text-primary",
       )}
+      style={
+        dragging
+          ? {
+              boxShadow: `0 0 0 1px ${
+                dragBorderColor ? workspaceColorRing(dragBorderColor) : "var(--border)"
+              }`,
+            }
+          : undefined
+      }
     >
       <button
         type="button"

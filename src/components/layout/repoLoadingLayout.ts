@@ -3,8 +3,8 @@ export const REPO_MAIN_LOADING_AREA = "main";
 export const REPO_LOADING_LABEL_KEY = "common.loading";
 
 export const REPO_TAB_SCROLL_AREA_CLASSNAME =
-  "h-full min-w-0 flex-1 [&>[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:hidden [&>[data-slot=scroll-area-scrollbar][data-orientation=horizontal]]:hidden";
-export const REPO_TAB_CONTENT_CLASSNAME = "flex h-12 w-max items-center gap-1.5 pr-1.5";
+  "h-full w-full min-w-0 [&_[data-slot=scroll-area-viewport]]:pb-2.5 [&>[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:hidden";
+export const REPO_TAB_CONTENT_CLASSNAME = "flex h-full w-max items-center gap-1.5 pr-1.5";
 
 interface RepoTabWheelInput {
   deltaX: number;
