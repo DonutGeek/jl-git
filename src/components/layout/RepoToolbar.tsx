@@ -23,8 +23,8 @@ import {
   LayoutDashboard,
   ListTree,
   MoreHorizontal,
-  RotateCcw,
   RotateCw,
+  Undo2,
   Search,
   Terminal,
 } from "lucide-react";
@@ -38,6 +38,7 @@ import type { SyncPendingKind } from "@/components/git/SyncPendingWorkspaceOverl
 import { ProjectIcon } from "@/components/project/ProjectIcon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -609,8 +610,6 @@ export function RepoToolbar({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <div className="bg-border h-6 w-px shrink-0" aria-hidden="true" />
-
       {/* 主视图切换 */}
       <div
         className="flex items-center gap-0.5"
@@ -662,8 +661,6 @@ export function RepoToolbar({
         })}
       </div>
 
-      <div className="bg-border h-6 w-px shrink-0" aria-hidden="true" />
-
       {/* 分支：宽档 w-40；收紧时窄槽仍 truncate 露出名称，全文 Tooltip */}
       <DropdownMenu
         open={branchMenuOpen}
@@ -702,15 +699,15 @@ export function RepoToolbar({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* 同步：检查更新 / 更新(pull) / 推送（右键：撤销提交） */}
+      {/* 同步：检查更新 / 更新(pull) / 推送；有角标时「操作 + 数字」用 ButtonGroup 组合 */}
       <div className="flex shrink-0 items-center gap-1" style={noDragStyle}>
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className={cn("h-8", iconOnly ? "px-2" : "gap-1.5")}
+              className={cn("h-8 shadow-none", iconOnly ? "px-2" : "gap-1.5")}
               data-repo-git-control="fetch"
               disabled={syncBusy}
               aria-label={t("repo.checkUpdate")}
@@ -727,113 +724,92 @@ export function RepoToolbar({
           <TooltipContent>{t("repo.checkUpdate")}</TooltipContent>
         </Tooltip>
 
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <span className="inline-flex">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className={cn("relative h-8", iconOnly ? "gap-1 px-2" : "gap-1.5")}
-                data-repo-git-control="pull"
-                disabled={syncBusy || needsPublish}
-                aria-label={t("repo.pull")}
-                onClick={() => void handlePull()}
-              >
-                {pulling ? (
-                  <Spinner className="size-3.5" />
-                ) : (
-                  <ArrowDownToLine className="size-3.5" aria-hidden="true" />
-                )}
-                {iconOnly ? null : <span>{t("repo.pull")}</span>}
-                {behind > 0 ? (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className={cn(
-                      "bg-primary text-primary-foreground ml-0.5 inline-flex size-4 items-center justify-center rounded-md text-[10px] leading-none font-semibold",
-                      syncPendingKind === "pull" && "ring-ring ring-1",
-                    )}
-                    aria-label={t("repo.unpulledCount", { count: behind })}
-                    onClick={(event) => toggleSyncPending("pull", event)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        toggleSyncPending("pull", event);
-                      }
-                    }}
-                  >
-                    {behind > 99 ? "99+" : behind}
-                  </span>
-                ) : null}
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            {needsPublish
-              ? t("repo.pullNeedsPublish")
-              : behind > 0
-                ? t("repo.unpulledCount", { count: behind })
-                : t("repo.pullHint")}
-          </TooltipContent>
-        </Tooltip>
-
-        {needsPublish ? null : (
-          <ContextMenu>
+        {behind > 0 ? (
+          <ButtonGroup
+            aria-label={t("repo.pull")}
+            className={cn(
+              // Tooltip / disabled 外包层会挡住默认 [&>*] 接缝
+              "[&_button]:rounded-none [&_button]:shadow-none",
+              "[&>:first-child_button]:rounded-l-md [&>button:first-child]:rounded-l-md",
+              "[&>button:last-child]:rounded-r-md [&>:last-child_button]:rounded-r-md",
+              "[&>:not(:first-child)_button]:border-l-0 [&>button:not(:first-child)]:border-l-0",
+            )}
+          >
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
-                {/* disabled 时包一层，保证仍能显示「无可推送」提示 */}
                 <span className="inline-flex">
-                  <ContextMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className={cn("relative h-8", iconOnly ? "gap-1 px-2" : "gap-1.5")}
-                      data-repo-git-control="push"
-                      disabled={syncBusy || ahead <= 0}
-                      aria-label={t("repo.push")}
-                      onClick={() => void handlePush()}
-                    >
-                      {pushing ? (
-                        <Spinner className="size-3.5" />
-                      ) : (
-                        <ArrowUpFromLine className="size-3.5" aria-hidden="true" />
-                      )}
-                      {iconOnly ? null : <span>{t("repo.push")}</span>}
-                      {ahead > 0 ? (
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          className={cn(
-                            "bg-primary text-primary-foreground ml-0.5 inline-flex size-4 items-center justify-center rounded-md text-[10px] leading-none font-semibold",
-                            syncPendingKind === "push" && "ring-ring ring-1",
-                          )}
-                          aria-label={t("repo.unpushedCount", { count: ahead })}
-                          onClick={(event) => toggleSyncPending("push", event)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              toggleSyncPending("push", event);
-                            }
-                          }}
-                        >
-                          {ahead > 99 ? "99+" : ahead}
-                        </span>
-                      ) : null}
-                    </Button>
-                  </ContextMenuTrigger>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className={cn("h-8 shadow-none", iconOnly ? "gap-1 px-2" : "gap-1.5")}
+                    data-repo-git-control="pull"
+                    disabled={syncBusy || needsPublish}
+                    aria-label={t("repo.pull")}
+                    onClick={() => void handlePull()}
+                  >
+                    {pulling ? (
+                      <Spinner className="size-3.5" />
+                    ) : (
+                      <ArrowDownToLine className="size-3.5" aria-hidden="true" />
+                    )}
+                    {iconOnly ? null : <span>{t("repo.pull")}</span>}
+                  </Button>
                 </span>
               </TooltipTrigger>
               <TooltipContent>
-                {ahead <= 0 ? t("repo.pushNothing") : t("repo.unpushedCount", { count: ahead })}
+                {needsPublish ? t("repo.pullNeedsPublish") : t("repo.pullHint")}
               </TooltipContent>
             </Tooltip>
-            <ContextMenuContent className="min-w-40">
-              <ContextMenuItem disabled={ahead <= 0} onSelect={handleUndoCommit}>
-                <RotateCcw className="size-3.5" aria-hidden="true" />
-                {t("repo.undoCommitMenu")}
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "h-8 px-1.5 shadow-none",
+                    syncPendingKind === "pull" && "bg-accent",
+                  )}
+                  aria-label={t("repo.unpulledCount", { count: behind })}
+                  aria-pressed={syncPendingKind === "pull"}
+                  onClick={(event) => toggleSyncPending("pull", event)}
+                >
+                  <Badge className="min-w-4 justify-center rounded-full px-1 py-0 text-[10px] leading-4 font-semibold tabular-nums">
+                    {behind > 99 ? "99+" : behind}
+                  </Badge>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("repo.unpulledCount", { count: behind })}</TooltipContent>
+            </Tooltip>
+          </ButtonGroup>
+        ) : (
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn("h-8 shadow-none", iconOnly ? "gap-1 px-2" : "gap-1.5")}
+                  data-repo-git-control="pull"
+                  disabled={syncBusy || needsPublish}
+                  aria-label={t("repo.pull")}
+                  onClick={() => void handlePull()}
+                >
+                  {pulling ? (
+                    <Spinner className="size-3.5" />
+                  ) : (
+                    <ArrowDownToLine className="size-3.5" aria-hidden="true" />
+                  )}
+                  {iconOnly ? null : <span>{t("repo.pull")}</span>}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {needsPublish ? t("repo.pullNeedsPublish") : t("repo.pullHint")}
+            </TooltipContent>
+          </Tooltip>
         )}
 
         {needsPublish ? (
@@ -841,9 +817,9 @@ export function RepoToolbar({
             <TooltipTrigger asChild>
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                className={cn("relative h-8", iconOnly ? "px-2" : "gap-1.5")}
+                className={cn("h-8 shadow-none", iconOnly ? "px-2" : "gap-1.5")}
                 disabled={syncBusy}
                 aria-label={t("repo.publishBranch")}
                 onClick={() => void handlePublish()}
@@ -858,7 +834,126 @@ export function RepoToolbar({
             </TooltipTrigger>
             <TooltipContent>{t("repo.publishBranchHint")}</TooltipContent>
           </Tooltip>
-        ) : null}
+        ) : ahead > 0 ? (
+          <ButtonGroup
+            aria-label={t("repo.push")}
+            className={cn(
+              // Tooltip / Dropdown 外包层会挡住默认 [&>*] 接缝
+              "[&_button]:rounded-none [&_button]:shadow-none",
+              "[&>:first-child_button]:rounded-l-md [&>button:first-child]:rounded-l-md",
+              "[&>button:last-child]:rounded-r-md [&>:last-child_button]:rounded-r-md",
+              "[&>:not(:first-child)_button]:border-l-0 [&>button:not(:first-child)]:border-l-0",
+            )}
+          >
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn("h-8 shadow-none", iconOnly ? "gap-1 px-2" : "gap-1.5")}
+                  data-repo-git-control="push"
+                  disabled={syncBusy}
+                  aria-label={t("repo.push")}
+                  onClick={() => void handlePush()}
+                >
+                  {pushing ? (
+                    <Spinner className="size-3.5" />
+                  ) : (
+                    <ArrowUpFromLine className="size-3.5" aria-hidden="true" />
+                  )}
+                  {iconOnly ? null : <span>{t("repo.push")}</span>}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("repo.push")}</TooltipContent>
+            </Tooltip>
+
+            <DropdownMenu>
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        className="h-8 w-7"
+                        aria-label={t("repo.pushMenu")}
+                      >
+                        <ChevronDown className="size-3.5" aria-hidden="true" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{t("repo.pushMenu")}</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="start" className="min-w-40">
+                <DropdownMenuItem onSelect={handleUndoCommit}>
+                  <Undo2 className="size-3.5" aria-hidden="true" />
+                  {t("repo.undoCommitMenu")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "h-8 px-1.5 shadow-none",
+                    syncPendingKind === "push" && "bg-accent",
+                  )}
+                  aria-label={t("repo.unpushedCount", { count: ahead })}
+                  aria-pressed={syncPendingKind === "push"}
+                  onClick={(event) => toggleSyncPending("push", event)}
+                >
+                  <Badge className="min-w-4 justify-center rounded-full px-1 py-0 text-[10px] leading-4 font-semibold tabular-nums">
+                    {ahead > 99 ? "99+" : ahead}
+                  </Badge>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("repo.unpushedCount", { count: ahead })}</TooltipContent>
+            </Tooltip>
+          </ButtonGroup>
+        ) : (
+          <ContextMenu>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                {/* disabled 时包一层，保证仍能显示「无可推送」提示 */}
+                <span className="inline-flex">
+                  <ContextMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={cn("h-8 shadow-none", iconOnly ? "gap-1 px-2" : "gap-1.5")}
+                      data-repo-git-control="push"
+                      disabled={syncBusy || ahead <= 0}
+                      aria-label={t("repo.push")}
+                      onClick={() => void handlePush()}
+                    >
+                      {pushing ? (
+                        <Spinner className="size-3.5" />
+                      ) : (
+                        <ArrowUpFromLine className="size-3.5" aria-hidden="true" />
+                      )}
+                      {iconOnly ? null : <span>{t("repo.push")}</span>}
+                    </Button>
+                  </ContextMenuTrigger>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{t("repo.pushNothing")}</TooltipContent>
+            </Tooltip>
+            <ContextMenuContent className="min-w-40">
+              <ContextMenuItem disabled={ahead <= 0} onSelect={handleUndoCommit}>
+                <Undo2 className="size-3.5" aria-hidden="true" />
+                {t("repo.undoCommitMenu")}
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        )}
       </div>
 
       {/* 右侧：分支比较 + 外部打开；minimal 时收进 ⋯ */}

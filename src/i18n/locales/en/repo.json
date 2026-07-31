@@ -265,6 +265,7 @@
   "pullStart": "Pulling…",
   "pullSuccess": "Pull complete ({{remote}}, {{seconds}}s)",
   "push": "Push",
+  "pushMenu": "Push menu",
   "pushToRemote": "Push to remote",
   "pushStart": "Pushing…",
   "pushSuccess": "Push complete ({{remote}}, {{seconds}}s)",

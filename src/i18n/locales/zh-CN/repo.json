@@ -266,6 +266,7 @@
   "pullStart": "开始更新…",
   "pullSuccess": "更新完成（{{remote}}，{{seconds}}s）",
   "push": "推送",
+  "pushMenu": "推送菜单",
   "pushToRemote": "推送到远程",
   "pushStart": "正在推送…",
   "pushSuccess": "推送完成（{{remote}}，{{seconds}}s）",
