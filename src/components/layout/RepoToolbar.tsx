@@ -26,6 +26,7 @@ import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollAr
 import { HighlightText } from "@/components/common/HighlightText";
 import { LucideDynamicIcon } from "@/components/common/LucideDynamicIcon";
 import { LocalBranchMenuList } from "@/components/git/LocalBranchMenuList";
+import { SyncPendingPreview } from "@/components/git/SyncPendingPreview";
 import { ProjectIcon } from "@/components/project/ProjectIcon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -724,14 +725,6 @@ export function RepoToolbar({
                   <ArrowDownToLine className="size-3.5" aria-hidden="true" />
                 )}
                 {iconOnly ? null : <span>{t("repo.pull")}</span>}
-                {behind > 0 ? (
-                  <span
-                    className="bg-primary text-primary-foreground ml-0.5 inline-flex size-4 items-center justify-center rounded-full text-[10px] leading-none font-semibold"
-                    aria-label={t("repo.unpulledCount", { count: behind })}
-                  >
-                    {behind > 99 ? "99+" : behind}
-                  </span>
-                ) : null}
               </Button>
             </span>
           </TooltipTrigger>
@@ -767,14 +760,6 @@ export function RepoToolbar({
                         <ArrowUpFromLine className="size-3.5" aria-hidden="true" />
                       )}
                       {iconOnly ? null : <span>{t("repo.push")}</span>}
-                      {ahead > 0 ? (
-                        <span
-                          className="bg-primary text-primary-foreground ml-0.5 inline-flex size-4 items-center justify-center rounded-full text-[10px] leading-none font-semibold"
-                          aria-label={t("repo.unpushedCount", { count: ahead })}
-                        >
-                          {ahead > 99 ? "99+" : ahead}
-                        </span>
-                      ) : null}
                     </Button>
                   </ContextMenuTrigger>
                 </span>
@@ -815,6 +800,14 @@ export function RepoToolbar({
             <TooltipContent>{t("repo.publishBranchHint")}</TooltipContent>
           </Tooltip>
         ) : null}
+
+        <SyncPendingPreview
+          repoPath={project.path}
+          upstream={status?.upstream ?? null}
+          ahead={ahead}
+          behind={behind}
+          disabled={syncBusy || loadingShell}
+        />
       </div>
 
       {/* 右侧：分支比较 + 外部打开；minimal 时收进 ⋯ */}
