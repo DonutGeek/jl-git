@@ -12,6 +12,7 @@ import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { TextDiffPreview } from "@/components/git/TextDiffPreview";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
@@ -313,29 +314,20 @@ export function SyncPendingWorkspaceOverlay() {
           </span>
         )}
 
-        <div
-          className="border-border flex shrink-0 items-center rounded-md border p-0.5 text-xs"
-          role="tablist"
-          aria-label={t("repo.syncPendingView")}
-        >
+        <ButtonGroup aria-label={t("repo.syncPendingView")} className="shrink-0">
           {(["files", "commits"] as const).map((item) => (
-            <button
+            <Button
               key={item}
               type="button"
-              role="tab"
-              aria-selected={view === item}
-              className={cn(
-                "rounded-sm px-2 py-1 transition-colors",
-                view === item
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
+              size="xs"
+              variant={view === item ? "default" : "outline"}
+              aria-pressed={view === item}
               onClick={() => setView(item)}
             >
               {item === "files" ? t("repo.syncPendingFiles") : t("repo.syncPendingCommits")}
-            </button>
+            </Button>
           ))}
-        </div>
+        </ButtonGroup>
 
         {pendingCount > 0 ? (
           <span className="text-muted-foreground truncate text-xs tabular-nums">

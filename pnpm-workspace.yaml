@@ -2,6 +2,8 @@
 # esbuild is the only reviewed build script required by the current Vite toolchain.
 allowBuilds:
   esbuild: true
+  # msw 仅作依赖树传递；不需要执行其 postinstall 打包 CLI
+  msw: false
 
 # Delay newly published packages to reduce supply-chain exposure.
 minimumReleaseAge: 1440
