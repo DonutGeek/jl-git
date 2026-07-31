@@ -29,7 +29,7 @@ const CONTEXT_README_CHARS = 1_800;
 interface StreamMultiAgentReplyOptions {
   messages: readonly AgentChatMessage[];
   profiles: readonly AgentProjectProfile[];
-  /** 仅来自本次简历对话中用户主动声明的 Git 作者身份 */
+  /** 简历技能：用户声明或由 Git 身份自动识别的作者过滤器 */
   resumeAuthors: ReadonlyArray<{ name: string; email: string }>;
   /** 允许代码工具访问的仓根；多仓须由 @项目 / 点名解析后传入 */
   codeToolRoots?: ReadonlyArray<{ path: string; label?: string }>;
@@ -175,7 +175,7 @@ function formatProfilesContext(
               `- 账号${index + 1}: ${author.name.trim() || "—"} <${author.email.trim() || "—"}>`,
           )
           .join("\n")
-      : "- （用户尚未声明）";
+      : "- （未识别到 Git 身份）";
 
   // 普通多仓问答不注入作者归属；仅简历技能需要「谁的提交」
   const header = resumeMode
@@ -183,13 +183,13 @@ function formatProfilesContext(
         `Registered projects: ${profiles.length}.`,
         "Evidence policy: subjectIndex + changed paths are enough to write approach bullets; diff excerpts are optional boosts. Never refuse or ask user for more evidence because excerpts are truncated. All Git data below is from read-only queries.",
         "Output only project-experience blocks; never write contact/basics sections (name/phone/email).",
-        "userDeclaredGitAuthors（仅来自用户在当前简历对话中主动声明；提交命中任一即计入）：",
+        "userGitAuthors（优先用户声明，否则来自全局 Git 身份；提交命中任一即计入）：",
         authorLines,
         "项目列表：下列为全部已登记仓库，列举时必须全部告知用户，不要因 matchedCommits=0 而省略或替用户筛选「没改过」的仓。",
         authors.length > 0
-          ? "提交摘要：各仓 recentCommits 已按上述用户声明身份收窄；matchedCommits=0 表示暂无本人提交，仍须出现在项目清单里；成稿时不得编造。"
-          : "用户尚未声明 Git 作者身份：只询问作者名或提交邮箱，不得生成项目经历。",
-        "Time ranges use the first and latest commits matched by the user-declared author filters.",
+          ? "提交摘要：各仓 recentCommits 已按上述作者身份收窄；matchedCommits=0 表示暂无本人提交，仍须出现在项目清单里；成稿时不得编造。"
+          : "未识别到 Git 作者身份：只提示用户配置或声明作者名/邮箱，不得生成项目经历。",
+        "Time ranges use the first and latest commits matched by the author filters.",
       ].join("\n")
     : [
         `Registered projects: ${profiles.length}.`,

@@ -56,7 +56,7 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 行追溯；`rev` 省略则 blame 工作区文件。
 
 - **Command：** `git_log`
-- **说明：** 每条 `GitCommitSummary` 含 `authorEmail`、`parentIds`（用于历史图谱）与 `coAuthors`（来自 `Co-authored-by` trailer）。历史页经 `buildHistoryLogOptions`：打开仓库默认 `logRef == null`（「所有分支」→ `all: true`）；选中分支/标签时传 `ref`。`order`：`topo` / `date` 对应 `--topo-order` / `--date-order`。可选 `authors: string[]`（多条 `--author` OR；简历技能仅将用户在对话中主动声明的作者名/提交邮箱转义后传入，不读取当前/全局 Git 身份或设置账号）。可选 `grep` / `since` / `until` / `noMerges`（高级筛选）。可选 `reverse`（`git log --reverse`；简历技能取匹配作者最早提交）。
+- **说明：** 每条 `GitCommitSummary` 含 `authorEmail`、`parentIds`（用于历史图谱）与 `coAuthors`（来自 `Co-authored-by` trailer）。历史页经 `buildHistoryLogOptions`：打开仓库默认 `logRef == null`（「所有分支」→ `all: true`）；选中分支/标签时传 `ref`。`order`：`topo` / `date` 对应 `--topo-order` / `--date-order`。可选 `authors: string[]`（多条 `--author` OR；简历技能将解析后的作者名/提交邮箱转义后传入，默认来自仓库或全局 Git 身份，可由对话声明覆盖）。可选 `grep` / `since` / `until` / `noMerges`（高级筛选）。可选 `reverse`（`git log --reverse`；简历技能取匹配作者最早提交）。
 
 ### `buildHistoryLogOptions({ skip?; limit?; logRef; order?; advanced? }): GitLogOptions`
 

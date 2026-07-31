@@ -154,7 +154,7 @@
 | AI Git 指令 | Done | 可配置提交指令与拉取请求指令；提交指令已接入提交文案生成 |
 | AI Commit Message | Done | 根据限长、脱敏后的暂存区 Diff 生成 Conventional Commit 文案，用户确认后提交；设置 → 鲸灵可切换模型（官方 `GET /models`） |
 | 鲸灵对话入口 | Done | 左侧面板、虚拟消息列表、多对话标签、DeepSeek 流式回复；会话按项目隔离并写入 SQLite（含 reasoning）；删项目 CASCADE |
-| 鲸灵（单仓/多仓） | Done | 同一套 Agent；默认专注 Git/仓库；简历与技能创建使用互相隔离的独立 Prompt；简历需用户主动声明作者身份后才只读匹配提交；技能创建生成可落盘 Skill 包内容但不直接写盘；会话按宿主分桶 |
+| 鲸灵（单仓/多仓） | Done | 同一套 Agent；默认专注 Git/仓库；简历与技能创建使用互相隔离的独立 Prompt；简历默认用仓库/全局 Git 身份匹配个人提交（可对话覆盖）；技能创建生成可落盘 Skill 包内容但不直接写盘；会话按宿主分桶 |
 | 鲸灵内容安全 | Done | 本地高置信度恶意请求门禁 + 全模式公共安全 Prompt；仓库内容按不可信数据处理；保留防御性安全与授权测试 |
 | AI Diff Explain | Planned | |
 | AI Review | Planned | |

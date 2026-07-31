@@ -68,7 +68,7 @@
   "pluginResumeMention": "简历",
   "pluginResumeDescription": "按你主动声明的 Git 作者身份，从当前仓库提炼专业项目经历。",
   "pluginResumeTryExample": "请为当前项目生成一份专业的项目经历",
-  "resumeIdentityRequired": "在读取你的个人提交前，请先主动说明你在这些仓库中的 Git 作者身份。\n提供 Git 作者名或提交邮箱即可，邮箱通常更准确；如果用过多个身份，可以一并列出。\n例如：`Git 作者名：DonutGeek；提交邮箱：me@example.com`。",
+  "resumeIdentityRequired": "未能从当前仓库或全局 Git 配置识别你的提交身份（user.name / user.email）。\n请先在「设置 → Git」配置，或在对话中说明作者名/邮箱。\n例如：`Git 作者名：DonutGeek；提交邮箱：me@example.com`。",
   "pluginSkillCreatorTitle": "技能创建",
   "pluginSkillCreatorMention": "技能创建",
   "pluginSkillCreatorDescription": "根据用途和触发场景，生成或优化可落盘的鲸灵 Skill 文件包。",

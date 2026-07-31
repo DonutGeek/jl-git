@@ -68,7 +68,7 @@
   "pluginResumeMention": "Resume",
   "pluginResumeDescription": "Draft professional project experience from this repository using the Git author identity you declare.",
   "pluginResumeTryExample": "Generate professional project experience for this repository",
-  "resumeIdentityRequired": "Before I inspect personal contributions, tell me the Git author identity you use in these repositories.\nA Git author name or commit email is enough; email is usually more precise. List multiple identities if needed.\nExample: `Git author name: DonutGeek; commit email: me@example.com`.",
+  "resumeIdentityRequired": "I couldn’t detect your Git author identity from the current repository or global Git config (user.name / user.email).\nConfigure it in Settings → Git, or tell me your author name / commit email in chat.\nExample: `Git author name: DonutGeek; commit email: me@example.com`.",
   "pluginSkillCreatorTitle": "Skill Creator",
   "pluginSkillCreatorMention": "Skill Creator",
   "pluginSkillCreatorDescription": "Create or improve a save-ready JingLing Skill package from concrete use cases.",

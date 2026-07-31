@@ -150,7 +150,7 @@ function normalizeAuthorFilters(
 
 /**
  * 按多个 Git 作者过滤各仓提交摘要（命中任一账号即保留）。
- * 用户已声明作者时：无匹配提交的仓库直接丢弃（用于串行成稿等需证据的路径）。
+ * 传入作者时：无匹配提交的仓库直接丢弃（用于串行成稿等需证据的路径）。
  */
 export function filterProfilesByAuthor(
   profiles: readonly AgentProjectProfile[],

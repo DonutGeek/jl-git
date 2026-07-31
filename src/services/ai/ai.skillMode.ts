@@ -43,7 +43,7 @@ export function isResumeSkillTurn(messages: readonly AgentChatMessage[]): boolea
     return true;
   }
 
-  // 简历技能追问身份后，用户只需回答身份，不必再次 @简历。
+  // 身份缺失被追问后，用户只需回答身份，不必再次 @简历。
   if (
     hasPendingResumeIdentityRequest(messages) &&
     parseDeclaredResumeAuthors(lastUser.content).length > 0

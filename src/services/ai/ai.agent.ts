@@ -7,7 +7,7 @@ import { getAgentSkillMode } from "@/services/ai/ai.skillMode";
 import { runAgentCodeToolLoop, shouldEnableAgentCodeTools } from "@/services/ai/ai.toolLoop";
 import {
   buildResumeIdentityRequest,
-  extractDeclaredResumeAuthors,
+  resolveResumeAuthors,
 } from "@/services/agent/agent.resumeIdentity";
 import { formatJlgitMetaBlock, toGitAuthorPatterns } from "@/services/agent/agent.profile";
 import { buildAgentSystemPrompt } from "@/prompts/agent";
@@ -83,7 +83,7 @@ export async function streamAgentReply({
 
   const skillMode = getAgentSkillMode(messages);
   const resumeMode = skillMode === "resume";
-  const resumeAuthors = resumeMode ? extractDeclaredResumeAuthors(messages) : [];
+  const resumeAuthors = resumeMode ? await resolveResumeAuthors(messages, { repoPath }) : [];
   if (resumeMode && resumeAuthors.length === 0) {
     onDelta(buildResumeIdentityRequest(locale));
     return;
@@ -238,11 +238,11 @@ async function buildRepositoryContext(
     jlgitMeta ? formatJlgitMetaBlock(jlgitMeta) : `repoPath: ${repoPath}`,
     resumeMode
       ? [
-          "userDeclaredGitAuthors:",
+          "userGitAuthors（优先用户声明，否则来自当前仓库生效的 user.name / user.email）：",
           ...resumeAuthors.map(
             (author) => `- ${author.name.trim() || "—"} <${author.email.trim() || "—"}>`,
           ),
-          "Only commits matched by these user-declared filters are personal contribution evidence.",
+          "Only commits matched by these author filters are personal contribution evidence.",
         ].join("\n")
       : null,
     formatStatusContext(statusResult),

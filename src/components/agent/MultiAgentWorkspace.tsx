@@ -46,7 +46,7 @@ import {
 } from "@/services/agent/agent.profile";
 import {
   buildResumeIdentityRequest,
-  extractDeclaredResumeAuthors,
+  resolveResumeAuthors,
 } from "@/services/agent/agent.resumeIdentity";
 import { projectService, workspaceService } from "@/services/project";
 import { useLocaleStore } from "@/store/useLocaleStore";
@@ -465,7 +465,11 @@ export function MultiAgentWorkspace() {
 
     const allProfiles = useMultiAgentStore.getState().profiles;
     const resumeMode = isResumeSkillTurn(history);
-    const resumeAuthors = resumeMode ? extractDeclaredResumeAuthors(history) : [];
+    const resumeAuthors = resumeMode
+      ? await resolveResumeAuthors(history, {
+          fallbackRepoPaths: allProfiles.map((profile) => profile.jlgitMeta.path),
+        })
+      : [];
     const resumeRequest = [...history].reverse().find(isExplicitResumeSkillRequest);
     const targetContent =
       resumeRequest && resumeRequest.id !== lastUser.id
@@ -807,10 +811,13 @@ export function MultiAgentWorkspace() {
       createdAt: new Date().toISOString(),
       mentions: effectiveMentions,
     };
-    const resumeAuthors = extractDeclaredResumeAuthors([
-      ...getMultiAgentMessages(conversationId),
-      probeMessage,
-    ]);
+    const registeredPaths = useMultiAgentStore
+      .getState()
+      .profiles.map((profile) => profile.jlgitMeta.path);
+    const resumeAuthors = await resolveResumeAuthors(
+      [...getMultiAgentMessages(conversationId), probeMessage],
+      { fallbackRepoPaths: registeredPaths },
+    );
     if (resumeAuthors.length === 0) {
       await sendUserContent(content, { mentions: effectiveMentions });
       return;

@@ -21,7 +21,7 @@ interface StreamJinglingGlobalOptions {
   host: "global";
   messages: readonly AgentChatMessage[];
   profiles: readonly AgentProjectProfile[];
-  /** 仅简历技能使用：用户在对话中主动声明的 Git 作者身份 */
+  /** 仅简历技能使用：用户声明或自动识别的 Git 作者身份 */
   resumeAuthors: ReadonlyArray<{ name: string; email: string }>;
   /** 允许代码工具访问的仓根（须 @项目 / 点名） */
   codeToolRoots?: ReadonlyArray<{ path: string; label?: string }>;
