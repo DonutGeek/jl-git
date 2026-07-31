@@ -50,6 +50,7 @@ import { gitService } from "@/services/git";
 import { toUserMessage } from "@/types/error";
 import type { GitChangedFile, GitCommitParentDiff, GitCommitSummary } from "@/types/git";
 import { copyToClipboard } from "@/utils/clipboard";
+import { getChangedFileStatsParts } from "@/utils/formatChangedFileStats";
 import { getPathBasename } from "@/utils/getPathBasename";
 import { gitStatusLetterClass } from "@/utils/gitStatusStyle";
 
@@ -90,24 +91,6 @@ function summarizeFiles(files: GitChangedFile[]): {
     }
   }
   return { total: files.length, added, modified, deleted };
-}
-
-/** 文件统计：省略为 0 的项，避免「0 新增」与行数 +N 并排造成误解 */
-function formatFileStatsParts(
-  t: (key: string, options?: Record<string, number>) => string,
-  summary: { total: number; added: number; modified: number; deleted: number },
-): string {
-  const parts = [t("repo.commitStatTotal", { count: summary.total })];
-  if (summary.added > 0) {
-    parts.push(t("repo.commitStatAdded", { count: summary.added }));
-  }
-  if (summary.modified > 0) {
-    parts.push(t("repo.commitStatModified", { count: summary.modified }));
-  }
-  if (summary.deleted > 0) {
-    parts.push(t("repo.commitStatDeleted", { count: summary.deleted }));
-  }
-  return parts.join(" · ");
 }
 
 /**
@@ -504,7 +487,13 @@ function ParentDiffSection({
           )}
         >
           <FileDiff className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="shrink-0 tabular-nums">{formatFileStatsParts(t, sectionSummary)}</span>
+          <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
+            {getChangedFileStatsParts(t, sectionSummary).map((part) => (
+              <span key={part} className="shrink-0">
+                {part}
+              </span>
+            ))}
+          </span>
         </div>
       ) : null}
 
@@ -911,13 +900,12 @@ export function HistoryDetailPane() {
         {firstSummary.total > 0 ? (
           <div className="text-muted-foreground flex items-center gap-1.5 text-[11px] leading-none">
             <FileDiff className="size-3.5 shrink-0" aria-hidden="true" />
-            <span>
-              {t("repo.commitFileStats", {
-                total: firstSummary.total,
-                added: firstSummary.added,
-                modified: firstSummary.modified,
-                deleted: firstSummary.deleted,
-              })}
+            <span className="flex items-center gap-1.5 tabular-nums">
+              {getChangedFileStatsParts(t, firstSummary).map((part) => (
+                <span key={part} className="shrink-0">
+                  {part}
+                </span>
+              ))}
             </span>
           </div>
         ) : null}

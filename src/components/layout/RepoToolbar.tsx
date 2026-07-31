@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
 import { HighlightText } from "@/components/common/HighlightText";
 import { LucideDynamicIcon } from "@/components/common/LucideDynamicIcon";
+import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import { LocalBranchMenuList } from "@/components/git/LocalBranchMenuList";
 import type { SyncPendingKind } from "@/components/git/SyncPendingWorkspaceOverlay";
 import { ProjectIcon } from "@/components/project/ProjectIcon";
@@ -479,7 +480,11 @@ export function RepoToolbar({
       ) : (
         <GitBranchIcon className="size-3.5 shrink-0" aria-hidden="true" />
       )}
-      <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">{branchLabel}</span>
+      <TruncateStartPath
+        path={branchLabel}
+        className="min-w-0 flex-1 text-sm font-medium"
+        title=""
+      />
       <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
     </Button>
   );

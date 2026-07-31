@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 import { Check, Search } from "lucide-react";
 
 import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
-import { HighlightText } from "@/components/common/HighlightText";
+import {
+  TruncateStartPath,
+  TRUNCATE_BUDGET_ATTR,
+} from "@/components/common/TruncateStartPath";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import type { GitBranch } from "@/types/git";
@@ -89,6 +92,7 @@ export function LocalBranchMenuList({
                 key={branch.name}
                 // 当前分支不灰显（对齐历史用户筛选：勾选即可）；切换中才禁用
                 disabled={checkingOut}
+                className="min-w-0"
                 onSelect={() => {
                   if (branch.isCurrent) {
                     return;
@@ -96,11 +100,14 @@ export function LocalBranchMenuList({
                   onCheckout(branch.name);
                 }}
               >
-                <HighlightText
-                  text={branch.name}
-                  query={filter}
-                  className="min-w-0 flex-1 truncate"
-                />
+                <span className="min-w-0 flex-1" {...{ [TRUNCATE_BUDGET_ATTR]: true }}>
+                  <TruncateStartPath
+                    path={branch.name}
+                    highlightQuery={filter}
+                    className="block min-w-0 w-full font-mono text-sm"
+                    title={branch.name}
+                  />
+                </span>
                 {branch.isCurrent ? (
                   <Check className="size-3.5 shrink-0" aria-hidden="true" />
                 ) : null}

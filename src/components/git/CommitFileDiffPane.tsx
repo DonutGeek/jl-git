@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, X } from "lucide-react";
+import { X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -151,21 +151,6 @@ export function CommitFileDiffPane() {
   return (
     <div className="bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
       <div className="border-border flex h-11 shrink-0 items-center gap-1.5 border-b px-2">
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground size-6 shrink-0 [&_svg]:size-3.5"
-              aria-label={t("repo.commitDiffBack")}
-              onClick={() => selectCommitFile(null)}
-            >
-              <ArrowLeft aria-hidden="true" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{t("repo.commitDiffBack")}</TooltipContent>
-        </Tooltip>
         {statusLetter ? (
           <span
             className={cn(
@@ -185,7 +170,7 @@ export function CommitFileDiffPane() {
               type="button"
               variant="ghost"
               size="icon"
-              className="text-muted-foreground size-6 shrink-0 [&_svg]:size-3.5"
+              className="text-muted-foreground ml-auto size-6 shrink-0 [&_svg]:size-3.5"
               aria-label={t("repo.diffClosePreview")}
               onClick={() => selectCommitFile(null)}
             >

@@ -13,7 +13,6 @@ import {
   Search,
   Trash2,
   TriangleAlert,
-  Lock,
 } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import {
@@ -753,12 +752,6 @@ export function ProjectManager({
               />
               <Folder className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
               <span className="min-w-0 truncate font-medium">{workspace.name}</span>
-              {workspace.locked ? (
-                <Lock
-                  className="text-muted-foreground size-3.5 shrink-0 opacity-80"
-                  aria-hidden="true"
-                />
-              ) : null}
             </button>
             <div className="mr-1 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
               <Tooltip delayDuration={300}>
