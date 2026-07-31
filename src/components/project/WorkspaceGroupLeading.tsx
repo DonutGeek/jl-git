@@ -2,22 +2,23 @@ import type { ReactNode } from "react";
 
 import { LucideDynamicIcon } from "@/components/common/LucideDynamicIcon";
 import type { TreeSelectNode } from "@/components/common/TreeSelect";
+import { useAdaptedWorkspaceColor } from "@/hooks/useWorkspaceBadgeStyle";
 import { cn } from "@/lib/utils";
 import type { WorkspaceColor, WorkspaceIcon } from "@/types/project";
 import type { WorkspaceTreeNode } from "@/utils/workspaceOptions";
-import { normalizeWorkspaceColor } from "@/utils/workspaceColor";
 
 interface WorkspaceColorDotProps {
   color: WorkspaceColor;
   className?: string;
 }
 
-/** 分组强调色圆点 */
+/** 分组强调色圆点（展示色随昼夜自动适配） */
 export function WorkspaceColorDot({ color, className }: WorkspaceColorDotProps) {
+  const adapted = useAdaptedWorkspaceColor(color);
   return (
     <span
       className={cn("size-2 shrink-0 rounded-full", className)}
-      style={{ backgroundColor: normalizeWorkspaceColor(color) }}
+      style={{ backgroundColor: adapted }}
       aria-hidden="true"
     />
   );

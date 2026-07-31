@@ -32,11 +32,11 @@ import { toast } from "sonner";
 
 import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
 import { HighlightText } from "@/components/common/HighlightText";
-import { LucideDynamicIcon } from "@/components/common/LucideDynamicIcon";
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import { LocalBranchMenuList } from "@/components/git/LocalBranchMenuList";
 import type { SyncPendingKind } from "@/components/git/SyncPendingWorkspaceOverlay";
 import { ProjectIcon } from "@/components/project/ProjectIcon";
+import { WorkspaceGroupNameBadge } from "@/components/project/WorkspaceGroupNameBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -76,7 +76,6 @@ import {
   sortProjectsForQuickSwitcher,
 } from "@/utils/repositoryQuickSwitcher";
 import { resolveRepoToolbarDensity, type RepoToolbarDensity } from "@/utils/repoToolbarDensity";
-import { normalizeWorkspaceColor, workspaceColorTint } from "@/utils/workspaceColor";
 
 /**
  * 工具栏默认比较：源=当前分支；目标优先 upstream，其次 origin/<name>，否则自身。
@@ -577,24 +576,7 @@ export function RepoToolbar({
                             query={projectFilter}
                             className="min-w-0 truncate text-sm font-medium"
                           />
-                          {workspace ? (
-                            <Badge
-                              variant="secondary"
-                              className="h-4 max-w-28 shrink-0 gap-1 border-transparent px-1.5 text-[10px] font-medium"
-                              style={{
-                                backgroundColor: workspaceColorTint(workspace.color),
-                                color: normalizeWorkspaceColor(workspace.color),
-                              }}
-                              title={workspace.name}
-                            >
-                              <LucideDynamicIcon
-                                name={workspace.icon}
-                                fallbackName="folder"
-                                className="!size-2.5 shrink-0 text-current"
-                              />
-                              <span className="truncate">{workspace.name}</span>
-                            </Badge>
-                          ) : null}
+                          {workspace ? <WorkspaceGroupNameBadge workspace={workspace} /> : null}
                           {item.id === project.id ? (
                             <Check className="ml-auto size-3.5 shrink-0" aria-hidden="true" />
                           ) : null}

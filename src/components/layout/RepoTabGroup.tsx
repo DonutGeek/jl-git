@@ -6,13 +6,13 @@ import { Lock } from "lucide-react";
 import { LucideDynamicIcon } from "@/components/common/LucideDynamicIcon";
 import { WorkspaceGroupContextMenu } from "@/components/project/WorkspaceGroupContextMenu";
 import { Badge } from "@/components/ui/badge";
+import {
+  useAdaptedWorkspaceColor,
+  useWorkspaceBadgeStyle,
+  useWorkspaceColorRing,
+} from "@/hooks/useWorkspaceBadgeStyle";
 import { cn } from "@/lib/utils";
 import { repoTabGroupKey, type RepoTabWorkspaceId } from "@/utils/repoTabGroups";
-import {
-  normalizeWorkspaceColor,
-  workspaceColorRing,
-  workspaceColorTint,
-} from "@/utils/workspaceColor";
 import type { Workspace } from "@/types/project";
 
 export interface TabGroupDragData {
@@ -37,7 +37,7 @@ interface RepoTabGroupChromeProps {
 
 /** 分组名称条（拖组排序手柄 / DragOverlay） */
 export function RepoTabGroupChrome({ workspace, dragging = false }: RepoTabGroupChromeProps) {
-  const color = normalizeWorkspaceColor(workspace.color);
+  const badgeStyle = useWorkspaceBadgeStyle(workspace.color);
   return (
     <Badge
       variant="secondary"
@@ -45,7 +45,7 @@ export function RepoTabGroupChrome({ workspace, dragging = false }: RepoTabGroup
         "flex h-7 max-w-28 shrink-0 items-center gap-1 rounded-md border-transparent px-2.5 py-0 font-mono text-xs leading-none font-medium",
         dragging && "shadow-sm",
       )}
-      style={{ backgroundColor: workspaceColorTint(color), color }}
+      style={badgeStyle}
     >
       <LucideDynamicIcon name={workspace.icon} fallbackName="folder" className="size-3 shrink-0" />
       <span className="truncate">{workspace.name}</span>
@@ -88,14 +88,17 @@ export function RepositoryTabGroup({
       workspaceId,
     } satisfies TabGroupDragData,
   });
-  const groupColor = workspace ? normalizeWorkspaceColor(workspace.color) : null;
+  const badgeStyle = useWorkspaceBadgeStyle(workspace?.color);
+  const adaptedColor = useAdaptedWorkspaceColor(workspace?.color);
+  const ringColor = useWorkspaceColorRing(workspace?.color);
+  const groupColor = workspace ? adaptedColor : null;
 
   const groupLabel =
     isNamedGroup && workspace && groupColor ? (
       <Badge
         variant="secondary"
         className="rounded-md border-transparent p-0"
-        style={{ backgroundColor: workspaceColorTint(groupColor), color: groupColor }}
+        style={badgeStyle}
         asChild
       >
         <div
@@ -132,8 +135,7 @@ export function RepositoryTabGroup({
         groupColor
           ? {
               borderColor: groupColor,
-              boxShadow:
-                isOver && !locked ? `0 0 0 1px ${workspaceColorRing(groupColor)}` : undefined,
+              boxShadow: isOver && !locked ? `0 0 0 1px ${ringColor}` : undefined,
             }
           : undefined
       }

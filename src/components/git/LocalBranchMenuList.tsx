@@ -3,10 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Check, Search } from "lucide-react";
 
 import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
-import {
-  TruncateStartPath,
-  TRUNCATE_BUDGET_ATTR,
-} from "@/components/common/TruncateStartPath";
+import { TruncateStartPath, TRUNCATE_BUDGET_ATTR } from "@/components/common/TruncateStartPath";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import type { GitBranch } from "@/types/git";

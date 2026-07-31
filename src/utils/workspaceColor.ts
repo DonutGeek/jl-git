@@ -1,4 +1,12 @@
-import { normalizeHexColor, withAlpha } from "@/design/themes/color-utils";
+import type { CSSProperties } from "react";
+
+import {
+  hexToHsl,
+  hslToHex,
+  isDocumentDark,
+  normalizeHexColor,
+  withAlpha,
+} from "@/design/themes/color-utils";
 
 import type { WorkspaceColor } from "@/types/project";
 
@@ -20,6 +28,10 @@ const LEGACY_WORKSPACE_COLORS: Readonly<Record<string, WorkspaceColor>> = {
   purple: "#AA6BAE",
   red: "#CD6055",
 };
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
 export function parseWorkspaceColor(value: unknown): WorkspaceColor | null {
   if (typeof value !== "string") {
@@ -45,10 +57,57 @@ export function requireWorkspaceColor(value: unknown): WorkspaceColor {
   return normalized;
 }
 
-export function workspaceColorTint(value: unknown): string {
-  return withAlpha(normalizeWorkspaceColor(value), 0.2);
+/**
+ * 按昼夜主题调整分组色明度，便于徽章/色点可读。
+ * 库内仍存用户原始 HEX；此处只用于展示。
+ */
+export function adaptWorkspaceColorForTheme(
+  value: unknown,
+  dark: boolean = isDocumentDark(),
+): WorkspaceColor {
+  const base = normalizeWorkspaceColor(value);
+  const { hue, saturation, lightness } = hexToHsl(base);
+
+  let nextLightness: number;
+  let nextSaturation = saturation;
+  if (dark) {
+    // 暗色界面：抬明度，略收饱和避免荧光
+    nextLightness = clamp(lightness, 58, 78);
+    if (lightness < 58) {
+      nextLightness = 58 + (58 - lightness) * 0.15;
+      nextLightness = clamp(nextLightness, 58, 72);
+    }
+    nextSaturation = clamp(saturation * 0.92, 0, 100);
+  } else {
+    // 亮色界面：压明度，保证浅底可读
+    nextLightness = clamp(lightness, 38, 52);
+    if (lightness > 52) {
+      nextLightness = 52 - (lightness - 52) * 0.12;
+      nextLightness = clamp(nextLightness, 40, 52);
+    }
+  }
+
+  return hslToHex(hue, nextSaturation, nextLightness) as WorkspaceColor;
 }
 
-export function workspaceColorRing(value: unknown): string {
-  return withAlpha(normalizeWorkspaceColor(value), 0.5);
+export function workspaceColorTint(value: unknown, dark: boolean = isDocumentDark()): string {
+  const adapted = adaptWorkspaceColorForTheme(value, dark);
+  return withAlpha(adapted, dark ? 0.22 : 0.14);
+}
+
+export function workspaceColorRing(value: unknown, dark: boolean = isDocumentDark()): string {
+  const adapted = adaptWorkspaceColorForTheme(value, dark);
+  return withAlpha(adapted, dark ? 0.55 : 0.45);
+}
+
+/** 徽章用：前景 + 底色（均已按主题适配） */
+export function workspaceBadgeStyle(
+  value: unknown,
+  dark: boolean = isDocumentDark(),
+): Pick<CSSProperties, "color" | "backgroundColor"> {
+  const color = adaptWorkspaceColorForTheme(value, dark);
+  return {
+    color,
+    backgroundColor: withAlpha(color, dark ? 0.22 : 0.14),
+  };
 }

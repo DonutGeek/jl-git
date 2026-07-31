@@ -1465,8 +1465,9 @@ export function HistoryList() {
                       variant="outline"
                       size="icon-sm"
                       className={cn(
-                        "bg-background/95 text-muted-foreground absolute right-3 bottom-3 z-10 rounded-full shadow-sm",
-                        "hover:bg-accent hover:text-foreground",
+                        // outline 在 dark 带 bg-input/30，会透出下方 hash；强制实底
+                        "bg-background text-muted-foreground absolute right-3 bottom-3 z-10 rounded-full shadow-sm",
+                        "hover:bg-accent hover:text-foreground dark:bg-background dark:hover:bg-accent",
                       )}
                       aria-label={t("repo.backToTop")}
                       onClick={scrollHistoryToTop}

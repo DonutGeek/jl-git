@@ -97,9 +97,7 @@ export function GitRefTag({
 
   const shellClassName = cn(
     "bg-muted text-foreground inline-flex gap-1 rounded-md border-0 px-1.5",
-    wrapText
-      ? "h-auto max-w-full min-w-0 items-start py-1"
-      : "h-5 items-center",
+    wrapText ? "h-auto max-w-full min-w-0 items-start py-1" : "h-5 items-center",
     expand && !wrapText
       ? // 强制展开：宽度随全文
         "w-max shrink-0"

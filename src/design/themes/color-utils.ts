@@ -241,6 +241,19 @@ export function formatColor(hex: string, format: ColorInputFormat): string {
   return `hsl(${Math.round(hue)}, ${Math.round(saturation)}%, ${Math.round(lightness)}%)`;
 }
 
+/** #RRGGBB → HSL（h: 0–360, s/l: 0–100） */
+export function hexToHsl(hex: string): { hue: number; saturation: number; lightness: number } {
+  const [red, green, blue] = hexToRgbChannels(normalizeHexColor(hex, "#000000"));
+  const [hue, saturation, lightness] = rgbToHslChannels(red, green, blue);
+  return { hue, saturation, lightness };
+}
+
+/** HSL → #RRGGBB */
+export function hslToHex(hue: number, saturation: number, lightness: number): string {
+  const [red, green, blue] = hslToRgb(hue, saturation, lightness);
+  return rgbToHex(red, green, blue);
+}
+
 export function hexToHsv(hex: string): HsvColor {
   const normalized = normalizeHexColor(hex, "#000000").slice(1);
   const red = Number.parseInt(normalized.slice(0, 2), 16) / 255;

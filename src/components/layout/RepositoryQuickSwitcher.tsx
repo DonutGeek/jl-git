@@ -6,10 +6,9 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { HighlightText } from "@/components/common/HighlightText";
-import { LucideDynamicIcon } from "@/components/common/LucideDynamicIcon";
 import { ProjectContextMenu } from "@/components/project/ProjectContextMenu";
 import { ProjectIcon } from "@/components/project/ProjectIcon";
-import { Badge } from "@/components/ui/badge";
+import { WorkspaceGroupNameBadge } from "@/components/project/WorkspaceGroupNameBadge";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -38,7 +37,6 @@ import {
   sortProjectsForQuickSwitcher,
 } from "@/utils/repositoryQuickSwitcher";
 import { matchesContiguousQuery } from "@/utils/textHighlight";
-import { normalizeWorkspaceColor, workspaceColorTint } from "@/utils/workspaceColor";
 
 /** cmdk 无「不选中」API；用永不匹配的受控 value 取消打开时默认高亮第一项 */
 const NO_HIGHLIGHT = "__jlgit-quick-switcher-none__";
@@ -245,23 +243,7 @@ export function RepositoryQuickSwitcher({ className }: RepositoryQuickSwitcherPr
                                   className="min-w-0 truncate text-left text-sm font-medium"
                                 />
                                 {workspace ? (
-                                  <Badge
-                                    variant="secondary"
-                                    className="h-4 max-w-28 shrink-0 gap-1 border-transparent px-1.5 text-[10px] font-medium"
-                                    style={{
-                                      backgroundColor: workspaceColorTint(workspace.color),
-                                      color: normalizeWorkspaceColor(workspace.color),
-                                    }}
-                                    title={workspace.name}
-                                  >
-                                    <LucideDynamicIcon
-                                      name={workspace.icon}
-                                      fallbackName="folder"
-                                      // text-current：避开 CommandItem 的 muted svg 规则，继承徽章 color
-                                      className="!size-2.5 shrink-0 text-current"
-                                    />
-                                    <span className="truncate">{workspace.name}</span>
-                                  </Badge>
+                                  <WorkspaceGroupNameBadge workspace={workspace} />
                                 ) : null}
                               </span>
                               <HighlightText

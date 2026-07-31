@@ -12,7 +12,9 @@ interface HighlightTextProps {
   title?: string;
 }
 
-const DEFAULT_MARK_CLASS = "rounded-sm bg-primary/15 text-inherit";
+/** 暗色下提高不透明度，避免搜索命中与底色糊成一片 */
+const DEFAULT_MARK_CLASS =
+  "rounded-sm bg-primary/20 text-inherit dark:bg-primary/45 dark:text-foreground";
 
 /** 按连续子串 query 高亮 text；无命中时原样输出。 */
 export function HighlightText({

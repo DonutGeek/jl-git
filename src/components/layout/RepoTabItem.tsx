@@ -39,8 +39,8 @@ import {
   useContextMenuOpen,
 } from "@/utils/contextMenuHighlight";
 import { revealInFileManagerLabel } from "@/utils/platformLabels";
+import { useWorkspaceColorRing } from "@/hooks/useWorkspaceBadgeStyle";
 import type { RepoTabWorkspaceId } from "@/utils/repoTabGroups";
-import { workspaceColorRing } from "@/utils/workspaceColor";
 
 export interface TabDisplayItem {
   id: string;
@@ -98,6 +98,7 @@ export function RepoTabChrome({
   onClose,
   closeLabel,
 }: RepoTabChromeProps) {
+  const dragRing = useWorkspaceColorRing(dragBorderColor);
   return (
     <div
       className={cn(
@@ -110,9 +111,7 @@ export function RepoTabChrome({
       style={
         dragging
           ? {
-              boxShadow: `0 0 0 1px ${
-                dragBorderColor ? workspaceColorRing(dragBorderColor) : "var(--border)"
-              }`,
+              boxShadow: `0 0 0 1px ${dragBorderColor ? dragRing : "var(--border)"}`,
             }
           : undefined
       }
