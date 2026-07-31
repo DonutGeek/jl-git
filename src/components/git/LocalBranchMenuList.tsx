@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Check, Search } from "lucide-react";
 
 import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
+import { HighlightText } from "@/components/common/HighlightText";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import type { GitBranch } from "@/types/git";
@@ -95,7 +96,11 @@ export function LocalBranchMenuList({
                   onCheckout(branch.name);
                 }}
               >
-                <span className="min-w-0 flex-1 truncate">{branch.name}</span>
+                <HighlightText
+                  text={branch.name}
+                  query={filter}
+                  className="min-w-0 flex-1 truncate"
+                />
                 {branch.isCurrent ? (
                   <Check className="size-3.5 shrink-0" aria-hidden="true" />
                 ) : null}

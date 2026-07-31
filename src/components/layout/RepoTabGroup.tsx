@@ -3,8 +3,8 @@ import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import { Lock } from "lucide-react";
 
+import { LucideDynamicIcon } from "@/components/common/LucideDynamicIcon";
 import { WorkspaceGroupContextMenu } from "@/components/project/WorkspaceGroupContextMenu";
-import { workspaceIconComponent } from "@/components/project/workspaceGroupAppearance";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { repoTabGroupKey, type RepoTabWorkspaceId } from "@/utils/repoTabGroups";
@@ -37,17 +37,17 @@ interface RepoTabGroupChromeProps {
 
 /** 分组名称条（拖组排序手柄 / DragOverlay） */
 export function RepoTabGroupChrome({ workspace, dragging = false }: RepoTabGroupChromeProps) {
-  const WorkspaceIcon = workspaceIconComponent(workspace.icon);
+  const color = normalizeWorkspaceColor(workspace.color);
   return (
     <Badge
       variant="secondary"
       className={cn(
-        "text-muted-foreground flex h-7 max-w-28 shrink-0 items-center gap-1 rounded-md border-transparent px-2.5 py-0 font-mono text-xs leading-none font-medium",
+        "flex h-7 max-w-28 shrink-0 items-center gap-1 rounded-md border-transparent px-2.5 py-0 font-mono text-xs leading-none font-medium",
         dragging && "shadow-sm",
       )}
-      style={{ backgroundColor: workspaceColorTint(workspace.color) }}
+      style={{ backgroundColor: workspaceColorTint(color), color }}
     >
-      <WorkspaceIcon className="size-3 shrink-0" aria-hidden="true" />
+      <LucideDynamicIcon name={workspace.icon} fallbackName="folder" className="size-3 shrink-0" />
       <span className="truncate">{workspace.name}</span>
       {workspace.locked ? <Lock className="size-3 shrink-0 opacity-80" aria-hidden="true" /> : null}
     </Badge>
@@ -88,28 +88,31 @@ export function RepositoryTabGroup({
       workspaceId,
     } satisfies TabGroupDragData,
   });
-  const WorkspaceIcon = workspace ? workspaceIconComponent(workspace.icon) : null;
   const groupColor = workspace ? normalizeWorkspaceColor(workspace.color) : null;
 
   const groupLabel =
-    isNamedGroup && workspace ? (
+    isNamedGroup && workspace && groupColor ? (
       <Badge
         variant="secondary"
         className="rounded-md border-transparent p-0"
-        style={{ backgroundColor: workspaceColorTint(workspace.color) }}
+        style={{ backgroundColor: workspaceColorTint(groupColor), color: groupColor }}
         asChild
       >
         <div
           ref={setDragRef}
           className={cn(
-            "text-muted-foreground flex h-7 max-w-28 shrink-0 items-center gap-1 px-2.5 font-mono text-xs leading-none font-medium",
+            "flex h-7 max-w-28 shrink-0 items-center gap-1 px-2.5 font-mono text-xs leading-none font-medium",
             locked ? "cursor-default" : "cursor-grab active:cursor-grabbing",
           )}
           title={workspace.name}
           {...(locked ? {} : attributes)}
           {...(locked ? {} : listeners)}
         >
-          {WorkspaceIcon ? <WorkspaceIcon className="size-3 shrink-0" aria-hidden="true" /> : null}
+          <LucideDynamicIcon
+            name={workspace.icon}
+            fallbackName="folder"
+            className="size-3 shrink-0"
+          />
           <span className="truncate">{workspace.name}</span>
           {locked ? <Lock className="size-3 shrink-0 opacity-80" aria-hidden="true" /> : null}
         </div>

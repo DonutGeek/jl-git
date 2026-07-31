@@ -21,7 +21,8 @@ export const PROJECT_ICON_VALUES = [
   "book-open",
 ] as const;
 
-export type ProjectIcon = (typeof PROJECT_ICON_VALUES)[number];
+/** Lucide kebab-case 图标名；边界处做运行时校验 */
+export type ProjectIcon = string;
 export const DEFAULT_PROJECT_ICON: ProjectIcon = "folder-git-2";
 
 export interface Project {
@@ -55,7 +56,8 @@ export interface Workspace {
   createdAt: string;
   updatedAt: string;
 }
-export type WorkspaceIcon = "folder" | "briefcase" | "code" | "layers" | "box";
+/** Lucide kebab-case；历史值 folder/briefcase/code/layers/box 仍有效 */
+export type WorkspaceIcon = string;
 /** 规范化的大写 #RRGGBB 颜色 */
 export type WorkspaceColor = `#${string}`;
 
@@ -81,6 +83,25 @@ export interface ProjectListResult {
 
 export interface ProjectResult {
   project: Project;
+}
+
+export interface ProjectAddResult {
+  project: Project;
+  alreadyExists: boolean;
+}
+
+export type ProjectUniquenessKind = "new" | "existingPath" | "existingRemote";
+
+export interface ProjectRemoteMatch {
+  id: string;
+  name: string;
+  path: string;
+}
+
+export interface ProjectUniquenessResult {
+  kind: ProjectUniquenessKind;
+  project: Project | null;
+  matches: ProjectRemoteMatch[];
 }
 
 export interface PickDirectoryResult {

@@ -2,7 +2,18 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Copy, ExternalLink, FolderOpen, Link, SquarePen, Terminal, Trash2, X } from "lucide-react";
+import {
+  Copy,
+  ExternalLink,
+  FolderOpen,
+  Globe,
+  Link,
+  ListX,
+  SquarePen,
+  Terminal,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
@@ -17,12 +28,16 @@ import {
 } from "@/components/ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { openPrimaryRemoteInBrowser } from "@/services/git";
 import { systemOpenService } from "@/services/system/system.open";
 import { detectAppOs } from "@/services/window/windowChrome";
 import type { OpenTab } from "@/store/useOpenTabsStore";
 import { toUserMessage } from "@/types/error";
 import type { Project } from "@/types/project";
-import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
+import {
+  CONTEXT_MENU_ITEM_HOVER_HIGHLIGHT_CLASS,
+  useContextMenuOpen,
+} from "@/utils/contextMenuHighlight";
 import { revealInFileManagerLabel } from "@/utils/platformLabels";
 import type { RepoTabWorkspaceId } from "@/utils/repoTabGroups";
 import { workspaceColorRing } from "@/utils/workspaceColor";
@@ -63,6 +78,8 @@ export function readRepoTabDragData(value: unknown): RepoTabDragData | null {
 interface RepoTabChromeProps {
   tab: TabDisplayItem;
   isActive: boolean;
+  /** 右键菜单打开时的悬停高亮（不切换选中） */
+  contextMenuOpen?: boolean;
   dragging?: boolean;
   /** 拖拽幽灵边框色（命名组时用分组色） */
   dragBorderColor?: string;
@@ -74,6 +91,7 @@ interface RepoTabChromeProps {
 export function RepoTabChrome({
   tab,
   isActive,
+  contextMenuOpen = false,
   dragging = false,
   dragBorderColor,
   onSelect,
@@ -85,6 +103,8 @@ export function RepoTabChrome({
       className={cn(
         "group relative flex h-7 max-w-44 items-center rounded-md font-mono text-xs leading-none transition-colors",
         isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/60",
+        // 右键锚点：未选中时用悬停态，已选中保持选中态
+        !isActive && contextMenuOpen && CONTEXT_MENU_ITEM_HOVER_HIGHLIGHT_CLASS,
         dragging && "bg-primary/10 text-primary",
       )}
       style={
@@ -198,13 +218,29 @@ export function SortableRepoTab(props: SortableRepoTabProps) {
     } satisfies TabDragData,
   });
   const project = tab.project;
-  const { menuOpen, onOpenChange } = useContextMenuOpen(() => onSelect(tab.id));
+  // 右键只开菜单并做悬停高亮，不切换当前标签
+  const { menuOpen, onOpenChange } = useContextMenuOpen();
   const revealLabel = revealInFileManagerLabel(detectAppOs(), t);
 
   async function runSystemOpen(action: () => Promise<void>): Promise<void> {
     try {
       await action();
-      toast.success(t("projectManager.manageSystemOpenSuccess"));
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    }
+  }
+
+  async function handleOpenRemoteInBrowser(target: Project): Promise<void> {
+    try {
+      const result = await openPrimaryRemoteInBrowser(target.path);
+      if (result === "empty") {
+        toast.message(t("repo.tabCopyRemoteEmpty"));
+        return;
+      }
+      if (result === "unsupported") {
+        toast.error(t("repo.openRemoteUnsupported"));
+        return;
+      }
     } catch (error) {
       toast.error(toUserMessage(error));
     }
@@ -215,6 +251,7 @@ export function SortableRepoTab(props: SortableRepoTabProps) {
       <ContextMenuTrigger asChild>
         <div
           ref={setNodeRef}
+          data-repo-tab-id={tab.id}
           className={cn("flex h-7 items-center", isDragging && "opacity-40")}
           style={{ transform: CSS.Transform.toString(transform), transition }}
           {...attributes}
@@ -222,7 +259,8 @@ export function SortableRepoTab(props: SortableRepoTabProps) {
         >
           <RepoTabChrome
             tab={tab}
-            isActive={isActive || menuOpen}
+            isActive={isActive}
+            contextMenuOpen={menuOpen}
             onSelect={onSelect}
             onClose={onClose}
             closeLabel={closeLabel}
@@ -236,7 +274,10 @@ export function SortableRepoTab(props: SortableRepoTabProps) {
           {labels.close}
         </ContextMenuItem>
         <ContextMenuSub>
-          <ContextMenuSubTrigger disabled={tabCount <= 1}>{labels.closeMore}</ContextMenuSubTrigger>
+          <ContextMenuSubTrigger disabled={tabCount <= 1}>
+            <ListX aria-hidden="true" />
+            {labels.closeMore}
+          </ContextMenuSubTrigger>
           <ContextMenuSubContent className="min-w-40">
             <ContextMenuItem disabled={tabCount <= 1} onSelect={() => onCloseOthers(tab.id)}>
               {labels.closeOthers}
@@ -277,30 +318,42 @@ export function SortableRepoTab(props: SortableRepoTabProps) {
               </ContextMenuSubContent>
             </ContextMenuSub>
             <ContextMenuSeparator />
-            <ContextMenuItem
-              onSelect={() =>
-                void runSystemOpen(() => systemOpenService.revealInFileManager(project.path))
-              }
-            >
-              <FolderOpen aria-hidden="true" />
-              {revealLabel}
-            </ContextMenuItem>
-            <ContextMenuItem
-              onSelect={() =>
-                void runSystemOpen(() => systemOpenService.openInEditor(project.path))
-              }
-            >
-              <ExternalLink aria-hidden="true" />
-              {t("repo.openInEditor")}
-            </ContextMenuItem>
-            <ContextMenuItem
-              onSelect={() =>
-                void runSystemOpen(() => systemOpenService.openTerminal(project.path))
-              }
-            >
-              <Terminal aria-hidden="true" />
-              {t("repo.openInTerminal")}
-            </ContextMenuItem>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <ExternalLink aria-hidden="true" />
+                {t("repo.openVia")}
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="min-w-44">
+                <ContextMenuItem
+                  onSelect={() =>
+                    void runSystemOpen(() => systemOpenService.revealInFileManager(project.path))
+                  }
+                >
+                  <FolderOpen aria-hidden="true" />
+                  {revealLabel}
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={() =>
+                    void runSystemOpen(() => systemOpenService.openInEditor(project.path))
+                  }
+                >
+                  <ExternalLink aria-hidden="true" />
+                  {t("repo.openInEditor")}
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={() =>
+                    void runSystemOpen(() => systemOpenService.openTerminal(project.path))
+                  }
+                >
+                  <Terminal aria-hidden="true" />
+                  {t("repo.openInTerminal")}
+                </ContextMenuItem>
+                <ContextMenuItem onSelect={() => void handleOpenRemoteInBrowser(project)}>
+                  <Globe aria-hidden="true" />
+                  {t("repo.openRemoteInBrowser")}
+                </ContextMenuItem>
+              </ContextMenuSubContent>
+            </ContextMenuSub>
             <ContextMenuSeparator />
             <ContextMenuItem variant="destructive" onSelect={() => onRemove(project)}>
               <Trash2 aria-hidden="true" />

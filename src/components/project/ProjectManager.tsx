@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   Folder,
@@ -36,11 +36,14 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 
+import { HighlightText } from "@/components/common/HighlightText";
+import { LucideIconPicker } from "@/components/common/LucideIconPicker";
 import { CloneRepoPanel } from "@/components/project/CloneRepoPanel";
 import { ProjectContextMenu } from "@/components/project/ProjectContextMenu";
 import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
+import { lucideIconPickerI18n } from "@/components/project/lucideIconPickerI18n";
 import { ProjectIcon } from "@/components/project/ProjectIcon";
-import { ProjectIconPicker } from "@/components/project/ProjectIconPicker";
+import { ExistingProjectDialog } from "@/components/project/ProjectUniquenessDialogs";
 import { RecentProjectList } from "@/components/project/RecentProjectList";
 import { WorkspaceGroupDialog } from "@/components/project/WorkspaceGroupDialog";
 import { WorkspaceSelectMenu } from "@/components/project/WorkspaceSelectMenu";
@@ -59,10 +62,14 @@ import { useProjectStore } from "@/store/useProjectStore";
 import { toUserMessage } from "@/types/error";
 import type { Project, Workspace } from "@/types/project";
 import { DEFAULT_PROJECT_ICON, type ProjectIcon as ProjectIconName } from "@/types/project";
+import type { NewTabProjectManagerView } from "@/utils/newTabNavigation";
 import { buildProjectOrderItems } from "@/utils/projectGroupOrder";
 
 interface ProjectManagerProps {
   onOpenProject: (projectId: string) => void;
+  /** 外部导航请求打开某视图（如全局搜索 → 打开 / 克隆） */
+  requestedView?: NewTabProjectManagerView | null;
+  onRequestedViewConsumed?: () => void;
 }
 
 type View = "recent" | "open" | "clone" | "groups";
@@ -170,7 +177,11 @@ function getProjectName(path: string): string {
 }
 
 /** 新标签页中的仓库管理入口。 */
-export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
+export function ProjectManager({
+  onOpenProject,
+  requestedView = null,
+  onRequestedViewConsumed,
+}: ProjectManagerProps) {
   const { t } = useTranslation();
   const [view, setView] = useState<View>("recent");
   const [filter, setFilter] = useState("");
@@ -192,11 +203,21 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
   const [collapsedWorkspaceIds, setCollapsedWorkspaceIds] = useState<Set<string>>(new Set());
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [activeDrag, setActiveDrag] = useState<DragEntry | null>(null);
+  const [existingProject, setExistingProject] = useState<Project | null>(null);
+
+  useEffect(() => {
+    if (requestedView !== "open" && requestedView !== "clone") {
+      return;
+    }
+    setView(requestedView);
+    onRequestedViewConsumed?.();
+  }, [onRequestedViewConsumed, requestedView]);
 
   const projects = useProjectStore((state) => state.projects);
   const workspaces = useProjectStore((state) => state.workspaces);
   const addAndOpen = useProjectStore((state) => state.addAndOpen);
   const addProject = useProjectStore((state) => state.addProject);
+  const openExisting = useProjectStore((state) => state.openExisting);
   const removeWorkspace = useProjectStore((state) => state.removeWorkspace);
   const reorderGroupedItems = useProjectStore((state) => state.reorderGroupedItems);
   const query = filter.trim().toLowerCase();
@@ -523,15 +544,19 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
     setOpening(true);
 
     try {
-      const project = await addAndOpen({
+      const result = await addAndOpen({
         path: repositoryPath,
         name: alias.trim() || undefined,
         workspaceId: workspaceId || undefined,
         description: description.trim() || undefined,
         icon: projectIcon,
       });
+      if (result.alreadyExists) {
+        setExistingProject(result.project);
+        return;
+      }
       resetOpenForm();
-      onOpenProject(project.id);
+      onOpenProject(result.project.id);
     } catch (error) {
       toast.error(toUserMessage(error));
     } finally {
@@ -549,19 +574,34 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
     setOpening(true);
 
     try {
-      const project = await addProject({
+      const result = await addProject({
         path: repositoryPath,
         name: alias.trim() || undefined,
         workspaceId: workspaceId || undefined,
         description: description.trim() || undefined,
         icon: projectIcon,
       });
+      if (result.alreadyExists) {
+        setExistingProject(result.project);
+        return;
+      }
       resetOpenForm();
-      toast.success(t("openRepo.saveAndContinueSuccess", { name: project.name }));
+      toast.success(t("openRepo.saveAndContinueSuccess", { name: result.project.name }));
     } catch (error) {
       toast.error(toUserMessage(error));
     } finally {
       setOpening(false);
+    }
+  }
+
+  async function confirmExistingProject(project: Project): Promise<void> {
+    setExistingProject(null);
+    resetOpenForm();
+    try {
+      await openExisting(project.id);
+      onOpenProject(project.id);
+    } catch (error) {
+      toast.error(toUserMessage(error));
     }
   }
 
@@ -654,7 +694,11 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
               >
                 <ProjectIcon name={project.icon} className="size-3.5" />
               </span>
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">{project.name}</span>
+              <HighlightText
+                text={project.name}
+                query={filter}
+                className="min-w-0 flex-1 truncate text-sm font-medium"
+              />
             </button>
           </ProjectContextMenu>
         </SortableGroupItem>
@@ -816,7 +860,7 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
         ))}
       </aside>
 
-      <section className="flex min-h-0 flex-1 flex-col px-6 pt-3 pb-6">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col px-6 pt-3 pb-6">
         {view === "recent" ? <RecentProjectList onOpenProject={onOpenProject} /> : null}
 
         {view === "clone" ? (
@@ -824,9 +868,10 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
         ) : null}
 
         {view === "open" ? (
-          <ScrollArea className="-mr-6 min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block">
+          <ScrollArea className="-mr-6 min-h-0 min-w-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block">
+            {/* pl/py：给 focus ring 留空，避免被 ScrollArea overflow-hidden 裁切 */}
             <form
-              className="max-w-2xl space-y-6 pr-6 pb-2"
+              className="max-w-2xl min-w-0 space-y-6 py-1 pr-6 pl-2 pb-2"
               onSubmit={(event) => void submitOpen(event)}
             >
               <FieldGroup className="gap-4">
@@ -872,11 +917,12 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
                     <FieldLabel htmlFor="project-manager-icon">
                       {t("projectManager.projectIcon")}
                     </FieldLabel>
-                    <ProjectIconPicker
+                    <LucideIconPicker
                       id="project-manager-icon"
                       value={projectIcon}
                       onValueChange={setProjectIcon}
                       disabled={opening || descriptionGenerating}
+                      {...lucideIconPickerI18n(t)}
                     />
                   </Field>
                   <Field>
@@ -1137,6 +1183,20 @@ export function ProjectManager({ onOpenProject }: ProjectManagerProps) {
           </div>
         ) : null}
       </section>
+
+      <ExistingProjectDialog
+        open={existingProject !== null}
+        project={existingProject}
+        action="open"
+        onOpenChange={(next) => {
+          if (!next) {
+            setExistingProject(null);
+          }
+        }}
+        onConfirm={(project) => {
+          void confirmExistingProject(project);
+        }}
+      />
     </div>
   );
 }

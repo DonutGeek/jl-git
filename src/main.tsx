@@ -9,12 +9,14 @@ import { startOpLogListener } from "@/store/useOpLogStore";
 import { initAppPrefs } from "@/store/useAppPrefsStore";
 import { initLocale } from "@/store/useLocaleStore";
 import { initTheme, useThemeStore } from "@/store/useThemeStore";
+import { disableNativeContextMenu } from "@/utils/disableNativeContextMenu";
 import "./i18n";
 import "./index.css";
 
 initTheme();
 initLocale();
 initAppPrefs();
+disableNativeContextMenu();
 void startOpLogListener();
 
 function AppContent() {

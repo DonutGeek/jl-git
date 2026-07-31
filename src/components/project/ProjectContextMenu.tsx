@@ -1,6 +1,15 @@
 import { useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
-import { Copy, ExternalLink, FolderOpen, Link, SquarePen, Terminal, Trash2 } from "lucide-react";
+import {
+  Copy,
+  ExternalLink,
+  FolderOpen,
+  Globe,
+  Link,
+  SquarePen,
+  Terminal,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
@@ -25,7 +34,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 
-import { gitService, pickPrimaryRemoteUrl } from "@/services/git";
+import { gitService, openPrimaryRemoteInBrowser, pickPrimaryRemoteUrl } from "@/services/git";
 import { systemOpenService } from "@/services/system/system.open";
 import { detectAppOs } from "@/services/window/windowChrome";
 import { useProjectStore } from "@/store/useProjectStore";
@@ -91,7 +100,22 @@ export function ProjectContextMenu({
   async function runSystemOpen(action: () => Promise<void>): Promise<void> {
     try {
       await action();
-      toast.success(t("projectManager.manageSystemOpenSuccess"));
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    }
+  }
+
+  async function handleOpenRemoteInBrowser(): Promise<void> {
+    try {
+      const result = await openPrimaryRemoteInBrowser(project.path);
+      if (result === "empty") {
+        toast.message(t("repo.tabCopyRemoteEmpty"));
+        return;
+      }
+      if (result === "unsupported") {
+        toast.error(t("repo.openRemoteUnsupported"));
+        return;
+      }
     } catch (error) {
       toast.error(toUserMessage(error));
     }
@@ -151,30 +175,49 @@ export function ProjectContextMenu({
             </ContextMenuSubContent>
           </ContextMenuSub>
           <ContextMenuSeparator />
-          {/* 系统打开：访达 → 编辑器 → 终端（见 ui-guidelines §2.3） */}
-          <ContextMenuItem
-            disabled={disabled}
-            onSelect={() =>
-              void runSystemOpen(() => systemOpenService.revealInFileManager(project.path))
-            }
-          >
-            <FolderOpen aria-hidden="true" />
-            {revealLabel}
-          </ContextMenuItem>
-          <ContextMenuItem
-            disabled={disabled}
-            onSelect={() => void runSystemOpen(() => systemOpenService.openInEditor(project.path))}
-          >
-            <ExternalLink aria-hidden="true" />
-            {t("repo.openInEditor")}
-          </ContextMenuItem>
-          <ContextMenuItem
-            disabled={disabled}
-            onSelect={() => void runSystemOpen(() => systemOpenService.openTerminal(project.path))}
-          >
-            <Terminal aria-hidden="true" />
-            {t("repo.openInTerminal")}
-          </ContextMenuItem>
+          {/* 系统打开：收入「打开方式」子菜单（见 ui-guidelines §2.3） */}
+          <ContextMenuSub>
+            <ContextMenuSubTrigger disabled={disabled}>
+              <ExternalLink aria-hidden="true" />
+              {t("repo.openVia")}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="min-w-44">
+              <ContextMenuItem
+                disabled={disabled}
+                onSelect={() =>
+                  void runSystemOpen(() => systemOpenService.revealInFileManager(project.path))
+                }
+              >
+                <FolderOpen aria-hidden="true" />
+                {revealLabel}
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={disabled}
+                onSelect={() =>
+                  void runSystemOpen(() => systemOpenService.openInEditor(project.path))
+                }
+              >
+                <ExternalLink aria-hidden="true" />
+                {t("repo.openInEditor")}
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={disabled}
+                onSelect={() =>
+                  void runSystemOpen(() => systemOpenService.openTerminal(project.path))
+                }
+              >
+                <Terminal aria-hidden="true" />
+                {t("repo.openInTerminal")}
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={disabled}
+                onSelect={() => void handleOpenRemoteInBrowser()}
+              >
+                <Globe aria-hidden="true" />
+                {t("repo.openRemoteInBrowser")}
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
           <ContextMenuSeparator />
           <ContextMenuItem
             variant="destructive"

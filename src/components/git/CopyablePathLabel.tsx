@@ -11,12 +11,13 @@ import { copyToClipboard } from "@/utils/clipboard";
 interface CopyablePathLabelProps {
   path: string;
   className?: string;
+  highlightQuery?: string;
 }
 
 /**
  * 可点击复制的文件路径；过长时前部省略（…/尾部路径）。
  */
-export function CopyablePathLabel({ path, className }: CopyablePathLabelProps) {
+export function CopyablePathLabel({ path, className, highlightQuery }: CopyablePathLabelProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<number | null>(null);
@@ -55,17 +56,21 @@ export function CopyablePathLabel({ path, className }: CopyablePathLabelProps) {
             type="button"
             aria-label={t("repo.copy")}
             className={cn(
-              "text-foreground inline-flex w-max max-w-full min-w-0 cursor-pointer border-0 bg-transparent p-0 text-left underline-offset-2 hover:underline",
+              // 必须占满预算槽：勿用 w-max，否则截断后宽度随内容塌缩
+              "text-foreground inline-flex w-full min-w-0 max-w-full cursor-pointer border-0 bg-transparent p-0 text-left underline-offset-2 hover:underline",
               className,
             )}
             onClick={() => {
               void copyPath();
             }}
           >
-            <TruncateStartPath path={path} className="min-w-0 flex-1 font-mono" />
+            <TruncateStartPath
+              path={path}
+              highlightQuery={highlightQuery}
+              className="min-w-0 w-full font-mono"
+            />
           </button>
         </TooltipTrigger>
-        {/* 触发器跟随可见路径宽度，默认居中即可对齐文字中心线 */}
         <TooltipContent side="top">
           {copied ? t("repo.copySuccess") : t("repo.copy")}
         </TooltipContent>

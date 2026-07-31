@@ -1,5 +1,6 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
+import { HighlightText } from "@/components/common/HighlightText";
 import { cn } from "@/lib/utils";
 
 interface TruncateStartPathProps {
@@ -12,6 +13,8 @@ interface TruncateStartPathProps {
    * 切换时保持同一组件实例，避免卸载/挂载导致列表闪烁。
    */
   disabled?: boolean;
+  /** 搜索高亮（对当前可见文案匹配；前省略后只标可见段） */
+  highlightQuery?: string;
 }
 
 const ELLIPSIS = "…";
@@ -127,9 +130,17 @@ export function TruncateStartPath({
   className,
   title,
   disabled = false,
+  highlightQuery = "",
 }: TruncateStartPathProps) {
   const containerRef = useRef<HTMLSpanElement>(null);
   const [display, setDisplay] = useState(path);
+
+  function renderLabel(text: string): ReactNode {
+    if (!highlightQuery.trim()) {
+      return text;
+    }
+    return <HighlightText text={text} query={highlightQuery} />;
+  }
 
   useLayoutEffect(() => {
     if (disabled) {
@@ -186,7 +197,7 @@ export function TruncateStartPath({
         className={cn("text-left text-xs whitespace-nowrap", className)}
         title={title === undefined ? path : title || undefined}
       >
-        {path}
+        {renderLabel(path)}
       </span>
     );
   }
@@ -197,7 +208,7 @@ export function TruncateStartPath({
       className={cn("text-left text-xs whitespace-nowrap", className)}
       title={title === undefined ? path : title || undefined}
     >
-      {display}
+      {renderLabel(display)}
     </span>
   );
 }

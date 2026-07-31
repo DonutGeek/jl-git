@@ -607,7 +607,6 @@ export function CommitBox({ loadingShell = false }: CommitBoxProps) {
                   name={identity?.name ?? null}
                   email={identity?.email ?? null}
                   label={identityLabel}
-                  shape="rounded"
                   className="size-7 text-[10px]"
                 />
               </button>

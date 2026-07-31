@@ -18,6 +18,7 @@ import {
   Upload,
 } from "lucide-react";
 
+import { HighlightText } from "@/components/common/HighlightText";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -178,6 +179,8 @@ interface BranchTreeProps {
   aheadCount?: number;
   /** 判断本地分支是否已发布；仅 local 树使用 */
   isPublished?: (branch: GitBranch) => boolean;
+  /** 侧栏搜索高亮 */
+  highlightQuery?: string;
 }
 
 /** 左侧虚线引导列：落在父级折叠箭头正下方 */
@@ -204,12 +207,14 @@ export function BranchFolderRow({
   collapsed,
   isRemoteName,
   onToggle,
+  highlightQuery = "",
 }: {
   segment: string;
   depth: number;
   collapsed: boolean;
   isRemoteName: boolean;
   onToggle: () => void;
+  highlightQuery?: string;
 }) {
   return (
     <Button
@@ -231,7 +236,7 @@ export function BranchFolderRow({
       ) : (
         <FolderOpen className="text-muted-foreground shrink-0" aria-hidden="true" />
       )}
-      <span className="min-w-0 flex-1 truncate">{segment}</span>
+      <HighlightText text={segment} query={highlightQuery} className="min-w-0 flex-1 truncate" />
     </Button>
   );
 }
@@ -252,6 +257,7 @@ export function BranchTree({
   disabled,
   aheadCount = 0,
   isPublished,
+  highlightQuery = "",
 }: BranchTreeProps) {
   const rows = flattenBranchTreeRows(nodes, treeId, variant, depth, collapsedPaths);
 
@@ -267,6 +273,7 @@ export function BranchTree({
                 collapsed={row.collapsed}
                 isRemoteName={row.isRemoteName}
                 onToggle={() => onToggleCollapse(row.id)}
+                highlightQuery={highlightQuery}
               />
             </li>
           );
@@ -287,6 +294,7 @@ export function BranchTree({
               onSelect={onSelect}
               onCheckout={onCheckout}
               contextActions={contextActions}
+              highlightQuery={highlightQuery}
             />
           </li>
         );
@@ -307,6 +315,7 @@ interface BranchLeafProps {
   onSelect: (branch: GitBranch) => void;
   onCheckout: (branch: GitBranch) => void;
   contextActions: BranchContextActions;
+  highlightQuery?: string;
 }
 
 export function BranchLeaf({
@@ -321,6 +330,7 @@ export function BranchLeaf({
   onSelect,
   onCheckout,
   contextActions,
+  highlightQuery = "",
 }: BranchLeafProps) {
   const { t } = useTranslation();
   const isCurrent = branch.isCurrent;
@@ -393,7 +403,11 @@ export function BranchLeaf({
               ) : (
                 <CloudOff className="text-muted-foreground shrink-0" aria-hidden="true" />
               )}
-              <span className="min-w-0 flex-1 truncate">{label}</span>
+              <HighlightText
+                text={label}
+                query={highlightQuery}
+                className="min-w-0 flex-1 truncate"
+              />
               {!published && !isRemote ? (
                 <span className="text-muted-foreground shrink-0 text-[10px]">
                   {t("repo.branchUnpublished")}

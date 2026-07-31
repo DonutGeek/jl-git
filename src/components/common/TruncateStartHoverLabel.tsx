@@ -13,6 +13,7 @@ interface TruncateStartHoverLabelProps {
   trailing?: ReactNode;
   className?: string;
   textClassName?: string;
+  highlightQuery?: string;
 }
 
 /**
@@ -28,6 +29,7 @@ export function TruncateStartHoverLabel({
   trailing,
   className,
   textClassName,
+  highlightQuery,
 }: TruncateStartHoverLabelProps) {
   return (
     <div className={cn("min-w-0 w-full", className)} {...{ [TRUNCATE_BUDGET_ATTR]: true }}>
@@ -38,6 +40,7 @@ export function TruncateStartHoverLabel({
             <TruncateStartPath
               path={text}
               title=""
+              highlightQuery={highlightQuery}
               className={cn("text-foreground font-mono text-[11px] leading-none", textClassName)}
             />
             {trailing}

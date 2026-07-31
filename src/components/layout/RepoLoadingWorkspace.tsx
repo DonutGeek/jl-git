@@ -1,22 +1,9 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  ArrowDown,
-  ArrowDownWideNarrow,
-  ArrowUp,
-  ChevronDown,
-  MoreVertical,
-  Search,
-} from "lucide-react";
+import { ArrowDownWideNarrow, ChevronDown, MoreVertical, Search } from "lucide-react";
 
 import { BranchListChrome } from "@/components/git/BranchListChrome";
-import {
-  ChangeGroupChrome,
-  ChangesPanelChrome,
-  type ChangeListGroupMode,
-  type ChangeSortMode,
-  type ChangesViewMode,
-} from "@/components/git/ChangesPanelChrome";
+import { ChangesPanelLoadingShell } from "@/components/git/ChangesPanelLoadingShell";
 import { CommitBox } from "@/components/git/CommitBox";
 import { FileTreeChrome } from "@/components/git/FileTreeChrome";
 import {
@@ -46,6 +33,8 @@ import { DEFAULT_BRANCH_LIST_PREFS } from "@/utils/branchListPrefs";
 import { DEFAULT_TAG_LIST_PREFS } from "@/utils/tagListPrefs";
 
 const CHANGES_LIST_MIN_HEIGHT_PX = 320;
+const CHANGES_PANEL_MIN_WIDTH_PX = 240;
+const CHANGES_PANEL_DEFAULT_RATIO = 26;
 
 interface RepoLoadingWorkspaceProps {
   project: Project;
@@ -54,67 +43,6 @@ interface RepoLoadingWorkspaceProps {
   label: string;
   onSidebarViewChange: (view: SidebarView) => void;
   onMainViewChange: (view: RepoMainView) => void;
-}
-
-function ChangesDataLoadingPane({ label }: { label: string }) {
-  const { t } = useTranslation();
-  const [view, setView] = useState<ChangesViewMode>("list");
-  const [sortMode, setSortMode] = useState<ChangeSortMode>("default");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showLineStats, setShowLineStats] = useState(false);
-  const [listGroupMode, setListGroupMode] = useState<ChangeListGroupMode>("default");
-
-  return (
-    <ChangesPanelChrome
-      view={view}
-      sortMode={sortMode}
-      searchOpen={searchOpen}
-      searchQuery={searchQuery}
-      showLineStats={showLineStats}
-      listGroupMode={listGroupMode}
-      treeActionsDisabled
-      onViewChange={setView}
-      onSortModeChange={setSortMode}
-      onExpandAll={() => undefined}
-      onCollapseAll={() => undefined}
-      onToggleSearch={() => {
-        setSearchOpen((open) => !open);
-        if (searchOpen) {
-          setSearchQuery("");
-        }
-      }}
-      onSearchQueryChange={setSearchQuery}
-      onSearchEscape={() => {
-        setSearchOpen(false);
-        setSearchQuery("");
-      }}
-      onShowLineStatsChange={setShowLineStats}
-      onListGroupModeChange={setListGroupMode}
-      unstaged={
-        <ChangeGroupChrome
-          title={t("repo.changesCount", { count: 0 })}
-          action={<ArrowDown aria-hidden="true" />}
-          actionLabel={t("repo.stageAll")}
-          actionDisabled
-          onAction={() => undefined}
-        >
-          <RepoLoadingIndicator area="unstaged" label={label} />
-        </ChangeGroupChrome>
-      }
-      staged={
-        <ChangeGroupChrome
-          title={t("repo.stagedCount", { count: 0 })}
-          action={<ArrowUp aria-hidden="true" />}
-          actionLabel={t("repo.unstageAll")}
-          actionDisabled
-          onAction={() => undefined}
-        >
-          <RepoLoadingIndicator area="staged" label={label} />
-        </ChangeGroupChrome>
-      }
-    />
-  );
 }
 
 function WorkspaceDataLoadingPane({ project, label }: { project: Project; label: string }) {
@@ -309,8 +237,8 @@ function LoadingMainPane({
   return (
     <ResizableSplit
       orientation="horizontal"
-      defaultRatio={32}
-      minFirstPx={320}
+      defaultRatio={CHANGES_PANEL_DEFAULT_RATIO}
+      minFirstPx={CHANGES_PANEL_MIN_WIDTH_PX}
       minSecondPx={280}
       storageKey="jlgit:split:changes-preview"
       first={
@@ -321,7 +249,7 @@ function LoadingMainPane({
             minFirstPx={CHANGES_LIST_MIN_HEIGHT_PX}
             minSecondPx={200}
             storageKey="jlgit:split:changes-commit"
-            first={<ChangesDataLoadingPane label={label} />}
+            first={<ChangesPanelLoadingShell />}
             second={
               <div className="h-full min-h-0 overflow-hidden">
                 <CommitBox key={projectPath} loadingShell />

@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { ProjectManager } from "@/components/project/ProjectManager";
 
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { useProjectStore } from "@/store/useProjectStore";
+import { parseNewTabLocationState } from "@/utils/newTabNavigation";
 import { isStartupTabsApplied, onStartupTabsApplied } from "@/utils/startupTabsBootstrap";
 
 import { toUserMessage } from "@/types/error";
@@ -86,6 +87,11 @@ export function DashboardPage({ active = true }: DashboardPageProps) {
     navigate(`/repo/${projectId}`);
   }
 
+  const requestedView = parseNewTabLocationState(location.state);
+  const clearRequestedView = useCallback(() => {
+    navigate(".", { replace: true, state: null });
+  }, [navigate]);
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <main className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-6 pt-6">
@@ -95,7 +101,11 @@ export function DashboardPage({ active = true }: DashboardPageProps) {
           </p>
         ) : null}
 
-        <ProjectManager onOpenProject={handleOpenProject} />
+        <ProjectManager
+          onOpenProject={handleOpenProject}
+          requestedView={requestedView}
+          onRequestedViewConsumed={clearRequestedView}
+        />
       </main>
     </div>
   );

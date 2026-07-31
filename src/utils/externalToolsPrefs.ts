@@ -51,3 +51,38 @@ export function shellPathPlaceholderKey(os: AppOs): string {
   if (os === "linux") return "shellPathPlaceholderLinux";
   return "shellPathPlaceholder";
 }
+
+export function browserPathPlaceholderKey(os: AppOs): string {
+  if (os === "windows") return "externalBrowserPathPlaceholderWindows";
+  if (os === "linux") return "externalBrowserPathPlaceholderLinux";
+  return "externalBrowserPathPlaceholder";
+}
+
+/** 组装浏览器下拉：auto + 已探测项 + custom；保留当前非法偏好以免 Select 空值 */
+export function browserOptionsForInstalled(
+  installed: readonly ExternalToolOption[],
+  current: string,
+): ExternalToolOption[] {
+  const options: ExternalToolOption[] = [
+    { value: "auto", labelKey: "browserAuto" },
+    ...installed,
+    { value: "custom", labelKey: "browserCustom" },
+  ];
+  if (
+    current &&
+    current !== "auto" &&
+    current !== "custom" &&
+    !options.some((option) => option.value === current)
+  ) {
+    options.splice(options.length - 1, 0, { value: current, label: current });
+  }
+  return options;
+}
+
+export function coerceBrowserPreference(
+  options: readonly ExternalToolOption[],
+  preference: string,
+): string {
+  const allowed = new Set(options.map((option) => option.value));
+  return allowed.has(preference) ? preference : "auto";
+}

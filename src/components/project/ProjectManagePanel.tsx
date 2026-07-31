@@ -172,6 +172,7 @@ export function ProjectManagePanel({
         onOpenProject={handleOpen}
         onProjectsMutated={onProjectsMutated}
         onRefreshGit={() => setGitRefreshToken((token) => token + 1)}
+        filteredProjects={filtered}
         disabled={disabled || loading}
       />
       <ProjectManageTable
@@ -185,6 +186,7 @@ export function ProjectManagePanel({
         pageSize={pageSize}
         pageSizeOptions={PAGE_SIZE_OPTIONS}
         disabled={disabled}
+        highlightQuery={appliedFilters.keyword}
         onPageChange={(nextPage) => {
           if (nextPage >= 1 && nextPage <= totalPages) {
             setPage(nextPage);

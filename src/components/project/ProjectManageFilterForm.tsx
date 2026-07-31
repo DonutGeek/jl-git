@@ -1,14 +1,16 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { ChevronDown, ChevronUp, Folder, RotateCcw, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronUp, RotateCcw, Search } from "lucide-react";
 
 import { SelectMenu } from "@/components/common/SelectMenu";
+import {
+  WorkspaceGroupLabel,
+  WorkspaceGroupLeading,
+} from "@/components/project/WorkspaceGroupLeading";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-
 import { useProjectStore } from "@/store/useProjectStore";
-
 import {
   MANAGE_ALL_GROUPS,
   MANAGE_DIRTY_ALL,
@@ -46,7 +48,8 @@ export function ProjectManageFilterForm({
   const [expanded, setExpanded] = useState(false);
 
   const groupOptions = useMemo(() => {
-    const options = [
+    const folderPreview = <Folder className="size-3.5 shrink-0" aria-hidden="true" />;
+    return [
       {
         value: MANAGE_ALL_GROUPS,
         label: t("projectManager.manageFilterAll"),
@@ -54,6 +57,7 @@ export function ProjectManageFilterForm({
       {
         value: MANAGE_UNGROUPED,
         label: t("projectManager.ungrouped"),
+        preview: folderPreview,
       },
       ...workspaces
         .slice()
@@ -61,10 +65,45 @@ export function ProjectManageFilterForm({
         .map((workspace) => ({
           value: workspace.id,
           label: workspace.name,
+          preview: (
+            <WorkspaceGroupLeading
+              icon={workspace.icon}
+              color={workspace.color}
+              iconClassName="size-3.5"
+            />
+          ),
         })),
     ];
-    return options;
   }, [t, workspaces]);
+
+  const selectedGroup = useMemo(() => {
+    if (draft.group === MANAGE_ALL_GROUPS || draft.group === MANAGE_UNGROUPED) {
+      return null;
+    }
+    return workspaces.find((workspace) => workspace.id === draft.group) ?? null;
+  }, [draft.group, workspaces]);
+
+  const groupDisplayLabel = useMemo(() => {
+    if (selectedGroup) {
+      return (
+        <WorkspaceGroupLabel
+          name={selectedGroup.name}
+          icon={selectedGroup.icon}
+          color={selectedGroup.color}
+          className="gap-1.5"
+        />
+      );
+    }
+    if (draft.group === MANAGE_UNGROUPED) {
+      return (
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+          <Folder className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate">{t("projectManager.ungrouped")}</span>
+        </span>
+      );
+    }
+    return undefined;
+  }, [draft.group, selectedGroup, t]);
 
   const dirtyOptions: Array<{ value: ManageDirtyFilter; label: string }> = [
     { value: MANAGE_DIRTY_ALL, label: t("projectManager.manageFilterDirtyAll") },
@@ -177,6 +216,7 @@ export function ProjectManageFilterForm({
             disabled={disabled}
             size="sm"
             options={groupOptions}
+            displayLabel={groupDisplayLabel}
             triggerClassName="h-8 w-full min-w-0"
           />
         </FilterField>

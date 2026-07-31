@@ -383,7 +383,7 @@ export function StatusBar() {
                     name={identity?.name ?? null}
                     email={identity?.email ?? null}
                     label={identityLabel}
-                    className="size-5 rounded-full text-[9px]"
+                    className="size-5 text-[9px]"
                   />
                 </div>
               </TooltipTrigger>

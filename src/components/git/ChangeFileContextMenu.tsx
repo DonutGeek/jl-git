@@ -44,7 +44,11 @@ import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { GitStatusEntry } from "@/types/git";
 import { copyToClipboard } from "@/utils/clipboard";
-import { useContextMenuOpen, withContextMenuHighlight } from "@/utils/contextMenuHighlight";
+import {
+  CONTEXT_MENU_ITEM_HOVER_HIGHLIGHT_CLASS,
+  useContextMenuOpen,
+  withContextMenuHighlight,
+} from "@/utils/contextMenuHighlight";
 import { deferUi } from "@/utils/deferUi";
 import { isConflictEntry } from "@/utils/gitConflict";
 import { revealInFileManagerLabel } from "@/utils/platformLabels";
@@ -57,8 +61,6 @@ interface ChangeFileContextMenuProps {
   side: ChangeFileSide;
   repoPath: string;
   disabled?: boolean;
-  /** 菜单打开时选中该行，便于高亮与预览同步 */
-  onMenuOpen?: () => void;
   children: ReactElement;
 }
 
@@ -73,7 +75,6 @@ export function ChangeFileContextMenu({
   side,
   repoPath,
   disabled = false,
-  onMenuOpen,
   children,
 }: ChangeFileContextMenuProps) {
   const { t } = useTranslation();
@@ -84,7 +85,7 @@ export function ChangeFileContextMenu({
   const revealInFileTree = useRepoNavStore((state) => state.revealInFileTree);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const { menuOpen, onOpenChange } = useContextMenuOpen(onMenuOpen);
+  const { menuOpen, onOpenChange } = useContextMenuOpen();
 
   const conflictLocked = isConflictEntry(entry);
   const missing = isMissingOnDisk(entry, side);
@@ -148,7 +149,7 @@ export function ChangeFileContextMenu({
     <>
       <ContextMenu onOpenChange={onOpenChange}>
         <ContextMenuTrigger asChild>
-          {withContextMenuHighlight(children, menuOpen)}
+          {withContextMenuHighlight(children, menuOpen, CONTEXT_MENU_ITEM_HOVER_HIGHLIGHT_CLASS)}
         </ContextMenuTrigger>
         <ContextMenuContent className="min-w-52">
           {/* 1 主操作 */}
@@ -211,32 +212,40 @@ export function ChangeFileContextMenu({
 
           <ContextMenuSeparator />
 
-          {/* 5 系统打开：访达 → 编辑器 → 默认程序 */}
-          <ContextMenuItem
-            disabled={disabled || busy || missing}
-            onSelect={() =>
-              void runAction(() => systemOpenService.revealInFileManager(absolutePath))
-            }
-          >
-            <FolderOpen aria-hidden="true" />
-            {revealLabel}
-          </ContextMenuItem>
-          <ContextMenuItem
-            disabled={disabled || busy || missing}
-            onSelect={() => void runAction(() => systemOpenService.openInEditor(absolutePath))}
-          >
-            <ExternalLink aria-hidden="true" />
-            {t("repo.openInEditor")}
-          </ContextMenuItem>
-          <ContextMenuItem
-            disabled={disabled || busy || missing}
-            onSelect={() =>
-              void runAction(() => systemOpenService.openWithDefaultApp(absolutePath))
-            }
-          >
-            <AppWindow aria-hidden="true" />
-            {t("repo.openWithDefaultApp")}
-          </ContextMenuItem>
+          {/* 5 系统打开：收入「打开方式」子菜单 */}
+          <ContextMenuSub>
+            <ContextMenuSubTrigger disabled={disabled || busy || missing}>
+              <ExternalLink aria-hidden="true" />
+              {t("repo.openVia")}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="min-w-44">
+              <ContextMenuItem
+                disabled={disabled || busy || missing}
+                onSelect={() =>
+                  void runAction(() => systemOpenService.revealInFileManager(absolutePath))
+                }
+              >
+                <FolderOpen aria-hidden="true" />
+                {revealLabel}
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={disabled || busy || missing}
+                onSelect={() => void runAction(() => systemOpenService.openInEditor(absolutePath))}
+              >
+                <ExternalLink aria-hidden="true" />
+                {t("repo.openInEditor")}
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={disabled || busy || missing}
+                onSelect={() =>
+                  void runAction(() => systemOpenService.openWithDefaultApp(absolutePath))
+                }
+              >
+                <AppWindow aria-hidden="true" />
+                {t("repo.openWithDefaultApp")}
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
 
           <ContextMenuSeparator />
 

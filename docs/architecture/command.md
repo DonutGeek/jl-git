@@ -95,8 +95,17 @@ interface AppError {
 |--|--|
 | **目的** | 登记本地仓库路径 |
 | **输入** | `{ path: string; workspaceId?: string; name?: string; description?: string; icon?: ProjectIcon }` |
-| **输出** | `{ project: ProjectRow }` |
+| **输出** | `{ project: ProjectRow; alreadyExists: boolean }`（路径已存在时返回已有项目且不覆盖字段） |
 | **错误** | `INVALID_PATH` `NOT_A_REPO` `DB_ERROR` `VALIDATION` |
+
+### `project_check_uniqueness`
+
+| | |
+|--|--|
+| **目的** | 检查本地路径或远程 URL 是否与已登记项目冲突 |
+| **输入** | `{ path?: string; remoteUrl?: string }`（二选一） |
+| **输出** | `{ kind: "new" \| "existingPath" \| "existingRemote"; project?: ProjectRow; matches: { id; name; path }[] }` |
+| **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `DB_ERROR` |
 
 ### `project_remove`
 
@@ -111,10 +120,11 @@ interface AppError {
 
 | | |
 |--|--|
-| **目的** | 更新显示名 / 工作区 / 简介 |
-| **输入** | `{ id: string; name?: string; workspaceId?: string | null; description?: string | null; icon?: ProjectIcon }`（`description: null` 清空；省略则不改） |
+| **目的** | 更新显示名 / 工作区 / 简介 / 本地路径 |
+| **输入** | `{ id; name?; workspaceId?; description?; icon?; path?; allowRemoteMismatch? }`（`description: null` 清空；省略则不改；`path` 改绑须为 Git 顶层） |
 | **输出** | `{ project: ProjectRow }` |
-| **错误** | `NOT_FOUND` `DB_ERROR` `VALIDATION` |
+| **错误** | `NOT_FOUND` `DB_ERROR` `VALIDATION` `INVALID_PATH` `NOT_A_REPO` `ALREADY_EXISTS` `REMOTE_MISMATCH` |
+| **说明** | 改路径时比对主远端身份；旧路径不可读则跳过比对；不一致需 `allowRemoteMismatch: true` |
 
 ### `project_touch_opened`
 
@@ -324,7 +334,7 @@ interface GitBranch {
 |--|--|
 | **目的** | 单提交元数据 + 相对各 parent 的改动文件（name-status） |
 | **输入** | `{ path: string; rev: string }` |
-| **输出** | `{ commit: GitCommitDetail }`（含 `parents` / `parentShortIds` / `diffs[]`；每个 diff 含 `truncated`） |
+| **输出** | `{ commit: GitCommitDetail }`（含 `authorEmail` / `parents` / `parentShortIds` / `diffs[]`；每个 diff 含 `truncated`） |
 | **错误** | `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `GIT_FAILED` |
 | **说明** | 单 parent 改动文件硬顶约 5000，超出则该 diff `truncated: true` |
 
@@ -585,8 +595,13 @@ interface GitBranch {
 | `system_open_in_editor` | `{ path; preference?; customPath? }` | `{ ok: true }` |
 | `system_open_with_default_app` | `{ path }` | `{ ok: true }` |
 | `system_write_text_file` | `{ path; contents }` | `{ ok: true }` |
+| `system_read_text_file` | `{ path; maxBytes?: number }` | `{ contents: string }` |
+| `system_list_browsers` | — | `{ id; name }[]`（本机已探测浏览器，不含 auto / custom） |
+| `system_open_url` | `{ url; preference?; customPath? }` | `{ ok: true }` |
 
 `system_list_fonts` 经 `font-kit` 枚举系统字体族，供设置中客户端 / 编辑器字体下拉使用。
+`system_list_browsers` 按平台检查已知应用名 / 安装路径（不引入探测 crate）；设置「外部浏览器」下拉用。
+`system_open_url` 仅允许 `http:` / `https:`；`preference` 为 `auto`（系统默认）/ 探测 id / `custom`；参数数组调用，不拼 shell。
 `system_runtime_stats` 供设置「关于」挂载期间约 1s 轮询；`cpuPercent` 在 Windows 上可能为 `0`（UI 显示为不可用）。
 `system_disk_space` 查路径所在卷（状态栏摘要）；`system_disk_volumes` 枚举可见卷：Windows 为盘符；Unix 过滤伪挂载，macOS 合并 APFS `/` 与 Data、忽略 `/Volumes` 下小镜像。仅多卷时 hover 用列表，单卷仍为紧凑卡。状态栏摘要仍只显示当前仓库所在卷。
 
@@ -595,8 +610,9 @@ interface GitBranch {
 - Windows：资源管理器 `explorer /select,`；默认程序 `cmd /C start`；路径去掉 `\\?\` 前缀
 - Linux：优先 `FileManager1.ShowItems` 选中文件，失败则 `xdg-open` 打开父目录；默认程序走 `xdg-open`
 
-`system_write_text_file` 的 `path` 须为绝对路径（通常来自另存为对话框）。均用参数数组调用系统命令，不拼 shell。  
-`preference`：编辑器为 `auto` / `cursor` / `vscode` / `custom`；终端按平台为 `auto` 与具体终端 id（如 `wt`、`terminal`、`gnome-terminal`）或 `custom`。`customPath` 仅在 `custom` 时使用。
+`system_write_text_file` 的 `path` 须为绝对路径（通常来自另存为对话框）。
+`system_read_text_file` 的 `path` 须为已存在的绝对路径文件（通常来自打开对话框）；默认大小上限 2 MiB，超限 `VALIDATION`。均用参数数组调用系统命令，不拼 shell。  
+`preference`：编辑器为 `auto` / `cursor` / `vscode` / `custom`；浏览器为 `auto` / 探测 id（如 `chrome`、`safari`）/ `custom`；终端按平台为 `auto` 与具体终端 id（如 `wt`、`terminal`、`gnome-terminal`）或 `custom`。`customPath` 仅在 `custom` 时使用。
 
 ### `document_extract_pdf_text`
 

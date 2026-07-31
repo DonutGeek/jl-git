@@ -84,6 +84,7 @@ export interface GitCommitDetail {
   id: string;
   shortId: string;
   authorName: string;
+  authorEmail: string;
   authoredAt: string;
   subject: string;
   body: string;

@@ -66,6 +66,12 @@ export function getMaterialIconUrl(iconId: string, isDir: boolean): string {
     return direct;
   }
 
+  // 主题部分图标以 `*.clone.svg` 落盘（如 angular-service），清单 id 不含 .clone
+  const clone = iconUrlById.get(`${iconId}.clone`);
+  if (clone) {
+    return clone;
+  }
+
   const fallbackId = isDir ? "folder" : "file";
   const fallback = iconUrlById.get(fallbackId);
   if (!fallback) {

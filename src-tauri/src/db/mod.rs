@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
 use crate::git::path::{normalize_existing_dir, require_git_toplevel};
+use crate::git::remote::list_remotes;
+use crate::git::remote_identity::canonicalize_remote_identity;
 
 mod app_data;
 mod chat;
@@ -268,6 +270,7 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
     Ok(())
 }
 
+/// 登记本地仓库。路径已存在时返回已有项目且 `already_exists = true`，不覆盖任何字段。
 pub async fn add_project(
     pool: &SqlitePool,
     path: String,
@@ -275,55 +278,55 @@ pub async fn add_project(
     workspace_id: Option<String>,
     description: Option<String>,
     icon: Option<String>,
-) -> Result<ProjectRow, AppError> {
+) -> Result<(ProjectRow, bool), AppError> {
     let repo_path = resolve_repo_path(&path)?;
+    let path_key = path_to_string(&repo_path);
+
+    let mut tx = pool.begin().await.map_err(to_db_error)?;
+
+    if let Some(existing) = find_project_by_path(&mut *tx, &path_key).await? {
+        tx.commit().await.map_err(to_db_error)?;
+        return Ok((existing, true));
+    }
+
+    // 仅新建路径才校验展示字段与目标分组锁定
     let display_name = resolve_project_name(&repo_path, name)?;
     let description = normalize_description(description);
-    let has_explicit_icon = icon.is_some();
     let icon = normalize_project_icon(icon)?;
     let timestamp = now();
     let id = uuid::Uuid::new_v4().to_string();
-    let path_key = path_to_string(&repo_path);
+    ensure_workspace_unlocked_for_move(pool, workspace_id.as_deref(), "移入").await?;
 
-    // 新建或 upsert 改分组时，锁定分组禁止移入；已存在记录还需校验移出
-    let existing = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT workspace_id FROM projects WHERE path = ?1",
-    )
-    .bind(&path_key)
-    .fetch_optional(pool)
-    .await
-    .map_err(to_db_error)?
-    .flatten();
-    if existing.as_ref() != workspace_id.as_ref() {
-        ensure_workspace_unlocked_for_move(pool, existing.as_deref(), "移出").await?;
-        ensure_workspace_unlocked_for_move(pool, workspace_id.as_deref(), "移入").await?;
-    }
-
-    sqlx::query(
+    let insert = sqlx::query(
         r#"
         INSERT INTO projects (id, workspace_id, name, description, icon, path, pinned, sort_order, created_at, updated_at)
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, COALESCE((SELECT MAX(sort_order) + 1 FROM projects WHERE workspace_id IS ?2), 0), ?7, ?7)
-        ON CONFLICT(path) DO UPDATE SET
-          workspace_id = excluded.workspace_id,
-          name = excluded.name,
-          description = excluded.description,
-          icon = CASE WHEN ?8 THEN excluded.icon ELSE projects.icon END,
-          updated_at = excluded.updated_at
         "#,
     )
-    .bind(id)
-    .bind(workspace_id)
-    .bind(display_name)
+    .bind(&id)
+    .bind(&workspace_id)
+    .bind(&display_name)
     .bind(&description)
-    .bind(icon)
+    .bind(&icon)
     .bind(&path_key)
-    .bind(timestamp)
-    .bind(has_explicit_icon)
-    .execute(pool)
-    .await
-    .map_err(to_db_error)?;
+    .bind(&timestamp)
+    .execute(&mut *tx)
+    .await;
 
-    get_project_by_path(pool, &path_key).await
+    match insert {
+        Ok(_) => {}
+        Err(error) if is_unique_constraint_violation(&error) => {
+            let existing = find_project_by_path(&mut *tx, &path_key)
+                .await?
+                .ok_or_else(|| AppError::new("NOT_FOUND", "项目不存在"))?;
+            tx.commit().await.map_err(to_db_error)?;
+            return Ok((existing, true));
+        }
+        Err(error) => return Err(to_db_error(error)),
+    }
+
+    tx.commit().await.map_err(to_db_error)?;
+    Ok((get_project_by_path(pool, &path_key).await?, false))
 }
 
 pub async fn list_projects(
@@ -384,6 +387,8 @@ pub async fn update_project(
     workspace_id: Option<Option<String>>,
     description: Option<Option<String>>,
     icon: Option<String>,
+    path: Option<String>,
+    allow_remote_mismatch: bool,
 ) -> Result<ProjectRow, AppError> {
     if id.trim().is_empty() {
         return Err(AppError::new("VALIDATION", "项目 ID 不能为空"));
@@ -396,7 +401,13 @@ pub async fn update_project(
     let icon = icon
         .map(|value| normalize_project_icon(Some(value)))
         .transpose()?;
-    if name.is_none() && workspace_id.is_none() && description.is_none() && icon.is_none() {
+    let next_path = resolve_project_path_update(pool, id, path, allow_remote_mismatch).await?;
+    if name.is_none()
+        && workspace_id.is_none()
+        && description.is_none()
+        && icon.is_none()
+        && next_path.is_none()
+    {
         return Err(AppError::new("VALIDATION", "没有可更新的项目字段"));
     }
 
@@ -424,8 +435,9 @@ pub async fn update_project(
             workspace_id = CASE WHEN ?2 THEN ?3 ELSE workspace_id END,
             description = CASE WHEN ?4 THEN ?5 ELSE description END,
             icon = COALESCE(?6, icon),
-            updated_at = ?7
-        WHERE id = ?8
+            path = COALESCE(?7, path),
+            updated_at = ?8
+        WHERE id = ?9
         "#,
     )
     .bind(&name)
@@ -434,17 +446,116 @@ pub async fn update_project(
     .bind(description.is_some())
     .bind(description.flatten())
     .bind(icon)
+    .bind(&next_path)
     .bind(&timestamp)
     .bind(id)
     .execute(pool)
-    .await
-    .map_err(to_db_error)?;
+    .await;
 
-    if result.rows_affected() == 0 {
-        return Err(AppError::new("NOT_FOUND", "项目不存在"));
+    match result {
+        Ok(result) => {
+            if result.rows_affected() == 0 {
+                return Err(AppError::new("NOT_FOUND", "项目不存在"));
+            }
+        }
+        Err(error) if is_unique_constraint_violation(&error) => {
+            return Err(AppError::new(
+                "ALREADY_EXISTS",
+                "该路径已登记为其他仓库",
+            ));
+        }
+        Err(error) => return Err(to_db_error(error)),
     }
 
     get_project_by_id(pool, id).await
+}
+
+/// 解析改路径：规范化 Git 顶层、查重、与旧路径比对主远端身份。
+async fn resolve_project_path_update(
+    pool: &SqlitePool,
+    id: &str,
+    path: Option<String>,
+    allow_remote_mismatch: bool,
+) -> Result<Option<String>, AppError> {
+    let Some(path) = path.map(|value| value.trim().to_string()).filter(|v| !v.is_empty()) else {
+        return Ok(None);
+    };
+
+    let current = get_project_by_id(pool, id).await?;
+    let repo_path = resolve_repo_path(&path)?;
+    let path_key = path_to_string(&repo_path);
+    if path_key == current.path {
+        return Ok(None);
+    }
+
+    if let Some(other) = find_project_by_path(pool, &path_key).await? {
+        if other.id != id {
+            return Err(AppError::new(
+                "ALREADY_EXISTS",
+                "该路径已登记为其他仓库",
+            ));
+        }
+    }
+
+    match compare_primary_remote_identity(&current.path, &path_key) {
+        RemotePathCompare::Compatible => {}
+        RemotePathCompare::Mismatch if allow_remote_mismatch => {}
+        RemotePathCompare::Mismatch => {
+            return Err(AppError::new(
+                "REMOTE_MISMATCH",
+                "新路径的 Git 远程与当前登记仓库不一致",
+            ));
+        }
+    }
+
+    Ok(Some(path_key))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RemotePathCompare {
+    /// 旧路径不可读、两端均无远端、或主远端身份一致
+    Compatible,
+    /// 两端均可读且主远端身份不一致（含一侧有远端一侧无）
+    Mismatch,
+}
+
+fn primary_remote_identity(repo_path: &str) -> Result<Option<String>, AppError> {
+    let remotes = list_remotes(Path::new(repo_path))?;
+    let preferred = remotes
+        .iter()
+        .find(|remote| remote.name == "origin")
+        .or_else(|| remotes.first());
+    let Some(remote) = preferred else {
+        return Ok(None);
+    };
+    let url = remote.fetch_url.trim();
+    let url = if url.is_empty() {
+        remote.push_url.trim()
+    } else {
+        url
+    };
+    if url.is_empty() {
+        return Ok(None);
+    }
+    Ok(canonicalize_remote_identity(url))
+}
+
+fn compare_primary_remote_identity(old_path: &str, new_path: &str) -> RemotePathCompare {
+    let new_identity = match primary_remote_identity(new_path) {
+        Ok(identity) => identity,
+        Err(_) => return RemotePathCompare::Mismatch,
+    };
+    let old_identity = match primary_remote_identity(old_path) {
+        Ok(identity) => identity,
+        // 旧目录已搬迁/不可读：允许改绑到新路径
+        Err(_) => return RemotePathCompare::Compatible,
+    };
+
+    match (old_identity, new_identity) {
+        (None, None) => RemotePathCompare::Compatible,
+        (Some(old), Some(new)) if old == new => RemotePathCompare::Compatible,
+        _ => RemotePathCompare::Mismatch,
+    }
 }
 
 async fn ensure_workspace_unlocked_for_move(
@@ -518,7 +629,7 @@ pub async fn create_workspace(
         return Err(AppError::new("VALIDATION", "分组名称不能为空"));
     }
     let parent_id = parent_id.filter(|value| !value.trim().is_empty());
-    let icon = icon.unwrap_or_else(|| "code".to_string());
+    let icon = normalize_workspace_icon(icon)?;
     let color = normalize_workspace_color(color.as_deref().unwrap_or(DEFAULT_WORKSPACE_COLOR))?;
     if let Some(parent_id) = parent_id.as_deref() {
         let exists = sqlx::query_scalar::<_, i64>("SELECT COUNT(1) FROM workspaces WHERE id = ?1")
@@ -561,6 +672,10 @@ pub async fn update_workspace(
     let name = name
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    let icon = match icon {
+        Some(value) => Some(normalize_workspace_icon(Some(value))?),
+        None => None,
+    };
     let color = color
         .as_deref()
         .map(normalize_workspace_color)
@@ -883,7 +998,13 @@ pub async fn list_recent(
         .collect()
 }
 
-async fn get_project_by_path(pool: &SqlitePool, path: &str) -> Result<ProjectRow, AppError> {
+async fn find_project_by_path<'e, E>(
+    executor: E,
+    path: &str,
+) -> Result<Option<ProjectRow>, AppError>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
     let row = sqlx::query(
         r#"
         SELECT id, workspace_id, name, description, icon, path, last_opened_at, pinned, sort_order, created_at, updated_at
@@ -892,12 +1013,29 @@ async fn get_project_by_path(pool: &SqlitePool, path: &str) -> Result<ProjectRow
         "#,
     )
     .bind(path)
-    .fetch_optional(pool)
+    .fetch_optional(executor)
     .await
-    .map_err(to_db_error)?
-    .ok_or_else(|| AppError::new("NOT_FOUND", "项目不存在"))?;
+    .map_err(to_db_error)?;
 
-    row_to_project(row)
+    row.map(row_to_project).transpose()
+}
+
+async fn get_project_by_path(pool: &SqlitePool, path: &str) -> Result<ProjectRow, AppError> {
+    find_project_by_path(pool, path)
+        .await?
+        .ok_or_else(|| AppError::new("NOT_FOUND", "项目不存在"))
+}
+
+fn is_unique_constraint_violation(error: &sqlx::Error) -> bool {
+    match error {
+        sqlx::Error::Database(db_error) => {
+            let message = db_error.message();
+            message.contains("UNIQUE constraint failed")
+                || db_error.code().as_deref() == Some("2067")
+                || db_error.code().as_deref() == Some("1555")
+        }
+        _ => false,
+    }
 }
 
 async fn get_project_by_id(pool: &SqlitePool, id: &str) -> Result<ProjectRow, AppError> {
@@ -941,39 +1079,34 @@ fn normalize_description(value: Option<String>) -> Option<String> {
         .filter(|text| !text.is_empty())
 }
 
-fn normalize_project_icon(value: Option<String>) -> Result<String, AppError> {
-    const DEFAULT_PROJECT_ICON: &str = "folder-git-2";
-    const PROJECT_ICONS: &[&str] = &[
-        DEFAULT_PROJECT_ICON,
-        "folder",
-        "code-2",
-        "terminal",
-        "braces",
-        "box",
-        "package",
-        "layers-3",
-        "database",
-        "server",
-        "globe-2",
-        "cloud",
-        "cpu",
-        "app-window",
-        "smartphone",
-        "gamepad-2",
-        "bot",
-        "sparkles",
-        "briefcase-business",
-        "book-open",
-    ];
-
+fn normalize_lucide_icon_name(value: Option<String>, default: &str) -> Result<String, AppError> {
     let icon = value
         .map(|item| item.trim().to_string())
         .filter(|item| !item.is_empty())
-        .unwrap_or_else(|| DEFAULT_PROJECT_ICON.to_string());
-    if !PROJECT_ICONS.contains(&icon.as_str()) {
-        return Err(AppError::new("VALIDATION", "不支持的项目图标"));
+        .unwrap_or_else(|| default.to_string());
+    if icon.len() > 64 {
+        return Err(AppError::new("VALIDATION", "图标名称过长"));
+    }
+    if !icon.chars().all(|character| {
+        character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+    }) || icon.starts_with('-')
+        || icon.ends_with('-')
+        || icon.contains("--")
+        || !icon
+            .chars()
+            .any(|character| character.is_ascii_alphanumeric())
+    {
+        return Err(AppError::new("VALIDATION", "图标名称须为 kebab-case"));
     }
     Ok(icon)
+}
+
+fn normalize_project_icon(value: Option<String>) -> Result<String, AppError> {
+    normalize_lucide_icon_name(value, "folder-git-2")
+}
+
+fn normalize_workspace_icon(value: Option<String>) -> Result<String, AppError> {
+    normalize_lucide_icon_name(value, "code")
 }
 
 fn resolve_repo_path(path: &str) -> Result<PathBuf, AppError> {
@@ -1165,13 +1298,18 @@ mod tests {
     }
 
     #[test]
-    fn add_project_normalizes_git_repo_and_upserts_existing_path() {
+    fn add_project_normalizes_git_repo_and_rejects_overwrite_on_existing_path() {
         run_async(async {
             let pool = test_pool().await;
             migrate(&pool).await.expect("迁移应成功");
             let repo = create_git_repo();
+            let original_name = repo
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("repo")
+                .to_string();
 
-            let first = add_project(
+            let (first, already_exists) = add_project(
                 &pool,
                 repo.to_string_lossy().into_owned(),
                 None,
@@ -1181,20 +1319,11 @@ mod tests {
             )
             .await
             .expect("Git 仓库应可登记");
+            assert!(!already_exists);
             assert_eq!(first.icon, "folder-git-2");
-            let second = add_project(
-                &pool,
-                repo.to_string_lossy().into_owned(),
-                Some("Renamed".to_string()),
-                None,
-                None,
-                Some("rocket".to_string()),
-            )
-            .await
-            .expect_err("不支持的项目图标应被拒绝");
-            assert_eq!(second.code, "VALIDATION");
+            assert_eq!(first.name, original_name);
 
-            let second = add_project(
+            let (second, already_exists) = add_project(
                 &pool,
                 repo.to_string_lossy().into_owned(),
                 Some("Renamed".to_string()),
@@ -1203,11 +1332,12 @@ mod tests {
                 Some("terminal".to_string()),
             )
             .await
-            .expect("重复路径应更新现有项目");
+            .expect("重复路径应返回已有项目");
 
+            assert!(already_exists);
             assert_eq!(first.id, second.id);
-            assert_eq!(second.name, "Renamed");
-            assert_eq!(second.icon, "terminal");
+            assert_eq!(second.name, original_name);
+            assert_eq!(second.icon, "folder-git-2");
             assert_eq!(second.path, repo.canonicalize().unwrap().to_string_lossy());
         });
     }
@@ -1220,7 +1350,7 @@ mod tests {
 
             for index in 0..21 {
                 let repo = create_git_repo();
-                let project = add_project(
+                let (project, already_exists) = add_project(
                     &pool,
                     repo.to_string_lossy().into_owned(),
                     Some(format!("repo-{index}")),
@@ -1230,6 +1360,7 @@ mod tests {
                 )
                 .await
                 .expect("Git 仓库应可登记");
+                assert!(!already_exists);
 
                 touch_opened(&pool, &project.id)
                     .await

@@ -33,7 +33,11 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { useProjectStore } from "@/store/useProjectStore";
 import { toUserMessage } from "@/types/error";
 import type { Workspace, WorkspaceColor } from "@/types/project";
-import { DEFAULT_WORKSPACE_COLOR, normalizeWorkspaceColor } from "@/utils/workspaceColor";
+import {
+  DEFAULT_WORKSPACE_COLOR,
+  normalizeWorkspaceColor,
+  WORKSPACE_COLOR_PRESETS,
+} from "@/utils/workspaceColor";
 import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
 import { deferUi } from "@/utils/deferUi";
 
@@ -175,6 +179,8 @@ export function WorkspaceGroupContextMenu({
               presetValue={DEFAULT_WORKSPACE_COLOR}
               solid
               showPresets={false}
+              suggestions={WORKSPACE_COLOR_PRESETS}
+              suggestionsLabel={t("projectManager.groupColorPresets")}
               className="w-full max-w-none"
               disabled={busy}
             />

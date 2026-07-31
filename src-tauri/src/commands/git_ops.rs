@@ -918,12 +918,7 @@ pub fn git_grep(
     max_matches: Option<u32>,
 ) -> Result<GrepResult, AppError> {
     let repo_path = resolve_repo_path(&path)?;
-    grep::grep_code(
-        &repo_path,
-        &pattern,
-        pathspec.as_deref(),
-        max_matches,
-    )
+    grep::grep_code(&repo_path, &pattern, pathspec.as_deref(), max_matches)
 }
 
 /// 写入工作区文件；可选 stage 标记已解决

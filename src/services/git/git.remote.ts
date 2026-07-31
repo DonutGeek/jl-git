@@ -1,4 +1,5 @@
 import { invokeCommand } from "@/services/invoke";
+import { openExternalUrl } from "@/services/system/open-url";
 
 import type {
   GitFetchResult,
@@ -7,6 +8,7 @@ import type {
   GitRemote,
   GitRemotesResult,
 } from "@/types/git";
+import { toBrowsableRemoteUrl } from "@/utils/remoteRepository";
 
 /** 列出远端及其 URL */
 export async function listRemotes(repoPath: string): Promise<GitRemote[]> {
@@ -24,6 +26,24 @@ export function pickPrimaryRemoteUrl(remotes: GitRemote[]): string | null {
   }
   const url = preferred.fetchUrl.trim() || preferred.pushUrl.trim();
   return url.length > 0 ? url : null;
+}
+
+export type OpenPrimaryRemoteResult = "opened" | "empty" | "unsupported";
+
+/** 用默认浏览器打开主远端的网页地址（SSH 会转为 https） */
+export async function openPrimaryRemoteInBrowser(
+  repoPath: string,
+): Promise<OpenPrimaryRemoteResult> {
+  const remoteUrl = pickPrimaryRemoteUrl(await listRemotes(repoPath));
+  if (!remoteUrl) {
+    return "empty";
+  }
+  const browseUrl = toBrowsableRemoteUrl(remoteUrl);
+  if (!browseUrl) {
+    return "unsupported";
+  }
+  await openExternalUrl(browseUrl);
+  return "opened";
 }
 
 /** 检查更新：fetch 远端跟踪引用（默认 origin） */

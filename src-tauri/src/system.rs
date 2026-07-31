@@ -668,6 +668,40 @@ pub fn write_text_file(path: &str, contents: &str) -> Result<OkResult, AppError>
     Ok(OkResult { ok: true })
 }
 
+/// 仓库清单导入等：读取用户选定的绝对路径文本；默认上限 2 MiB
+pub const DEFAULT_TEXT_FILE_READ_LIMIT: u64 = 2 * 1024 * 1024;
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadTextFileResult {
+    pub contents: String,
+}
+
+/// 读取用户选定的绝对路径文本（导入等；不拼 shell）
+pub fn read_text_file(path: &str, max_bytes: Option<u64>) -> Result<ReadTextFileResult, AppError> {
+    let target = PathBuf::from(path.trim());
+    if path.trim().is_empty() || !target.is_absolute() {
+        return Err(AppError::new("INVALID_PATH", "须为绝对路径"));
+    }
+    if !target.is_file() {
+        return Err(AppError::new("INVALID_PATH", "路径不是文件或不存在"));
+    }
+    let limit = max_bytes.unwrap_or(DEFAULT_TEXT_FILE_READ_LIMIT);
+    let meta = fs::metadata(&target).map_err(|error| {
+        AppError::new("INVALID_PATH", "无法读取文件").with_details(error.to_string())
+    })?;
+    if meta.len() > limit {
+        return Err(AppError::new("VALIDATION", "文件过大").with_details(format!(
+            "上限 {} 字节",
+            limit
+        )));
+    }
+    let contents = fs::read_to_string(&target).map_err(|error| {
+        AppError::new("INTERNAL", "读取文件失败").with_details(error.to_string())
+    })?;
+    Ok(ReadTextFileResult { contents })
+}
+
 /// 使用系统默认程序打开文件或目录
 pub fn open_with_default_app(path: &str) -> Result<OkResult, AppError> {
     let target = normalize_existing_path(path)?;

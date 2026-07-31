@@ -530,6 +530,7 @@ export function BranchList() {
           collapsed={row.collapsed}
           isRemoteName={row.isRemoteName}
           onToggle={() => toggleCollapse(row.id)}
+          highlightQuery={filter}
         />
       );
     }
@@ -549,6 +550,7 @@ export function BranchList() {
         onSelect={handleSelect}
         onCheckout={(branch) => void handleCheckout(branch)}
         contextActions={contextActions}
+        highlightQuery={filter}
       />
     );
   }

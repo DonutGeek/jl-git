@@ -12,12 +12,12 @@ import {
   List,
   ListTree,
   Search,
-  User,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { CommitFileTree, getCommitFileTreeFolderPaths } from "@/components/git/CommitFileTree";
 import { DiffLineStats } from "@/components/git/DiffLineStats";
+import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
 import { CopyableGitRefTag } from "@/components/git/GitRefTag";
 import { HistoryDetailChrome } from "@/components/git/HistoryWorkspaceChrome";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
@@ -886,9 +886,16 @@ export function HistoryDetailPane() {
         <div className="space-y-1">
           <p className="text-muted-foreground text-[11px] leading-none">{t("repo.commitAuthor")}</p>
           <div className="flex items-start gap-2">
-            <div className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md">
-              <User className="size-3.5" aria-hidden="true" />
-            </div>
+            <GitIdentityAvatar
+              name={detail.authorName}
+              email={
+                detail.authorEmail ||
+                commits.find((commit) => commit.id === detail.id)?.authorEmail ||
+                null
+              }
+              label={detail.authorName}
+              className="size-8"
+            />
             <div className="min-w-0 flex-1 space-y-0.5 pt-0.5">
               <p className="truncate text-xs leading-tight font-medium">{detail.authorName}</p>
               <p className="text-muted-foreground text-[11px] leading-tight tabular-nums">

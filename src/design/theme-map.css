@@ -8,6 +8,9 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
+  /* 表单/轮廓控件统一扁平：shadcn 默认 shadow-xs 在灰/白底上明暗不一 */
+  --shadow-xs: 0 0 #0000;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

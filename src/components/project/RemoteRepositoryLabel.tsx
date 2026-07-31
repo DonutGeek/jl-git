@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GitFork } from "lucide-react";
 import { toast } from "sonner";
@@ -7,23 +7,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { toUserMessage } from "@/types/error";
 import { copyToClipboard } from "@/utils/clipboard";
-import type { RemoteRepository } from "@/utils/remoteRepository";
+import { toBrowsableRemoteUrl, type RemoteRepository } from "@/utils/remoteRepository";
 
 interface RemoteRepositoryLabelProps {
   remote: RemoteRepository;
   onOpen: (url: string) => void;
   /** 覆盖默认样式（最近列表默认右对齐；详情等场景可左对齐） */
   className?: string;
-}
-
-function stopAndOpen(
-  event: MouseEvent<HTMLSpanElement> | KeyboardEvent<HTMLSpanElement>,
-  url: string,
-  onOpen: (url: string) => void,
-): void {
-  event.preventDefault();
-  event.stopPropagation();
-  onOpen(url);
 }
 
 /** 远程仓库标签：单击复制 URL，双击打开托管页。 */
@@ -70,7 +60,16 @@ export function RemoteRepositoryLabel({ remote, onOpen, className }: RemoteRepos
               event.stopPropagation();
               void copyRemoteUrl();
             }}
-            onDoubleClick={(event) => stopAndOpen(event, remote.url, onOpen)}
+            onDoubleClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const browseUrl = toBrowsableRemoteUrl(remote.url);
+              if (!browseUrl) {
+                toast.error(t("repo.openRemoteUnsupported"));
+                return;
+              }
+              onOpen(browseUrl);
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();

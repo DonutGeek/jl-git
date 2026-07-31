@@ -3,8 +3,10 @@ import type {
   AddProjectInput,
   PickDirectoryResult,
   Project,
+  ProjectAddResult,
   ProjectListResult,
   ProjectResult,
+  ProjectUniquenessResult,
   RecentItem,
   RecentListResult,
 } from "@/types/project";
@@ -18,16 +20,24 @@ export async function list(workspaceId?: string): Promise<Project[]> {
   return result.projects;
 }
 
-export async function add(input: AddProjectInput): Promise<Project> {
-  const result = await invokeCommand<ProjectResult>("project_add", {
+export async function add(input: AddProjectInput): Promise<ProjectAddResult> {
+  return invokeCommand<ProjectAddResult>("project_add", {
     path: input.path,
     name: input.name,
     workspaceId: input.workspaceId,
     description: input.description,
     icon: input.icon,
   });
+}
 
-  return result.project;
+export async function checkUniqueness(input: {
+  path?: string;
+  remoteUrl?: string;
+}): Promise<ProjectUniquenessResult> {
+  return invokeCommand<ProjectUniquenessResult>("project_check_uniqueness", {
+    path: input.path,
+    remoteUrl: input.remoteUrl,
+  });
 }
 
 export async function touchOpened(id: string): Promise<void> {
@@ -45,6 +55,9 @@ export async function update(input: {
   /** 传 `null` 清空简介；`undefined` 表示不改 */
   description?: string | null;
   icon?: Project["icon"];
+  /** 改绑本地路径；须为 Git 顶层；与旧路径主远端不一致时需 `allowRemoteMismatch` */
+  path?: string;
+  allowRemoteMismatch?: boolean;
 }): Promise<Project> {
   const result = await invokeCommand<ProjectResult>("project_update", {
     id: input.id,
@@ -52,6 +65,8 @@ export async function update(input: {
     workspaceId: input.workspaceId,
     description: input.description,
     icon: input.icon,
+    path: input.path,
+    allowRemoteMismatch: input.allowRemoteMismatch,
   });
 
   return result.project;
@@ -72,6 +87,7 @@ export async function listRecent(limit?: number): Promise<RecentItem[]> {
 export const projectService = {
   list,
   add,
+  checkUniqueness,
   remove,
   update,
   touchOpened,

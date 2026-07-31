@@ -27,7 +27,9 @@ import { MultiAgentWindowButton } from "@/components/agent/MultiAgentWindowButto
 import {
   REPO_TAB_CONTENT_CLASSNAME,
   REPO_TAB_SCROLL_AREA_CLASSNAME,
+  REPO_TAB_SCROLL_FADE_PX,
   resolveRepoTabWheelDelta,
+  scrollHorizontallyIntoView,
 } from "@/components/layout/repoLoadingLayout";
 import { RepoTabGroupChrome, RepositoryTabGroup } from "@/components/layout/RepoTabGroup";
 import {
@@ -200,16 +202,33 @@ export function RepoTabBar() {
     setLastActiveTabId(activeId);
   }, [activeId, location.pathname, setLastActiveTabId, tabEntries]);
 
-  // 点击标签或从别处跳转时，把激活标签滚入可见区域（含冷启动恢复）
+  // 点击标签或从别处跳转时，把激活标签滚入可见区域（预留左右渐隐，含冷启动恢复）
   useEffect(() => {
     if (!activeId || !tabScrollViewport) {
       return;
     }
-    const raf = window.requestAnimationFrame(() => {
-      const activeEl = tabScrollViewport.querySelector<HTMLElement>('[aria-current="page"]');
-      activeEl?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    let cancelled = false;
+    let innerRaf = 0;
+    const outerRaf = window.requestAnimationFrame(() => {
+      // 双 rAF：等标签激活样式与分组布局落稳后再量位置
+      innerRaf = window.requestAnimationFrame(() => {
+        if (cancelled) {
+          return;
+        }
+        const activeEl = tabScrollViewport.querySelector<HTMLElement>(
+          `[data-repo-tab-id="${CSS.escape(activeId)}"]`,
+        );
+        if (!activeEl) {
+          return;
+        }
+        scrollHorizontallyIntoView(tabScrollViewport, activeEl, REPO_TAB_SCROLL_FADE_PX);
+      });
     });
-    return () => window.cancelAnimationFrame(raf);
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(outerRaf);
+      window.cancelAnimationFrame(innerRaf);
+    };
   }, [activeId, tabScrollViewport, tabEntries]);
 
   useEffect(() => {
@@ -317,12 +336,13 @@ export function RepoTabBar() {
         )
         .map((workspace, index) => [workspace.id, index]),
     );
+    // 命名组 → 未分组 → 新标签页（紧挨右侧 +，避免点加号却出现在最左侧）
     return groups.sort((left, right) => {
       if (left.workspaceId === undefined) {
-        return -1;
+        return 1;
       }
       if (right.workspaceId === undefined) {
-        return 1;
+        return -1;
       }
       if (left.workspaceId === null) {
         return 1;
@@ -656,8 +676,9 @@ export function RepoTabBar() {
           className={cn(
             // 底边线用绝对定位伪元素绘制，不占布局高度：
             // 保证内容盒高度=h-12(48px)，与滚动内容 h-12 完全一致，从根上消除 1px 纵向溢出
-            "bg-muted/40 relative flex h-12 shrink-0 items-center pr-0",
-            "after:bg-border after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:content-['']",
+            // isolate + after:z-20：压过分组壳 / 滚动淡出层，避免底边被遮住
+            "bg-muted/40 relative isolate flex h-12 shrink-0 items-center overflow-hidden pr-0",
+            "after:bg-border after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:z-20 after:h-px after:content-['']",
             headerPaddingClass,
             isDraggingAnything ? "z-60" : "z-40",
           )}
@@ -683,7 +704,8 @@ export function RepoTabBar() {
           {/* flex-1：标签区吃满至右侧控件前，避免 + 与鲸灵按钮之间大片空位 */}
           <div className="flex h-full min-w-0 flex-1 items-center gap-1" style={noDragStyle}>
             {/* 主滚动用 shadcn ScrollArea：细滚动条、悬停/滚动时才显示，不再用裸 overflow-x-auto */}
-            <div className="relative h-full min-w-0 flex-1">
+            {/* pb-px：分组壳底边不压住 header 底部分隔线 */}
+            <div className="relative h-full min-w-0 flex-1 pb-px">
               <ScrollArea ref={bindScrollArea} className={REPO_TAB_SCROLL_AREA_CLASSNAME}>
                 <div className={REPO_TAB_CONTENT_CLASSNAME}>
                   {tabGroups.map((group) => (
@@ -740,18 +762,21 @@ export function RepoTabBar() {
                   ))}
                 </div>
               </ScrollArea>
-              {canScrollTabsLeft ? (
-                <div
-                  className="from-background via-background/80 pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-linear-to-r to-transparent"
-                  aria-hidden="true"
-                />
-              ) : null}
-              {canScrollTabsRight ? (
-                <div
-                  className="from-background via-background/80 pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-linear-to-l to-transparent"
-                  aria-hidden="true"
-                />
-              ) : null}
+              {/* 左右渐隐：宽度与 REPO_TAB_SCROLL_FADE_PX 对齐；底色贴合 header bg-muted/40 */}
+              <div
+                className={cn(
+                  "pointer-events-none absolute top-0 bottom-px left-0 z-10 w-10 bg-linear-to-r from-[color-mix(in_oklab,var(--muted)_40%,var(--background))] from-15% to-transparent transition-opacity duration-150",
+                  canScrollTabsLeft ? "opacity-100" : "opacity-0",
+                )}
+                aria-hidden="true"
+              />
+              <div
+                className={cn(
+                  "pointer-events-none absolute top-0 right-0 bottom-px z-10 w-10 bg-linear-to-l from-[color-mix(in_oklab,var(--muted)_40%,var(--background))] from-15% to-transparent transition-opacity duration-150",
+                  canScrollTabsRight ? "opacity-100" : "opacity-0",
+                )}
+                aria-hidden="true"
+              />
             </div>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>

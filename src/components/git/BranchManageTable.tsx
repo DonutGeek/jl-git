@@ -36,6 +36,7 @@ interface BranchManageTableProps {
   deletingName?: string | null;
   /** 是否显示跟踪列；远端列表应为 false */
   showTracking?: boolean;
+  highlightQuery?: string;
 }
 
 /** 紧凑分支表格：虚拟滚动 + 可切换时间排序 */
@@ -46,6 +47,7 @@ export function BranchManageTable({
   onDelete,
   deletingName = null,
   showTracking = true,
+  highlightQuery = "",
 }: BranchManageTableProps) {
   const { t } = useTranslation();
   const { viewport, bindScrollArea } = useScrollAreaViewport();
@@ -114,11 +116,12 @@ export function BranchManageTable({
                   top: `${virtualItem.start}px`,
                 }}
               >
-                <BranchNameCell branch={branch} />
+                <BranchNameCell branch={branch} highlightQuery={highlightQuery} />
                 {showTracking ? (
                   <TrackingCell
                     upstream={branch.upstream}
                     emptyLabel={t("branchManage.noTracking")}
+                    highlightQuery={highlightQuery}
                   />
                 ) : null}
                 <span className="text-muted-foreground truncate font-mono text-[11px]">
@@ -167,9 +170,11 @@ export function BranchManageTable({
 function TrackingCell({
   upstream,
   emptyLabel,
+  highlightQuery = "",
 }: {
   upstream: string | null | undefined;
   emptyLabel: string;
+  highlightQuery?: string;
 }) {
   const value = upstream?.trim() ?? "";
   if (!value) {
@@ -180,14 +185,21 @@ function TrackingCell({
     );
   }
 
-  return <TruncateStartHoverLabel text={value} />;
+  return <TruncateStartHoverLabel text={value} highlightQuery={highlightQuery} />;
 }
 
-function BranchNameCell({ branch }: { branch: GitBranch }) {
+function BranchNameCell({
+  branch,
+  highlightQuery = "",
+}: {
+  branch: GitBranch;
+  highlightQuery?: string;
+}) {
   const { t } = useTranslation();
   return (
     <TruncateStartHoverLabel
       text={branch.name}
+      highlightQuery={highlightQuery}
       textClassName="text-foreground"
       leading={
         branch.isCurrent ? (

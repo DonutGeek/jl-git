@@ -305,7 +305,11 @@ export function BranchCompareWorkspace({
                           isDir={false}
                           className="size-3.5 shrink-0"
                         />
-                        <TruncateStartPath className="min-w-0 flex-1" path={file.path} />
+                        <TruncateStartPath
+                          className="min-w-0 flex-1"
+                          path={file.path}
+                          highlightQuery={fileFilter}
+                        />
                         <DiffLineStats
                           additions={file.additions}
                           deletions={file.deletions}

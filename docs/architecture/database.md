@@ -49,7 +49,7 @@ erDiagram
 | `id` | TEXT PK | UUID |
 | `parent_id` | TEXT NULL | 父分组 ID；NULL 表示根分组 |
 | `name` | TEXT NOT NULL | 显示名 |
-| `icon` | TEXT NOT NULL | 受控分组图标键 |
+| `icon` | TEXT NOT NULL | Lucide kebab-case 图标名 |
 | `color` | TEXT NOT NULL | 分组强调色 `#RRGGBB` |
 | `locked` | INTEGER NOT NULL DEFAULT 0 | 1=锁定：禁止拖动、移入/移出仓库、删除与调整父级 |
 | `sort_order` | INTEGER NOT NULL DEFAULT 0 | 排序 |
@@ -66,7 +66,7 @@ erDiagram
 | `workspace_id` | TEXT NULL | FK → workspaces.id |
 | `name` | TEXT NOT NULL | 默认取文件夹名，可改 |
 | `description` | TEXT NULL | 项目简介（可选；打开时可手填或 AI 生成） |
-| `icon` | TEXT NOT NULL DEFAULT `folder-git-2` | 受控 Lucide 图标键；默认沿用当前仓库图标 |
+| `icon` | TEXT NOT NULL DEFAULT `folder-git-2` | Lucide kebab-case 图标名；读写做格式校验 |
 | `path` | TEXT NOT NULL UNIQUE | 规范化绝对路径 |
 | `last_opened_at` | TEXT NULL | 上次打开 |
 | `pinned` | INTEGER NOT NULL DEFAULT 0 | 1=置顶 |

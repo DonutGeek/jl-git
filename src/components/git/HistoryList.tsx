@@ -28,6 +28,7 @@ import { usePanelRef } from "react-resizable-panels";
 import { toast } from "sonner";
 
 import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
+import { HighlightText } from "@/components/common/HighlightText";
 import { TRUNCATE_BUDGET_ATTR } from "@/components/common/TruncateStartPath";
 import { CommitAuthorAvatars } from "@/components/git/CommitAuthorAvatars";
 import { GitRefTag } from "@/components/git/GitRefTag";
@@ -234,6 +235,7 @@ interface HistoryCommitRowProps {
   visibleRefs: string[];
   expandBranchNames: boolean;
   branchOnLeft: boolean;
+  highlightQuery?: string;
   onSelect: (commitId: string) => void;
   /** 虚拟列表绝对定位样式 */
   className?: string;
@@ -292,6 +294,7 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
   visibleRefs,
   expandBranchNames,
   branchOnLeft,
+  highlightQuery = "",
   onSelect,
   className,
   style,
@@ -376,9 +379,12 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
               <Circle className="text-primary size-3 shrink-0 stroke-[2.5]" aria-hidden="true" />
             ) : null}
             {branchOnLeft ? branchSlot : null}
-            <span className={subjectClassName} title={commit.subject}>
-              {commit.subject}
-            </span>
+            <HighlightText
+              text={commit.subject}
+              query={highlightQuery}
+              className={subjectClassName}
+              title={commit.subject}
+            />
             {!branchOnLeft ? branchSlot : null}
           </div>
 
@@ -945,9 +951,12 @@ export function HistoryList() {
                       });
                     }}
                   >
-                    <span className="min-w-0 flex-1 truncate" title={branch.name}>
-                      {branch.name}
-                    </span>
+                    <HighlightText
+                      text={branch.name}
+                      query={branchMenuFilter}
+                      title={branch.name}
+                      className="min-w-0 flex-1 truncate"
+                    />
                     {logRef === branch.name ? (
                       <Check className="size-3.5 shrink-0" aria-hidden="true" />
                     ) : null}
@@ -1048,7 +1057,11 @@ export function HistoryList() {
                 ) : null}
                 {filteredAuthors.map((name) => (
                   <DropdownMenuItem key={name} onSelect={() => setAuthor(name)}>
-                    <span className="min-w-0 flex-1 truncate">{name}</span>
+                    <HighlightText
+                      text={name}
+                      query={authorMenuFilter}
+                      className="min-w-0 flex-1 truncate"
+                    />
                     {author === name ? (
                       <Check className="size-3.5 shrink-0" aria-hidden="true" />
                     ) : null}
@@ -1397,6 +1410,7 @@ export function HistoryList() {
                         visibleRefs={visibleRefs}
                         expandBranchNames={viewPrefs.expandBranchNames}
                         branchOnLeft={viewPrefs.branchOnLeft}
+                        highlightQuery={query}
                         onSelect={handleSelectCommit}
                         className="absolute top-0 min-w-0"
                         style={{

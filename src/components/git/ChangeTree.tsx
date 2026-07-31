@@ -1,5 +1,6 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 
+import { HighlightText } from "@/components/common/HighlightText";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 
 /** 树形目录 / 根节点行（供虚拟列表复用） */
@@ -8,12 +9,14 @@ export function ChangeTreeFolderRow({
   open,
   depth,
   onToggle,
+  highlightQuery = "",
 }: {
   name: string;
   open: boolean;
   /** 根节点传 undefined，目录从 1 起 */
   depth?: number;
   onToggle: () => void;
+  highlightQuery?: string;
 }) {
   const isRoot = depth == null;
 
@@ -34,7 +37,7 @@ export function ChangeTreeFolderRow({
         <ChevronRight className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
       )}
       <MaterialFileIcon name={name} isDir className="size-3.5" />
-      <span className="min-w-0 flex-1 truncate">{name}</span>
+      <HighlightText text={name} query={highlightQuery} className="min-w-0 flex-1 truncate" />
     </button>
   );
 }

@@ -304,6 +304,7 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
           onDelete={openDelete}
           deletingName={deletingName}
           showTracking={scope === "local"}
+          highlightQuery={search}
         />
       ) : null}
 

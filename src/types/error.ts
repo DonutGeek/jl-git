@@ -10,6 +10,8 @@ export type AppErrorCode =
   | "DB_ERROR"
   | "NOT_FOUND"
   | "VALIDATION"
+  | "ALREADY_EXISTS"
+  | "REMOTE_MISMATCH"
   | "CANCELLED"
   | "INTERNAL";
 

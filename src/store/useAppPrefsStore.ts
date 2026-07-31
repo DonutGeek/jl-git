@@ -54,6 +54,9 @@ interface AppPrefsState {
   themeChromeDark: AppThemeChrome;
   externalEditor: string;
   externalEditorPath: string;
+  /** 外部浏览器：auto / 探测 id / custom */
+  externalBrowser: string;
+  externalBrowserPath: string;
   shell: string;
   shellPath: string;
   /** Git 子进程额外 PATH 目录（多行；供 husky 找到 node） */
@@ -77,6 +80,8 @@ interface AppPrefsState {
   patchThemeChrome: (patch: Partial<AppThemeChrome>) => void;
   setExternalEditor: (value: string) => void;
   setExternalEditorPath: (value: string) => void;
+  setExternalBrowser: (value: string) => void;
+  setExternalBrowserPath: (value: string) => void;
   setShell: (value: string) => void;
   setShellPath: (value: string) => void;
   setGitExtraPath: (value: string) => void;
@@ -180,6 +185,8 @@ export const useAppPrefsStore = create<AppPrefsState>()(
       themeChromeDark: chromeFromPreset(DEFAULT_APP_THEME_ID, true),
       externalEditor: "auto",
       externalEditorPath: "",
+      externalBrowser: "auto",
+      externalBrowserPath: "",
       shell: "auto",
       shellPath: "",
       gitExtraPath: "",
@@ -231,6 +238,14 @@ export const useAppPrefsStore = create<AppPrefsState>()(
       },
       setExternalEditorPath(value) {
         set({ externalEditorPath: value });
+        notifyGlobalPreferenceChange("app-prefs");
+      },
+      setExternalBrowser(value) {
+        set({ externalBrowser: value });
+        notifyGlobalPreferenceChange("app-prefs");
+      },
+      setExternalBrowserPath(value) {
+        set({ externalBrowserPath: value });
         notifyGlobalPreferenceChange("app-prefs");
       },
       setShell(value) {
@@ -288,7 +303,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
     }),
     {
       name: APP_PREFS_STORAGE_KEY,
-      version: 15,
+      version: 16,
       migrate: (persisted, version) => {
         const state = persisted as Partial<AppPrefsState> & {
           editorChromeLight?: AppThemeChrome;
@@ -394,6 +409,14 @@ export const useAppPrefsStore = create<AppPrefsState>()(
           // 触发一次启动自动发现：已有配置视为已处理，空配置下次启动填入
           state.gitExtraPathAutoSeeded =
             typeof state.gitExtraPath === "string" && state.gitExtraPath.trim().length > 0;
+        }
+        if (version < 16) {
+          state.externalBrowser =
+            typeof state.externalBrowser === "string" && state.externalBrowser.trim()
+              ? state.externalBrowser
+              : "auto";
+          state.externalBrowserPath =
+            typeof state.externalBrowserPath === "string" ? state.externalBrowserPath : "";
         }
         return state as AppPrefsState;
       },

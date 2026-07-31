@@ -34,6 +34,7 @@ pub struct GitCommitDetail {
     pub id: String,
     pub short_id: String,
     pub author_name: String,
+    pub author_email: String,
     pub authored_at: String,
     pub subject: String,
     pub body: String,
@@ -89,7 +90,7 @@ pub fn get_commit(repo_path: &Path, rev: &str) -> Result<GitShowResult, AppError
         &[
             "show",
             "-s",
-            "--format=%H%x00%h%x00%an%x00%aI%x00%P%x00%s%x00%b",
+            "--format=%H%x00%h%x00%an%x00%ae%x00%aI%x00%P%x00%s%x00%b",
             "--no-patch",
             rev,
         ],
@@ -313,11 +314,12 @@ fn parse_ls_tree_sizes_z(stdout: &str) -> std::collections::HashMap<String, u64>
 }
 
 fn parse_show_meta(stdout: &str) -> Result<GitCommitDetail, AppError> {
-    // body 可能含换行，用 \0 分隔前 6 段后剩余为 body
-    let mut parts = stdout.splitn(7, '\0');
+    // body 可能含换行，用 \0 分隔前 7 段后剩余为 body
+    let mut parts = stdout.splitn(8, '\0');
     let id = parts.next().unwrap_or("").trim().to_string();
     let short_id = parts.next().unwrap_or("").trim().to_string();
     let author_name = parts.next().unwrap_or("").trim().to_string();
+    let author_email = parts.next().unwrap_or("").trim().to_string();
     let authored_at = parts.next().unwrap_or("").trim().to_string();
     let parents_raw = parts.next().unwrap_or("").trim().to_string();
     let subject = parts.next().unwrap_or("").trim().to_string();
@@ -338,6 +340,7 @@ fn parse_show_meta(stdout: &str) -> Result<GitCommitDetail, AppError> {
         id,
         short_id,
         author_name,
+        author_email,
         authored_at,
         subject,
         body,
@@ -556,9 +559,10 @@ mod tests {
 
     #[test]
     fn parses_meta_with_two_parents_and_body() {
-        let stdout = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x00aaaaaaa\x00Alice\x002026-07-10T10:35:20+08:00\x00bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb cccccccccccccccccccccccccccccccccccccccc\x00Merge branch 'feat'\x00body line\n";
+        let stdout = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\x00aaaaaaa\x00Alice\x00alice@example.com\x002026-07-10T10:35:20+08:00\x00bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb cccccccccccccccccccccccccccccccccccccccc\x00Merge branch 'feat'\x00body line\n";
         let detail = parse_show_meta(stdout).unwrap();
         assert_eq!(detail.short_id, "aaaaaaa");
+        assert_eq!(detail.author_email, "alice@example.com");
         assert_eq!(detail.parents.len(), 2);
         assert_eq!(detail.parent_short_ids[0], "bbbbbbb");
         assert_eq!(detail.subject, "Merge branch 'feat'");

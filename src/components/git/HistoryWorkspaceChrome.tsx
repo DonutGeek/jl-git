@@ -1,4 +1,4 @@
-import type { ReactNode, RefObject } from "react";
+import type { ReactNode } from "react";
 
 import { ResizableSplit } from "@/components/layout/ResizableSplit";
 import { cn } from "@/lib/utils";
@@ -11,7 +11,6 @@ interface HistoryWorkspaceChromeProps {
   detail: ReactNode;
   overlay?: ReactNode;
   overlayOpen?: boolean;
-  containerRef?: RefObject<HTMLDivElement | null>;
 }
 
 interface HistoryListChromeProps {
@@ -35,11 +34,9 @@ export function HistoryWorkspaceChrome({
   detail,
   overlay,
   overlayOpen = false,
-  containerRef,
 }: HistoryWorkspaceChromeProps) {
   return (
     <div
-      ref={containerRef}
       className={cn("relative flex h-full min-h-0 min-w-0 flex-1 overflow-hidden", className)}
       data-history-workspace-chrome="true"
     >
@@ -53,12 +50,14 @@ export function HistoryWorkspaceChrome({
         first={
           <aside
             className={cn(
-              "h-full min-h-0 min-w-0 overflow-hidden",
+              "relative h-full min-h-0 min-w-0 overflow-hidden",
               overlayOpen && "pointer-events-none",
             )}
             data-history-list-pane="true"
           >
             {list}
+            {/* 提交文件对比铺满列表窗格，避免按详情左缘量宽导致图谱列露白 */}
+            {overlay}
           </aside>
         }
         second={
@@ -67,7 +66,6 @@ export function HistoryWorkspaceChrome({
           </aside>
         }
       />
-      {overlay}
     </div>
   );
 }

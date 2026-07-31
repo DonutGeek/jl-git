@@ -35,8 +35,12 @@ export function SettingsColorSwatch({
   presetValue,
   solid = false,
   showPresets = true,
+  suggestions,
+  suggestionsLabel,
   className,
   disabled = false,
+  /** sm：设置页紧凑 h-8；default：对齐 shadcn Input h-9 */
+  size = "sm",
 }: {
   value: string;
   onChange: (hex: string) => void;
@@ -46,8 +50,13 @@ export function SettingsColorSwatch({
   solid?: boolean;
   /** 是否展示默认色、建议色与重置操作 */
   showPresets?: boolean;
+  /** 轻量预设色块（如分组颜色）；不启用设置页那套 current/default/重置 */
+  suggestions?: readonly string[];
+  /** 轻量预设区标题；缺省回退主题建议色文案 */
+  suggestionsLabel?: string;
   className?: string;
   disabled?: boolean;
+  size?: "sm" | "default";
 }) {
   const { t } = useTranslation();
   const fallbackHex = APP_THEME_COLOR_SUGGESTIONS[0] ?? presetValue;
@@ -155,7 +164,8 @@ export function SettingsColorSwatch({
           aria-label={ariaLabel}
           disabled={disabled}
           className={cn(
-            "border-input bg-background hover:bg-accent h-8 w-full max-w-none justify-start gap-2 px-2.5 font-normal shadow-none",
+            "border-input bg-background hover:bg-accent w-full max-w-none justify-start gap-2 px-2.5 font-normal shadow-none",
+            size === "default" ? "h-9 text-sm" : "h-8",
             className,
           )}
         >
@@ -167,7 +177,14 @@ export function SettingsColorSwatch({
             style={{ backgroundColor: hex }}
             aria-hidden
           />
-          <span className="text-foreground truncate font-mono text-xs tabular-nums">{hex}</span>
+          <span
+            className={cn(
+              "text-foreground truncate font-mono tabular-nums",
+              size === "default" ? "text-sm" : "text-xs",
+            )}
+          >
+            {hex}
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -309,6 +326,41 @@ export function SettingsColorSwatch({
               })}
             </div>
           </>
+        ) : null}
+
+        {!showPresets && suggestions && suggestions.length > 0 ? (
+          <div className="mt-3">
+            <div className="text-muted-foreground text-xs">
+              {suggestionsLabel ?? t("settings.themeSuggestedColors")}
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {suggestions.map((color) => {
+                const selected = color.toUpperCase() === hex.toUpperCase();
+                return (
+                  <Button
+                    key={color}
+                    type="button"
+                    variant="outline"
+                    size="icon-xs"
+                    title={color}
+                    aria-label={`${ariaLabel} ${color}`}
+                    aria-pressed={selected}
+                    disabled={disabled}
+                    className="border-border relative size-6 cursor-pointer rounded-sm p-0 shadow-none"
+                    style={{
+                      backgroundColor: color,
+                      color: contrastingForeground(color),
+                    }}
+                    onClick={() => {
+                      applyHex(color);
+                    }}
+                  >
+                    {selected ? <Check className="absolute inset-1 size-3.5" aria-hidden /> : null}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
         ) : null}
 
         <Field className="mt-3 gap-1.5" data-invalid={!draftValid || undefined}>

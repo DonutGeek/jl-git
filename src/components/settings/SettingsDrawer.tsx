@@ -50,12 +50,17 @@ import {
 } from "@/components/ui/table";
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 import {
+  browserOptionsForInstalled,
+  browserPathPlaceholderKey,
+  coerceBrowserPreference,
   coerceShellPreference,
   editorPathPlaceholderKey,
   shellOptionsForOs,
   shellPathPlaceholderKey,
+  type ExternalToolOption,
 } from "@/utils/externalToolsPrefs";
 import { AppDialogContent } from "@/components/common/AppDialogContent";
+import { CopyablePathLabel } from "@/components/git/CopyablePathLabel";
 import {
   Dialog,
   DialogDescription,
@@ -101,6 +106,7 @@ import {
 } from "@/services/git/git.accounts";
 import { pickDirectory } from "@/services/project/project.service";
 import { setLaunchAtLoginEnabled } from "@/services/system/system.autostart";
+import { listBrowsers } from "@/services/system/system.browsers";
 import { openExternalUrl } from "@/services/system/open-url";
 import { resolveEffective, type ThemeMode } from "@/services/theme/theme.service";
 import { APP_THEME_OPTIONS, chromeFromPreset, normalizeAppThemeId } from "@/design/editor-themes";
@@ -257,6 +263,8 @@ export function SettingsDrawer() {
   const themeChromeDark = useAppPrefsStore((state) => state.themeChromeDark);
   const externalEditor = useAppPrefsStore((state) => state.externalEditor);
   const externalEditorPath = useAppPrefsStore((state) => state.externalEditorPath);
+  const externalBrowser = useAppPrefsStore((state) => state.externalBrowser);
+  const externalBrowserPath = useAppPrefsStore((state) => state.externalBrowserPath);
   const shell = useAppPrefsStore((state) => state.shell);
   const shellPath = useAppPrefsStore((state) => state.shellPath);
   const gitExtraPath = useAppPrefsStore((state) => state.gitExtraPath);
@@ -278,6 +286,8 @@ export function SettingsDrawer() {
   const activeChrome = editingDarkTheme ? themeChromeDark : themeChromeLight;
   const presetChrome = chromeFromPreset(appThemeId, editingDarkTheme);
   const setExternalEditorPath = useAppPrefsStore((state) => state.setExternalEditorPath);
+  const setExternalBrowser = useAppPrefsStore((state) => state.setExternalBrowser);
+  const setExternalBrowserPath = useAppPrefsStore((state) => state.setExternalBrowserPath);
   const setShell = useAppPrefsStore((state) => state.setShell);
   const setShellPath = useAppPrefsStore((state) => state.setShellPath);
   const setGitExtraPath = useAppPrefsStore((state) => state.setGitExtraPath);
@@ -317,9 +327,13 @@ export function SettingsDrawer() {
   const [instructionsLoading, setInstructionsLoading] = useState(false);
   const [instructionsReady, setInstructionsReady] = useState(false);
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("appearance");
+  const [installedBrowsers, setInstalledBrowsers] = useState<ExternalToolOption[]>([]);
 
   const savedInstructionsRef = useRef({ commit: "", pullRequest: "" });
   const instructionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const browserSelectOptions = browserOptionsForInstalled(installedBrowsers, externalBrowser);
+  const browserSelectValue = coerceBrowserPreference(browserSelectOptions, externalBrowser);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -345,6 +359,30 @@ export function SettingsDrawer() {
     setActiveCategory(requestedCategory);
     clearRequestedCategory();
   }, [open, requestedCategory, clearRequestedCategory]);
+
+  useEffect(() => {
+    if (!open || activeCategory !== "tools") {
+      return;
+    }
+    let cancelled = false;
+    void listBrowsers()
+      .then((browsers) => {
+        if (!cancelled) {
+          setInstalledBrowsers(
+            browsers.map((browser) => ({ value: browser.id, label: browser.name })),
+          );
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          console.warn("列出浏览器失败", error);
+          setInstalledBrowsers([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, activeCategory]);
 
   useEffect(() => {
     if (!open) {
@@ -1902,6 +1940,34 @@ export function SettingsDrawer() {
                           />
                         </SettingsPreferenceRow>
                       ) : null}
+                      <SettingsPreferenceRow label={t("settings.externalBrowser")}>
+                        <SelectMenu
+                          value={browserSelectValue}
+                          ariaLabel={t("settings.externalBrowser")}
+                          onChange={setExternalBrowser}
+                          triggerClassName="h-8 w-[12rem] max-w-[40vw]"
+                          options={browserSelectOptions.map((option) => ({
+                            value: option.value,
+                            label: option.labelKey
+                              ? t(`settings.${option.labelKey}`)
+                              : (option.label ?? option.value),
+                          }))}
+                        />
+                      </SettingsPreferenceRow>
+                      {browserSelectValue === "custom" ? (
+                        <SettingsPreferenceRow
+                          control="below"
+                          label={t("settings.externalBrowserPath")}
+                        >
+                          <Input
+                            className={cn(settingsFieldClassName, "w-full")}
+                            value={externalBrowserPath}
+                            onChange={(event) => setExternalBrowserPath(event.target.value)}
+                            placeholder={t(`settings.${browserPathPlaceholderKey(os)}`)}
+                            aria-label={t("settings.externalBrowserPath")}
+                          />
+                        </SettingsPreferenceRow>
+                      ) : null}
                       <SettingsPreferenceRow label={t("settings.shell")}>
                         <SelectMenu
                           value={coerceShellPreference(os, shell)}
@@ -1928,14 +1994,13 @@ export function SettingsDrawer() {
                         </SettingsPreferenceRow>
                       ) : null}
                       <SettingsPreferenceRow label={t("settings.gitExtraPath")}>
-                        <div className="flex max-w-[min(100%,22rem)] items-center justify-end gap-2">
+                        {/* 固定可用宽，避免 % 相对 shrink-0 内容算出内容宽后越点越窄 */}
+                        <div className="flex w-[min(20rem,40vw)] items-center gap-1.5">
                           {gitExtraPathDir() ? (
-                            <span
-                              className="text-muted-foreground min-w-0 truncate text-right font-mono text-xs"
-                              title={gitExtraPathDir()}
-                            >
-                              {gitExtraPathDir()}
-                            </span>
+                            <CopyablePathLabel
+                              path={gitExtraPathDir()}
+                              className="text-muted-foreground font-mono text-xs"
+                            />
                           ) : null}
                           <Tooltip>
                             <TooltipTrigger asChild>

@@ -15,5 +15,9 @@
   "descriptionNeedPath": "请先填写仓库路径",
   "submitButton": "打开",
   "saveAndContinue": "保存并继续",
-  "saveAndContinueSuccess": "已保存仓库「{{name}}」"
+  "saveAndContinueSuccess": "已保存仓库「{{name}}」",
+  "existingTitle": "项目已存在",
+  "existingDescription": "该本地仓库已登记，不会覆盖现有名称、简介或分组。",
+  "existingOpen": "打开已有项目",
+  "existingView": "查看已有项目"
 }

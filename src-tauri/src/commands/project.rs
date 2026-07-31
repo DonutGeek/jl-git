@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tauri::{AppHandle, State};
@@ -5,7 +7,10 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::db::{self, ProjectRow, RecentProjectItem, WorkspaceRow};
 use crate::error::AppError;
+use crate::git::path::{normalize_existing_dir, require_git_toplevel};
 use crate::git::project_profile::{self, ProjectProfileSnapshot};
+use crate::git::remote::list_remotes;
+use crate::git::remote_identity::{canonicalize_remote_identity, require_remote_url};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,6 +22,30 @@ pub struct ProjectListResult {
 #[serde(rename_all = "camelCase")]
 pub struct ProjectResult {
     project: ProjectRow,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectAddResult {
+    project: ProjectRow,
+    already_exists: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectRemoteMatch {
+    id: String,
+    name: String,
+    path: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectUniquenessResult {
+    /// `new` | `existingPath` | `existingRemote`
+    kind: String,
+    project: Option<ProjectRow>,
+    matches: Vec<ProjectRemoteMatch>,
 }
 
 #[derive(Serialize)]
@@ -80,10 +109,104 @@ pub async fn project_add(
     workspace_id: Option<String>,
     description: Option<String>,
     icon: Option<String>,
-) -> Result<ProjectResult, AppError> {
-    let project = db::add_project(&pool, path, name, workspace_id, description, icon).await?;
+) -> Result<ProjectAddResult, AppError> {
+    let (project, already_exists) =
+        db::add_project(&pool, path, name, workspace_id, description, icon).await?;
 
-    Ok(ProjectResult { project })
+    Ok(ProjectAddResult {
+        project,
+        already_exists,
+    })
+}
+
+/// 本地路径或远程 URL 唯一性检查（远程命中只警告，不阻断）。
+#[tauri::command]
+pub async fn project_check_uniqueness(
+    pool: State<'_, SqlitePool>,
+    path: Option<String>,
+    remote_url: Option<String>,
+) -> Result<ProjectUniquenessResult, AppError> {
+    let path = path
+        .map(|value| value.trim().to_string())
+        .filter(|v| !v.is_empty());
+    let remote_url = remote_url
+        .map(|value| value.trim().to_string())
+        .filter(|v| !v.is_empty());
+
+    match (path, remote_url) {
+        (Some(path), None) => {
+            let repo_path = require_git_toplevel(&normalize_existing_dir(&path)?)?;
+            let path_key = repo_path.to_string_lossy().into_owned();
+            let projects = db::list_projects(&pool, None).await?;
+            if let Some(project) = projects.into_iter().find(|item| item.path == path_key) {
+                return Ok(ProjectUniquenessResult {
+                    kind: "existingPath".into(),
+                    project: Some(project),
+                    matches: vec![],
+                });
+            }
+            Ok(ProjectUniquenessResult {
+                kind: "new".into(),
+                project: None,
+                matches: vec![],
+            })
+        }
+        (None, Some(remote_url)) => {
+            require_remote_url(&remote_url)?;
+            let Some(target) = canonicalize_remote_identity(&remote_url) else {
+                // 无法规范化则跳过远程重复提示
+                return Ok(ProjectUniquenessResult {
+                    kind: "new".into(),
+                    project: None,
+                    matches: vec![],
+                });
+            };
+
+            let projects = db::list_projects(&pool, None).await?;
+            let mut matches = Vec::new();
+            for project in projects {
+                let remotes = match list_remotes(Path::new(&project.path)) {
+                    Ok(remotes) => remotes,
+                    Err(_) => continue,
+                };
+                let origin = remotes
+                    .iter()
+                    .find(|remote| remote.name == "origin")
+                    .or_else(|| remotes.first());
+                let Some(remote) = origin else {
+                    continue;
+                };
+                let Some(identity) = canonicalize_remote_identity(&remote.fetch_url) else {
+                    continue;
+                };
+                if identity == target {
+                    matches.push(ProjectRemoteMatch {
+                        id: project.id,
+                        name: project.name,
+                        path: project.path,
+                    });
+                }
+            }
+
+            if matches.is_empty() {
+                Ok(ProjectUniquenessResult {
+                    kind: "new".into(),
+                    project: None,
+                    matches: vec![],
+                })
+            } else {
+                Ok(ProjectUniquenessResult {
+                    kind: "existingRemote".into(),
+                    project: None,
+                    matches,
+                })
+            }
+        }
+        _ => Err(AppError::new(
+            "VALIDATION",
+            "请提供本地路径或远程仓库地址之一",
+        )),
+    }
 }
 
 #[tauri::command]
@@ -111,8 +234,20 @@ pub async fn project_update(
     workspace_id: Option<Option<String>>,
     description: Option<Option<String>>,
     icon: Option<String>,
+    path: Option<String>,
+    allow_remote_mismatch: Option<bool>,
 ) -> Result<ProjectResult, AppError> {
-    let project = db::update_project(&pool, &id, name, workspace_id, description, icon).await?;
+    let project = db::update_project(
+        &pool,
+        &id,
+        name,
+        workspace_id,
+        description,
+        icon,
+        path,
+        allow_remote_mismatch.unwrap_or(false),
+    )
+    .await?;
 
     Ok(ProjectResult { project })
 }

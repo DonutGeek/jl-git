@@ -3,10 +3,14 @@ import { Folder, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { TreeSelect } from "@/components/common/TreeSelect";
+import {
+  mapWorkspaceTreeToSelectNodes,
+  WorkspaceGroupLabel,
+} from "@/components/project/WorkspaceGroupLeading";
 import { WorkspaceGroupDialog } from "@/components/project/WorkspaceGroupDialog";
 import { Button } from "@/components/ui/button";
 import { useProjectStore } from "@/store/useProjectStore";
-import { buildWorkspaceTree, findWorkspaceTreeLabel } from "@/utils/workspaceOptions";
+import { buildWorkspaceTree, findWorkspaceTreeNode } from "@/utils/workspaceOptions";
 
 interface WorkspaceSelectMenuProps {
   value: string;
@@ -20,7 +24,7 @@ interface WorkspaceSelectMenuProps {
   includeEmpty?: boolean;
   /** 编辑上级时排除自身及子孙，避免成环 */
   excludeIds?: ReadonlySet<string>;
-  /** 选项前显示文件夹图标 */
+  /** @deprecated 分组选择始终展示组图标与颜色点 */
   showFolderIcon?: boolean;
   /** 自定义触发器展示 */
   displayLabel?: ReactNode;
@@ -38,7 +42,6 @@ export function WorkspaceSelectMenu({
   emptyLabel,
   includeEmpty = true,
   excludeIds,
-  showFolderIcon = true,
   displayLabel,
   allowQuickAdd = true,
 }: WorkspaceSelectMenuProps) {
@@ -49,8 +52,9 @@ export function WorkspaceSelectMenu({
   const [treeOpen, setTreeOpen] = useState(false);
 
   const resolvedEmptyLabel = emptyLabel ?? t("projectManager.ungrouped");
+  const emptyLeading = <Folder className="size-4 shrink-0" aria-hidden="true" />;
 
-  const tree = useMemo(
+  const workspaceTree = useMemo(
     () =>
       buildWorkspaceTree(workspaces, excludeIds ?? new Set(), {
         disableLocked: true,
@@ -59,16 +63,14 @@ export function WorkspaceSelectMenu({
     [workspaces, excludeIds, value],
   );
 
-  const currentLabel = useMemo(() => {
-    if (!value) {
-      return resolvedEmptyLabel;
-    }
-    return findWorkspaceTreeLabel(tree, value) ?? value;
-  }, [resolvedEmptyLabel, tree, value]);
+  const tree = useMemo(() => mapWorkspaceTreeToSelectNodes(workspaceTree), [workspaceTree]);
 
-  const folderIcon = showFolderIcon ? (
-    <Folder className="size-4 shrink-0" aria-hidden="true" />
-  ) : undefined;
+  const selectedNode = useMemo(
+    () => (value ? findWorkspaceTreeNode(workspaceTree, value) : null),
+    [value, workspaceTree],
+  );
+
+  const currentLabel = selectedNode?.label ?? (value ? value : resolvedEmptyLabel);
 
   function openCreateDialog(): void {
     setTreeOpen(false);
@@ -88,22 +90,27 @@ export function WorkspaceSelectMenu({
         triggerClassName={triggerClassName}
         open={treeOpen}
         onOpenChange={setTreeOpen}
-        triggerIcon={folderIcon}
-        nodeIcon={folderIcon}
         displayLabel={
-          displayLabel ?? (
+          displayLabel ??
+          (value && selectedNode ? (
+            <WorkspaceGroupLabel
+              name={selectedNode.label}
+              icon={selectedNode.icon}
+              color={selectedNode.color}
+            />
+          ) : (
             <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-              {folderIcon}
+              {emptyLeading}
               <span className="min-w-0 flex-1 truncate">{currentLabel}</span>
             </span>
-          )
+          ))
         }
         emptyOption={
           includeEmpty
             ? {
                 value: "",
                 label: resolvedEmptyLabel,
-                icon: folderIcon,
+                icon: emptyLeading,
               }
             : undefined
         }

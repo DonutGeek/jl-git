@@ -1,8 +1,11 @@
-import type { Workspace } from "@/types/project";
+import type { Workspace, WorkspaceColor, WorkspaceIcon } from "@/types/project";
+import { normalizeWorkspaceColor } from "@/utils/workspaceColor";
 
 export interface WorkspaceTreeNode {
   value: string;
   label: string;
+  icon: WorkspaceIcon;
+  color: WorkspaceColor;
   children: WorkspaceTreeNode[];
   disabled?: boolean;
 }
@@ -49,6 +52,8 @@ export function buildWorkspaceTree(
     return {
       value: workspace.id,
       label: workspace.name,
+      icon: workspace.icon,
+      color: normalizeWorkspaceColor(workspace.color),
       children: childrenOf(workspace.id),
       ...(lockedDisabled ? { disabled: true } : {}),
     };
@@ -93,11 +98,19 @@ export function findWorkspaceTreeLabel(
   nodes: readonly WorkspaceTreeNode[],
   value: string,
 ): string | null {
+  return findWorkspaceTreeNode(nodes, value)?.label ?? null;
+}
+
+/** 在树中查找节点（含图标 / 颜色） */
+export function findWorkspaceTreeNode(
+  nodes: readonly WorkspaceTreeNode[],
+  value: string,
+): WorkspaceTreeNode | null {
   for (const node of nodes) {
     if (node.value === value) {
-      return node.label;
+      return node;
     }
-    const nested = findWorkspaceTreeLabel(node.children, value);
+    const nested = findWorkspaceTreeNode(node.children, value);
     if (nested) {
       return nested;
     }

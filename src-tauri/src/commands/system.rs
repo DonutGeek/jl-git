@@ -1,5 +1,8 @@
 use crate::error::AppError;
-use crate::system::{self, OkResult, SystemAppInfo, SystemDiskSpace, SystemRuntimeStats};
+use crate::system::{
+    self, OkResult, ReadTextFileResult, SystemAppInfo, SystemDiskSpace, SystemRuntimeStats,
+};
+use crate::system_browsers::{self, SystemBrowser};
 
 #[tauri::command]
 pub fn system_app_info() -> SystemAppInfo {
@@ -65,4 +68,29 @@ pub fn system_open_with_default_app(path: String) -> Result<OkResult, AppError> 
 #[tauri::command]
 pub fn system_write_text_file(path: String, contents: String) -> Result<OkResult, AppError> {
     system::write_text_file(&path, &contents)
+}
+
+/// 读取文本文件（绝对路径；供导入等用户选定路径；默认 ≤2MiB）
+#[tauri::command]
+pub fn system_read_text_file(
+    path: String,
+    max_bytes: Option<u64>,
+) -> Result<ReadTextFileResult, AppError> {
+    system::read_text_file(&path, max_bytes)
+}
+
+/// 列出本机已探测到的浏览器（已知路径 / 应用名；不含 auto / custom）
+#[tauri::command]
+pub fn system_list_browsers() -> Result<Vec<SystemBrowser>, AppError> {
+    system_browsers::list_browsers()
+}
+
+/// 用偏好浏览器打开 HTTP(S) URL
+#[tauri::command]
+pub fn system_open_url(
+    url: String,
+    preference: Option<String>,
+    custom_path: Option<String>,
+) -> Result<OkResult, AppError> {
+    system_browsers::open_url(&url, preference.as_deref(), custom_path.as_deref())
 }

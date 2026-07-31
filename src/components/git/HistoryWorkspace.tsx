@@ -1,4 +1,3 @@
-import { useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { CommitFileDiffPane } from "@/components/git/CommitFileDiffPane";
@@ -9,13 +8,16 @@ import { HistoryWorkspaceProvider } from "@/components/git/HistoryWorkspaceConte
 
 import { useRepoStore } from "@/store/useRepoStore";
 
-/** ResizableSplit 水平分隔线 1px；弹层右缘让出，露出拖拽线 */
-const HISTORY_SPLIT_SEPARATOR_PX = 1;
-
 interface HistoryWorkspaceProps {
   className?: string;
   /** 子窗内为 false，隐藏「在新窗口查看历史」 */
   allowOpenInNewWindow?: boolean;
+  /**
+   * 提交文件对比覆盖范围：
+   * - `list`：仅历史列表窗格（分支历史子弹窗）
+   * - `workspace`：由主仓 RepoWorkspaceLayout 的 coverOverlay 盖住侧栏+列表（本组件不挂弹层）
+   */
+  fileDiffCover?: "list" | "workspace";
 }
 
 /**
@@ -25,65 +27,24 @@ interface HistoryWorkspaceProps {
 export function HistoryWorkspace({
   className,
   allowOpenInNewWindow = true,
+  fileDiffCover = "list",
 }: HistoryWorkspaceProps) {
   const { t } = useTranslation();
   const selectedCommitFile = useRepoStore((state) => state.selectedCommitFile);
   const showCommitFileDiff = Boolean(selectedCommitFile);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [commitFileDiffLeftPx, setCommitFileDiffLeftPx] = useState(0);
-
-  // 弹层右缘：详情左缘再让出分隔条宽度，露出可拖拽线
-  useLayoutEffect(() => {
-    if (!showCommitFileDiff) {
-      return;
-    }
-
-    function measureOverlayWidth(): void {
-      const root = rootRef.current;
-      if (!root) {
-        return;
-      }
-      const detail = root.querySelector<HTMLElement>("[data-history-detail-pane]");
-      if (!detail) {
-        return;
-      }
-      const next = Math.round(
-        detail.getBoundingClientRect().left -
-          root.getBoundingClientRect().left -
-          HISTORY_SPLIT_SEPARATOR_PX,
-      );
-      if (next > 0) {
-        setCommitFileDiffLeftPx((prev) => (prev === next ? prev : next));
-      }
-    }
-
-    measureOverlayWidth();
-    const root = rootRef.current;
-    if (!root) {
-      return;
-    }
-    const observer = new ResizeObserver(measureOverlayWidth);
-    observer.observe(root);
-    const detail = root.querySelector<HTMLElement>("[data-history-detail-pane]");
-    if (detail) {
-      observer.observe(detail);
-    }
-    return () => observer.disconnect();
-  }, [showCommitFileDiff]);
+  const useLocalOverlay = fileDiffCover === "list" && showCommitFileDiff;
 
   return (
     <HistoryWorkspaceProvider allowOpenInNewWindow={allowOpenInNewWindow}>
       <HistoryWorkspaceChrome
-        containerRef={rootRef}
         className={className}
         overlayOpen={showCommitFileDiff}
         list={<HistoryList />}
         detail={<HistoryDetailPane />}
         overlay={
-          showCommitFileDiff && commitFileDiffLeftPx > 0 ? (
+          useLocalOverlay ? (
             <div
-              className="bg-background absolute inset-y-0 left-0 z-30 overflow-hidden"
-              style={{ width: commitFileDiffLeftPx }}
+              className="bg-background pointer-events-auto absolute inset-0 z-30 overflow-hidden"
               role="dialog"
               aria-modal="true"
               aria-label={t("repo.commitFileDiffDialog")}

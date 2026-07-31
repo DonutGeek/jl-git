@@ -6,6 +6,7 @@ import { toUserMessage } from "@/types/error";
 import type {
   AddProjectInput,
   Project,
+  ProjectAddResult,
   ProjectOrderItem,
   RecentItem,
   Workspace,
@@ -48,6 +49,8 @@ interface ProjectStoreActions {
     workspaceId?: string | null;
     description?: string | null;
     icon?: Project["icon"];
+    path?: string;
+    allowRemoteMismatch?: boolean;
   }) => Promise<Project>;
   reorderGroupedItems: (input: {
     workspaces: WorkspaceOrderItem[];
@@ -56,11 +59,11 @@ interface ProjectStoreActions {
   setCurrent: (project: Project | null) => void;
   addAndOpen: (
     input: Pick<AddProjectInput, "path" | "name" | "workspaceId" | "description" | "icon">,
-  ) => Promise<Project>;
+  ) => Promise<ProjectAddResult>;
   /** 仅新增仓库记录（不标记最近打开、不设为当前），用于「保存并继续」 */
   addProject: (
     input: Pick<AddProjectInput, "path" | "name" | "workspaceId" | "description" | "icon">,
-  ) => Promise<Project>;
+  ) => Promise<ProjectAddResult>;
   openExisting: (id: string) => Promise<Project>;
   removeProject: (id: string) => Promise<void>;
   updateAlias: (id: string, name: string) => Promise<Project>;
@@ -177,18 +180,26 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      const project = await projectService.add(input);
-      await projectService.touchOpened(project.id);
+      const result = await projectService.add(input);
+      if (result.alreadyExists) {
+        set((state) => ({
+          projects: upsertProject(state.projects, result.project),
+          loading: false,
+        }));
+        return result;
+      }
+
+      await projectService.touchOpened(result.project.id);
       const recent = await projectService.listRecent();
 
       set((state) => ({
-        projects: upsertProject(state.projects, project),
+        projects: upsertProject(state.projects, result.project),
         recent,
-        current: project,
+        current: result.project,
         loading: false,
       }));
 
-      return project;
+      return result;
     } catch (error) {
       const message = toUserMessage(error);
       set({ error: message, loading: false });
@@ -200,13 +211,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set({ error: null });
 
     try {
-      const project = await projectService.add(input);
+      const result = await projectService.add(input);
 
       set((state) => ({
-        projects: upsertProject(state.projects, project),
+        projects: upsertProject(state.projects, result.project),
       }));
 
-      return project;
+      return result;
     } catch (error) {
       const message = toUserMessage(error);
       set({ error: message });

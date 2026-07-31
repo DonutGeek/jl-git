@@ -24,27 +24,7 @@ interface Project {
   updatedAt: string;
 }
 
-type ProjectIcon =
-  | "folder-git-2"
-  | "folder"
-  | "code-2"
-  | "terminal"
-  | "braces"
-  | "box"
-  | "package"
-  | "layers-3"
-  | "database"
-  | "server"
-  | "globe-2"
-  | "cloud"
-  | "cpu"
-  | "app-window"
-  | "smartphone"
-  | "gamepad-2"
-  | "bot"
-  | "sparkles"
-  | "briefcase-business"
-  | "book-open";
+type ProjectIcon = string; // Lucide kebab-case；运行时校验
 
 interface Workspace {
   id: string;
@@ -58,6 +38,8 @@ interface Workspace {
   createdAt: string;
   updatedAt: string;
 }
+
+type WorkspaceIcon = string; // Lucide kebab-case；历史 folder/code/… 仍有效
 
 interface RecentItem {
   projectId: string;
@@ -76,10 +58,17 @@ interface RecentItem {
 - **Command：** `project_list`
 - **错误：** `DB_ERROR` → 抛出/返回领域错误
 
-### `add(input: { path: string; workspaceId?: string; name?: string; description?: string; icon?: ProjectIcon }): Promise<Project>`
+### `add(input: { path: string; workspaceId?: string; name?: string; description?: string; icon?: ProjectIcon }): Promise<ProjectAddResult>`
 
 - **Command：** `project_add`
 - **前置：** 路径存在且为 Git 仓库
+- **语义：** 路径已登记时返回 `{ project, alreadyExists: true }`，不覆盖名称/简介/图标/分组
+- **错误：** `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `DB_ERROR`
+
+### `checkUniqueness(input: { path?: string; remoteUrl?: string }): Promise<ProjectUniquenessResult>`
+
+- **Command：** `project_check_uniqueness`
+- **语义：** `new` / `existingPath`（含已有项目）/ `existingRemote`（含本地副本列表，不含远程 URL）
 - **错误：** `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `DB_ERROR`
 
 ### `remove(id: string): Promise<void>`
@@ -87,11 +76,13 @@ interface RecentItem {
 - **Command：** `project_remove`
 - **语义：** 仅取消登记，不删除磁盘文件
 
-### `update(input: { id: string; name?: string; workspaceId?: string | null; description?: string | null; icon?: ProjectIcon }): Promise<Project>`
+### `update(input: { id: string; name?: string; workspaceId?: string | null; description?: string | null; icon?: ProjectIcon; path?: string; allowRemoteMismatch?: boolean }): Promise<Project>`
 
 - **Command：** `project_update`
 - **语义：** `description: null` 清空简介；省略则不改
-- **图标：** 仅接受受控 Lucide 图标键；默认 `folder-git-2`
+- **路径：** 可选改绑；须存在且为 Git 顶层；不可占用其他登记路径。比对旧/新路径主远端身份；不一致返回 `REMOTE_MISMATCH`，前端确认后传 `allowRemoteMismatch: true`。旧路径不可读时跳过远端比对（视为搬迁）。
+- **图标：** Lucide kebab-case 名称（格式校验）；默认 `folder-git-2`；未知旧值前端回退默认图标显示
+- **错误：** `INVALID_PATH` `NOT_A_REPO` `ALREADY_EXISTS` `REMOTE_MISMATCH` `VALIDATION` `DB_ERROR`
 
 ### `touchOpened(id: string): Promise<void>`
 
@@ -112,6 +103,21 @@ interface RecentItem {
 ### `listRecent(limit?: number): Promise<RecentItem[]>`
 
 - **Command：** `recent_list`
+
+---
+
+## `projectCatalogService`（`project.catalog.ts`）
+
+仓库登记清单导入 / 导出（JSON `jlgit.project-catalog` v1）。不碰 Git 工作区文件。
+
+| 方法 | 说明 |
+|------|------|
+| `exportCatalog({ allProjects, allWorkspaces, exportAll, filteredProjects, filterName })` | 组装 JSON → `exportTextFile`；取消另存为返回 `null` |
+| `pickAndParseCatalog(filterName)` | 打开文件 → `system_read_text_file` → schema 校验 |
+| `buildImportPreview(document, localWorkspaces)` | 路径探测 + 新增/更新/无效行 |
+| `executeImport({ document, rows })` | 先映射/创建分组，再 `project_add` / `project_update` |
+
+导入忽略 `pinned` / `sortOrder`。分组匹配：同父同名 → 全局唯一同名 → id 兜底 → 新建。
 
 ### `listFavorites(): Promise<string[]>`
 
@@ -154,8 +160,11 @@ const path = await projectService.pickDirectory();
 if (!path) return;
 
 try {
-  const project = await projectService.add({ path });
-  useProjectStore.getState().upsertProject(project);
+  const { project, alreadyExists } = await projectService.add({ path });
+  if (alreadyExists) {
+    // 展示已有项目提示，勿覆盖字段
+    return;
+  }
   navigate(`/repo/${project.id}`);
 } catch (error) {
   toast.error(toUserMessage(error));

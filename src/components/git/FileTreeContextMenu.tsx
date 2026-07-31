@@ -290,30 +290,38 @@ export function FileTreeContextMenu({
 
           <ContextMenuSeparator />
 
-          {/* 5 系统打开：访达 → 编辑器 → 终端 */}
-          <ContextMenuItem
-            disabled={disabled || busy}
-            onSelect={() =>
-              void runAction(() => systemOpenService.revealInFileManager(absolutePath))
-            }
-          >
-            <FolderOpen aria-hidden="true" />
-            {revealLabel}
-          </ContextMenuItem>
-          <ContextMenuItem
-            disabled={disabled || busy}
-            onSelect={() => void runAction(() => systemOpenService.openInEditor(absolutePath))}
-          >
-            <ExternalLink aria-hidden="true" />
-            {t("repo.openInEditor")}
-          </ContextMenuItem>
-          <ContextMenuItem
-            disabled={disabled || busy}
-            onSelect={() => void runAction(() => systemOpenService.openTerminal(terminalPath))}
-          >
-            <Terminal aria-hidden="true" />
-            {t("repo.openInTerminal")}
-          </ContextMenuItem>
+          {/* 5 系统打开：收入「打开方式」子菜单 */}
+          <ContextMenuSub>
+            <ContextMenuSubTrigger disabled={disabled || busy}>
+              <ExternalLink aria-hidden="true" />
+              {t("repo.openVia")}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="min-w-44">
+              <ContextMenuItem
+                disabled={disabled || busy}
+                onSelect={() =>
+                  void runAction(() => systemOpenService.revealInFileManager(absolutePath))
+                }
+              >
+                <FolderOpen aria-hidden="true" />
+                {revealLabel}
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={disabled || busy}
+                onSelect={() => void runAction(() => systemOpenService.openInEditor(absolutePath))}
+              >
+                <ExternalLink aria-hidden="true" />
+                {t("repo.openInEditor")}
+              </ContextMenuItem>
+              <ContextMenuItem
+                disabled={disabled || busy}
+                onSelect={() => void runAction(() => systemOpenService.openTerminal(terminalPath))}
+              >
+                <Terminal aria-hidden="true" />
+                {t("repo.openInTerminal")}
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
 
           <ContextMenuSeparator />
 

@@ -25,6 +25,32 @@ function toRemoteUrl(value: string): URL | null {
   }
 }
 
+function stripGitSuffix(pathname: string): string {
+  return pathname.replace(/\.git$/i, "").replace(/\/+$/, "") || "/";
+}
+
+/**
+ * 将 Git 远端地址转为默认可在浏览器打开的 HTTP(S) 链接。
+ * 支持 `https://…`、`git@host:path.git`、`ssh://git@host/path.git`；无法识别则返回 null。
+ */
+export function toBrowsableRemoteUrl(remoteUrl: string): string | null {
+  const parsed = toRemoteUrl(remoteUrl.trim());
+  if (!parsed?.hostname) {
+    return null;
+  }
+
+  const path = stripGitSuffix(parsed.pathname);
+  if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+    return `${parsed.protocol}//${parsed.host}${path === "/" ? "" : path}`;
+  }
+
+  if (parsed.protocol === "ssh:") {
+    return `https://${parsed.hostname}${path === "/" ? "" : path}`;
+  }
+
+  return null;
+}
+
 /** 将 Git 远端地址转换为用于界面展示的托管平台与仓库名。 */
 export function parseRemoteRepository(url: string): RemoteRepository | null {
   const normalizedUrl = url.trim();
@@ -33,7 +59,7 @@ export function parseRemoteRepository(url: string): RemoteRepository | null {
     return null;
   }
 
-  const pathSegments = parsed.pathname.split("/").filter(Boolean);
+  const pathSegments = stripGitSuffix(parsed.pathname).split("/").filter(Boolean);
   const repositoryName = pathSegments[pathSegments.length - 1];
   if (!repositoryName) {
     return null;

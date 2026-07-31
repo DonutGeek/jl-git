@@ -149,7 +149,7 @@ export function CommitFileDiffPane() {
   );
 
   return (
-    <div className="bg-background flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
       <div className="border-border flex h-11 shrink-0 items-center gap-1.5 border-b px-2">
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>

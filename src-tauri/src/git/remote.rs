@@ -273,7 +273,7 @@ pub fn clone_repository(url: &str, dest: &Path) -> Result<GitCloneResult, AppErr
     })
 }
 
-fn validate_clone_url(url: &str) -> Result<(), AppError> {
+pub fn validate_clone_url(url: &str) -> Result<(), AppError> {
     if url.is_empty() {
         return Err(AppError::new("VALIDATION", "请填写仓库地址"));
     }
@@ -306,7 +306,7 @@ fn validate_clone_url(url: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-fn is_scp_like_remote(url: &str) -> bool {
+pub fn is_scp_like_remote(url: &str) -> bool {
     if url.contains("://") || url.chars().any(char::is_whitespace) {
         return false;
     }

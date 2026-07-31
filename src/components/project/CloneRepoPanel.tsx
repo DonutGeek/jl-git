@@ -4,8 +4,10 @@ import { FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import { LucideIconPicker } from "@/components/common/LucideIconPicker";
 import { CloneProjectDetailDialog } from "@/components/project/CloneProjectDetailDialog";
-import { ProjectIconPicker } from "@/components/project/ProjectIconPicker";
+import { lucideIconPickerI18n } from "@/components/project/lucideIconPickerI18n";
+import { ExistingRemoteCloneDialog } from "@/components/project/ProjectUniquenessDialogs";
 import { WorkspaceSelectMenu } from "@/components/project/WorkspaceSelectMenu";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,7 +19,11 @@ import { cloneRepository } from "@/services/git/git.clone";
 import { projectService } from "@/services/project";
 import { useProjectStore } from "@/store/useProjectStore";
 import { toUserMessage } from "@/types/error";
-import { DEFAULT_PROJECT_ICON, type ProjectIcon as ProjectIconName } from "@/types/project";
+import {
+  DEFAULT_PROJECT_ICON,
+  type ProjectIcon as ProjectIconName,
+  type ProjectRemoteMatch,
+} from "@/types/project";
 import { joinCloneDestPath, repoNameFromCloneUrl } from "@/utils/gitClonePath";
 
 interface CloneRepoPanelProps {
@@ -50,8 +56,11 @@ export function CloneRepoPanel({ onOpenProject, disabled = false }: CloneRepoPan
   const [cloning, setCloning] = useState(false);
   const [picking, setPicking] = useState(false);
   const [pendingDetail, setPendingDetail] = useState<PendingDetailSession | null>(null);
+  const [remoteMatches, setRemoteMatches] = useState<ProjectRemoteMatch[]>([]);
+  const [pendingCloneOpenAfter, setPendingCloneOpenAfter] = useState<boolean | null>(null);
 
-  const busy = cloning || picking || pendingDetail !== null || disabled;
+  const busy =
+    cloning || picking || pendingDetail !== null || pendingCloneOpenAfter !== null || disabled;
   const canSubmit = !busy && url.trim().length > 0 && path.trim().length > 0;
 
   function resetForm(): void {
@@ -116,7 +125,7 @@ export function CloneRepoPanel({ onOpenProject, disabled = false }: CloneRepoPan
     }
   }
 
-  async function runClone(openAfter: boolean): Promise<void> {
+  async function runClone(openAfter: boolean, skipRemoteWarn = false): Promise<void> {
     const remoteUrl = url.trim();
     const destPath = path.trim();
     if (!remoteUrl) {
@@ -127,13 +136,30 @@ export function CloneRepoPanel({ onOpenProject, disabled = false }: CloneRepoPan
       toast.error(t("cloneRepo.pathRequired"));
       return;
     }
-    if (busy) {
+    if (cloning || picking || pendingDetail !== null || disabled) {
+      return;
+    }
+    if (!skipRemoteWarn && pendingCloneOpenAfter !== null) {
       return;
     }
 
     const wantDetail = fillDetailAfterClone;
     setCloning(true);
     try {
+      if (!skipRemoteWarn) {
+        try {
+          const uniqueness = await projectService.checkUniqueness({ remoteUrl });
+          if (uniqueness.kind === "existingRemote" && uniqueness.matches.length > 0) {
+            setRemoteMatches(uniqueness.matches);
+            setPendingCloneOpenAfter(openAfter);
+            return;
+          }
+        } catch (error) {
+          // 远程检查失败不阻断克隆（与设计：读取 origin 失败跳过）
+          console.warn("remote uniqueness check skipped", error);
+        }
+      }
+
       const cloned = await cloneRepository(remoteUrl, destPath);
       const input = {
         path: cloned.path,
@@ -143,7 +169,8 @@ export function CloneRepoPanel({ onOpenProject, disabled = false }: CloneRepoPan
       };
 
       // 勾选「克隆后填写详情」时先只登记，避免弹窗前就切到仓库
-      const project = openAfter && !wantDetail ? await addAndOpen(input) : await addProject(input);
+      const result = openAfter && !wantDetail ? await addAndOpen(input) : await addProject(input);
+      const project = result.project;
 
       resetForm();
 
@@ -179,10 +206,11 @@ export function CloneRepoPanel({ onOpenProject, disabled = false }: CloneRepoPan
   }
 
   return (
-    <>
-      <ScrollArea className="-mr-6 min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <ScrollArea className="-mr-6 min-h-0 min-w-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block">
+        {/* pl/py：给 focus ring 留空，避免被 ScrollArea overflow-hidden 裁切 */}
         <form
-          className="max-w-2xl space-y-6 pr-6 pb-2"
+          className="max-w-2xl min-w-0 space-y-6 py-1 pr-6 pl-2 pb-2"
           onSubmit={(event) => void handleSubmit(event)}
         >
           <FieldGroup className="gap-4">
@@ -238,11 +266,12 @@ export function CloneRepoPanel({ onOpenProject, disabled = false }: CloneRepoPan
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="clone-repo-icon">{t("projectManager.projectIcon")}</FieldLabel>
-                <ProjectIconPicker
+                <LucideIconPicker
                   id="clone-repo-icon"
                   value={projectIcon}
                   onValueChange={setProjectIcon}
                   disabled={busy}
+                  {...lucideIconPickerI18n(t)}
                 />
               </Field>
               <Field>
@@ -297,6 +326,23 @@ export function CloneRepoPanel({ onOpenProject, disabled = false }: CloneRepoPan
           onFinished={() => void finishCloneSession(pendingDetail)}
         />
       ) : null}
-    </>
+
+      <ExistingRemoteCloneDialog
+        open={pendingCloneOpenAfter !== null}
+        matches={remoteMatches}
+        onOpenChange={(next) => {
+          if (!next) {
+            setPendingCloneOpenAfter(null);
+            setRemoteMatches([]);
+          }
+        }}
+        onContinue={() => {
+          const openAfter = pendingCloneOpenAfter ?? true;
+          setPendingCloneOpenAfter(null);
+          setRemoteMatches([]);
+          void runClone(openAfter, true);
+        }}
+      />
+    </div>
   );
 }

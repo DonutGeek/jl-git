@@ -3,15 +3,18 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
+import { BranchList } from "@/components/git/BranchList";
+import { ChangesPanelLoadingShell } from "@/components/git/ChangesPanelLoadingShell";
+import { CommitBox } from "@/components/git/CommitBox";
+import { CommitFileDiffWorkspaceOverlay } from "@/components/git/CommitFileDiffWorkspaceOverlay";
 import type { SidebarView } from "@/components/layout/ActivityBar";
+import { RepoLoadingIndicator } from "@/components/layout/RepoLoadingIndicator";
 import { RepoLoadingWorkspace } from "@/components/layout/RepoLoadingWorkspace";
 import type { RepoMainView } from "@/components/layout/RepoToolbar";
 import { RepoWorkspaceLayout } from "@/components/layout/RepoWorkspaceLayout";
 import { ResizableSplit } from "@/components/layout/ResizableSplit";
-import { BranchList } from "@/components/git/BranchList";
-import { CommitBox } from "@/components/git/CommitBox";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 
@@ -28,13 +31,34 @@ import {
 } from "@/store/useRepoStore";
 
 import { toUserMessage } from "@/types/error";
-import type { Project } from "@/types/project";
+import { DEFAULT_PROJECT_ICON, type Project } from "@/types/project";
 import { resolveRepoBootstrapMode, shouldShowRepoLoadingShell } from "@/utils/repoPageBootstrap";
 import { finishRepoTabSwitchMeasure } from "@/utils/repoTabPerformance";
 
 /** 变更列表在纵向分栏中的最小高度。 */
 const CHANGES_LIST_MIN_HEIGHT_PX = 320;
+/** 变更列（相对 Diff 预览）最小 / 默认宽度相关。 */
+const CHANGES_PANEL_MIN_WIDTH_PX = 240;
+const CHANGES_PANEL_DEFAULT_RATIO = 26;
 const HISTORY_DETAIL_SPLIT_KEY = "jlgit:split:history-detail";
+
+/** 项目元数据尚未进 store 时，用占位驱动分区加载壳（避免整页「正在打开仓库」） */
+function createRepoBootstrapStub(projectId: string): Project {
+  const now = new Date(0).toISOString();
+  return {
+    id: projectId,
+    workspaceId: null,
+    name: "",
+    description: null,
+    icon: DEFAULT_PROJECT_ICON,
+    path: projectId,
+    lastOpenedAt: null,
+    pinned: false,
+    sortOrder: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
 const LazyAgentChatPanel = lazy(() =>
   import("@/components/ai/AgentChatPanel").then((module) => ({
@@ -76,6 +100,11 @@ function RepoModuleLoading() {
       <span>{t("common.loading")}</span>
     </div>
   );
+}
+
+function ChangesPreviewLoading() {
+  const { t } = useTranslation();
+  return <RepoLoadingIndicator area="preview" label={t("common.loading")} />;
 }
 
 /** 从 store 同步取项目元数据（轻量，不含 Git 会话还原） */
@@ -410,25 +439,18 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
     handleMainViewChange("workspace");
   }, [workspacePreview]);
 
+  // 引导期一律用分区壳 + 小加载；禁止整页「正在打开仓库…」
   if (bootstrapping && !error) {
-    if (project) {
-      return (
-        <RepoLoadingWorkspace
-          project={project}
-          sidebarView={sidebarView}
-          mainView={mainView}
-          label={t("repo.opening")}
-          onSidebarViewChange={setSidebarView}
-          onMainViewChange={handleMainViewChange}
-        />
-      );
-    }
+    const shellProject = project ?? createRepoBootstrapStub(projectId);
     return (
-      <section {...dragProps} className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="text-muted-foreground flex min-h-0 flex-1 items-center justify-center text-sm">
-          {t("repo.opening")}
-        </div>
-      </section>
+      <RepoLoadingWorkspace
+        project={shellProject}
+        sidebarView={sidebarView}
+        mainView={mainView}
+        label={t("common.loading")}
+        onSidebarViewChange={setSidebarView}
+        onMainViewChange={handleMainViewChange}
+      />
     );
   }
 
@@ -497,8 +519,8 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
   const changesPane = (
     <ResizableSplit
       orientation="horizontal"
-      defaultRatio={32}
-      minFirstPx={320}
+      defaultRatio={CHANGES_PANEL_DEFAULT_RATIO}
+      minFirstPx={CHANGES_PANEL_MIN_WIDTH_PX}
       minSecondPx={280}
       storageKey="jlgit:split:changes-preview"
       first={
@@ -512,7 +534,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
             storageKey="jlgit:split:changes-commit"
             first={
               <div className="h-full min-h-0 overflow-hidden">
-                <Suspense fallback={<RepoModuleLoading />}>
+                <Suspense fallback={<ChangesPanelLoadingShell />}>
                   <LazyChangesPanel key={project.path} />
                 </Suspense>
               </div>
@@ -527,7 +549,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       }
       second={
         <aside className="h-full min-h-0 overflow-hidden">
-          <Suspense fallback={<RepoModuleLoading />}>
+          <Suspense fallback={<ChangesPreviewLoading />}>
             <LazyChangesPreviewPane key={project.path} />
           </Suspense>
         </aside>
@@ -537,7 +559,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
 
   const historyPane = (
     <Suspense fallback={<RepoModuleLoading />}>
-      <LazyHistoryWorkspace key={project.path} />
+      <LazyHistoryWorkspace key={project.path} fileDiffCover="workspace" />
     </Suspense>
   );
 
@@ -551,6 +573,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       mainView={mainView}
       sidebar={sidebar}
       main={<div className="h-full min-h-0 min-w-0 overflow-hidden">{activeMainPane}</div>}
+      coverOverlay={mainView === "history" ? <CommitFileDiffWorkspaceOverlay /> : null}
       onSidebarViewChange={setSidebarView}
       onMainViewChange={handleMainViewChange}
     />

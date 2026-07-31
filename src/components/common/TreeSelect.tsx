@@ -13,6 +13,8 @@ export interface TreeSelectNode {
   label: string;
   children?: readonly TreeSelectNode[];
   disabled?: boolean;
+  /** 行左侧前缀（优先于全局 nodeIcon，如分组图标 + 颜色点） */
+  leading?: ReactNode;
 }
 
 interface TreeSelectProps {
@@ -157,7 +159,11 @@ function TreeRows({
                 )}
                 onClick={() => onSelect(node.value)}
               >
-                {nodeIcon ? <span className="shrink-0">{nodeIcon}</span> : null}
+                {node.leading ? (
+                  <span className="shrink-0">{node.leading}</span>
+                ) : nodeIcon ? (
+                  <span className="shrink-0">{nodeIcon}</span>
+                ) : null}
                 <span className="min-w-0 flex-1 truncate">{node.label}</span>
                 {selected ? <Check className="size-4 shrink-0" aria-hidden="true" /> : null}
               </button>
@@ -260,7 +266,7 @@ export function TreeSelect({
           disabled={disabled}
           title={typeof displayLabel === "undefined" ? selectedLabel : undefined}
           className={cn(
-            "bg-background hover:bg-accent hover:text-accent-foreground h-9 w-full justify-between gap-1.5 px-2.5 font-normal",
+            "bg-background hover:bg-accent hover:text-accent-foreground h-9 w-full justify-between gap-1.5 px-2.5 font-normal shadow-none",
             triggerClassName,
           )}
         >

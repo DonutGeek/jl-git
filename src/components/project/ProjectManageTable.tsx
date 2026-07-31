@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Info, SquarePen, Trash2 } from "lucide-react";
 
+import { HighlightText } from "@/components/common/HighlightText";
 import { SelectMenu } from "@/components/common/SelectMenu";
 import { CopyablePathLabel } from "@/components/git/CopyablePathLabel";
 import { ProjectContextMenu } from "@/components/project/ProjectContextMenu";
@@ -51,6 +52,7 @@ interface ProjectManageTableProps {
   pageSize: number;
   pageSizeOptions: readonly number[];
   disabled?: boolean;
+  highlightQuery?: string;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onOpenDetail: (project: Project) => void;
@@ -79,6 +81,7 @@ export function ProjectManageTable({
   onOpenSettings,
   onDelete,
   onProjectsMutated,
+  highlightQuery = "",
 }: ProjectManageTableProps) {
   const { t } = useTranslation();
   const pageItems = buildManagePageItems(currentPage, totalPages);
@@ -134,10 +137,6 @@ export function ProjectManageTable({
                   const groupLabel = project.workspaceId
                     ? (workspaceNameById.get(project.workspaceId) ?? t("projectManager.ungrouped"))
                     : t("projectManager.ungrouped");
-                  const remote = snapshot?.remoteUrl
-                    ? parseRemoteRepository(snapshot.remoteUrl)
-                    : null;
-
                   return (
                     <TableRow key={project.id}>
                       <TableCell>
@@ -154,9 +153,11 @@ export function ProjectManageTable({
                             onClick={() => onOpenProject(project.id)}
                           >
                             <ProjectIcon name={project.icon} className="size-4 shrink-0" />
-                            <span className="truncate font-medium underline-offset-2 hover:underline">
-                              {project.name}
-                            </span>
+                            <HighlightText
+                              text={project.name}
+                              query={highlightQuery}
+                              className="truncate font-medium underline-offset-2 hover:underline"
+                            />
                           </button>
                         </ProjectContextMenu>
                       </TableCell>
@@ -176,6 +177,7 @@ export function ProjectManageTable({
                       >
                         <CopyablePathLabel
                           path={project.path}
+                          highlightQuery={highlightQuery}
                           className="text-muted-foreground text-xs"
                         />
                       </TableCell>
@@ -187,17 +189,7 @@ export function ProjectManageTable({
                         onClick={(event) => event.stopPropagation()}
                         onDoubleClick={(event) => event.stopPropagation()}
                       >
-                        {remote ? (
-                          <RemoteRepositoryLabel
-                            remote={remote}
-                            className="ml-0 max-w-full min-w-0"
-                            onOpen={(url) => {
-                              void openExternalUrl(url);
-                            }}
-                          />
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
+                        <RemoteCell snapshot={snapshot} />
                       </TableCell>
                       <TableCell className="text-right">
                         <div
@@ -383,6 +375,45 @@ function GitCell({ snapshot }: { snapshot?: ProjectManageGitSnapshot }) {
     >
       <span className="min-w-0 truncate">{label}</span>
     </Badge>
+  );
+}
+
+/** 与 GitCell 共用 probe 状态：加载中显示 Spinner，勿在 loading 时落成「—」 */
+function RemoteCell({ snapshot }: { snapshot?: ProjectManageGitSnapshot }) {
+  const { t } = useTranslation();
+
+  if (!snapshot || snapshot.status === "idle") {
+    return <span className="text-muted-foreground text-xs">—</span>;
+  }
+  if (snapshot.status === "loading") {
+    return <Spinner className="size-3" />;
+  }
+  if (snapshot.status === "error") {
+    return (
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <span className="text-destructive text-xs">!</span>
+        </TooltipTrigger>
+        <TooltipContent>
+          {snapshot.error ?? t("projectManager.manageGitProbeFailed")}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  const remote = snapshot.remoteUrl ? parseRemoteRepository(snapshot.remoteUrl) : null;
+  if (!remote) {
+    return <span className="text-muted-foreground text-xs">—</span>;
+  }
+
+  return (
+    <RemoteRepositoryLabel
+      remote={remote}
+      className="ml-0 max-w-full min-w-0"
+      onOpen={(url) => {
+        void openExternalUrl(url);
+      }}
+    />
   );
 }
 

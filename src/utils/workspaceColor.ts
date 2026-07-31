@@ -4,6 +4,15 @@ import type { WorkspaceColor } from "@/types/project";
 
 export const DEFAULT_WORKSPACE_COLOR = "#5F75C1" as const satisfies WorkspaceColor;
 
+/** 分组颜色弹窗预设（蓝 / 绿 / 橙 / 紫 / 红） */
+export const WORKSPACE_COLOR_PRESETS = [
+  "#5F75C1",
+  "#4E925E",
+  "#D27830",
+  "#AA6BAE",
+  "#CD6055",
+] as const satisfies readonly WorkspaceColor[];
+
 const LEGACY_WORKSPACE_COLORS: Readonly<Record<string, WorkspaceColor>> = {
   blue: "#5F75C1",
   green: "#4E925E",

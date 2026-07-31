@@ -17,5 +17,8 @@
   "detailDialogDescription": "Add a summary for “{{name}}”. You can generate one with AI from the repository.",
   "detailConfirm": "Confirm",
   "detailSkip": "Skip",
-  "detailSaved": "Project details saved"
+  "detailSaved": "Project details saved",
+  "existingRemoteTitle": "Remote already has local copies",
+  "existingRemoteDescription": "These registered projects point to the same remote. You can still clone into another directory.",
+  "existingRemoteContinue": "Continue cloning"
 }

@@ -15,6 +15,7 @@ pub mod oplog;
 pub mod path;
 pub mod project_profile;
 pub mod remote;
+pub mod remote_identity;
 pub mod repo_state;
 pub mod reset;
 pub mod runner;

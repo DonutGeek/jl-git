@@ -155,25 +155,19 @@ export function filterAndSortProjects(
   return sortProjects(rows, filters.sortBy);
 }
 
-/** 生成分页页码序列（含省略号占位） */
+/** 生成分页页码序列（含省略号占位）；首页附近展示 1…5 … N */
 export function buildManagePageItems(current: number, total: number): Array<number | "ellipsis"> {
   if (total <= 7) {
     return Array.from({ length: total }, (_, index) => index + 1);
   }
 
-  const items: Array<number | "ellipsis"> = [1];
-  const start = Math.max(2, current - 1);
-  const end = Math.min(total - 1, current + 1);
+  if (current <= 4) {
+    return [1, 2, 3, 4, 5, "ellipsis", total];
+  }
 
-  if (start > 2) {
-    items.push("ellipsis");
+  if (current >= total - 3) {
+    return [1, "ellipsis", total - 4, total - 3, total - 2, total - 1, total];
   }
-  for (let page = start; page <= end; page += 1) {
-    items.push(page);
-  }
-  if (end < total - 1) {
-    items.push("ellipsis");
-  }
-  items.push(total);
-  return items;
+
+  return [1, "ellipsis", current - 1, current, current + 1, "ellipsis", total];
 }

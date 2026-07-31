@@ -4,70 +4,76 @@ import { User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
-import { avatarUrlFromEmail } from "@/utils/avatarUrl";
+import { loadAvatarObjectUrl } from "@/utils/avatarUrl";
 
 interface GitIdentityAvatarProps {
   name: string | null;
   email: string | null;
   className?: string;
-  /** 头像外形，默认圆形 */
-  shape?: "circle" | "rounded";
   /** 无障碍标签 */
   label: string;
   /** 列表密排：更小字号 / 单字缩写 */
   compact?: boolean;
 }
 
-/** Git 身份头像：shadcn Avatar + Libravatar，失败则显示默认图标 */
+/** Git 身份头像：统一 `rounded-md`（--radius-md），失败回退默认图标 */
 export function GitIdentityAvatar({
   name,
   email,
   className,
-  shape = "circle",
   label,
   compact = false,
 }: GitIdentityAvatarProps) {
-  const [remoteUrl, setRemoteUrl] = useState<string | null>(null);
-  const [imageFailed, setImageFailed] = useState(false);
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setRemoteUrl(null);
-    setImageFailed(false);
+    let createdUrl: string | null = null;
+    setObjectUrl(null);
 
-    if (!email?.trim()) {
+    if (!email?.trim() && !name?.trim()) {
       return;
     }
 
-    void avatarUrlFromEmail(email).then((url) => {
-      if (!cancelled) {
-        setRemoteUrl(url);
-      }
-    });
+    void loadAvatarObjectUrl(email, name, compact ? 64 : 96)
+      .then((url) => {
+        if (cancelled) {
+          if (url) {
+            URL.revokeObjectURL(url);
+          }
+          return;
+        }
+        createdUrl = url;
+        setObjectUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setObjectUrl(null);
+        }
+      });
 
     return () => {
       cancelled = true;
+      if (createdUrl) {
+        URL.revokeObjectURL(createdUrl);
+      }
     };
-  }, [email]);
-
-  const showImage = Boolean(remoteUrl) && !imageFailed;
-  const shapeClassName = shape === "rounded" ? "rounded-md" : "rounded-full";
+  }, [email, name, compact]);
 
   return (
     <Avatar
       className={cn(
         "border-border size-9 border",
-        shapeClassName,
         compact && "text-[9px]",
         className,
+        // 覆盖 shadcn Avatar 默认 rounded-full，统一 --radius-md
+        "rounded-md",
       )}
       aria-label={label}
       title={name ?? email ?? undefined}
     >
-      {showImage ? (
-        <AvatarImage src={remoteUrl!} alt="" onError={() => setImageFailed(true)} />
-      ) : null}
-      <AvatarFallback className={cn(shapeClassName, compact && "text-[9px]")}>
+      {objectUrl ? <AvatarImage key={objectUrl} src={objectUrl} alt="" /> : null}
+      <AvatarFallback className={cn(compact && "text-[9px]", "rounded-md")}>
         <User className={cn(compact ? "size-2.5" : "size-3.5")} aria-hidden="true" />
       </AvatarFallback>
     </Avatar>

@@ -1,10 +1,8 @@
-import { BriefcaseBusiness, Box, Code2, Folder, Layers3, type LucideIcon } from "lucide-react";
-
 import type { WorkspaceIcon } from "@/types/project";
 
+/** 历史默认 / 常用分组图标（展示名覆盖用） */
 export const WORKSPACE_ICON_OPTIONS: ReadonlyArray<{
   value: WorkspaceIcon;
-  Icon: LucideIcon;
   labelKey:
     | "projectManager.iconCode"
     | "projectManager.iconFolder"
@@ -12,17 +10,17 @@ export const WORKSPACE_ICON_OPTIONS: ReadonlyArray<{
     | "projectManager.iconLayers"
     | "projectManager.iconBox";
 }> = [
-  { value: "code", Icon: Code2, labelKey: "projectManager.iconCode" },
-  { value: "folder", Icon: Folder, labelKey: "projectManager.iconFolder" },
-  {
-    value: "briefcase",
-    Icon: BriefcaseBusiness,
-    labelKey: "projectManager.iconBriefcase",
-  },
-  { value: "layers", Icon: Layers3, labelKey: "projectManager.iconLayers" },
-  { value: "box", Icon: Box, labelKey: "projectManager.iconBox" },
+  { value: "code", labelKey: "projectManager.iconCode" },
+  { value: "folder", labelKey: "projectManager.iconFolder" },
+  { value: "briefcase", labelKey: "projectManager.iconBriefcase" },
+  { value: "layers", labelKey: "projectManager.iconLayers" },
+  { value: "box", labelKey: "projectManager.iconBox" },
 ];
 
-export function workspaceIconComponent(icon: WorkspaceIcon): LucideIcon {
-  return WORKSPACE_ICON_OPTIONS.find((option) => option.value === icon)?.Icon ?? Folder;
+export const DEFAULT_WORKSPACE_ICON: WorkspaceIcon = "code";
+
+export function resolveWorkspaceIconLabelKey(
+  icon: string,
+): (typeof WORKSPACE_ICON_OPTIONS)[number]["labelKey"] | null {
+  return WORKSPACE_ICON_OPTIONS.find((option) => option.value === icon)?.labelKey ?? null;
 }

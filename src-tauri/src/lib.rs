@@ -7,6 +7,7 @@ mod git;
 mod menu;
 mod process_cmd;
 mod system;
+mod system_browsers;
 #[cfg(windows)]
 mod system_windows;
 
@@ -78,6 +79,7 @@ pub fn run() {
             greet,
             commands::project::project_list,
             commands::project::project_add,
+            commands::project::project_check_uniqueness,
             commands::project::project_touch_opened,
             commands::project::project_remove,
             commands::project::project_update,
@@ -171,6 +173,9 @@ pub fn run() {
             commands::system::system_open_in_editor,
             commands::system::system_open_with_default_app,
             commands::system::system_write_text_file,
+            commands::system::system_read_text_file,
+            commands::system::system_list_browsers,
+            commands::system::system_open_url,
             commands::document::document_extract_pdf_text,
             commands::ssh_keys::ssh_key_generate,
             commands::ssh_keys::ssh_key_change_passphrase,

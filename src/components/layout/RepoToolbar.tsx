@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -14,6 +14,7 @@ import {
   GitCompareArrows,
   LayoutDashboard,
   ListTree,
+  MoreHorizontal,
   RotateCcw,
   RotateCw,
   Search,
@@ -22,8 +23,11 @@ import {
 import { toast } from "sonner";
 
 import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollArea";
+import { HighlightText } from "@/components/common/HighlightText";
+import { LucideDynamicIcon } from "@/components/common/LucideDynamicIcon";
 import { LocalBranchMenuList } from "@/components/git/LocalBranchMenuList";
 import { ProjectIcon } from "@/components/project/ProjectIcon";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -56,6 +60,12 @@ import type { Project } from "@/types/project";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
 import { isPushRejectedError, toastPushError } from "@/utils/gitPushError";
 import { revealInFileManagerLabel as revealInFileManagerLabelForOs } from "@/utils/platformLabels";
+import {
+  filterProjectsForQuickSwitcher,
+  sortProjectsForQuickSwitcher,
+} from "@/utils/repositoryQuickSwitcher";
+import { resolveRepoToolbarDensity, type RepoToolbarDensity } from "@/utils/repoToolbarDensity";
+import { normalizeWorkspaceColor, workspaceColorTint } from "@/utils/workspaceColor";
 
 /**
  * 工具栏默认比较：源=当前分支；目标优先 upstream，其次 origin/<name>，否则自身。
@@ -102,6 +112,7 @@ export function RepoToolbar({
   const navigate = useNavigate();
 
   const projects = useProjectStore((state) => state.projects);
+  const workspaces = useProjectStore((state) => state.workspaces);
   const openRepositoryTab = useOpenTabsStore((state) => state.openRepositoryTab);
 
   const status = useRepoStore((state) => (loadingShell ? null : state.status));
@@ -119,10 +130,40 @@ export function RepoToolbar({
   const [pulling, setPulling] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [projectFilter, setProjectFilter] = useState("");
+  const [density, setDensity] = useState<RepoToolbarDensity>("comfortable");
   const { guard: guardWriteOp, dialog: conflictGuardDialog } = useConflictOperationGuard();
 
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const densityRef = useRef<RepoToolbarDensity>(density);
+  densityRef.current = density;
   const projectPathRef = useRef(project.path);
   projectPathRef.current = project.path;
+
+  useEffect(() => {
+    const element = toolbarRef.current;
+    if (!element) {
+      return;
+    }
+
+    const update = (): void => {
+      const next = resolveRepoToolbarDensity(element.clientWidth, densityRef.current);
+      if (next !== densityRef.current) {
+        densityRef.current = next;
+        setDensity(next);
+      }
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  // 收紧顺序：先右侧工具进 ⋯，再缩左侧文案 / 仓库名 / 分支名
+  const collapseSideTools = density !== "comfortable";
+  const iconOnly = density === "minimal";
 
   // 切仓时丢掉上一仓的本地 busy，避免新仓工具栏误显示「正在推送」
   useEffect(() => {
@@ -132,6 +173,13 @@ export function RepoToolbar({
     setPushing(false);
     setBranchMenuOpen(false);
   }, [project.path]);
+
+  // 同步进行中关闭分支菜单，避免禁用后菜单仍挂着
+  useEffect(() => {
+    if (fetching || pulling || pushing || loading) {
+      setBranchMenuOpen(false);
+    }
+  }, [fetching, pulling, pushing, loading]);
 
   const changeCount = useMemo(() => {
     return status?.entries.length ?? 0;
@@ -161,28 +209,26 @@ export function RepoToolbar({
     return !isLocalBranchPublished(current, branches);
   }, [branches, localBranches, status?.branch, status?.detached, status?.upstream]);
   const syncBusy = fetching || pulling || pushing || loading;
+  /** 推送/拉取等同步中只禁用分支切换，勿用 Spinner 冒充加载 */
+  const branchSwitchLocked = checkingOut || syncBusy;
 
   const branchLabel = status?.detached
     ? t("repo.detached")
     : (status?.branch ?? t("repo.currentBranch"));
 
-  const sortedProjects = useMemo(() => {
-    return [...projects].sort((a, b) => {
-      const aTime = a.lastOpenedAt ?? a.updatedAt;
-      const bTime = b.lastOpenedAt ?? b.updatedAt;
-      return bTime.localeCompare(aTime);
-    });
-  }, [projects]);
-
-  const filteredProjects = useMemo(() => {
-    const query = projectFilter.trim().toLowerCase();
-    if (!query) {
-      return sortedProjects;
-    }
-    return sortedProjects.filter(
-      (item) => item.name.toLowerCase().includes(query) || item.path.toLowerCase().includes(query),
-    );
-  }, [sortedProjects, projectFilter]);
+  const sortedProjects = useMemo(() => sortProjectsForQuickSwitcher(projects), [projects]);
+  const workspaceById = useMemo(
+    () => new Map(workspaces.map((workspace) => [workspace.id, workspace] as const)),
+    [workspaces],
+  );
+  const workspaceNameById = useMemo(
+    () => new Map(workspaces.map((workspace) => [workspace.id, workspace.name] as const)),
+    [workspaces],
+  );
+  const filteredProjects = useMemo(
+    () => filterProjectsForQuickSwitcher(sortedProjects, projectFilter, workspaceNameById),
+    [projectFilter, sortedProjects, workspaceNameById],
+  );
 
   function handleSelectProject(next: Project): void {
     if (next.id === project.id) {
@@ -389,10 +435,38 @@ export function RepoToolbar({
     { id: "history", label: t("repo.viewHistory"), icon: Clock3 },
   ];
 
+  const branchSwitchButton = (
+    <Button
+      type="button"
+      variant="ghost"
+      className={cn(
+        "border-border h-8 shrink-0 justify-start border shadow-none",
+        // 收紧时仍留窄文案槽，避免只剩图标看不出当前分支
+        iconOnly ? "w-[6.5rem] gap-1 px-2" : "w-40 gap-1.5 px-2.5",
+      )}
+      style={noDragStyle}
+      data-repo-git-control="branch-switch"
+      disabled={branchSwitchLocked}
+      aria-busy={checkingOut}
+      aria-label={`${t("repo.branchLabel")}: ${branchLabel}`}
+      title={branchLabel}
+    >
+      {checkingOut ? (
+        <Spinner className="size-3.5 shrink-0" />
+      ) : (
+        <GitBranchIcon className="size-3.5 shrink-0" aria-hidden="true" />
+      )}
+      <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">{branchLabel}</span>
+      <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+    </Button>
+  );
+
   return (
     <div
+      ref={toolbarRef}
       {...dragProps}
       className="border-border bg-background flex h-11 shrink-0 items-center gap-2 border-b px-2"
+      data-repo-toolbar-density={density}
       data-repo-toolbar-loading-shell={loadingShell || undefined}
     >
       {/* 仓库切换 */}
@@ -407,9 +481,10 @@ export function RepoToolbar({
           <Button
             type="button"
             variant="ghost"
-            className="h-8 w-44 shrink-0 justify-start gap-1.5 px-2"
+            className={cn("h-8 shrink-0 justify-start gap-1.5 px-2", iconOnly ? "w-28" : "w-44")}
             style={noDragStyle}
             aria-label={t("repo.switchProject")}
+            title={project.name}
           >
             <ProjectIcon name={project.icon} className="size-3.5 shrink-0" />
             <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">
@@ -418,8 +493,8 @@ export function RepoToolbar({
             <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-72 overflow-hidden p-0">
-          {/* 间距对齐历史「用户」筛选 / 分支下拉 */}
+        <DropdownMenuContent align="start" className="w-80 overflow-hidden p-0">
+          {/* 间距对齐历史「用户」筛选 / 分支下拉；行样式对齐全局仓库搜索 */}
           <div className="border-border border-b p-1.5">
             <div className="relative">
               <Search
@@ -441,7 +516,7 @@ export function RepoToolbar({
           </div>
           <DropdownMenuScrollArea
             itemCount={filteredProjects.length}
-            itemHeight={52}
+            itemHeight={56}
             maxHeight={288}
             availableHeightOffset={41}
           >
@@ -451,28 +526,61 @@ export function RepoToolbar({
                   {t("repo.switchProjectNoMatch")}
                 </p>
               ) : (
-                filteredProjects.map((item) => (
-                  <DropdownMenuItem
-                    key={item.id}
-                    className="flex w-full max-w-full min-w-0 flex-col items-start gap-0.5 overflow-hidden py-2"
-                    onSelect={() => {
-                      handleSelectProject(item);
-                    }}
-                  >
-                    <div className="flex w-full max-w-full min-w-0 items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
-                      {item.id === project.id ? (
-                        <Check className="size-3.5 shrink-0" aria-hidden="true" />
-                      ) : null}
-                    </div>
-                    <span
-                      className="text-muted-foreground block w-full max-w-full min-w-0 truncate text-xs"
-                      title={item.path}
+                filteredProjects.map((item) => {
+                  const workspace = item.workspaceId
+                    ? workspaceById.get(item.workspaceId)
+                    : undefined;
+                  return (
+                    <DropdownMenuItem
+                      key={item.id}
+                      className="flex w-full max-w-full min-w-0 items-start gap-2.5 overflow-hidden px-2 py-2"
+                      onSelect={() => {
+                        handleSelectProject(item);
+                      }}
                     >
-                      {item.path}
-                    </span>
-                  </DropdownMenuItem>
-                ))
+                      <ProjectIcon
+                        name={item.icon}
+                        className="mt-0.5 size-3.5 shrink-0 self-start"
+                      />
+                      <span className="flex min-w-0 flex-1 flex-col items-stretch gap-0.5 overflow-hidden text-left">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <HighlightText
+                            text={item.name}
+                            query={projectFilter}
+                            className="min-w-0 truncate text-sm font-medium"
+                          />
+                          {workspace ? (
+                            <Badge
+                              variant="secondary"
+                              className="h-4 max-w-28 shrink-0 gap-1 border-transparent px-1.5 text-[10px] font-medium"
+                              style={{
+                                backgroundColor: workspaceColorTint(workspace.color),
+                                color: normalizeWorkspaceColor(workspace.color),
+                              }}
+                              title={workspace.name}
+                            >
+                              <LucideDynamicIcon
+                                name={workspace.icon}
+                                fallbackName="folder"
+                                className="!size-2.5 shrink-0 text-current"
+                              />
+                              <span className="truncate">{workspace.name}</span>
+                            </Badge>
+                          ) : null}
+                          {item.id === project.id ? (
+                            <Check className="ml-auto size-3.5 shrink-0" aria-hidden="true" />
+                          ) : null}
+                        </span>
+                        <HighlightText
+                          text={item.path}
+                          query={projectFilter}
+                          title={item.path}
+                          className="text-muted-foreground block w-full truncate text-xs"
+                        />
+                      </span>
+                    </DropdownMenuItem>
+                  );
+                })
               )}
             </div>
           </DropdownMenuScrollArea>
@@ -492,16 +600,17 @@ export function RepoToolbar({
           const Icon = item.icon;
           const isActive = mainView === item.id;
 
-          return (
+          const button = (
             <Button
-              key={item.id}
               type="button"
               role="tab"
               aria-selected={isActive}
+              aria-label={item.label}
               variant="ghost"
               size="sm"
               className={cn(
-                "h-8 gap-1.5 transition-colors",
+                "h-8 transition-colors",
+                iconOnly ? "gap-1 px-2" : "gap-1.5",
                 isActive
                   ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
                   : "text-muted-foreground",
@@ -509,7 +618,7 @@ export function RepoToolbar({
               onClick={() => onMainViewChange(item.id)}
             >
               <Icon className="size-3.5" aria-hidden="true" />
-              <span>{item.label}</span>
+              {iconOnly ? null : <span>{item.label}</span>}
               {item.badge != null ? (
                 <span className="bg-primary text-primary-foreground ml-0.5 inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-4 font-semibold">
                   {item.badge > 99 ? "99+" : item.badge}
@@ -517,36 +626,44 @@ export function RepoToolbar({
               ) : null}
             </Button>
           );
+
+          if (!iconOnly) {
+            return <Fragment key={item.id}>{button}</Fragment>;
+          }
+
+          return (
+            <Tooltip key={item.id} delayDuration={300}>
+              <TooltipTrigger asChild>{button}</TooltipTrigger>
+              <TooltipContent>{item.label}</TooltipContent>
+            </Tooltip>
+          );
         })}
       </div>
 
       <div className="bg-border h-6 w-px shrink-0" aria-hidden="true" />
 
-      {/* 分支：固定宽度 + truncate，避免短/长分支名切换时工具栏抖动 */}
-      <DropdownMenu open={branchMenuOpen} onOpenChange={setBranchMenuOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            className="border-border h-8 w-40 shrink-0 justify-start gap-1.5 border px-2.5 shadow-none"
-            style={noDragStyle}
-            data-repo-git-control="branch-switch"
-            disabled={checkingOut || loading}
-            aria-busy={checkingOut || loading}
-            aria-label={t("repo.branchLabel")}
-            title={branchLabel}
-          >
-            {checkingOut || loading ? (
-              <Spinner className="size-3.5 shrink-0" />
-            ) : (
-              <GitBranchIcon className="size-3.5 shrink-0" aria-hidden="true" />
-            )}
-            <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">
-              {branchLabel}
-            </span>
-            <ChevronDown className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
-          </Button>
-        </DropdownMenuTrigger>
+      {/* 分支：宽档 w-40；收紧时窄槽仍 truncate 露出名称，全文 Tooltip */}
+      <DropdownMenu
+        open={branchMenuOpen}
+        onOpenChange={(open) => {
+          if (open && branchSwitchLocked) {
+            return;
+          }
+          setBranchMenuOpen(open);
+        }}
+      >
+        {iconOnly ? (
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <DropdownMenuTrigger asChild>{branchSwitchButton}</DropdownMenuTrigger>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{branchLabel}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <DropdownMenuTrigger asChild>{branchSwitchButton}</DropdownMenuTrigger>
+        )}
         <DropdownMenuContent
           align="start"
           // 禁止 Content 原生滚动，滚动交给内部 ScrollArea；p-0 对齐历史用户筛选
@@ -571,9 +688,10 @@ export function RepoToolbar({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-8"
+              className={cn("h-8", iconOnly ? "px-2" : "gap-1.5")}
               data-repo-git-control="fetch"
               disabled={syncBusy}
+              aria-label={t("repo.checkUpdate")}
               onClick={() => void handleCheckUpdate()}
             >
               {fetching ? (
@@ -581,7 +699,7 @@ export function RepoToolbar({
               ) : (
                 <RotateCw className="size-3.5" aria-hidden="true" />
               )}
-              <span>{t("repo.checkUpdate")}</span>
+              {iconOnly ? null : <span>{t("repo.checkUpdate")}</span>}
             </Button>
           </TooltipTrigger>
           <TooltipContent>{t("repo.checkUpdate")}</TooltipContent>
@@ -594,9 +712,10 @@ export function RepoToolbar({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="relative h-8 gap-1.5"
+                className={cn("relative h-8", iconOnly ? "gap-1 px-2" : "gap-1.5")}
                 data-repo-git-control="pull"
                 disabled={syncBusy || needsPublish}
+                aria-label={t("repo.pull")}
                 onClick={() => void handlePull()}
               >
                 {pulling ? (
@@ -604,7 +723,7 @@ export function RepoToolbar({
                 ) : (
                   <ArrowDownToLine className="size-3.5" aria-hidden="true" />
                 )}
-                <span>{t("repo.pull")}</span>
+                {iconOnly ? null : <span>{t("repo.pull")}</span>}
                 {behind > 0 ? (
                   <span
                     className="bg-primary text-primary-foreground ml-0.5 inline-flex size-4 items-center justify-center rounded-full text-[10px] leading-none font-semibold"
@@ -636,9 +755,10 @@ export function RepoToolbar({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="relative h-8 gap-1.5"
+                      className={cn("relative h-8", iconOnly ? "gap-1 px-2" : "gap-1.5")}
                       data-repo-git-control="push"
                       disabled={syncBusy || ahead <= 0}
+                      aria-label={t("repo.push")}
                       onClick={() => void handlePush()}
                     >
                       {pushing ? (
@@ -646,7 +766,7 @@ export function RepoToolbar({
                       ) : (
                         <ArrowUpFromLine className="size-3.5" aria-hidden="true" />
                       )}
-                      <span>{t("repo.push")}</span>
+                      {iconOnly ? null : <span>{t("repo.push")}</span>}
                       {ahead > 0 ? (
                         <span
                           className="bg-primary text-primary-foreground ml-0.5 inline-flex size-4 items-center justify-center rounded-full text-[10px] leading-none font-semibold"
@@ -679,8 +799,9 @@ export function RepoToolbar({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="relative h-8 gap-1.5"
+                className={cn("relative h-8", iconOnly ? "px-2" : "gap-1.5")}
                 disabled={syncBusy}
+                aria-label={t("repo.publishBranch")}
                 onClick={() => void handlePublish()}
               >
                 {pushing ? (
@@ -688,7 +809,7 @@ export function RepoToolbar({
                 ) : (
                   <CloudUpload className="size-3.5" aria-hidden="true" />
                 )}
-                <span>{t("repo.publishBranch")}</span>
+                {iconOnly ? null : <span>{t("repo.publishBranch")}</span>}
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t("repo.publishBranchHint")}</TooltipContent>
@@ -696,71 +817,115 @@ export function RepoToolbar({
         ) : null}
       </div>
 
-      {/* 右侧：分支比较 + 外部打开 */}
+      {/* 右侧：分支比较 + 外部打开；minimal 时收进 ⋯ */}
       <div className="ml-auto flex shrink-0 items-center gap-0.5" style={noDragStyle}>
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              aria-label={t("repo.openInEditor")}
-              onClick={() => void handleOpenInEditor()}
-            >
-              <FileCode2 className="size-3.5" aria-hidden="true" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{t("repo.openInEditor")}</TooltipContent>
-        </Tooltip>
+        {collapseSideTools ? (
+          <DropdownMenu>
+            {/* Tooltip 包在 span 上，避免悬停时焦点环贴在按钮上像「描边」 */}
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      aria-label={t("repo.moreTools")}
+                    >
+                      <MoreHorizontal className="size-3.5" aria-hidden="true" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{t("repo.moreTools")}</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="min-w-44">
+              <DropdownMenuItem onSelect={() => void handleOpenInEditor()}>
+                <FileCode2 className="size-3.5" aria-hidden="true" />
+                {t("repo.openInEditor")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={handleOpenBranchCompare}>
+                <GitCompareArrows className="size-3.5" aria-hidden="true" />
+                {t("repo.openBranchCompare")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void handleRevealInFinder()}>
+                <Folder className="size-3.5" aria-hidden="true" />
+                {revealInFileManagerLabel}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void handleOpenInTerminal()}>
+                <Terminal className="size-3.5" aria-hidden="true" />
+                {t("repo.openInTerminal")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  aria-label={t("repo.openInEditor")}
+                  onClick={() => void handleOpenInEditor()}
+                >
+                  <FileCode2 className="size-3.5" aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("repo.openInEditor")}</TooltipContent>
+            </Tooltip>
 
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              aria-label={t("repo.openBranchCompare")}
-              onClick={handleOpenBranchCompare}
-            >
-              <GitCompareArrows className="size-3.5" aria-hidden="true" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{t("repo.openBranchCompare")}</TooltipContent>
-        </Tooltip>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  aria-label={t("repo.openBranchCompare")}
+                  onClick={handleOpenBranchCompare}
+                >
+                  <GitCompareArrows className="size-3.5" aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("repo.openBranchCompare")}</TooltipContent>
+            </Tooltip>
 
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              aria-label={revealInFileManagerLabel}
-              onClick={() => void handleRevealInFinder()}
-            >
-              <Folder className="size-3.5" aria-hidden="true" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{revealInFileManagerLabel}</TooltipContent>
-        </Tooltip>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  aria-label={revealInFileManagerLabel}
+                  onClick={() => void handleRevealInFinder()}
+                >
+                  <Folder className="size-3.5" aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{revealInFileManagerLabel}</TooltipContent>
+            </Tooltip>
 
-        <Tooltip delayDuration={300}>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              aria-label={t("repo.openInTerminal")}
-              onClick={() => void handleOpenInTerminal()}
-            >
-              <Terminal className="size-3.5" aria-hidden="true" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{t("repo.openInTerminal")}</TooltipContent>
-        </Tooltip>
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  aria-label={t("repo.openInTerminal")}
+                  onClick={() => void handleOpenInTerminal()}
+                >
+                  <Terminal className="size-3.5" aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("repo.openInTerminal")}</TooltipContent>
+            </Tooltip>
+          </>
+        )}
       </div>
 
       {conflictGuardDialog}

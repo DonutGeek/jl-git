@@ -25,6 +25,7 @@ import {
 } from "@/components/git/ChangesPanelChrome";
 import { DiffLineStats } from "@/components/git/DiffLineStats";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
+import { RepoLoadingIndicator } from "@/components/layout/RepoLoadingIndicator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -260,6 +261,7 @@ interface ChangeRowProps {
   indentDepth?: number;
   /** 显示增加 / 减少行数 */
   showLineStats?: boolean;
+  highlightQuery?: string;
 }
 
 function ChangeRow({
@@ -273,6 +275,7 @@ function ChangeRow({
   indented = false,
   indentDepth,
   showLineStats = false,
+  highlightQuery = "",
 }: ChangeRowProps) {
   const { t } = useTranslation();
   const label = entryLabel(entry, side);
@@ -312,7 +315,8 @@ function ChangeRow({
       tabIndex={0}
       className={cn(
         "group flex h-7 w-full min-w-0 cursor-pointer items-center gap-1 rounded-md px-2 transition-colors",
-        selected ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
+        // 选中用 ! 压过右键悬停高亮，避免右键当前行时被 /60 盖掉
+        selected ? "!bg-accent text-accent-foreground" : "hover:bg-accent/60",
       )}
       style={indentDepth == null ? undefined : { paddingLeft: `${8 + indentDepth * 14}px` }}
       onClick={() => onSelect(entry.path, side)}
@@ -354,7 +358,12 @@ function ChangeRow({
         <TriangleAlert className="text-destructive size-3.5 shrink-0" aria-hidden="true" />
       ) : null}
       <MaterialFileIcon name={entry.path} isDir={false} className="size-3.5 shrink-0" />
-      <TruncateStartPath className="min-w-0 flex-1" path={displayPath} title={fullPath} />
+      <TruncateStartPath
+        className="min-w-0 flex-1"
+        path={displayPath}
+        title={fullPath}
+        highlightQuery={highlightQuery}
+      />
 
       <div className="ml-auto flex shrink-0 items-center gap-0.5 pr-0.5">
         {showLineStats ? (
@@ -415,13 +424,7 @@ function ChangeRow({
   }
 
   return (
-    <ChangeFileContextMenu
-      entry={entry}
-      side={side}
-      repoPath={repoPath}
-      disabled={disabled}
-      onMenuOpen={() => onSelect(entry.path, side)}
-    >
+    <ChangeFileContextMenu entry={entry} side={side} repoPath={repoPath} disabled={disabled}>
       {row}
     </ChangeFileContextMenu>
   );
@@ -455,6 +458,7 @@ interface ChangeGroupProps {
   expandedTreePaths: ReadonlySet<string>;
   onToggleTreeFolder: (key: string) => void;
   showLineStats?: boolean;
+  highlightQuery?: string;
 }
 
 function changeRowKey(row: ChangeVisibleRow, index: number): string {
@@ -500,6 +504,7 @@ function ChangeGroup({
   expandedTreePaths,
   onToggleTreeFolder,
   showLineStats = false,
+  highlightQuery = "",
 }: ChangeGroupProps) {
   const isEmpty = entries.length === 0;
   const { viewport, bindScrollArea } = useScrollAreaViewport();
@@ -597,6 +602,7 @@ function ChangeGroup({
           open={row.open}
           depth={row.kind === "directory" ? row.depth : undefined}
           onToggle={() => onToggleTreeFolder(row.key)}
+          highlightQuery={highlightQuery}
         />
       );
     }
@@ -613,6 +619,7 @@ function ChangeGroup({
         indented={view === "list" && (groupByStatus || groupByDate)}
         indentDepth={view === "tree" && "depth" in row ? row.depth : undefined}
         showLineStats={showLineStats}
+        highlightQuery={highlightQuery}
       />
     );
   }
@@ -723,6 +730,8 @@ export function ChangesPanel() {
     [activeSearchQuery, demotedSet, entries, sortMode],
   );
   const busy = loading || mutating;
+  /** 首屏/切仓 status 尚未回来：两分区内小加载，避免整块空白或整区 Spinner */
+  const showGroupLoading = loading && entries.length === 0;
   const unstagedTree = useMemo(() => buildChangeTree(unstagedEntries), [unstagedEntries]);
   const stagedTree = useMemo(() => buildChangeTree(stagedEntries), [stagedEntries]);
   const treeFolderKeys = useMemo(
@@ -880,40 +889,45 @@ export function ChangesPanel() {
           onAction={() => void handleStageAll()}
           actionDisabled={busy || unstagedEntries.length === 0}
         >
-          <ChangeGroup
-            ariaLabel={t("repo.changesCount", { count: unstagedEntries.length })}
-            groupByStatus={listGroupByStatus}
-            collapsedStatusCategories={collapsedStatusCategories}
-            onToggleStatusCategory={toggleStatusCategory}
-            statusCategoryLabel={statusCategoryLabel}
-            groupByDate={listGroupByDate}
-            collapsedDateKeys={collapsedDateKeys}
-            onToggleDateKey={toggleDateKey}
-            dateGroupLabel={dateGroupLabel}
-            entries={unstagedEntries}
-            changeTree={unstagedTree}
-            rootName={rootName}
-            side="worktree"
-            selectedPath={unstagedSelectedPath}
-            onSelectEntry={(path, side) => {
-              // 再次点击当前项则取消选中
-              if (selectedChange?.path === path && selectedChange.side === side) {
-                selectChange(null);
-                return;
-              }
-              selectChange({ path, side });
-            }}
-            onToggleEntry={(path) => void handleStage(path)}
-            disabled={busy}
-            toggleLabelFor={(path) => t("repo.stageFile", { path })}
-            emptyIcon={<FileDiff />}
-            emptyTitle={t("repo.changesEmpty")}
-            emptyDescription={t("repo.changesEmptyHint")}
-            view={view}
-            expandedTreePaths={expandedTreePaths}
-            onToggleTreeFolder={toggleTreeFolder}
-            showLineStats={showLineStats}
-          />
+          {showGroupLoading ? (
+            <RepoLoadingIndicator area="unstaged" label={t("common.loading")} />
+          ) : (
+            <ChangeGroup
+              ariaLabel={t("repo.changesCount", { count: unstagedEntries.length })}
+              groupByStatus={listGroupByStatus}
+              collapsedStatusCategories={collapsedStatusCategories}
+              onToggleStatusCategory={toggleStatusCategory}
+              statusCategoryLabel={statusCategoryLabel}
+              groupByDate={listGroupByDate}
+              collapsedDateKeys={collapsedDateKeys}
+              onToggleDateKey={toggleDateKey}
+              dateGroupLabel={dateGroupLabel}
+              entries={unstagedEntries}
+              changeTree={unstagedTree}
+              rootName={rootName}
+              side="worktree"
+              selectedPath={unstagedSelectedPath}
+              onSelectEntry={(path, side) => {
+                // 再次点击当前项则取消选中
+                if (selectedChange?.path === path && selectedChange.side === side) {
+                  selectChange(null);
+                  return;
+                }
+                selectChange({ path, side });
+              }}
+              onToggleEntry={(path) => void handleStage(path)}
+              disabled={busy}
+              toggleLabelFor={(path) => t("repo.stageFile", { path })}
+              emptyIcon={<FileDiff />}
+              emptyTitle={t("repo.changesEmpty")}
+              emptyDescription={t("repo.changesEmptyHint")}
+              view={view}
+              expandedTreePaths={expandedTreePaths}
+              onToggleTreeFolder={toggleTreeFolder}
+              showLineStats={showLineStats}
+              highlightQuery={activeSearchQuery}
+            />
+          )}
         </ChangeGroupChrome>
       }
       staged={
@@ -940,39 +954,44 @@ export function ChangesPanel() {
             stagedEntries.every((entry) => isConflictEntry(entry))
           }
         >
-          <ChangeGroup
-            ariaLabel={t("repo.stagedCount", { count: stagedEntries.length })}
-            groupByStatus={listGroupByStatus}
-            collapsedStatusCategories={collapsedStatusCategories}
-            onToggleStatusCategory={toggleStatusCategory}
-            statusCategoryLabel={statusCategoryLabel}
-            groupByDate={listGroupByDate}
-            collapsedDateKeys={collapsedDateKeys}
-            onToggleDateKey={toggleDateKey}
-            dateGroupLabel={dateGroupLabel}
-            entries={stagedEntries}
-            changeTree={stagedTree}
-            rootName={rootName}
-            side="index"
-            selectedPath={stagedSelectedPath}
-            onSelectEntry={(path, side) => {
-              if (selectedChange?.path === path && selectedChange.side === side) {
-                selectChange(null);
-                return;
-              }
-              selectChange({ path, side });
-            }}
-            onToggleEntry={(path) => void handleUnstage(path)}
-            disabled={busy}
-            toggleLabelFor={(path) => t("repo.unstageFile", { path })}
-            emptyIcon={<Inbox />}
-            emptyTitle={t("repo.stagedEmpty")}
-            emptyDescription={t("repo.stagedEmptyHint")}
-            view={view}
-            expandedTreePaths={expandedTreePaths}
-            onToggleTreeFolder={toggleTreeFolder}
-            showLineStats={showLineStats}
-          />
+          {showGroupLoading ? (
+            <RepoLoadingIndicator area="staged" label={t("common.loading")} />
+          ) : (
+            <ChangeGroup
+              ariaLabel={t("repo.stagedCount", { count: stagedEntries.length })}
+              groupByStatus={listGroupByStatus}
+              collapsedStatusCategories={collapsedStatusCategories}
+              onToggleStatusCategory={toggleStatusCategory}
+              statusCategoryLabel={statusCategoryLabel}
+              groupByDate={listGroupByDate}
+              collapsedDateKeys={collapsedDateKeys}
+              onToggleDateKey={toggleDateKey}
+              dateGroupLabel={dateGroupLabel}
+              entries={stagedEntries}
+              changeTree={stagedTree}
+              rootName={rootName}
+              side="index"
+              selectedPath={stagedSelectedPath}
+              onSelectEntry={(path, side) => {
+                if (selectedChange?.path === path && selectedChange.side === side) {
+                  selectChange(null);
+                  return;
+                }
+                selectChange({ path, side });
+              }}
+              onToggleEntry={(path) => void handleUnstage(path)}
+              disabled={busy}
+              toggleLabelFor={(path) => t("repo.unstageFile", { path })}
+              emptyIcon={<Inbox />}
+              emptyTitle={t("repo.stagedEmpty")}
+              emptyDescription={t("repo.stagedEmptyHint")}
+              view={view}
+              expandedTreePaths={expandedTreePaths}
+              onToggleTreeFolder={toggleTreeFolder}
+              showLineStats={showLineStats}
+              highlightQuery={activeSearchQuery}
+            />
+          )}
         </ChangeGroupChrome>
       }
     />

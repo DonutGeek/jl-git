@@ -4,15 +4,17 @@ import { Folder } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { SelectMenu } from "@/components/common/SelectMenu";
 import { TreeSelect } from "@/components/common/TreeSelect";
+import { LucideIconPicker } from "@/components/common/LucideIconPicker";
+import { AppDialogContent } from "@/components/common/AppDialogContent";
+import { lucideIconPickerI18n } from "@/components/project/lucideIconPickerI18n";
 import {
-  WORKSPACE_ICON_OPTIONS,
-  workspaceIconComponent,
-} from "@/components/project/workspaceGroupAppearance";
+  mapWorkspaceTreeToSelectNodes,
+  WorkspaceGroupLabel,
+} from "@/components/project/WorkspaceGroupLeading";
+import { DEFAULT_WORKSPACE_ICON } from "@/components/project/workspaceGroupAppearance";
 import { SettingsColorSwatch } from "@/components/settings/SettingsColorSwatch";
 import { Button } from "@/components/ui/button";
-import { AppDialogContent } from "@/components/common/AppDialogContent";
 import {
   Dialog,
   DialogDescription,
@@ -28,9 +30,13 @@ import type { Workspace, WorkspaceColor, WorkspaceIcon } from "@/types/project";
 import {
   buildWorkspaceTree,
   collectWorkspaceSubtreeIds,
-  findWorkspaceTreeLabel,
+  findWorkspaceTreeNode,
 } from "@/utils/workspaceOptions";
-import { DEFAULT_WORKSPACE_COLOR, normalizeWorkspaceColor } from "@/utils/workspaceColor";
+import {
+  DEFAULT_WORKSPACE_COLOR,
+  normalizeWorkspaceColor,
+  WORKSPACE_COLOR_PRESETS,
+} from "@/utils/workspaceColor";
 
 interface WorkspaceGroupDialogCreateProps {
   open: boolean;
@@ -62,7 +68,7 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
 
   const [name, setName] = useState("");
   const [parentId, setParentId] = useState("");
-  const [icon, setIcon] = useState<WorkspaceIcon>("code");
+  const [icon, setIcon] = useState<WorkspaceIcon>(DEFAULT_WORKSPACE_ICON);
   const [color, setColor] = useState<WorkspaceColor>(DEFAULT_WORKSPACE_COLOR);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,19 +83,23 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
     return collectWorkspaceSubtreeIds(workspaces, editWorkspace.id);
   }, [editWorkspace, workspaces]);
 
-  const parentTree = useMemo(
+  const parentWorkspaceTree = useMemo(
     () => buildWorkspaceTree(workspaces, parentExcludeIds),
     [parentExcludeIds, workspaces],
   );
 
-  const parentLabel = useMemo(() => {
-    if (!parentId) {
-      return t("projectManager.rootGroup");
-    }
-    return findWorkspaceTreeLabel(parentTree, parentId) ?? parentId;
-  }, [parentId, parentTree, t]);
+  const parentTree = useMemo(
+    () => mapWorkspaceTreeToSelectNodes(parentWorkspaceTree),
+    [parentWorkspaceTree],
+  );
 
-  const folderIcon = <Folder className="size-4 shrink-0" aria-hidden="true" />;
+  const parentNode = useMemo(
+    () => (parentId ? findWorkspaceTreeNode(parentWorkspaceTree, parentId) : null),
+    [parentId, parentWorkspaceTree],
+  );
+
+  const parentLabel = parentNode?.label ?? (parentId ? parentId : t("projectManager.rootGroup"));
+  const rootLeading = <Folder className="size-4 shrink-0" aria-hidden="true" />;
 
   useEffect(() => {
     if (!open) {
@@ -106,11 +116,10 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
     }
     setName("");
     setParentId(createParentId ?? "");
-    setIcon("code");
+    setIcon(DEFAULT_WORKSPACE_ICON);
     setColor(DEFAULT_WORKSPACE_COLOR);
   }, [open, mode, editWorkspace, createParentId]);
 
-  const Icon = workspaceIconComponent(icon);
   const parentName = parentId ? workspaces.find((item) => item.id === parentId)?.name : null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -198,18 +207,24 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
                 nodes={parentTree}
                 ariaLabel={t("projectManager.parentGroup")}
                 disabled={saving || Boolean(editWorkspace?.locked)}
-                triggerIcon={folderIcon}
-                nodeIcon={folderIcon}
                 emptyOption={{
                   value: "",
                   label: t("projectManager.rootGroup"),
-                  icon: folderIcon,
+                  icon: rootLeading,
                 }}
                 displayLabel={
-                  <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                    {folderIcon}
-                    <span className="min-w-0 flex-1 truncate">{parentLabel}</span>
-                  </span>
+                  parentNode ? (
+                    <WorkspaceGroupLabel
+                      name={parentNode.label}
+                      icon={parentNode.icon}
+                      color={parentNode.color}
+                    />
+                  ) : (
+                    <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                      {rootLeading}
+                      <span className="min-w-0 flex-1 truncate">{parentLabel}</span>
+                    </span>
+                  )
                 }
               />
             </Field>
@@ -217,22 +232,11 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
             <div className="grid grid-cols-2 gap-3">
               <Field>
                 <FieldLabel>{t("projectManager.groupIcon")}</FieldLabel>
-                <SelectMenu
+                <LucideIconPicker
                   value={icon}
+                  onValueChange={setIcon}
                   disabled={saving}
-                  displayLabel={
-                    <span className="flex items-center gap-2">
-                      <Icon className="size-4" aria-hidden="true" />
-                      {t(`projectManager.icon${icon[0].toUpperCase()}${icon.slice(1)}`)}
-                    </span>
-                  }
-                  options={WORKSPACE_ICON_OPTIONS.map((option) => ({
-                    value: option.value,
-                    label: t(option.labelKey),
-                    preview: <option.Icon className="size-4" />,
-                  }))}
-                  onChange={(next) => setIcon(next as WorkspaceIcon)}
-                  ariaLabel={t("projectManager.groupIcon")}
+                  {...lucideIconPickerI18n(t, { ariaLabel: t("projectManager.groupIcon") })}
                 />
               </Field>
               <Field>
@@ -243,6 +247,9 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
                   presetValue={DEFAULT_WORKSPACE_COLOR}
                   solid
                   showPresets={false}
+                  suggestions={WORKSPACE_COLOR_PRESETS}
+                  suggestionsLabel={t("projectManager.groupColorPresets")}
+                  size="default"
                   className="w-full max-w-none"
                   disabled={saving}
                   onChange={(next) => setColor(normalizeWorkspaceColor(next))}

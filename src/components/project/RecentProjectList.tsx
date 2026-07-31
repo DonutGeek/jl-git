@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Search } from "lucide-react";
 
+import { HighlightText } from "@/components/common/HighlightText";
 import { ProjectContextMenu } from "@/components/project/ProjectContextMenu";
 import { ProjectIcon } from "@/components/project/ProjectIcon";
 import { RemoteRepositoryLabel } from "@/components/project/RemoteRepositoryLabel";
@@ -198,7 +199,11 @@ export function RecentProjectList({ onOpenProject }: RecentProjectListProps) {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex min-w-0 items-center gap-2">
-                          <span className="truncate text-sm font-medium">{project.name}</span>
+                          <HighlightText
+                            text={project.name}
+                            query={filter}
+                            className="truncate text-sm font-medium"
+                          />
                           {hoveredId === project.id && remote ? (
                             <RemoteRepositoryLabel
                               remote={remote}
@@ -206,9 +211,12 @@ export function RecentProjectList({ onOpenProject }: RecentProjectListProps) {
                             />
                           ) : null}
                         </span>
-                        <span className="text-muted-foreground mt-0.5 block truncate text-xs">
-                          {project.path}
-                        </span>
+                        <HighlightText
+                          text={project.path}
+                          query={filter}
+                          title={project.path}
+                          className="text-muted-foreground mt-0.5 block truncate text-xs"
+                        />
                       </span>
                     </button>
                   </ProjectContextMenu>

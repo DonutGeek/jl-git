@@ -5,10 +5,12 @@ import { FolderOpen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
-import { ProjectIconPicker } from "@/components/project/ProjectIconPicker";
-import { Button } from "@/components/ui/button";
+import { LucideIconPicker } from "@/components/common/LucideIconPicker";
 import { AppDialogContent } from "@/components/common/AppDialogContent";
+import { lucideIconPickerI18n } from "@/components/project/lucideIconPickerI18n";
+import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
+import { ExistingProjectDialog } from "@/components/project/ProjectUniquenessDialogs";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogDescription,
@@ -24,7 +26,7 @@ import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { useProjectStore } from "@/store/useProjectStore";
 
 import { toUserMessage } from "@/types/error";
-import { DEFAULT_PROJECT_ICON, type ProjectIcon } from "@/types/project";
+import { DEFAULT_PROJECT_ICON, type Project, type ProjectIcon } from "@/types/project";
 
 interface OpenRepoDialogProps {
   open: boolean;
@@ -50,6 +52,7 @@ export function OpenRepoDialog({
   const navigate = useNavigate();
   const addAndOpen = useProjectStore((state) => state.addAndOpen);
   const addProject = useProjectStore((state) => state.addProject);
+  const openExisting = useProjectStore((state) => state.openExisting);
   const openRepositoryTab = useOpenTabsStore((state) => state.openRepositoryTab);
   const replaceNewTabWithRepository = useOpenTabsStore(
     (state) => state.replaceNewTabWithRepository,
@@ -62,6 +65,7 @@ export function OpenRepoDialog({
   const [icon, setIcon] = useState<ProjectIcon>(DEFAULT_PROJECT_ICON);
   const [loading, setLoading] = useState(false);
   const [picking, setPicking] = useState(false);
+  const [existingProject, setExistingProject] = useState<Project | null>(null);
 
   const trimmedPath = path.trim();
   const canSubmit = !loading && !descriptionGenerating && trimmedPath.length > 0;
@@ -74,6 +78,28 @@ export function OpenRepoDialog({
     setIcon(DEFAULT_PROJECT_ICON);
     setLoading(false);
     setPicking(false);
+    setExistingProject(null);
+  }
+
+  async function openExistingProject(project: Project): Promise<void> {
+    if (registerOnly) {
+      handleOpenChange(false);
+      onRegistered?.(project.id);
+      return;
+    }
+
+    try {
+      await openExisting(project.id);
+      if (replaceNewTabId) {
+        replaceNewTabWithRepository(replaceNewTabId, project.id);
+      } else {
+        openRepositoryTab(project.id);
+      }
+      handleOpenChange(false);
+      navigate(`/repo/${project.id}`);
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    }
   }
 
   function handleOpenChange(nextOpen: boolean): void {
@@ -113,31 +139,41 @@ export function OpenRepoDialog({
 
     try {
       if (registerOnly) {
-        const project = await addProject({
+        const result = await addProject({
           path: trimmedPath,
           name: alias.trim() || undefined,
           description: description.trim() || undefined,
           icon,
         });
+        if (result.alreadyExists) {
+          setExistingProject(result.project);
+          setLoading(false);
+          return;
+        }
         handleOpenChange(false);
-        onRegistered?.(project.id);
-        toast.success(t("projectManager.manageRegisterSuccess", { name: project.name }));
+        onRegistered?.(result.project.id);
+        toast.success(t("projectManager.manageRegisterSuccess", { name: result.project.name }));
         return;
       }
 
-      const project = await addAndOpen({
+      const result = await addAndOpen({
         path: trimmedPath,
         name: alias.trim() || undefined,
         description: description.trim() || undefined,
         icon,
       });
+      if (result.alreadyExists) {
+        setExistingProject(result.project);
+        setLoading(false);
+        return;
+      }
       if (replaceNewTabId) {
-        replaceNewTabWithRepository(replaceNewTabId, project.id);
+        replaceNewTabWithRepository(replaceNewTabId, result.project.id);
       } else {
-        openRepositoryTab(project.id);
+        openRepositoryTab(result.project.id);
       }
       handleOpenChange(false);
-      navigate(`/repo/${project.id}`);
+      navigate(`/repo/${result.project.id}`);
     } catch (submitError) {
       toast.error(toUserMessage(submitError));
       setLoading(false);
@@ -145,82 +181,100 @@ export function OpenRepoDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <AppDialogContent>
-        <DialogHeader>
-          <DialogTitle>{t("openRepo.title")}</DialogTitle>
-          <DialogDescription>{t("openRepo.description")}</DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <AppDialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("openRepo.title")}</DialogTitle>
+            <DialogDescription>{t("openRepo.description")}</DialogDescription>
+          </DialogHeader>
 
-        <form className="space-y-4" onSubmit={(event) => void handleSubmit(event)}>
-          <FieldGroup className="gap-3">
-            <Field>
-              <FieldLabel htmlFor="repo-path">{t("openRepo.pathLabel")}</FieldLabel>
-              <div className="flex gap-2">
+          <form className="space-y-4" onSubmit={(event) => void handleSubmit(event)}>
+            <FieldGroup className="gap-3">
+              <Field>
+                <FieldLabel htmlFor="repo-path">{t("openRepo.pathLabel")}</FieldLabel>
+                <div className="flex gap-2">
+                  <Input
+                    id="repo-path"
+                    value={path}
+                    onChange={(event) => setPath(event.target.value)}
+                    placeholder={t("openRepo.pathPlaceholder")}
+                    autoComplete="off"
+                    disabled={loading || descriptionGenerating}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void handlePickDirectory()}
+                    disabled={loading || picking || descriptionGenerating}
+                  >
+                    <FolderOpen aria-hidden="true" />
+                    {t("openRepo.pickButton")}
+                  </Button>
+                </div>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="repo-alias">{t("openRepo.aliasLabel")}</FieldLabel>
                 <Input
-                  id="repo-path"
-                  value={path}
-                  onChange={(event) => setPath(event.target.value)}
-                  placeholder={t("openRepo.pathPlaceholder")}
+                  id="repo-alias"
+                  value={alias}
+                  onChange={(event) => setAlias(event.target.value)}
+                  placeholder={t("openRepo.aliasPlaceholder")}
                   autoComplete="off"
                   disabled={loading || descriptionGenerating}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => void handlePickDirectory()}
-                  disabled={loading || picking || descriptionGenerating}
-                >
-                  <FolderOpen aria-hidden="true" />
-                  {t("openRepo.pickButton")}
-                </Button>
-              </div>
-            </Field>
+              </Field>
 
-            <Field>
-              <FieldLabel htmlFor="repo-alias">{t("openRepo.aliasLabel")}</FieldLabel>
-              <Input
-                id="repo-alias"
-                value={alias}
-                onChange={(event) => setAlias(event.target.value)}
-                placeholder={t("openRepo.aliasPlaceholder")}
-                autoComplete="off"
-                disabled={loading || descriptionGenerating}
+              <Field>
+                <FieldLabel htmlFor="open-repo-icon">{t("projectManager.projectIcon")}</FieldLabel>
+                <LucideIconPicker
+                  id="open-repo-icon"
+                  value={icon}
+                  onValueChange={setIcon}
+                  disabled={loading || descriptionGenerating}
+                  {...lucideIconPickerI18n(t)}
+                />
+              </Field>
+
+              <ProjectDescriptionField
+                value={description}
+                onChange={setDescription}
+                repoPath={path}
+                disabled={loading}
+                generating={descriptionGenerating}
+                onGeneratingChange={setDescriptionGenerating}
+                fieldId="open-repo-description"
+                compact
               />
-            </Field>
+            </FieldGroup>
 
-            <Field>
-              <FieldLabel htmlFor="open-repo-icon">{t("projectManager.projectIcon")}</FieldLabel>
-              <ProjectIconPicker
-                id="open-repo-icon"
-                value={icon}
-                onValueChange={setIcon}
-                disabled={loading || descriptionGenerating}
-              />
-            </Field>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" disabled={!canSubmit}>
+                {loading ? t("common.loading") : t("openRepo.submitButton")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </AppDialogContent>
+      </Dialog>
 
-            <ProjectDescriptionField
-              value={description}
-              onChange={setDescription}
-              repoPath={path}
-              disabled={loading}
-              generating={descriptionGenerating}
-              onGeneratingChange={setDescriptionGenerating}
-              fieldId="open-repo-description"
-              compact
-            />
-          </FieldGroup>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" disabled={!canSubmit}>
-              {loading ? t("common.loading") : t("openRepo.submitButton")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </AppDialogContent>
-    </Dialog>
+      <ExistingProjectDialog
+        open={existingProject !== null}
+        project={existingProject}
+        action={registerOnly ? "view" : "open"}
+        onOpenChange={(next) => {
+          if (!next) {
+            setExistingProject(null);
+          }
+        }}
+        onConfirm={(project) => {
+          setExistingProject(null);
+          void openExistingProject(project);
+        }}
+      />
+    </>
   );
 }
