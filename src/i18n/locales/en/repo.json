@@ -279,6 +279,7 @@
   "branchTooltipUpstream": "Tracking branch: {{upstream}}",
   "unpushedCount": "{{count}} unpushed commits",
   "unpulledCount": "{{count}} commits to pull",
+  "syncPendingDialog": "Sync diff",
   "syncPendingGroup": "Pending sync changes",
   "syncPendingKind": "Outgoing or incoming",
   "syncPendingPush": "Outgoing changes ({{count}})",

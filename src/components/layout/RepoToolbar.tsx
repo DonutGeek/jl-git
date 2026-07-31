@@ -1,4 +1,12 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type SyntheticEvent,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -26,7 +34,7 @@ import { DropdownMenuScrollArea } from "@/components/common/DropdownMenuScrollAr
 import { HighlightText } from "@/components/common/HighlightText";
 import { LucideDynamicIcon } from "@/components/common/LucideDynamicIcon";
 import { LocalBranchMenuList } from "@/components/git/LocalBranchMenuList";
-import { SyncPendingPreview } from "@/components/git/SyncPendingPreview";
+import type { SyncPendingKind } from "@/components/git/SyncPendingWorkspaceOverlay";
 import { ProjectIcon } from "@/components/project/ProjectIcon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -124,6 +132,9 @@ export function RepoToolbar({
   const pullRemote = useRepoStore((state) => state.pull);
   const pushRemote = useRepoStore((state) => state.push);
   const undoCommit = useRepoStore((state) => state.undoCommit);
+  const syncPendingKind = useRepoStore((state) => state.syncPendingKind);
+  const openSyncPendingPreview = useRepoStore((state) => state.openSyncPendingPreview);
+  const closeSyncPendingPreview = useRepoStore((state) => state.closeSyncPendingPreview);
 
   const [checkingOut, setCheckingOut] = useState(false);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
@@ -188,6 +199,16 @@ export function RepoToolbar({
 
   const ahead = status?.ahead ?? 0;
   const behind = status?.behind ?? 0;
+
+  function toggleSyncPending(next: SyncPendingKind, event: SyntheticEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (syncPendingKind === next) {
+      closeSyncPendingPreview();
+      return;
+    }
+    openSyncPendingPreview(next);
+  }
   const localBranches = useMemo(() => branches.filter((branch) => !branch.isRemote), [branches]);
   /** 下拉：本地在上；仅纳入 origin/ 开头的远端；组内按名称排序 */
   const menuBranches = useMemo(() => {
@@ -725,6 +746,25 @@ export function RepoToolbar({
                   <ArrowDownToLine className="size-3.5" aria-hidden="true" />
                 )}
                 {iconOnly ? null : <span>{t("repo.pull")}</span>}
+                {behind > 0 ? (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className={cn(
+                      "bg-primary text-primary-foreground ml-0.5 inline-flex size-4 items-center justify-center rounded-md text-[10px] leading-none font-semibold",
+                      syncPendingKind === "pull" && "ring-ring ring-1",
+                    )}
+                    aria-label={t("repo.unpulledCount", { count: behind })}
+                    onClick={(event) => toggleSyncPending("pull", event)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        toggleSyncPending("pull", event);
+                      }
+                    }}
+                  >
+                    {behind > 99 ? "99+" : behind}
+                  </span>
+                ) : null}
               </Button>
             </span>
           </TooltipTrigger>
@@ -760,6 +800,25 @@ export function RepoToolbar({
                         <ArrowUpFromLine className="size-3.5" aria-hidden="true" />
                       )}
                       {iconOnly ? null : <span>{t("repo.push")}</span>}
+                      {ahead > 0 ? (
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className={cn(
+                            "bg-primary text-primary-foreground ml-0.5 inline-flex size-4 items-center justify-center rounded-md text-[10px] leading-none font-semibold",
+                            syncPendingKind === "push" && "ring-ring ring-1",
+                          )}
+                          aria-label={t("repo.unpushedCount", { count: ahead })}
+                          onClick={(event) => toggleSyncPending("push", event)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              toggleSyncPending("push", event);
+                            }
+                          }}
+                        >
+                          {ahead > 99 ? "99+" : ahead}
+                        </span>
+                      ) : null}
                     </Button>
                   </ContextMenuTrigger>
                 </span>
@@ -800,14 +859,6 @@ export function RepoToolbar({
             <TooltipContent>{t("repo.publishBranchHint")}</TooltipContent>
           </Tooltip>
         ) : null}
-
-        <SyncPendingPreview
-          repoPath={project.path}
-          upstream={status?.upstream ?? null}
-          ahead={ahead}
-          behind={behind}
-          disabled={syncBusy || loadingShell}
-        />
       </div>
 
       {/* 右侧：分支比较 + 外部打开；minimal 时收进 ⋯ */}

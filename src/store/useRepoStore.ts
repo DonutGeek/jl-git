@@ -355,6 +355,7 @@ export function restoreRepoSession(
     detailLoading: needsDetail,
     selectedChange: cached.selectedChange,
     selectedCommitFile: null,
+    syncPendingKind: null,
     repoState: cached.repoState,
     demotedConflictPaths: cached.demotedConflictPaths,
     loading: hasRepoPendingOp(repoPath) || hasActiveRepoLoad(repoPath),
@@ -431,6 +432,7 @@ export function beginRepoSwitch(repoPath: string, resetCurrent = false): void {
     detailLoading: false,
     selectedChange: null,
     selectedCommitFile: null,
+    syncPendingKind: null,
     repoState: null,
     demotedConflictPaths: [],
     loading: true,
@@ -535,6 +537,8 @@ interface RepoStoreState {
   selectedChange: SelectedChange | null;
   /** 历史详情中选中的改动文件（左侧整区切换为文件前后对比） */
   selectedCommitFile: SelectedCommitFile | null;
+  /** 工具栏待推送/待更新全工作区差异对比 */
+  syncPendingKind: "push" | "pull" | null;
   /** 合并/变基进行中状态与冲突列表 */
   repoState: GitRepoState | null;
   /** 递增后 RepoPage 切到变更视图并聚焦冲突 */
@@ -551,6 +555,9 @@ interface RepoStoreActions {
   setCommitMessage: (msg: string) => void;
   selectChange: (selection: SelectedChange | null) => void;
   selectCommitFile: (file: SelectedCommitFile | null) => void;
+  setSyncPendingKind: (kind: "push" | "pull" | null) => void;
+  openSyncPendingPreview: (kind: "push" | "pull") => void;
+  closeSyncPendingPreview: () => void;
   refreshRepoState: () => Promise<GitRepoState | null>;
   /** 重新拉取当前仓库生效的 Git 身份（设置改账号后调用） */
   refreshIdentity: () => Promise<void>;
@@ -649,6 +656,7 @@ const initialState: RepoStoreState = {
   detailLoading: false,
   selectedChange: null,
   selectedCommitFile: null,
+  syncPendingKind: null,
   repoState: null,
   conflictFocusEpoch: 0,
   demotedConflictPaths: [],
@@ -915,7 +923,22 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
   },
 
   selectCommitFile(file) {
-    set({ selectedCommitFile: file });
+    set({
+      selectedCommitFile: file,
+      ...(file ? { syncPendingKind: null } : {}),
+    });
+  },
+
+  setSyncPendingKind(kind) {
+    set({ syncPendingKind: kind });
+  },
+
+  openSyncPendingPreview(kind) {
+    set({ syncPendingKind: kind, selectedCommitFile: null });
+  },
+
+  closeSyncPendingPreview() {
+    set({ syncPendingKind: null });
   },
 
   async loadAll(repoPath) {

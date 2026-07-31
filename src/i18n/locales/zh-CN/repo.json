@@ -280,6 +280,7 @@
   "branchTooltipUpstream": "跟踪分支：{{upstream}}",
   "unpushedCount": "{{count}} 个提交未推送",
   "unpulledCount": "{{count}} 个提交待更新",
+  "syncPendingDialog": "同步差异对比",
   "syncPendingGroup": "待同步变更",
   "syncPendingKind": "待推送或待更新",
   "syncPendingPush": "待推送的变更（{{count}}）",

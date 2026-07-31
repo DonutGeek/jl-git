@@ -7,6 +7,7 @@ import { BranchList } from "@/components/git/BranchList";
 import { ChangesPanelLoadingShell } from "@/components/git/ChangesPanelLoadingShell";
 import { CommitBox } from "@/components/git/CommitBox";
 import { CommitFileDiffWorkspaceOverlay } from "@/components/git/CommitFileDiffWorkspaceOverlay";
+import { SyncPendingWorkspaceOverlay } from "@/components/git/SyncPendingWorkspaceOverlay";
 import type { SidebarView } from "@/components/layout/ActivityBar";
 import { RepoLoadingIndicator } from "@/components/layout/RepoLoadingIndicator";
 import { RepoLoadingWorkspace } from "@/components/layout/RepoLoadingWorkspace";
@@ -171,6 +172,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
   const reset = useRepoStore((state) => state.reset);
   const activeRepoPath = useRepoStore((state) => state.repoPath);
   const conflictFocusEpoch = useRepoStore((state) => state.conflictFocusEpoch);
+  const syncPendingKind = useRepoStore((state) => state.syncPendingKind);
   const fileTreeReveal = useRepoNavStore((state) => state.fileTreeReveal);
 
   const [readyRepoPath, setReadyRepoPath] = useState<string | null>(() => {
@@ -573,7 +575,13 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       mainView={mainView}
       sidebar={sidebar}
       main={<div className="h-full min-h-0 min-w-0 overflow-hidden">{activeMainPane}</div>}
-      coverOverlay={mainView === "history" ? <CommitFileDiffWorkspaceOverlay /> : null}
+      coverOverlay={
+        syncPendingKind ? (
+          <SyncPendingWorkspaceOverlay />
+        ) : mainView === "history" ? (
+          <CommitFileDiffWorkspaceOverlay />
+        ) : null
+      }
       onSidebarViewChange={setSidebarView}
       onMainViewChange={handleMainViewChange}
     />
