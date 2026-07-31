@@ -65,41 +65,38 @@ export function AgentCatalogPanel({
             }
           }}
         >
-          <TabsList
-            aria-label={t("agent.catalogSwitchAria")}
-            className={variant === "gallery" ? "h-8" : "!h-7 p-0.5"}
-          >
+          <TabsList aria-label={t("agent.catalogSwitchAria")} className="h-8">
+            {/* 业务层强化激活态：官方 dark 默认 bg-input/30 在本弹窗里对比偏弱 */}
             <TabsTrigger
               value="plugins"
-              className={variant === "gallery" ? "min-w-20 text-xs" : "min-w-16 px-2 text-xs"}
+              className={cn(
+                "min-w-20 px-3 text-xs",
+                "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+                "dark:data-[state=active]:border-border dark:data-[state=active]:bg-background dark:data-[state=active]:text-foreground",
+              )}
             >
               {t("agent.catalogTabPlugins")}
             </TabsTrigger>
             <TabsTrigger
               value="skills"
-              className={variant === "gallery" ? "min-w-20 text-xs" : "min-w-16 px-2 text-xs"}
+              className={cn(
+                "min-w-20 px-3 text-xs",
+                "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+                "dark:data-[state=active]:border-border dark:data-[state=active]:bg-background dark:data-[state=active]:text-foreground",
+              )}
             >
               {t("agent.catalogTabSkills")}
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        {showHint ? (
-          <p
-            className={cn(
-              "text-muted-foreground",
-              variant === "gallery" ? "text-xs leading-relaxed" : "text-[11px] leading-4",
-            )}
-          >
-            {hint}
-          </p>
-        ) : null}
+        {showHint ? <p className="text-muted-foreground text-xs leading-relaxed">{hint}</p> : null}
       </div>
 
       <div
         className={cn(
           "min-h-0",
           variant === "gallery" && "flex-1",
-          variant === "gallery" ? "mt-3" : "mt-1.5 h-52",
+          variant === "gallery" ? "mt-3" : "mt-3 min-h-64 flex-1",
           showCenteredEmpty &&
             (variant === "gallery"
               ? "flex min-h-56 items-center justify-center"

@@ -20,7 +20,7 @@ function isBoundaryChar(char: string | undefined): boolean {
   return /\s/u.test(char);
 }
 
-/** 无 @ 时：名称两侧须为空白/首尾，避免「生成简历」误命中技能「简历」 */
+/** 无 @ 时：名称两侧须为空白/首尾，避免正文短语误命中技能名（如「简历生成」） */
 function findBareMentionInSlice(
   slice: string,
   name: string,

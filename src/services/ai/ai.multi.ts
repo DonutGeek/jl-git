@@ -6,6 +6,7 @@ import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getAgentSafetyRefusal } from "@/services/ai/ai.safety";
 import { getAgentSkillMode } from "@/services/ai/ai.skillMode";
 import { runAgentCodeToolLoop, shouldEnableAgentCodeTools } from "@/services/ai/ai.toolLoop";
+import { getGlobalIdentity } from "@/services/git/git.identity";
 import { buildMultiAgentSystemPrompt } from "@/prompts/agent/multi";
 import { buildResumeSystemPrompt } from "@/prompts/resume";
 import { buildSkillCreatorSystemPrompt } from "@/prompts/skillCreator";
@@ -70,7 +71,10 @@ export async function streamMultiAgentReply({
 
   const skillMode = getAgentSkillMode(messages);
   const resumeMode = skillMode === "resume";
-  const projectContext = redactSecrets(formatProfilesContext(profiles, resumeAuthors, resumeMode));
+  const globalIdentityLine = await formatGlobalGitIdentityLine();
+  const projectContext = redactSecrets(
+    formatProfilesContext(profiles, resumeAuthors, resumeMode, globalIdentityLine),
+  );
   const systemPrompt =
     skillMode === "resume"
       ? buildResumeSystemPrompt(locale, projectContext)
@@ -161,10 +165,25 @@ export async function streamMultiAgentReply({
   }
 }
 
+async function formatGlobalGitIdentityLine(): Promise<string> {
+  try {
+    const identity = await getGlobalIdentity();
+    const name = identity.name?.trim() || "";
+    const email = identity.email?.trim() || "";
+    if (!name && !email) {
+      return "globalGitIdentity: （全局未配置 user.name / user.email）";
+    }
+    return `globalGitIdentity（全局 Git 提交身份）: ${name || "—"} <${email || "—"}>`;
+  } catch {
+    return "globalGitIdentity: （读取失败）";
+  }
+}
+
 function formatProfilesContext(
   profiles: readonly AgentProjectProfile[],
   resumeAuthors: ReadonlyArray<{ name: string; email: string }>,
   resumeMode: boolean,
+  globalIdentityLine: string,
 ): string {
   const authors = resumeAuthors.filter((author) => author.name.trim() || author.email.trim());
   const authorLines =
@@ -181,6 +200,7 @@ function formatProfilesContext(
   const header = resumeMode
     ? [
         `Registered projects: ${profiles.length}.`,
+        globalIdentityLine,
         "Evidence policy: subjectIndex + changed paths are enough to write approach bullets; diff excerpts are optional boosts. Never refuse or ask user for more evidence because excerpts are truncated. All Git data below is from read-only queries.",
         "Output only project-experience blocks; never write contact/basics sections (name/phone/email).",
         "userGitAuthors（优先用户声明，否则来自全局 Git 身份；提交命中任一即计入）：",
@@ -193,6 +213,7 @@ function formatProfilesContext(
       ].join("\n")
     : [
         `Registered projects: ${profiles.length}.`,
+        globalIdentityLine,
         "Evidence policy: use jlgitMeta, README excerpts, subjectIndex, tech stack hints, and optional commit details to answer Git/project questions. All data below is from read-only repository queries.",
         "项目列表：下列为全部已登记仓库；列举时必须全部告知。",
       ].join("\n");

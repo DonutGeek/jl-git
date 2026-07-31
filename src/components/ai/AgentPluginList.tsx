@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { MoreHorizontal, Play, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -36,7 +36,6 @@ interface AgentPluginListProps {
 interface PluginMoreMenuProps {
   onTry: () => void;
   onUninstall: () => void;
-  compact?: boolean;
 }
 
 function OverflowDescription({ children, className }: { children: string; className: string }) {
@@ -52,7 +51,14 @@ function OverflowDescription({ children, className }: { children: string; classN
           return;
         }
         const element = textRef.current;
-        setOpen(Boolean(element && element.scrollWidth > element.clientWidth + 1));
+        if (!element) {
+          setOpen(false);
+          return;
+        }
+        // 单行 truncate 看横溢；多行 line-clamp 看纵溢
+        const overflowX = element.scrollWidth > element.clientWidth + 1;
+        const overflowY = element.scrollHeight > element.clientHeight + 1;
+        setOpen(overflowX || overflowY);
       }}
     >
       <TooltipTrigger asChild>
@@ -60,44 +66,20 @@ function OverflowDescription({ children, className }: { children: string; classN
           {children}
         </span>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="w-max max-w-64 text-left text-wrap break-words">
+      <TooltipContent side="bottom" className="w-max max-w-72 text-left text-wrap break-words">
         {children}
       </TooltipContent>
     </Tooltip>
   );
 }
 
-/** 三点菜单：点击或悬停打开；含立即试用 / 卸载 */
-function PluginMoreMenu({ onTry, onUninstall, compact = false }: PluginMoreMenuProps) {
+/** 三点菜单：与会话列表同构，仅点击打开；悬停行时显示按钮 */
+function PluginMoreMenu({ onTry, onUninstall }: PluginMoreMenuProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const closeTimerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (closeTimerRef.current != null) {
-        window.clearTimeout(closeTimerRef.current);
-      }
-    };
-  }, []);
-
-  function clearCloseTimer(): void {
-    if (closeTimerRef.current != null) {
-      window.clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-  }
-
-  function scheduleClose(): void {
-    clearCloseTimer();
-    closeTimerRef.current = window.setTimeout(() => {
-      setOpen(false);
-      closeTimerRef.current = null;
-    }, 160);
-  }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
@@ -106,19 +88,15 @@ function PluginMoreMenu({ onTry, onUninstall, compact = false }: PluginMoreMenuP
               variant="ghost"
               size="icon"
               className={cn(
-                "text-muted-foreground shrink-0 rounded-full",
-                compact ? "size-7" : "size-8",
+                "text-muted-foreground size-6 shrink-0 rounded-md hover:bg-transparent",
+                "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
+                open && "opacity-100",
               )}
               aria-label={t("agent.pluginMore")}
               onClick={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
-              onPointerEnter={() => {
-                clearCloseTimer();
-                setOpen(true);
-              }}
-              onPointerLeave={scheduleClose}
             >
-              <MoreHorizontal className={compact ? "size-3.5" : "size-4"} aria-hidden="true" />
+              <MoreHorizontal className="size-3.5" aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
@@ -128,15 +106,13 @@ function PluginMoreMenu({ onTry, onUninstall, compact = false }: PluginMoreMenuP
         align="end"
         className="min-w-36"
         onCloseAutoFocus={(event) => event.preventDefault()}
-        onPointerEnter={clearCloseTimer}
-        onPointerLeave={scheduleClose}
       >
         <DropdownMenuItem
           onSelect={() => {
             onTry();
           }}
         >
-          <Play className="size-3.5" aria-hidden="true" />
+          <Play aria-hidden="true" />
           {t("agent.pluginTryNow")}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -146,7 +122,7 @@ function PluginMoreMenu({ onTry, onUninstall, compact = false }: PluginMoreMenuP
             onUninstall();
           }}
         >
-          <Trash2 className="size-3.5" aria-hidden="true" />
+          <Trash2 aria-hidden="true" />
           {t("agent.pluginUninstall")}
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -199,7 +175,7 @@ export function AgentPluginList({
               <li key={plugin.id}>
                 <div
                   className={cn(
-                    "border-border bg-card hover:bg-accent/50 group flex w-full items-start gap-2 rounded-xl border p-3.5",
+                    "border-border bg-card hover:bg-accent/50 group/row flex w-full items-start gap-2 rounded-xl border p-3.5",
                     "transition-colors",
                   )}
                 >
@@ -240,7 +216,7 @@ export function AgentPluginList({
         </ul>
       ) : (
         <ul
-          className={cn("grid w-full min-w-0 grid-cols-2 gap-2 pr-2", className)}
+          className={cn("grid w-full min-w-0 grid-cols-1 gap-2.5 pr-1 sm:grid-cols-2", className)}
           aria-label={t("agent.pluginsAria")}
         >
           {plugins.map((plugin) => {
@@ -248,27 +224,27 @@ export function AgentPluginList({
             const description = t(plugin.descriptionKey);
             return (
               <li key={plugin.id} className="min-w-0">
-                <div className="border-border bg-card hover:bg-accent/40 group/row flex w-full min-w-0 items-center gap-0.5 rounded-md border px-1.5 py-1 transition-colors">
+                <div className="border-border bg-card hover:bg-accent/40 group/row flex w-full min-w-0 items-start gap-1 rounded-lg border p-3 transition-colors">
                   <button
                     type="button"
                     className={cn(
-                      "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-0.5 py-0.5 text-left",
+                      "flex min-w-0 flex-1 items-start gap-3 rounded-md text-left",
                       "outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     )}
                     aria-label={t(plugin.titleKey)}
                     onClick={() => onSelect(plugin)}
                   >
                     <span
-                      className="bg-muted text-foreground flex size-8 shrink-0 items-center justify-center rounded-md"
+                      className="bg-muted text-foreground flex size-10 shrink-0 items-center justify-center rounded-lg"
                       aria-hidden="true"
                     >
-                      <Icon className="size-4" />
+                      <Icon className="size-5" />
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="text-foreground block truncate text-xs font-medium leading-4">
+                    <span className="min-w-0 flex-1 space-y-1">
+                      <span className="text-foreground block truncate text-sm font-medium leading-5">
                         {t(plugin.titleKey)}
                       </span>
-                      <OverflowDescription className="text-muted-foreground block truncate text-[11px] leading-4">
+                      <OverflowDescription className="text-muted-foreground block truncate text-xs leading-5">
                         {description}
                       </OverflowDescription>
                     </span>
@@ -276,7 +252,6 @@ export function AgentPluginList({
                   {showMenu ? (
                     <div className="shrink-0">
                       <PluginMoreMenu
-                        compact
                         onTry={() => handleTry(plugin)}
                         onUninstall={() => setUninstallTarget(plugin)}
                       />

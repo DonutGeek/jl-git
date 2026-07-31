@@ -31,7 +31,7 @@ export function getAgentSkillMode(messages: readonly AgentChatMessage[]): AgentS
 }
 
 /**
- * 是否进入简历技能：本轮用户消息显式 @简历，或明确要求生成简历/项目经历。
+ * 是否进入「简历生成」技能：本轮用户消息显式 @简历生成，或明确要求生成简历/项目经历。
  * 普通 Git 问答不得因此走简历 system prompt。
  */
 export function isResumeSkillTurn(messages: readonly AgentChatMessage[]): boolean {
@@ -43,7 +43,7 @@ export function isResumeSkillTurn(messages: readonly AgentChatMessage[]): boolea
     return true;
   }
 
-  // 身份缺失被追问后，用户只需回答身份，不必再次 @简历。
+  // 身份缺失被追问后，用户只需回答身份，不必再次 @简历生成。
   if (
     hasPendingResumeIdentityRequest(messages) &&
     parseDeclaredResumeAuthors(lastUser.content).length > 0
@@ -62,7 +62,7 @@ export function isResumeSkillTurn(messages: readonly AgentChatMessage[]): boolea
   );
 }
 
-/** 显式 @简历或直接提出成稿请求。 */
+/** 显式 @简历生成或直接提出成稿请求。 */
 export function isExplicitResumeSkillRequest(message: AgentChatMessage): boolean {
   if (message.role !== "user") {
     return false;

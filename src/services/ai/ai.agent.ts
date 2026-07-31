@@ -17,6 +17,7 @@ import {
   getCommit,
   getCommitFileDiff,
   getDiff,
+  getIdentity,
   getLog,
   getStatus,
   listBranches,
@@ -27,7 +28,13 @@ import i18n from "@/i18n";
 import { isRecord, type AppError } from "@/types/error";
 import type { AgentChatMessage } from "@/types/ai";
 import type { AgentJlgitMeta } from "@/types/agent";
-import type { GitBranch, GitCommitDetail, GitCommitSummary, GitStatusResult } from "@/types/git";
+import type {
+  GitBranch,
+  GitCommitDetail,
+  GitCommitSummary,
+  GitIdentity,
+  GitStatusResult,
+} from "@/types/git";
 
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
 const AGENT_REQUEST_TIMEOUT_MS = 150_000;
@@ -207,35 +214,43 @@ async function buildRepositoryContext(
   const needFileTree = resumeMode || forceFileTree || needsFileTreeContext(question);
   const needWorkingTreePatches = needsWorkingTreePatchContext(question);
 
-  const [statusResult, branchesResult, logResult, oldestAuthorCommitResult, treeResult] =
-    await Promise.allSettled([
-      getStatus(repoPath),
-      listBranches(repoPath, true),
-      getLog(
-        repoPath,
-        resumeMode
-          ? {
-              limit: RESUME_LOG_LIMIT,
-              all: true,
-              authors: resumeAuthorPatterns,
-            }
-          : { limit: AGENT_LOG_LIMIT },
-      ),
+  const [
+    statusResult,
+    branchesResult,
+    logResult,
+    oldestAuthorCommitResult,
+    treeResult,
+    identityResult,
+  ] = await Promise.allSettled([
+    getStatus(repoPath),
+    listBranches(repoPath, true),
+    getLog(
+      repoPath,
       resumeMode
-        ? getLog(repoPath, {
-            limit: 1,
+        ? {
+            limit: RESUME_LOG_LIMIT,
             all: true,
-            reverse: true,
             authors: resumeAuthorPatterns,
-          })
-        : Promise.resolve({ commits: [] as GitCommitSummary[], hasMore: false }),
-      needFileTree
-        ? listTree(repoPath, "HEAD")
-        : Promise.resolve({ paths: [] as string[], truncated: false }),
-    ]);
+          }
+        : { limit: AGENT_LOG_LIMIT },
+    ),
+    resumeMode
+      ? getLog(repoPath, {
+          limit: 1,
+          all: true,
+          reverse: true,
+          authors: resumeAuthorPatterns,
+        })
+      : Promise.resolve({ commits: [] as GitCommitSummary[], hasMore: false }),
+    needFileTree
+      ? listTree(repoPath, "HEAD")
+      : Promise.resolve({ paths: [] as string[], truncated: false }),
+    getIdentity(repoPath),
+  ]);
 
   const sections = [
     jlgitMeta ? formatJlgitMetaBlock(jlgitMeta) : `repoPath: ${repoPath}`,
+    formatRepoGitIdentityContext(identityResult),
     resumeMode
       ? [
           "userGitAuthors（优先用户声明，否则来自当前仓库生效的 user.name / user.email）：",
@@ -296,6 +311,19 @@ async function buildRepositoryContext(
   return redactSecrets(
     sections.filter((section): section is string => section !== null).join("\n\n"),
   );
+}
+
+/** 通用对话也注入当前仓提交身份，便于回答「我的身份是什么」等。 */
+function formatRepoGitIdentityContext(identityResult: PromiseSettledResult<GitIdentity>): string {
+  if (identityResult.status === "rejected") {
+    return "repoGitIdentity: （读取当前仓库 user.name / user.email 失败）";
+  }
+  const name = identityResult.value.name?.trim() || "";
+  const email = identityResult.value.email?.trim() || "";
+  if (!name && !email) {
+    return "repoGitIdentity: （当前仓库未配置 user.name / user.email）";
+  }
+  return `repoGitIdentity（当前仓库生效的提交身份）: ${name || "—"} <${email || "—"}>`;
 }
 
 function formatResumeInvolvementContext(

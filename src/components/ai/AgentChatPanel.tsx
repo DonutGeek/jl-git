@@ -691,14 +691,14 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
       </div>
 
       <Dialog open={pluginsOpen} onOpenChange={setPluginsOpen}>
-        <DialogContent className="flex max-h-[min(82vh,32rem)] flex-col gap-3 p-4 sm:max-w-[34rem]">
+        <DialogContent className="flex max-h-[min(86vh,36rem)] flex-col gap-4 p-5 sm:max-w-[40rem]">
           <DialogHeader className="pr-8">
             <DialogTitle className="text-base">{t("agent.catalogSwitchAria")}</DialogTitle>
           </DialogHeader>
           <AgentCatalogPanel
             variant="compact"
             showHint
-            className="min-h-0"
+            className="min-h-0 flex-1"
             plugins={enabledPlugins}
             skills={enabledSkills}
             onSelectPlugin={handleInsertPlugin}
