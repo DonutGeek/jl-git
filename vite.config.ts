@@ -3,7 +3,6 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
 
-// @ts-expect-error process 是 Node.js 全局变量
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/

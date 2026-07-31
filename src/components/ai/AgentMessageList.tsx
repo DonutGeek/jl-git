@@ -7,6 +7,7 @@ import { AgentMessageItem } from "@/components/ai/AgentMessageItem";
 import type { CompareBranchesAction } from "@/components/ai/AgentRichMessage";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import type { AgentChatMessage } from "@/types/ai";
 
 interface AgentMessageListProps {
@@ -347,9 +348,19 @@ export function AgentMessageList({
           </div>
         </div>
       ) : null}
-      <ScrollArea ref={bindMessageScrollArea} className="h-full w-full">
-        <div className="px-3 pt-2" style={{ paddingBottom: composerPadPx }}>
-          <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+      <ScrollArea
+        ref={bindMessageScrollArea}
+        className={cn(
+          "h-full w-full min-w-0",
+          // 抵消 Radix viewport 内层 table：避免长行把滚动区撑出右侧大空白
+          "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+        )}
+      >
+        <div className="min-w-0 px-3 pt-2" style={{ paddingBottom: composerPadPx }}>
+          <div
+            className="relative w-full min-w-0"
+            style={{ height: `${virtualizer.getTotalSize()}px` }}
+          >
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const message = messages[virtualItem.index];
               const isLast = virtualItem.index === messages.length - 1;

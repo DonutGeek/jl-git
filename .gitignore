@@ -12,6 +12,7 @@ node_modules
 dist
 dist-ssr
 *.local
+*.tsbuildinfo
 
 # Vite 本机覆盖；`.env.example` / `.env.development` / `.env.production` 可提交。
 # 不要在 VITE_* 中放密钥（会打包进前端）。

@@ -1013,9 +1013,15 @@ export function ProjectManager({
               onDragEnd={(event) => void handleGroupDragEnd(event)}
             >
               <div className="min-h-0 flex-1">
-                {/* -mr-6 让滚动条贴住面板右缘（抵消 section 的 px-6）；pr-3 使行高亮与滚动条留出约 12px 间隔 */}
-                <ScrollArea className="-mr-6 h-full pb-4 [&_[data-slot=scroll-area-viewport]>div]:!block">
-                  <div className="space-y-0.5 pr-3 pb-4">
+                {/* 左右对称：外层 section px-6；滚动条叠在右侧 gutter */}
+                <ScrollArea
+                  className={cn(
+                    "h-full min-w-0 pb-4",
+                    "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+                    "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
+                  )}
+                >
+                  <div className="space-y-0.5 pb-4">
                     {/* 最外层根节点：展开/收起全部，并作为拖回未分组的投放目标 */}
                     <RootDropZone>
                       <div className="group/row hover:bg-accent/60 flex h-9 w-full items-center gap-0.5 rounded-md transition-colors">

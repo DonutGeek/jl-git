@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import dayjs from "dayjs";
 import {
   ChevronsDownUp,
   ChevronsUpDown,
@@ -41,6 +40,7 @@ import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { GitChangedFile, GitCommitDetail, GitCommitSummary, GitDiffResult } from "@/types/git";
 import { getChangedFileStatsParts } from "@/utils/formatChangedFileStats";
+import { formatCommitDateTime } from "@/utils/formatCommitDateTime";
 import { getPathBasename } from "@/utils/getPathBasename";
 import { gitStatusLetterClass } from "@/utils/gitStatusStyle";
 import { DEFAULT_TEXT_ENCODING } from "@/utils/textEncodings";
@@ -362,7 +362,7 @@ export function SyncPendingWorkspaceOverlay() {
       </div>
       <ScrollArea className={SYNC_PENDING_SCROLL_AREA_CLASS}>
         {(commits?.length ?? 0) > 0 ? (
-          <div className="w-full min-w-0 space-y-0.5 p-1">
+          <div className="w-full min-w-0 space-y-0.5 px-2 py-1">
             {commits?.map((commit) => (
               <button
                 type="button"
@@ -395,7 +395,7 @@ export function SyncPendingWorkspaceOverlay() {
                     <span className="shrink-0 font-mono tabular-nums">{commit.shortId}</span>
                   </span>
                   <span className="shrink-0 tabular-nums">
-                    {dayjs(commit.authoredAt).format("YYYY-MM-DD")}
+                    {formatCommitDateTime(commit.authoredAt)}
                   </span>
                 </span>
               </button>
@@ -506,7 +506,7 @@ export function SyncPendingWorkspaceOverlay() {
           </div>
         ) : visibleFiles.length > 0 ? (
           fileListView === "tree" ? (
-            <div className="w-full min-w-0 px-1 py-0.5">
+            <div className="w-full min-w-0 px-2 py-1">
               <CommitFileTree
                 files={visibleFiles}
                 rootName={treeRootName}
@@ -519,7 +519,7 @@ export function SyncPendingWorkspaceOverlay() {
               />
             </div>
           ) : (
-            <div className="w-full min-w-0 space-y-0.5 px-1 py-0.5">
+            <div className="w-full min-w-0 space-y-0.5 px-2 py-1">
               {visibleFiles.map((file) => (
                 <button
                   type="button"

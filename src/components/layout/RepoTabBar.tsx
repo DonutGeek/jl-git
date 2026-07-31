@@ -684,7 +684,8 @@ export function RepoTabBar() {
           )}
         >
           {/* 交互控件 no-drag；拖拽留白必须是兄弟节点，不能包在 no-drag 里（否则加载页无工具栏时窗口无法拖动） */}
-          <div className="flex h-7 shrink-0 items-center" style={noDragStyle}>
+          {/* mr-2：与首个分组壳拉开间隔（勿用仅内边距，易被滚动区视觉「吃掉」） */}
+          <div className="mr-2 flex h-7 shrink-0 items-center" style={noDragStyle}>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <Button

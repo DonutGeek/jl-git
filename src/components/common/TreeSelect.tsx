@@ -287,8 +287,15 @@ export function TreeSelect({
         className={cn("w-[var(--radix-popover-trigger-width)] p-0", contentClassName)}
       >
         {/* max-h + viewport h-auto：矮列表随内容收缩，多选项再滚动 */}
-        <ScrollArea className="max-h-64 [&_[data-slot=scroll-area-viewport]]:h-auto [&_[data-slot=scroll-area-viewport]]:max-h-64">
-          <div role="listbox" aria-label={ariaLabel} className="flex flex-col gap-0.5 p-1">
+        <ScrollArea
+          className={cn(
+            "max-h-64 min-w-0",
+            "[&_[data-slot=scroll-area-viewport]]:h-auto [&_[data-slot=scroll-area-viewport]]:max-h-64",
+            "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+            "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
+          )}
+        >
+          <div role="listbox" aria-label={ariaLabel} className="flex flex-col gap-0.5 px-2 py-1">
             {emptyOption ? (
               <button
                 type="button"

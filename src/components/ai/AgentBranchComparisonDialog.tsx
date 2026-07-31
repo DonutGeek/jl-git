@@ -5,6 +5,7 @@ import type { CompareBranchesAction } from "@/components/ai/AgentRichMessage";
 import { AppDialogContent } from "@/components/common/AppDialogContent";
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import { getLog } from "@/services/git";
 import { toUserMessage } from "@/types/error";
 import type { GitCommitSummary } from "@/types/git";
@@ -106,7 +107,13 @@ function CommitColumn({ title, commits }: { title: string; commits: readonly Git
   return (
     <section className="min-w-0 rounded-md border">
       <h3 className="border-b px-3 py-2 text-sm font-medium">{title}</h3>
-      <ScrollArea className="h-72">
+      <ScrollArea
+        className={cn(
+          "h-72 min-w-0",
+          "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+          "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
+        )}
+      >
         {commits.length > 0 ? (
           <ul className="divide-y">
             {commits.map((commit) => (

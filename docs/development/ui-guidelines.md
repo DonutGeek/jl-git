@@ -199,6 +199,7 @@ pnpm dlx shadcn@latest add sonner
 | 高度链 | Root 用 `h-full` / `flex-1 min-h-0`；**禁止**在 ScrollArea Root 上用 `absolute` 定高（会弄坏 viewport） |
 | 虚拟列表 | 大列表另加 `@tanstack/react-virtual`，`getScrollElement` 绑 Radix viewport（见 [performance](performance.md)、`useScrollAreaViewport`） |
 | 局部裁切 | `overflow-hidden` 仅用于裁切/叠层，不代替可滚动面板 |
+| 左右 gutter | 列表内容**左右对称**（常用 `px-2`）；禁止单侧加宽「给滚动条」；竖条叠在右侧 gutter（见 `src/utils/scrollListGutter.ts`、`DropdownMenuScrollArea`） |
 
 例外：极短的调试对照、或非交互装饰性裁切。History 图谱列等横向溢出也走 `ScrollArea`（可配合 `overflow-y-hidden` 仅保留横轴）。
 

@@ -630,7 +630,11 @@ function ChangeGroup({
         {/* 与分组标题统一 8px 外侧间隙，滚动条叠在右侧 padding */}
         <ScrollArea
           ref={bindScrollArea}
-          className="h-full px-2 pb-1 [&_[data-slot=scroll-area-viewport]>div]:!block"
+          className={cn(
+            "h-full min-w-0 px-2 pb-1",
+            "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+            "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
+          )}
         >
           {showBareEmpty ? (
             <EmptyState

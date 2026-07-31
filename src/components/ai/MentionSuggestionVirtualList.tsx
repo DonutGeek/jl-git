@@ -18,8 +18,9 @@ const SUGGESTION_VIRTUAL_OVERSCAN = 8;
 const SUGGESTION_PAD_Y_PX = 8;
 
 const scrollAreaClassName = cn(
-  "w-full max-h-72 px-1 py-1",
+  "w-full max-h-72 px-2 py-1",
   "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+  "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
   "[&_[data-slot=scroll-area-scrollbar][data-state=hidden]]:hidden",
 );
 

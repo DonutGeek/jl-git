@@ -469,7 +469,7 @@ export function CommitBox({ loadingShell = false }: CommitBoxProps) {
               style={{ maxHeight: Math.max(88, historyPosition.maxHeight - 32) }}
             >
               <ul
-                className="w-full min-w-0 overflow-hidden p-1"
+                className="w-full min-w-0 overflow-hidden px-2 py-1"
                 role="listbox"
                 aria-label={t("repo.commitMessageHistory")}
               >

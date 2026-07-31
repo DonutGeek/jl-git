@@ -135,7 +135,7 @@ export function DiskSpaceTooltip({ current, volumes }: DiskSpaceTooltipProps) {
   const needsScroll = ordered.length >= 4;
 
   const list = (
-    <div className="space-y-2.5 pr-1">
+    <div className="space-y-2.5 px-1">
       {ordered.map((space) => {
         const ratio = usedRatio(space);
         const percent = Math.round(ratio * 100);
@@ -177,7 +177,19 @@ export function DiskSpaceTooltip({ current, volumes }: DiskSpaceTooltipProps) {
           {t("statusBar.diskVolumeCount", { count: ordered.length })}
         </p>
       </div>
-      {needsScroll ? <ScrollArea className="h-48 pr-1">{list}</ScrollArea> : list}
+      {needsScroll ? (
+        <ScrollArea
+          className={cn(
+            "h-48 min-w-0",
+            "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0",
+            "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
+          )}
+        >
+          {list}
+        </ScrollArea>
+      ) : (
+        list
+      )}
       <p className="text-background/70 text-[10px] leading-snug">{t("statusBar.diskMultiHint")}</p>
     </div>
   );

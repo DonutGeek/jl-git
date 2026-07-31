@@ -259,10 +259,18 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     }
   }
 
-  /** 实测输入框高度，为消息列表预留底部空间，避免被浮层遮挡 */
+  /**
+   * 实测输入框高度，为消息列表预留底部空间，避免被浮层遮挡。
+   * 依赖 pluginsOpen：插件 Dialog 关闭后补测一次（会话区未卸载，但布局可能被 modal 影响）。
+   */
   useLayoutEffect(() => {
+    if (pluginsOpen) {
+      return;
+    }
     const el = composerRef.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     const update = (): void => {
       const height = el.getBoundingClientRect().height;
       setComposerPadPx(Math.ceil(height + COMPOSER_BOTTOM_OFFSET_PX));
@@ -271,7 +279,7 @@ export function AgentChatPanel({ projectId, repoPath }: AgentChatPanelProps) {
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [pluginsOpen]);
 
   function clearDraft(): void {
     setDraftMarkup("");

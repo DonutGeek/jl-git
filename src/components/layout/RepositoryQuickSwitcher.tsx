@@ -193,16 +193,18 @@ export function RepositoryQuickSwitcher({ className }: RepositoryQuickSwitcherPr
             <CommandList className="max-h-none overflow-hidden p-0">
               <ScrollArea
                 className={cn(
-                  "h-80",
+                  "h-80 min-w-0",
                   // Radix viewport 内层 display:table 会被长路径撑宽 → 横滚 + truncate 失效
                   "[&_[data-slot=scroll-area-viewport]]:overflow-x-hidden",
                   "[&_[data-slot=scroll-area-viewport]>div]:!block",
                   "[&_[data-slot=scroll-area-viewport]>div]:!min-w-0",
                   "[&_[data-slot=scroll-area-viewport]>div]:w-full",
+                  "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute",
+                  "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
                   "[&_[data-slot=scroll-area-scrollbar][data-orientation=horizontal]]:hidden",
                 )}
               >
-                <CommandGroup className="p-1.5">
+                <CommandGroup className="px-2 py-1.5">
                   {/* 吸收 cmdk 默认选中第一项，打开时不出现可见高亮 */}
                   <CommandItem value={NO_HIGHLIGHT} className="hidden" />
                   {filteredProjects.length === 0 ? (

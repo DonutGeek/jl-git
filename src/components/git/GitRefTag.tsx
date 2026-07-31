@@ -83,7 +83,8 @@ export const GitRefTag = forwardRef<HTMLButtonElement, GitRefTagProps>(function 
         aria-hidden="true"
       />
       {wrapText ? (
-        <span className="min-w-0 flex-1 text-left font-mono text-[11px] leading-snug break-words">
+        // 勿用 flex-1：会把徽章撑满父级宽度，换行后右侧留大块空白
+        <span className="min-w-0 max-w-full text-left font-mono text-[11px] leading-snug break-words">
           {withSoftWrapOpportunities(label)}
         </span>
       ) : (
@@ -104,7 +105,10 @@ export const GitRefTag = forwardRef<HTMLButtonElement, GitRefTagProps>(function 
 
   const shellClassName = cn(
     "bg-muted text-foreground inline-flex gap-1 rounded-md border-0 px-1.5",
-    wrapText ? "h-auto max-w-full min-w-0 items-start py-1" : "h-5 items-center",
+    wrapText
+      ? // w-min：按最长可断片段收窄，避免 max-w-full 时整行撑满
+        "h-auto w-min max-w-full min-w-0 items-start py-1"
+      : "h-5 items-center",
     expand && !wrapText
       ? // 强制展开：宽度随全文
         "w-max shrink-0"

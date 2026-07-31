@@ -216,7 +216,7 @@ export function AgentPluginList({
         </ul>
       ) : (
         <ul
-          className={cn("grid w-full min-w-0 grid-cols-1 gap-2.5 pr-1 sm:grid-cols-2", className)}
+          className={cn("grid w-full min-w-0 grid-cols-1 gap-2.5 px-1 sm:grid-cols-2", className)}
           aria-label={t("agent.pluginsAria")}
         >
           {plugins.map((plugin) => {

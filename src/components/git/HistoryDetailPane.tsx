@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import dayjs from "dayjs";
 import {
   Camera,
   ChevronsDownUp,
@@ -51,6 +50,7 @@ import { toUserMessage } from "@/types/error";
 import type { GitChangedFile, GitCommitParentDiff, GitCommitSummary } from "@/types/git";
 import { copyToClipboard } from "@/utils/clipboard";
 import { getChangedFileStatsParts } from "@/utils/formatChangedFileStats";
+import { formatCommitDateTime } from "@/utils/formatCommitDateTime";
 import { getPathBasename } from "@/utils/getPathBasename";
 import { gitStatusLetterClass } from "@/utils/gitStatusStyle";
 
@@ -888,7 +888,7 @@ export function HistoryDetailPane() {
             <div className="min-w-0 flex-1 space-y-0.5 pt-0.5">
               <p className="truncate text-xs leading-tight font-medium">{detail.authorName}</p>
               <p className="text-muted-foreground text-[11px] leading-tight tabular-nums">
-                {dayjs(detail.authoredAt).format("YYYY-MM-DD HH:mm:ss")}
+                {formatCommitDateTime(detail.authoredAt)}
               </p>
               <p className="text-muted-foreground font-mono text-[11px] leading-tight">
                 {t("repo.commitParents", { hashes: parentLabel })}

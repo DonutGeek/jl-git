@@ -63,6 +63,7 @@ import { toUserMessage } from "@/types/error";
 import type { GitCommitSummary, GitLogOrder } from "@/types/git";
 
 import { copyToClipboard } from "@/utils/clipboard";
+import { formatCommitDateTime } from "@/utils/formatCommitDateTime";
 
 type DatePreset = "all" | "7d" | "30d" | "90d";
 
@@ -300,7 +301,7 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
   style,
 }: HistoryCommitRowProps) {
   const authoredLabel = useMemo(
-    () => dayjs(commit.authoredAt).format("YYYY-MM-DD HH:mm:ss"),
+    () => formatCommitDateTime(commit.authoredAt),
     [commit.authoredAt],
   );
   /** 合并提交：说明弱化，降低噪声（对齐参考端灰字） */
@@ -363,8 +364,8 @@ const HistoryCommitRow = memo(function HistoryCommitRow({
           role="option"
           aria-selected={isSelected}
           className={cn(
-            // 固定四列：文案 | 时间 | 作者 | hash；作者约 avatar+短名（5.5rem），避免与 hash 间大空档
-            "grid h-full w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_138px_5.5rem_7ch] items-center gap-1.5 rounded-md border-0 px-2 text-left shadow-none transition-colors duration-150",
+            // 固定四列：文案 | 时间 | 作者 | hash；时间列按完整「年月日时分秒」预留（19ch）
+            "grid h-full w-full min-w-0 cursor-pointer grid-cols-[minmax(0,1fr)_19ch_5.5rem_7ch] items-center gap-1.5 rounded-md border-0 px-2 text-left shadow-none transition-colors duration-150",
             isSelected
               ? "bg-primary/15 text-foreground hover:bg-primary/20"
               : isHovered
@@ -847,9 +848,9 @@ export function HistoryList() {
           ? t("repo.historyDate30d")
           : t("repo.historyDate90d");
 
-  // absolute 行不受 padding 约束；列表已在右侧 Panel 内，仅留左右边距
+  // absolute 行不受 padding 约束；左右对称边距（与分支/仓库下拉 gutter 同理）
   const commitRowLeft = HISTORY_EDGE_GAP_PX;
-  const commitRowRight = HISTORY_EDGE_GAP_PX + 4;
+  const commitRowRight = HISTORY_EDGE_GAP_PX;
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
@@ -904,7 +905,7 @@ export function HistoryList() {
               maxHeight={288}
               availableHeightOffset={41}
             >
-              <div className="min-w-0 p-1">
+              <div className="min-w-0 px-2 py-1">
                 {showCurrentBranchItem ? (
                   <DropdownMenuItem
                     disabled={currentBranchLogRef == null}
@@ -1046,7 +1047,7 @@ export function HistoryList() {
               maxHeight={288}
               availableHeightOffset={41}
             >
-              <div className="p-1">
+              <div className="min-w-0 px-2 py-1">
                 {showAllAuthorsItem ? (
                   <DropdownMenuItem onSelect={() => setAuthor(null)}>
                     <span className="min-w-0 flex-1 truncate">{t("repo.historyAuthorAll")}</span>
@@ -1318,43 +1319,43 @@ export function HistoryList() {
               className="min-h-0 min-w-0"
             >
               {/*
-               * 图谱列：纵位用 translateY 跟列表 scrollTop（勿放进列表 ScrollArea，
-               * 否则 Radix 纵滚会把整图滚出可视区）。横滑用列内 ScrollArea。
+               * 图谱列：
+               * - 纵向：translateY 跟列表 scrollTop（勿把整图放进列表 ScrollArea）
+               * - 横向：列内 ScrollArea 必须 h-full，滚动条贴列底；
+               *   勿对 viewport 设 h-auto，否则 Root 被撑成整图高度，横条落到视口外。
                */}
               <div
-                className="bg-background h-full min-h-0 overflow-hidden pl-2"
+                className="bg-background h-full min-h-0 overflow-hidden px-2"
                 onWheel={handleGraphColumnWheel}
                 aria-hidden="true"
               >
-                <div
-                  style={{
-                    transform: `translateY(${-graphScrollTop}px)`,
-                  }}
+                <ScrollArea
+                  className={cn(
+                    "h-full w-full min-w-0",
+                    "[&_[data-slot=scroll-area-viewport]]:!overflow-x-auto",
+                    "[&_[data-slot=scroll-area-viewport]]:!overflow-y-hidden",
+                    // 内容盒按 SVG 宽度撑开，才能出现横滑
+                    "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!w-max [&_[data-slot=scroll-area-viewport]>div]:!min-w-full",
+                    "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:hidden",
+                  )}
                 >
-                  <ScrollArea
-                    className={cn(
-                      "w-full",
-                      "[&_[data-slot=scroll-area-viewport]]:!h-auto [&_[data-slot=scroll-area-viewport]]:!max-h-none",
-                      "[&_[data-slot=scroll-area-viewport]]:!overflow-x-auto [&_[data-slot=scroll-area-viewport]]:!overflow-y-hidden",
-                      "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0",
-                      "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:hidden",
-                    )}
+                  <div
+                    className="min-w-full"
+                    style={{
+                      width: graphContentWidth > 0 ? graphContentWidth : undefined,
+                      transform: `translateY(${-graphScrollTop}px)`,
+                    }}
                   >
-                    <div
-                      className="min-w-full"
-                      style={graphContentWidth > 0 ? { width: graphContentWidth } : undefined}
-                    >
-                      <HistoryGraph
-                        commits={filteredCommits}
-                        topologyCommits={commits}
-                        currentBranch={currentBranch}
-                        onHoverCommit={setHoveredCommitId}
-                        onSelectCommit={handleSelectCommit}
-                        onContentWidthChange={setGraphContentWidth}
-                      />
-                    </div>
-                  </ScrollArea>
-                </div>
+                    <HistoryGraph
+                      commits={filteredCommits}
+                      topologyCommits={commits}
+                      currentBranch={currentBranch}
+                      onHoverCommit={setHoveredCommitId}
+                      onSelectCommit={handleSelectCommit}
+                      onContentWidthChange={setGraphContentWidth}
+                    />
+                  </div>
+                </ScrollArea>
               </div>
             </ResizablePanel>
 
@@ -1364,7 +1365,12 @@ export function HistoryList() {
               <ScrollArea
                 ref={bindScrollArea}
                 // Radix viewport 内层 display:table 会撑开宽度导致 truncate 失效；在用法处覆盖，不改 ui/scroll-area
-                className="h-full w-full [&_[data-slot=scroll-area-viewport]]:overflow-x-hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
+                className={cn(
+                  "h-full w-full min-w-0",
+                  "[&_[data-slot=scroll-area-viewport]]:overflow-x-hidden",
+                  "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+                  "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
+                )}
               >
                 <ul
                   className="relative w-full min-w-0"

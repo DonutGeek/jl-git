@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { SCROLL_AREA_LIST_CLASSNAME } from "@/utils/scrollListGutter";
 
 interface DropdownMenuScrollAreaProps extends Omit<ComponentProps<typeof ScrollArea>, "style"> {
   itemCount: number;
@@ -41,12 +42,7 @@ export function DropdownMenuScrollArea({
 
   return (
     <ScrollArea
-      className={cn(
-        "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
-        // 竖向滚动条叠在右侧对称 gutter（与列表 px-2 对齐），不额外撑开右边距
-        "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
-        className,
-      )}
+      className={cn(SCROLL_AREA_LIST_CLASSNAME, className)}
       style={{
         height: `${contentHeight}px`,
         maxHeight: viewportCap,

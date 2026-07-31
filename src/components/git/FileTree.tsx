@@ -362,7 +362,11 @@ export function FileTree({ repoPath }: FileTreeProps) {
       <div className="min-h-0 flex-1">
         <ScrollArea
           ref={bindScrollArea}
-          className="h-full px-3 py-1 [&_[data-slot=scroll-area-viewport]>div]:block! [&_[data-slot=scroll-area-viewport]>div]:min-w-0! [&_[data-slot=scroll-area-viewport]>div]:w-full"
+          className={cn(
+            "h-full min-w-0 px-3 py-1",
+            "[&_[data-slot=scroll-area-viewport]>div]:block! [&_[data-slot=scroll-area-viewport]>div]:min-w-0! [&_[data-slot=scroll-area-viewport]>div]:w-full",
+            "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
+          )}
         >
           {error ? (
             <p className="text-destructive px-2 py-2 text-sm" role="alert">

@@ -11,6 +11,7 @@ import { MultiAgentSidebar } from "@/components/agent/MultiAgentSidebar";
 import { AppWindowHeader } from "@/components/layout/AppWindowHeader";
 import { useAgentModel } from "@/hooks/useAgentModel";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
+import { cn } from "@/lib/utils";
 import {
   appendAgentMentionMarkup,
   agentProjectMentionId,
@@ -275,9 +276,15 @@ export function MultiAgentWorkspace() {
     void persistConversationById(activeConversationId);
   }, [activeConversationId, messages, resetConversation]);
 
+  // 依赖 mainView：插件页曾卸载输入框时需在切回会话后重新绑定测量
   useLayoutEffect(() => {
+    if (mainView !== "chat") {
+      return;
+    }
     const el = composerRef.current;
-    if (!el) return;
+    if (!el) {
+      return;
+    }
     const update = (): void => {
       setComposerPadPx(Math.ceil(el.getBoundingClientRect().height + COMPOSER_BOTTOM_OFFSET_PX));
     };
@@ -285,7 +292,7 @@ export function MultiAgentWorkspace() {
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [mainView]);
 
   function nextMessageId(): string {
     messageSeq.current += 1;
@@ -1127,19 +1134,18 @@ export function MultiAgentWorkspace() {
           onOpenPlugins={() => setMainView("plugins")}
         />
 
-        {mainView === "plugins" ? (
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col px-6 pb-6 pt-5">
-            <AgentCatalogPanel
-              variant="gallery"
-              plugins={enabledPlugins}
-              skills={enabledSkills}
-              onSelectPlugin={handleInsertPlugin}
-              onTryPlugin={handleTryPlugin}
-              onUninstallPlugin={handleUninstallPlugin}
-            />
-          </div>
-        ) : (
-          <div className="relative min-h-0 min-w-0 flex-1">
+        {/*
+          会话区保持挂载：切到插件时仅 invisible，避免卸载 Composer / MessageList
+          导致 ResizeObserver 失效、MentionsInput 宽度错乱、列表布局炸掉。
+        */}
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+          <div
+            className={cn(
+              "absolute inset-0 min-h-0 min-w-0",
+              mainView !== "chat" && "pointer-events-none invisible",
+            )}
+            aria-hidden={mainView !== "chat"}
+          >
             <AgentMessageList
               messages={messages}
               conversationId={activeConversationId ?? "agent-global"}
@@ -1190,7 +1196,20 @@ export function MultiAgentWorkspace() {
               onStop={handleStopReply}
             />
           </div>
-        )}
+
+          {mainView === "plugins" ? (
+            <div className="bg-background absolute inset-0 flex min-h-0 min-w-0 flex-col px-6 pt-5 pb-6">
+              <AgentCatalogPanel
+                variant="gallery"
+                plugins={enabledPlugins}
+                skills={enabledSkills}
+                onSelectPlugin={handleInsertPlugin}
+                onTryPlugin={handleTryPlugin}
+                onUninstallPlugin={handleUninstallPlugin}
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
     </main>
   );

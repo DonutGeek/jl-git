@@ -113,7 +113,13 @@ export function AgentCatalogPanel({
               description={t("agent.catalogPluginsEmptyDescription")}
             />
           ) : (
-            <ScrollArea className="h-full w-full [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+            <ScrollArea
+              className={cn(
+                "h-full w-full min-w-0",
+                "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+                "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
+              )}
+            >
               <AgentPluginList
                 variant={variant}
                 plugins={plugins}
@@ -132,7 +138,13 @@ export function AgentCatalogPanel({
             description={t("agent.catalogSkillsEmptyDescription")}
           />
         ) : (
-          <ScrollArea className="h-full w-full [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+          <ScrollArea
+            className={cn(
+              "h-full w-full min-w-0",
+              "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+              "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
+            )}
+          >
             <AgentPluginList
               variant={variant}
               plugins={skills}

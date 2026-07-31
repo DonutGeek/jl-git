@@ -146,9 +146,15 @@ export function RecentProjectList({ onOpenProject }: RecentProjectListProps) {
       </div>
 
       <div className="min-h-0 flex-1">
-        {/* -mr-6 让滚动条贴住面板右缘（抵消 section 的 px-6）；pr-3 使选中高亮与滚动条留出约 12px 间隔，风格对齐提交历史列表 */}
-        <ScrollArea className="-mr-6 h-full pb-4 [&_[data-slot=scroll-area-viewport]>div]:!block">
-          <ul className="space-y-1 pr-3" role="listbox" aria-label={t("dashboard.recentTitle")}>
+        {/* 左右对称：外层 section px-6；滚动条叠在右侧 gutter，不再 -mr-6 / 单侧 pr */}
+        <ScrollArea
+          className={cn(
+            "h-full min-w-0 pb-4",
+            "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+            "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
+          )}
+        >
+          <ul className="space-y-1 pb-1" role="listbox" aria-label={t("dashboard.recentTitle")}>
             {filteredRows.map((project) => {
               const isSelected = selectedId === project.id;
               const remoteUrl = remoteUrls[project.id];

@@ -305,7 +305,11 @@ export function BranchList() {
       >
         <ScrollArea
           ref={bindScrollArea}
-          className="min-h-0 flex-1 px-3 py-0.5 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full"
+          className={cn(
+            "min-h-0 min-w-0 flex-1 px-3 py-0.5",
+            "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+            "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
+          )}
         >
           {isEmpty ? (
             <p className="text-muted-foreground px-2 py-3 text-xs">{t("repo.branchesEmpty")}</p>

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import dayjs from "dayjs";
 import { FileSearch, GitCommitHorizontal } from "lucide-react";
 
 import { EmptyState } from "@/components/common/EmptyState";
@@ -15,6 +14,7 @@ import { getCommitFileDiff, getLog } from "@/services/git";
 import { toUserMessage } from "@/types/error";
 import type { GitCommitSummary, GitDiffResult } from "@/types/git";
 import type { Project } from "@/types/project";
+import { formatCommitDateTime } from "@/utils/formatCommitDateTime";
 import { DEFAULT_TEXT_ENCODING } from "@/utils/textEncodings";
 
 interface FileHistoryWorkspaceProps {
@@ -168,7 +168,7 @@ export function FileHistoryWorkspace({ project, filePath, initialRef }: FileHist
                               <span className="min-w-0 truncate">{commit.authorName}</span>
                               <span className="font-mono shrink-0">{commit.shortId}</span>
                               <span className="ml-auto shrink-0 tabular-nums">
-                                {dayjs(commit.authoredAt).format("YYYY-MM-DD")}
+                                {formatCommitDateTime(commit.authoredAt)}
                               </span>
                             </div>
                           </button>

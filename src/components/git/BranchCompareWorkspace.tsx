@@ -277,11 +277,17 @@ export function BranchCompareWorkspace({
                   placeholder={t("branchCompare.filterFiles")}
                 />
               </div>
-              <ScrollArea className="min-h-0 flex-1">
+              <ScrollArea
+                className={cn(
+                  "min-h-0 min-w-0 flex-1",
+                  "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+                  "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
+                )}
+              >
                 {fileError ? (
                   <p className="text-destructive p-3 text-xs">{fileError}</p>
                 ) : visibleFiles.length ? (
-                  <div className="space-y-0.5 px-1 py-0.5">
+                  <div className="space-y-0.5 px-2 py-1">
                     {visibleFiles.map((file) => (
                       <button
                         type="button"
