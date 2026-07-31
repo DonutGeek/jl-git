@@ -35,8 +35,8 @@
 
 - DeepSeek Chat Completions **function calling**
 - 通用 Git Agent 模式启用工具；简历 / 技能创建 **不**启用
-- 工具轮：`stream: false`（可靠组装 `tool_calls`）；最终有正文时再 `stream: true` 上屏
-- 工具轮默认关闭 thinking，避免 `reasoning_content` 回传复杂度；最终回答遵循用户 thinking 开关
+- 工具环请求统一 `stream: true`：SSE 组装 `tool_calls`；一旦出现 tool_calls 则不再向 UI 推 content；纯正文轮边收边 `onDelta`
+- 工具环默认关闭 thinking，避免 `reasoning_content` 回传复杂度；无工具的纯流式路径仍遵循用户 thinking 开关
 - 最多 6 轮工具调用，超时沿用现有 Agent 超时
 
 ## 非目标（本阶段）

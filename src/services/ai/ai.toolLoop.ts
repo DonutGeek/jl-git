@@ -35,8 +35,15 @@ interface RunAgentToolLoopOptions {
   onDelta: (content: string) => void;
 }
 
+interface StreamedCompletion {
+  content: string;
+  toolCalls: AgentToolCall[];
+}
+
 /**
- * 只读代码工具环：工具轮非流式；得到最终正文后一次性上屏。
+ * 只读代码工具环：
+ * - 若本轮产生 tool_calls：不向 UI 推正文，执行工具后继续
+ * - 若本轮只有正文：SSE 流式 onDelta（恢复鲸灵流式观感）
  * thinking 在工具环内关闭，避免 reasoning_content 回传复杂度。
  */
 export async function runAgentCodeToolLoop({
@@ -61,7 +68,7 @@ export async function runAgentCodeToolLoop({
   ];
 
   for (let round = 0; round < AGENT_CODE_TOOL_MAX_ROUNDS; round += 1) {
-    const payload = await requestCompletion({
+    const completion = await requestCompletionStreaming({
       apiKey,
       model,
       messages,
@@ -69,22 +76,17 @@ export async function runAgentCodeToolLoop({
       temperature,
       signal,
       failureMessage,
+      // 仅在确认无 tool_calls 时向 UI 流式推送；见 consume 内 sawToolCalls 门闩
+      onDelta,
     });
 
-    const choice = payload.choices[0];
-    const message = choice?.message;
-    if (!message) {
-      throw appError("INTERNAL", failureMessage);
-    }
-
-    const toolCalls = normalizeToolCalls(message.tool_calls);
-    if (toolCalls.length > 0) {
+    if (completion.toolCalls.length > 0) {
       messages.push({
         role: "assistant",
-        content: typeof message.content === "string" ? message.content : null,
-        tool_calls: toolCalls,
+        content: completion.content.trim() ? completion.content : null,
+        tool_calls: completion.toolCalls,
       });
-      for (const call of toolCalls) {
+      for (const call of completion.toolCalls) {
         const result = await executeAgentCodeTool(call, allowedRepos);
         messages.push({
           role: "tool",
@@ -95,16 +97,12 @@ export async function runAgentCodeToolLoop({
       continue;
     }
 
-    const content =
-      typeof message.content === "string" ? redactSecrets(message.content.trim()) : "";
-    if (content) {
-      onDelta(content);
-    }
+    // 正文已在流式过程中经 onDelta 上屏
     return;
   }
 
-  // 轮次耗尽：再请求一次无工具的收束回答
-  const closing = await requestCompletion({
+  // 轮次耗尽：无工具收束，流式上屏
+  await requestCompletionStreaming({
     apiKey,
     model,
     messages: [
@@ -119,23 +117,11 @@ export async function runAgentCodeToolLoop({
     temperature,
     signal,
     failureMessage,
+    onDelta,
   });
-  const closingContent = closing.choices[0]?.message?.content;
-  if (typeof closingContent === "string" && closingContent.trim()) {
-    onDelta(redactSecrets(closingContent.trim()));
-  }
 }
 
-interface CompletionPayload {
-  choices: Array<{
-    message?: {
-      content?: unknown;
-      tool_calls?: unknown;
-    };
-  }>;
-}
-
-async function requestCompletion(input: {
+async function requestCompletionStreaming(input: {
   apiKey: string;
   model: string;
   messages: ChatMessage[];
@@ -143,10 +129,11 @@ async function requestCompletion(input: {
   temperature: number;
   signal: AbortSignal;
   failureMessage: string;
-}): Promise<CompletionPayload> {
+  onDelta: (content: string) => void;
+}): Promise<StreamedCompletion> {
   const body: Record<string, unknown> = {
     model: input.model,
-    stream: false,
+    stream: true,
     temperature: input.temperature,
     thinking: { type: "disabled" },
     messages: input.messages,
@@ -169,37 +156,131 @@ async function requestCompletion(input: {
     const payload = await readResponseJson(response);
     throw mapDeepSeekHttpError(response.status, payload, input.failureMessage);
   }
-
-  const payload = await readResponseJson(response);
-  if (!isRecord(payload) || !Array.isArray(payload.choices)) {
+  if (!response.body) {
     throw appError("INTERNAL", input.failureMessage);
   }
-  return payload as unknown as CompletionPayload;
+
+  return readToolLoopSseStream(response.body, input.onDelta);
 }
 
-function normalizeToolCalls(raw: unknown): AgentToolCall[] {
-  if (!Array.isArray(raw)) {
-    return [];
+/**
+ * 解析带可选 tool_calls 的 SSE。
+ * 一旦出现 tool_calls 碎片，停止向 UI 推送 content（避免半截答案后进工具）。
+ */
+async function readToolLoopSseStream(
+  stream: ReadableStream<Uint8Array>,
+  onDelta: (content: string) => void,
+): Promise<StreamedCompletion> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  let sawToolCalls = false;
+  const toolAcc = new Map<number, { id: string; name: string; arguments: string }>();
+
+  const applyData = (data: string): void => {
+    try {
+      const payload: unknown = JSON.parse(data);
+      if (!isRecord(payload) || !Array.isArray(payload.choices)) {
+        return;
+      }
+      for (const choice of payload.choices) {
+        if (!isRecord(choice) || !isRecord(choice.delta)) {
+          continue;
+        }
+        const delta = choice.delta;
+        if (Array.isArray(delta.tool_calls)) {
+          sawToolCalls = true;
+          mergeToolCallDeltas(toolAcc, delta.tool_calls);
+        }
+        if (typeof delta.content === "string" && delta.content) {
+          content += delta.content;
+          if (!sawToolCalls) {
+            onDelta(redactSecrets(delta.content));
+          }
+        }
+      }
+    } catch {
+      // 忽略残缺 SSE 行
+    }
+  };
+
+  try {
+    while (true) {
+      const result = await reader.read();
+      if (result.done) {
+        break;
+      }
+      buffer += decoder.decode(result.value, { stream: true });
+      buffer = consumeSseDataLines(buffer, applyData);
+    }
+    consumeSseDataLines(`${buffer}\n`, applyData);
+  } finally {
+    reader.releaseLock();
   }
-  const calls: AgentToolCall[] = [];
-  for (const item of raw) {
-    if (!isRecord(item) || typeof item.id !== "string") {
+
+  const toolCalls = finalizeToolCalls(toolAcc);
+  return {
+    content: redactSecrets(content),
+    toolCalls,
+  };
+}
+
+function consumeSseDataLines(buffer: string, onData: (data: string) => void): string {
+  let lineEnd = buffer.indexOf("\n");
+  while (lineEnd >= 0) {
+    const line = buffer.slice(0, lineEnd).trim();
+    buffer = buffer.slice(lineEnd + 1);
+    if (line.startsWith("data:")) {
+      const data = line.slice(5).trim();
+      if (data && data !== "[DONE]") {
+        onData(data);
+      }
+    }
+    lineEnd = buffer.indexOf("\n");
+  }
+  return buffer;
+}
+
+function mergeToolCallDeltas(
+  acc: Map<number, { id: string; name: string; arguments: string }>,
+  rawCalls: unknown[],
+): void {
+  for (const item of rawCalls) {
+    if (!isRecord(item)) {
       continue;
     }
-    if (!isRecord(item.function) || typeof item.function.name !== "string") {
-      continue;
+    const index = typeof item.index === "number" ? item.index : 0;
+    const prev = acc.get(index) ?? { id: "", name: "", arguments: "" };
+    if (typeof item.id === "string" && item.id) {
+      prev.id = item.id;
     }
-    const args = typeof item.function.arguments === "string" ? item.function.arguments : "{}";
-    calls.push({
-      id: item.id,
-      type: "function",
+    if (isRecord(item.function)) {
+      if (typeof item.function.name === "string" && item.function.name) {
+        prev.name = item.function.name;
+      }
+      if (typeof item.function.arguments === "string") {
+        prev.arguments += item.function.arguments;
+      }
+    }
+    acc.set(index, prev);
+  }
+}
+
+function finalizeToolCalls(
+  acc: Map<number, { id: string; name: string; arguments: string }>,
+): AgentToolCall[] {
+  return [...acc.entries()]
+    .sort(([a], [b]) => a - b)
+    .filter(([, call]) => call.id && call.name)
+    .map(([, call]) => ({
+      id: call.id,
+      type: "function" as const,
       function: {
-        name: item.function.name,
-        arguments: args,
+        name: call.name,
+        arguments: call.arguments || "{}",
       },
-    });
-  }
-  return calls;
+    }));
 }
 
 async function readResponseJson(response: Response): Promise<unknown> {

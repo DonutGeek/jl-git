@@ -1,5 +1,6 @@
 import { contrastingForeground, isDocumentDark, withAlpha } from "@/design/themes/color-utils";
 import { chromeFromPreset, usesNativeDesignTokens } from "@/design/themes/registry";
+import { applySyntaxTokensToDocument, SYNTAX_TOKEN_PROPS } from "@/design/themes/syntax-tokens";
 import {
   DEFAULT_APP_THEME_ID,
   type AppThemeChrome,
@@ -55,6 +56,7 @@ const APP_THEME_TOKEN_PROPS = [
   "--git-untracked",
   "--git-conflict",
   "--editor-theme-accent",
+  ...SYNTAX_TOKEN_PROPS,
 ] as const;
 
 type AppThemeTokenProp = (typeof APP_THEME_TOKEN_PROPS)[number];
@@ -235,6 +237,9 @@ export function applyAppThemeToDocument(themeId: AppThemeId, chrome: AppThemeChr
   clearAppThemeTokenOverrides();
 
   const dark = isDocumentDark();
+  // 语法色始终写入，供鲸灵代码块等非 Monaco 高亮复用 pack.syntax
+  applySyntaxTokensToDocument(themeId, dark);
+
   if (usesNativeDesignTokens(themeId)) {
     const overrides = getNativeAppThemeTokenOverrides(themeId, chrome, dark);
     for (const [prop, value] of Object.entries(overrides)) {

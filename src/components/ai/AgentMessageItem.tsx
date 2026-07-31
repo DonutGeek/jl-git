@@ -9,6 +9,7 @@ import { AgentMessageCopyButton } from "@/components/ai/AgentMessageCopyButton";
 import { AgentReasoningBlock } from "@/components/ai/AgentReasoningBlock";
 import {
   AgentRichMessage,
+  getAgentMessageCopyText,
   parseAgentMessage,
   type CompareBranchesAction,
 } from "@/components/ai/AgentRichMessage";
@@ -215,7 +216,11 @@ export function AgentMessageItem({
               <TooltipContent>{t("agent.editMessage")}</TooltipContent>
             </Tooltip>
           ) : null}
-          {message.content.trim() ? <AgentMessageCopyButton content={message.content} /> : null}
+          {message.content.trim() ? (
+            <AgentMessageCopyButton
+              content={isUser ? message.content : getAgentMessageCopyText(message.content)}
+            />
+          ) : null}
           {canRegenerate ? (
             <Tooltip>
               <TooltipTrigger asChild>

@@ -3,6 +3,11 @@ import remarkGfm from "remark-gfm";
 import { GitCompareArrows } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import {
+  AgentMarkdownCodeBlock,
+  markdownChildrenToText,
+} from "@/components/ai/AgentMarkdownCodeBlock";
+import { AgentMarkdownImage } from "@/components/ai/AgentMarkdownImage";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { isRecord } from "@/types/error";
@@ -48,6 +53,11 @@ export function parseAgentMessage(content: string): ParsedAgentMessage {
   };
 }
 
+/** 复制用：去掉动作标记，与气泡展示一致 */
+export function getAgentMessageCopyText(content: string): string {
+  return parseAgentMessage(content).content;
+}
+
 export function AgentRichMessage({
   content,
   action,
@@ -84,17 +94,43 @@ export function AgentRichMessage({
                 <span>{children}</span>
               );
             },
-            code: ({ children, className }) => (
-              <code
-                className={
-                  className
-                    ? "block overflow-x-auto rounded bg-background/60 p-2"
-                    : "rounded bg-background/60 px-1 py-0.5"
-                }
-              >
-                {children}
-              </code>
+            // 围栏块由自定义组件承接，去掉外层默认 pre 以免双层滚动
+            pre: ({ children }) => <>{children}</>,
+            code: ({ className, children }) => {
+              const text = markdownChildrenToText(children).replace(/\n$/, "");
+              const language = /language-([A-Za-z0-9_+-]+)/.exec(className ?? "")?.[1];
+              const isBlock = Boolean(language) || text.includes("\n");
+              if (isBlock) {
+                return <AgentMarkdownCodeBlock code={text} language={language} />;
+              }
+              return (
+                <code className="bg-background/70 text-foreground rounded px-1 py-0.5 font-mono text-[11px]">
+                  {children}
+                </code>
+              );
+            },
+            table: ({ children }) => (
+              <div className="border-border my-2 max-w-full overflow-x-auto rounded-md border">
+                <table className="w-full border-collapse text-left text-[11px]">{children}</table>
+              </div>
             ),
+            thead: ({ children }) => <thead className="bg-background/50">{children}</thead>,
+            th: ({ children }) => (
+              <th className="border-border text-foreground border-b px-2 py-1.5 font-semibold">
+                {children}
+              </th>
+            ),
+            td: ({ children }) => (
+              <td className="border-border border-b px-2 py-1 align-top last:border-b-0">
+                {children}
+              </td>
+            ),
+            blockquote: ({ children }) => (
+              <blockquote className="border-border text-muted-foreground my-2 border-l-2 pl-2.5">
+                {children}
+              </blockquote>
+            ),
+            img: ({ src, alt }) => <AgentMarkdownImage src={src} alt={alt} />,
             h1: ({ children }) => (
               <h1 className="text-foreground mt-3 mb-2 border-border/60 border-b pb-1 text-sm font-semibold first:mt-0">
                 {children}
@@ -105,7 +141,6 @@ export function AgentRichMessage({
                 {children}
               </h2>
             ),
-            // 项目标题：仅「第二个及以后的 ###」加顶部分隔，用于分清多项目边界
             h3: ({ children }) => (
               <h3 className="text-foreground border-border/50 mt-4 mb-1.5 border-t pt-3 text-[13px] font-semibold">
                 {children}

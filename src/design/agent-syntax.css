@@ -1,0 +1,92 @@
+/**
+ * 鲸灵 Markdown 代码块：highlight.js 类名 → 主题 --syntax-*（与 Monaco pack.syntax 同源）
+ * 不引入 hljs 官方主题包。
+ */
+.agent-markdown-code .hljs {
+  color: var(--foreground);
+  background: transparent;
+}
+
+.agent-markdown-code .hljs-comment,
+.agent-markdown-code .hljs-quote {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+
+.agent-markdown-code .hljs-keyword,
+.agent-markdown-code .hljs-selector-tag,
+.agent-markdown-code .hljs-addition {
+  color: var(--syntax-keyword);
+}
+
+.agent-markdown-code .hljs-string,
+.agent-markdown-code .hljs-meta .hljs-string,
+.agent-markdown-code .hljs-doctag {
+  color: var(--syntax-string);
+}
+
+.agent-markdown-code .hljs-number,
+.agent-markdown-code .hljs-literal {
+  color: var(--syntax-number);
+}
+
+.agent-markdown-code .hljs-type,
+.agent-markdown-code .hljs-class .hljs-title,
+.agent-markdown-code .hljs-title.class_,
+.agent-markdown-code .hljs-built_in {
+  color: var(--syntax-type);
+}
+
+.agent-markdown-code .hljs-title,
+.agent-markdown-code .hljs-title.function_,
+.agent-markdown-code .hljs-section {
+  color: var(--syntax-function);
+}
+
+.agent-markdown-code .hljs-variable,
+.agent-markdown-code .hljs-template-variable,
+.agent-markdown-code .hljs-params,
+.agent-markdown-code .hljs-property,
+.agent-markdown-code .hljs-bullet {
+  color: var(--syntax-variable);
+}
+
+.agent-markdown-code .hljs-tag,
+.agent-markdown-code .hljs-name,
+.agent-markdown-code .hljs-selector-id,
+.agent-markdown-code .hljs-selector-class {
+  color: var(--syntax-tag);
+}
+
+.agent-markdown-code .hljs-attr,
+.agent-markdown-code .hljs-attribute {
+  color: var(--syntax-attribute);
+}
+
+.agent-markdown-code .hljs-regexp,
+.agent-markdown-code .hljs-link {
+  color: var(--syntax-regexp);
+}
+
+.agent-markdown-code .hljs-operator,
+.agent-markdown-code .hljs-punctuation,
+.agent-markdown-code .hljs-subst {
+  color: var(--syntax-operator);
+}
+
+.agent-markdown-code .hljs-meta,
+.agent-markdown-code .hljs-meta .hljs-keyword {
+  color: var(--syntax-keyword);
+}
+
+.agent-markdown-code .hljs-deletion {
+  color: var(--syntax-tag);
+}
+
+.agent-markdown-code .hljs-emphasis {
+  font-style: italic;
+}
+
+.agent-markdown-code .hljs-strong {
+  font-weight: 600;
+}

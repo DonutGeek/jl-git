@@ -11,5 +11,6 @@
 @import "./theme-map.css";
 @import "./base.css";
 @import "./monaco.css";
+@import "./agent-syntax.css";
 
 @custom-variant dark (&:is(.dark *));
