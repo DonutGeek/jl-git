@@ -82,8 +82,9 @@ Tokens 定义见 [theme](../development/theme.md)。
 | `shell` / `shellPath` | 工具栏「在终端中打开」 |
 | `externalEditor` / `externalEditorPath` | 工具栏「在编辑器中打开」 |
 | `externalBrowser` / `externalBrowserPath` | 打开远程 / 外链（`openExternalUrl` → `system_open_url`）；下拉选项来自 `system_list_browsers` |
-| `gitExtraPath` / `setGitExtraPath` | 额外 PATH 目录列表（换行分隔）；首次启动空配置时自动发现 node 的 bin 并填入；设置页亦可用系统选目录对话框添加 |
-| `probeHookToolchain()` / `discoverNodeBin()`（`src/services/git/git.path.ts`） | 探测 / 发现本机 node |
+| `gitExtraPathMode` / `setGitExtraPathMode` | `auto`（系统默认，运行时自动发现并注入）或 `custom` |
+| `gitExtraPath` / `setGitExtraPath` | 自定义模式下的额外 PATH 目录（换行分隔）；写入时切到 `custom`；设置页可用系统选目录对话框 |
+| `probeHookToolchain()` / `discoverNodeBin()`（`src/services/git/git.path.ts`） | 探测 / 发现本机 node（`auto` 模式由启动同步调用） |
 
 ---
 

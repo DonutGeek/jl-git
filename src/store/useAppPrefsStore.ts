@@ -59,9 +59,11 @@ interface AppPrefsState {
   externalBrowserPath: string;
   shell: string;
   shellPath: string;
-  /** Git 子进程额外 PATH 目录（多行；供 husky 找到 node） */
+  /** Git 子进程额外 PATH 目录（多行；供 husky 找到 node）；仅 custom 模式写入偏好 */
   gitExtraPath: string;
-  /** 是否已完成首次自动发现（成功填入或用户已手动改过）；未找到 node 时保持 false 以便下次启动再试 */
+  /** auto：系统默认自动发现；custom：使用 gitExtraPath */
+  gitExtraPathMode: "auto" | "custom";
+  /** 是否已完成首次自动发现（成功注入或用户已处理）；未找到 node 时保持 false 以便下次启动再试 */
   gitExtraPathAutoSeeded: boolean;
   launchAtLogin: boolean;
   startupTabsMode: StartupTabsMode;
@@ -85,6 +87,7 @@ interface AppPrefsState {
   setShell: (value: string) => void;
   setShellPath: (value: string) => void;
   setGitExtraPath: (value: string) => void;
+  setGitExtraPathMode: (mode: "auto" | "custom") => void;
   setLaunchAtLogin: (value: boolean) => void;
   setStartupTabsMode: (mode: StartupTabsMode) => void;
   setPushAfterCommit: (value: boolean) => void;
@@ -190,6 +193,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
       shell: "auto",
       shellPath: "",
       gitExtraPath: "",
+      gitExtraPathMode: "auto",
       gitExtraPathAutoSeeded: false,
       launchAtLogin: false,
       startupTabsMode: "restore",
@@ -257,13 +261,32 @@ export const useAppPrefsStore = create<AppPrefsState>()(
         notifyGlobalPreferenceChange("app-prefs");
       },
       setGitExtraPath(value) {
-        set({ gitExtraPath: value, gitExtraPathAutoSeeded: true });
+        set({ gitExtraPath: value, gitExtraPathMode: "custom", gitExtraPathAutoSeeded: true });
         notifyGlobalPreferenceChange("app-prefs");
         void import("@/services/git/git.path")
           .then(({ setGitExtraPath: sync }) => sync(value))
           .catch((error: unknown) => {
             console.warn("同步 Git 额外 PATH 失败", error);
           });
+      },
+      setGitExtraPathMode(mode) {
+        const next = mode === "custom" ? "custom" : "auto";
+        set({ gitExtraPathMode: next, gitExtraPathAutoSeeded: true });
+        notifyGlobalPreferenceChange("app-prefs");
+        void (async () => {
+          try {
+            const { discoverNodeBin, setGitExtraPath: sync } =
+              await import("@/services/git/git.path");
+            if (next === "custom") {
+              await sync(get().gitExtraPath ?? "");
+              return;
+            }
+            const discovered = await discoverNodeBin();
+            await sync(discovered.binDir ?? "");
+          } catch (error: unknown) {
+            console.warn("同步 Git 额外 PATH 失败", error);
+          }
+        })();
       },
       setLaunchAtLogin(value) {
         set({ launchAtLogin: value });
@@ -303,7 +326,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
     }),
     {
       name: APP_PREFS_STORAGE_KEY,
-      version: 16,
+      version: 17,
       migrate: (persisted, version) => {
         const state = persisted as Partial<AppPrefsState> & {
           editorChromeLight?: AppThemeChrome;
@@ -418,6 +441,11 @@ export const useAppPrefsStore = create<AppPrefsState>()(
           state.externalBrowserPath =
             typeof state.externalBrowserPath === "string" ? state.externalBrowserPath : "";
         }
+        if (version < 17) {
+          // 与编辑器/浏览器/终端一致：默认「系统默认」；历史自动发现路径不视为用户自定义
+          state.gitExtraPathMode = "auto";
+        }
+        state.gitExtraPathMode = state.gitExtraPathMode === "custom" ? "custom" : "auto";
         return state as AppPrefsState;
       },
       onRehydrateStorage: () => (state) => {
@@ -458,21 +486,22 @@ export function initAppPrefs(): void {
       try {
         const { discoverNodeBin, setGitExtraPath: sync } = await import("@/services/git/git.path");
         const prefs = useAppPrefsStore.getState();
-        if (!prefs.gitExtraPathAutoSeeded && !(prefs.gitExtraPath ?? "").trim()) {
-          const discovered = await discoverNodeBin();
-          if (discovered.binDir) {
-            // 写入偏好并同步 Rust（setGitExtraPath 会标记 autoSeeded）
-            prefs.setGitExtraPath(discovered.binDir);
-            return;
+        const mode = prefs.gitExtraPathMode === "custom" ? "custom" : "auto";
+
+        if (mode === "custom") {
+          if (!prefs.gitExtraPathAutoSeeded) {
+            useAppPrefsStore.setState({ gitExtraPathAutoSeeded: true });
           }
-          // 未找到 node：下次启动再试
-          await sync("");
+          await sync(prefs.gitExtraPath ?? "");
           return;
         }
-        if (!prefs.gitExtraPathAutoSeeded && (prefs.gitExtraPath ?? "").trim()) {
+
+        // 系统默认：运行时发现并注入，不把路径写进偏好展示
+        const discovered = await discoverNodeBin();
+        await sync(discovered.binDir ?? "");
+        if (discovered.binDir || prefs.gitExtraPathAutoSeeded) {
           useAppPrefsStore.setState({ gitExtraPathAutoSeeded: true });
         }
-        await sync(prefs.gitExtraPath ?? "");
       } catch (error: unknown) {
         console.warn("同步 Git 额外 PATH 失败", error);
       }

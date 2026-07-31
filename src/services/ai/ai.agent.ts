@@ -274,7 +274,7 @@ async function buildRepositoryContext(
   ];
 
   if (needWorkingTreePatches && statusResult.status === "fulfilled") {
-    const workingTreePatches = await readWorkingTreePatches(repoPath, statusResult.value);
+    const workingTreePatches = await readWorkingTreePatches(repoPath, statusResult.value, question);
     if (workingTreePatches) {
       sections.push(workingTreePatches);
     }
@@ -548,16 +548,26 @@ function findMentionedCommit(
 }
 
 function hasWorkingTreeChangeIntent(question: string): boolean {
-  return /(?:当前|现在|工作区|未提交|暂存)?.{0,12}(?:变更|修改|改了|改动|changes?)|(?:变更|修改|改动|diff|差异).{0,12}(?:什么|哪些|内容|文件)|what(?:'s| is| are)?.{0,12}chang/i.test(
+  return /(?:当前|现在|工作区|未提交|暂存)?.{0,12}(?:变更|修改|改了|改动|changes?)|(?:变更|修改|改动|diff|差异|区别).{0,12}(?:什么|哪些|内容|文件)|what(?:'s| is| are)?.{0,12}chang/i.test(
     question,
   );
 }
 
-/** 仅在用户追问行级细节时拉工作区 patch，避免普通「改了什么」被多文件 diff 拖慢发送 */
+/** 是否在追问工作区相对 HEAD/暂存的对比（含「对比 / 区别」等说法） */
+function hasWorkingTreeCompareIntent(question: string): boolean {
+  return /(?:对比|对照|相比|比较|区别|差异|diff|patch|改前|改后|没改(?:动|之前)?|HEAD|unstaged|staged)/i.test(
+    question,
+  );
+}
+
+/** 仅在用户追问行级细节或明确对比时拉工作区 patch，避免普通「改了什么」被多文件 diff 拖慢发送 */
 function needsWorkingTreePatchContext(question: string): boolean {
+  if (hasWorkingTreeCompareIntent(question)) {
+    return true;
+  }
   return (
     hasWorkingTreeChangeIntent(question) &&
-    /(?:具体|逐行|细节|怎么改|改哪|diff|差异|patch|代码|实现|逻辑)/i.test(question)
+    /(?:具体|逐行|细节|怎么改|改哪|diff|差异|区别|对比|patch|代码|实现|逻辑)/i.test(question)
   );
 }
 
@@ -570,19 +580,29 @@ function needsFileTreeContext(question: string): boolean {
 async function readWorkingTreePatches(
   repoPath: string,
   status: GitStatusResult,
+  question = "",
 ): Promise<string | null> {
-  const targets = status.entries
-    .flatMap((entry) => {
-      const items: { path: string; staged: boolean }[] = [];
-      if (entry.indexStatus !== "." && entry.indexStatus !== "?") {
-        items.push({ path: entry.path, staged: true });
-      }
-      if (entry.worktreeStatus === "?" || entry.worktreeStatus !== ".") {
-        items.push({ path: entry.path, staged: false });
-      }
-      return items;
-    })
-    .slice(0, AGENT_WORKING_TREE_PATCH_FILE_LIMIT);
+  const allTargets = status.entries.flatMap((entry) => {
+    const items: { path: string; staged: boolean }[] = [];
+    if (entry.indexStatus !== "." && entry.indexStatus !== "?") {
+      items.push({ path: entry.path, staged: true });
+    }
+    if (entry.worktreeStatus === "?" || entry.worktreeStatus !== ".") {
+      items.push({ path: entry.path, staged: false });
+    }
+    return items;
+  });
+
+  // 正文点名的路径优先（如「对比 AgentConversationTabs.tsx」）
+  const mentioned = allTargets.filter((target) => {
+    const base = target.path.split(/[/\\]/).pop() ?? target.path;
+    return question.includes(target.path) || (base.length > 0 && question.includes(base));
+  });
+  const rest = allTargets.filter(
+    (target) =>
+      !mentioned.some((item) => item.path === target.path && item.staged === target.staged),
+  );
+  const targets = [...mentioned, ...rest].slice(0, AGENT_WORKING_TREE_PATCH_FILE_LIMIT);
 
   if (targets.length === 0) {
     return null;

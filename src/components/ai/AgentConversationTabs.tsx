@@ -1,4 +1,12 @@
-import { useMemo, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 import {
   closestCenter,
   DndContext,
@@ -32,8 +40,9 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { resolveRepoTabWheelDelta } from "@/components/layout/repoLoadingLayout";
 import { cn } from "@/lib/utils";
 
 import type { AgentConversation } from "@/types/ai";
@@ -226,7 +235,59 @@ export function AgentConversationTabs({
   const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [tabScrollViewport, setTabScrollViewport] = useState<HTMLDivElement | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  /** 绑定 ScrollArea，解析 viewport 供滚轮横滚（与仓库标签条同构） */
+  const bindTabScrollArea = useCallback((node: HTMLDivElement | null) => {
+    if (!node) {
+      setTabScrollViewport(null);
+      return;
+    }
+    const syncViewport = (): void => {
+      const viewport =
+        node.querySelector("[data-slot=scroll-area-viewport]") ??
+        node.querySelector("[data-radix-scroll-area-viewport]");
+      setTabScrollViewport(viewport instanceof HTMLDivElement ? viewport : null);
+    };
+    syncViewport();
+    window.requestAnimationFrame(syncViewport);
+  }, []);
+
+  useEffect(() => {
+    if (!tabScrollViewport) {
+      return;
+    }
+    const handleWheel = (event: WheelEvent): void => {
+      const hasOverflow = tabScrollViewport.scrollWidth > tabScrollViewport.clientWidth;
+      // 触控板横滑：直接消费 deltaX
+      if (hasOverflow && Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+        const previous = tabScrollViewport.scrollLeft;
+        tabScrollViewport.scrollLeft += event.deltaX;
+        if (tabScrollViewport.scrollLeft !== previous) {
+          event.preventDefault();
+        }
+        return;
+      }
+      // 鼠标滚轮竖滑 → 横滚（对齐 RepoTabBar）
+      const delta = resolveRepoTabWheelDelta({
+        deltaX: event.deltaX,
+        deltaY: event.deltaY,
+        hasOverflow,
+      });
+      if (delta === 0) {
+        return;
+      }
+      const previousScrollLeft = tabScrollViewport.scrollLeft;
+      tabScrollViewport.scrollLeft += delta;
+      if (tabScrollViewport.scrollLeft !== previousScrollLeft) {
+        event.preventDefault();
+      }
+    };
+
+    tabScrollViewport.addEventListener("wheel", handleWheel, { passive: false });
+    return () => tabScrollViewport.removeEventListener("wheel", handleWheel);
+  }, [tabScrollViewport]);
 
   const labels = useMemo(
     () => ({
@@ -289,7 +350,8 @@ export function AgentConversationTabs({
 
   return (
     <>
-      <header className="relative flex h-10 shrink-0 items-center gap-1 px-3">
+      {/* 上内边距对齐标签；下内边距留给横滚条，避免芯片贴条或被顶上去 */}
+      <header className="relative flex h-11 shrink-0 items-center gap-1 px-3">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -304,12 +366,12 @@ export function AgentConversationTabs({
           }}
           onDragCancel={() => setDraggingId(null)}
         >
-          <ScrollArea className="h-10 min-w-0 flex-1">
+          <ScrollArea ref={bindTabScrollArea} className="h-11 min-w-0 flex-1">
             <SortableContext
               items={conversations.map((conversation) => conversation.id)}
               strategy={horizontalListSortingStrategy}
             >
-              <div className="flex h-10 w-max items-center gap-1 pr-1">
+              <div className="flex w-max items-center gap-1 pt-1.5 pr-1 pb-2.5">
                 {conversations.map((conversation) => (
                   <SortableConversationTab
                     key={conversation.id}
@@ -326,7 +388,6 @@ export function AgentConversationTabs({
                 ))}
               </div>
             </SortableContext>
-            <ScrollBar orientation="horizontal" />
           </ScrollArea>
           <DragOverlay dropAnimation={null} style={{ zIndex: 100 }}>
             {draggingConversation ? (

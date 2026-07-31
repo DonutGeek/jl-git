@@ -63,8 +63,16 @@ export function AgentMessageList({
 
   /** 贴底时滚到最末；虚拟列表高度常晚于内容更新，需在测量后再补一次 */
   const scrollToBottomIfSticky = useCallback((): void => {
+    if (!stickToBottomRef.current) {
+      return;
+    }
+    const count = messagesLengthRef.current;
+    if (count > 0) {
+      // 先让虚拟列表把末条排进可视区，再校准 viewport
+      virtualizerRef.current?.scrollToIndex(count - 1, { align: "end" });
+    }
     const viewport = messageViewportRef.current;
-    if (!viewport || !stickToBottomRef.current) {
+    if (!viewport) {
       return;
     }
     const maxTop = viewport.scrollHeight - viewport.clientHeight;
@@ -73,6 +81,32 @@ export function AgentMessageList({
     }
   }, []);
 
+  /** 用户新发消息时强制贴底（即使之前上滑看过历史） */
+  const latestUserMessageId = (() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.role === "user") {
+        return messages[index].id;
+      }
+    }
+    return null;
+  })();
+  const prevLatestUserMessageIdRef = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    const previousId = prevLatestUserMessageIdRef.current;
+    prevLatestUserMessageIdRef.current = latestUserMessageId;
+    if (!latestUserMessageId || latestUserMessageId === previousId) {
+      return;
+    }
+    stickToBottomRef.current = true;
+    scrollToBottomIfSticky();
+    const frameId = window.requestAnimationFrame(() => {
+      scrollToBottomIfSticky();
+      window.requestAnimationFrame(scrollToBottomIfSticky);
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [latestUserMessageId, scrollToBottomIfSticky]);
+
   /** ScrollArea Root 挂载后再取 Radix viewport，供虚拟列表滚动 */
   const bindMessageScrollArea = useCallback((node: HTMLDivElement | null) => {
     if (!node) {
@@ -80,7 +114,9 @@ export function AgentMessageList({
       return;
     }
     const syncViewport = (): void => {
-      const viewport = node.querySelector("[data-radix-scroll-area-viewport]");
+      const viewport =
+        node.querySelector("[data-slot=scroll-area-viewport]") ??
+        node.querySelector("[data-radix-scroll-area-viewport]");
       setMessageViewport(viewport instanceof HTMLDivElement ? viewport : null);
     };
     syncViewport();

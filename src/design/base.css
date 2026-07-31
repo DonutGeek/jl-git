@@ -11,6 +11,9 @@
   body,
   #root {
     height: 100%;
+    /* 桌面壳不应出现文档级滚动；否则 macOS WKWebView 会整窗橡胶回弹 */
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   body {

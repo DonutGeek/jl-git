@@ -268,6 +268,7 @@ export function SettingsDrawer() {
   const shell = useAppPrefsStore((state) => state.shell);
   const shellPath = useAppPrefsStore((state) => state.shellPath);
   const gitExtraPath = useAppPrefsStore((state) => state.gitExtraPath);
+  const gitExtraPathMode = useAppPrefsStore((state) => state.gitExtraPathMode);
   const launchAtLogin = useAppPrefsStore((state) => state.launchAtLogin);
   const startupTabsMode = useAppPrefsStore((state) => state.startupTabsMode);
   const pushAfterCommit = useAppPrefsStore((state) => state.pushAfterCommit);
@@ -291,6 +292,7 @@ export function SettingsDrawer() {
   const setShell = useAppPrefsStore((state) => state.setShell);
   const setShellPath = useAppPrefsStore((state) => state.setShellPath);
   const setGitExtraPath = useAppPrefsStore((state) => state.setGitExtraPath);
+  const setGitExtraPathMode = useAppPrefsStore((state) => state.setGitExtraPathMode);
   const setLaunchAtLogin = useAppPrefsStore((state) => state.setLaunchAtLogin);
   const setStartupTabsMode = useAppPrefsStore((state) => state.setStartupTabsMode);
   const setPushAfterCommit = useAppPrefsStore((state) => state.setPushAfterCommit);
@@ -1994,33 +1996,56 @@ export function SettingsDrawer() {
                         </SettingsPreferenceRow>
                       ) : null}
                       <SettingsPreferenceRow label={t("settings.gitExtraPath")}>
-                        {/* 固定可用宽，避免 % 相对 shrink-0 内容算出内容宽后越点越窄 */}
-                        <div className="flex w-[min(20rem,40vw)] items-center gap-1.5">
-                          {gitExtraPathDir() ? (
-                            <CopyablePathLabel
-                              path={gitExtraPathDir()}
-                              className="text-muted-foreground font-mono text-xs"
-                            />
-                          ) : null}
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon-sm"
-                                className="shrink-0"
-                                aria-label={t("settings.gitExtraPathAdd")}
-                                onClick={() => {
-                                  void handlePickGitExtraPathDir();
-                                }}
-                              >
-                                <Folder aria-hidden="true" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>{t("settings.gitExtraPathAdd")}</TooltipContent>
-                          </Tooltip>
-                        </div>
+                        <SelectMenu
+                          value={gitExtraPathMode === "custom" ? "custom" : "auto"}
+                          ariaLabel={t("settings.gitExtraPath")}
+                          onChange={(value) => {
+                            setGitExtraPathMode(value === "custom" ? "custom" : "auto");
+                          }}
+                          triggerClassName="h-8 w-[12rem] max-w-[40vw]"
+                          options={[
+                            { value: "auto", label: t("settings.gitExtraPathAuto") },
+                            { value: "custom", label: t("settings.gitExtraPathCustom") },
+                          ]}
+                        />
                       </SettingsPreferenceRow>
+                      {gitExtraPathMode === "custom" ? (
+                        <SettingsPreferenceRow
+                          control="below"
+                          label={t("settings.gitExtraPathDir")}
+                        >
+                          {/* 固定可用宽，避免 % 相对 shrink-0 内容算出内容宽后越点越窄 */}
+                          <div className="flex w-full min-w-0 items-center gap-1.5">
+                            {gitExtraPathDir() ? (
+                              <CopyablePathLabel
+                                path={gitExtraPathDir()}
+                                className="text-muted-foreground min-w-0 flex-1 font-mono text-xs"
+                              />
+                            ) : (
+                              <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
+                                {t("settings.gitExtraPathEmpty")}
+                              </span>
+                            )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon-sm"
+                                  className="shrink-0"
+                                  aria-label={t("settings.gitExtraPathAdd")}
+                                  onClick={() => {
+                                    void handlePickGitExtraPathDir();
+                                  }}
+                                >
+                                  <Folder aria-hidden="true" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>{t("settings.gitExtraPathAdd")}</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </SettingsPreferenceRow>
+                      ) : null}
                     </SettingsPreferenceGroup>
                   </SettingsSection>
                 ) : null}
