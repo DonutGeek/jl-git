@@ -6,27 +6,18 @@ import {
   ChevronRight,
   Cloud,
   CloudOff,
-  Copy,
-  Download,
   Folder,
   FolderOpen,
-  GitCompareArrows,
-  GitMerge,
   GitBranch as GitBranchIcon,
-  Pencil,
-  Trash2,
-  Upload,
 } from "lucide-react";
 
 import { HighlightText } from "@/components/common/HighlightText";
-import { Button } from "@/components/ui/button";
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
+  BranchContextMenuContent,
+  type BranchContextActions,
+} from "@/components/git/BranchContextMenuContent";
+import { Button } from "@/components/ui/button";
+import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -34,21 +25,9 @@ import { cn } from "@/lib/utils";
 import type { GitBranch } from "@/types/git";
 import type { BranchTreeNode } from "@/utils/branchTree";
 import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
+import { withSoftWrapOpportunities } from "@/utils/softWrapText";
 
-/** 分支行右键菜单动作 */
-export interface BranchContextActions {
-  onCheckout: (branch: GitBranch) => void;
-  onPull: (branch: GitBranch) => void;
-  onPush: (branch: GitBranch) => void;
-  onPublish: (branch: GitBranch) => void;
-  onRename: (branch: GitBranch) => void;
-  onCopyName: (branch: GitBranch) => void;
-  onCompareWithCurrent: (branch: GitBranch) => void;
-  canCompareWithCurrent: (branch: GitBranch) => boolean;
-  onMergeIntoCurrent: (branch: GitBranch) => void;
-  canMergeIntoCurrent: (branch: GitBranch) => boolean;
-  onDelete: (branch: GitBranch) => void;
-}
+export type { BranchContextActions };
 
 /** 与折叠箭头同宽，保证虚线落在父级箭头中轴下 */
 const INDENT_PX = 12;
@@ -337,15 +316,6 @@ export function BranchLeaf({
   const isRemote = branch.isRemote;
   const isDisabled = disabled || isBusy;
   const canCheckout = !isCurrent && !isDisabled;
-  // 与工具栏对齐：已发布才可更新；有超前提交才可推送；未发布显示发布
-  const canPull = isCurrent && !isRemote && published && !isDisabled;
-  const canPublish = isCurrent && !isRemote && !published && !isDisabled;
-  const canPush = isCurrent && !isRemote && published && aheadCount > 0 && !isDisabled;
-  const canRename = !isRemote && !isDisabled;
-  const canDelete = !isRemote && !isCurrent && !isDisabled;
-  const canCompareWithCurrent = !isDisabled && contextActions.canCompareWithCurrent(branch);
-  const canMergeIntoCurrent =
-    !isCurrent && !isDisabled && contextActions.canMergeIntoCurrent(branch);
   const hasTrackingBranch = !isRemote && Boolean(branch.upstream);
   const { menuOpen, onOpenChange } = useContextMenuOpen(() => {
     if (!isDisabled) {
@@ -417,81 +387,28 @@ export function BranchLeaf({
           </ContextMenuTrigger>
         </TooltipTrigger>
         <TooltipContent
-          className="max-w-96 font-mono whitespace-normal break-all"
+          className="max-w-96 font-mono whitespace-normal break-words"
           side="right"
           sideOffset={6}
         >
-          <p>{t("repo.branchTooltipName", { name: branch.name })}</p>
+          <p>{withSoftWrapOpportunities(t("repo.branchTooltipName", { name: branch.name }))}</p>
           {hasTrackingBranch ? (
-            <p>{t("repo.branchTooltipUpstream", { upstream: branch.upstream })}</p>
+            <p>
+              {withSoftWrapOpportunities(
+                t("repo.branchTooltipUpstream", { upstream: branch.upstream }),
+              )}
+            </p>
           ) : null}
         </TooltipContent>
       </Tooltip>
 
-      <ContextMenuContent className="min-w-40">
-        {/* 主操作 → 编辑 → 复制 → 同步 → 危险（ui-guidelines §2.3） */}
-        <ContextMenuItem disabled={!canCheckout} onSelect={() => contextActions.onCheckout(branch)}>
-          <GitBranchIcon aria-hidden="true" />
-          {t("repo.checkoutBranch")}
-        </ContextMenuItem>
-        <ContextMenuItem
-          disabled={!canMergeIntoCurrent}
-          onSelect={() => contextActions.onMergeIntoCurrent(branch)}
-        >
-          <GitMerge className="size-3.5" aria-hidden="true" />
-          {t("repo.mergeIntoCurrent")}
-        </ContextMenuItem>
-        <ContextMenuItem
-          disabled={!canCompareWithCurrent}
-          onSelect={() => contextActions.onCompareWithCurrent(branch)}
-        >
-          <GitCompareArrows className="size-3.5" aria-hidden="true" />
-          {t("repo.compareCurrentWithBranch")}
-        </ContextMenuItem>
-
-        <ContextMenuSeparator />
-
-        <ContextMenuItem disabled={!canRename} onSelect={() => contextActions.onRename(branch)}>
-          <Pencil aria-hidden="true" />
-          {t("repo.renameBranch")}
-        </ContextMenuItem>
-
-        <ContextMenuSeparator />
-
-        <ContextMenuItem onSelect={() => contextActions.onCopyName(branch)}>
-          <Copy aria-hidden="true" />
-          {t("repo.copyBranchName")}
-        </ContextMenuItem>
-
-        <ContextMenuSeparator />
-
-        <ContextMenuItem disabled={!canPull} onSelect={() => contextActions.onPull(branch)}>
-          <Download aria-hidden="true" />
-          {t("repo.pull")}
-        </ContextMenuItem>
-        {canPublish ? (
-          <ContextMenuItem onSelect={() => contextActions.onPublish(branch)}>
-            <Upload aria-hidden="true" />
-            {t("repo.publishBranch")}
-          </ContextMenuItem>
-        ) : (
-          <ContextMenuItem disabled={!canPush} onSelect={() => contextActions.onPush(branch)}>
-            <Upload aria-hidden="true" />
-            {t("repo.push")}
-          </ContextMenuItem>
-        )}
-
-        <ContextMenuSeparator />
-
-        <ContextMenuItem
-          variant="destructive"
-          disabled={!canDelete}
-          onSelect={() => contextActions.onDelete(branch)}
-        >
-          <Trash2 aria-hidden="true" />
-          {t("repo.deleteBranch")}
-        </ContextMenuItem>
-      </ContextMenuContent>
+      <BranchContextMenuContent
+        branch={branch}
+        disabled={isDisabled}
+        published={published}
+        aheadCount={aheadCount}
+        contextActions={contextActions}
+      />
     </ContextMenu>
   );
 }

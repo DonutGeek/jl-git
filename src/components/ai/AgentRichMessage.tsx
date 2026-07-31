@@ -1,3 +1,4 @@
+import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { GitCompareArrows } from "lucide-react";
@@ -76,93 +77,7 @@ export function AgentRichMessage({
       )}
     >
       {content ? (
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            a: ({ href, children }) => {
-              const safeHref = toSafeExternalHref(href);
-              return safeHref ? (
-                <a
-                  href={safeHref}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary underline underline-offset-2"
-                >
-                  {children}
-                </a>
-              ) : (
-                <span>{children}</span>
-              );
-            },
-            // 围栏块由自定义组件承接，去掉外层默认 pre 以免双层滚动
-            pre: ({ children }) => <>{children}</>,
-            code: ({ className, children }) => {
-              const text = markdownChildrenToText(children).replace(/\n$/, "");
-              const language = /language-([A-Za-z0-9_+-]+)/.exec(className ?? "")?.[1];
-              const isBlock = Boolean(language) || text.includes("\n");
-              if (isBlock) {
-                return <AgentMarkdownCodeBlock code={text} language={language} />;
-              }
-              return (
-                <code className="bg-background/70 text-foreground rounded px-1 py-0.5 font-mono text-[11px]">
-                  {children}
-                </code>
-              );
-            },
-            table: ({ children }) => (
-              <div className="border-border my-2 max-w-full overflow-x-auto rounded-md border">
-                <table className="w-full border-collapse text-left text-[11px]">{children}</table>
-              </div>
-            ),
-            thead: ({ children }) => <thead className="bg-background/50">{children}</thead>,
-            th: ({ children }) => (
-              <th className="border-border text-foreground border-b px-2 py-1.5 font-semibold">
-                {children}
-              </th>
-            ),
-            td: ({ children }) => (
-              <td className="border-border border-b px-2 py-1 align-top last:border-b-0">
-                {children}
-              </td>
-            ),
-            blockquote: ({ children }) => (
-              <blockquote className="border-border text-muted-foreground my-2 border-l-2 pl-2.5">
-                {children}
-              </blockquote>
-            ),
-            img: ({ src, alt }) => <AgentMarkdownImage src={src} alt={alt} />,
-            h1: ({ children }) => (
-              <h1 className="text-foreground mt-3 mb-2 border-border/60 border-b pb-1 text-sm font-semibold first:mt-0">
-                {children}
-              </h1>
-            ),
-            h2: ({ children }) => (
-              <h2 className="text-foreground mt-3 mb-1.5 border-border/60 border-b pb-1 text-sm font-semibold first:mt-0">
-                {children}
-              </h2>
-            ),
-            h3: ({ children }) => (
-              <h3 className="text-foreground border-border/50 mt-4 mb-1.5 border-t pt-3 text-[13px] font-semibold">
-                {children}
-              </h3>
-            ),
-            h4: ({ children }) => (
-              <h4 className="text-foreground mt-2 mb-1 text-xs font-semibold first:mt-0">
-                {children}
-              </h4>
-            ),
-            strong: ({ children }) => (
-              <strong className="text-foreground font-semibold">{children}</strong>
-            ),
-            ul: ({ children }) => <ul className="my-1.5 list-disc space-y-0.5 pl-4">{children}</ul>,
-            ol: ({ children }) => (
-              <ol className="my-1.5 list-decimal space-y-0.5 pl-4">{children}</ol>
-            ),
-            li: ({ children }) => <li className="my-0">{children}</li>,
-            p: ({ children }) => <p className="my-1">{children}</p>,
-            hr: () => <hr className="border-border/60 my-3" />,
-          }}
-        >
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={agentMarkdownComponents}>
           {content}
         </ReactMarkdown>
       ) : null}
@@ -181,6 +96,81 @@ export function AgentRichMessage({
     </div>
   );
 }
+
+const agentMarkdownComponents: Components = {
+  a: ({ href, children }) => {
+    const safeHref = toSafeExternalHref(href);
+    return safeHref ? (
+      <a
+        href={safeHref}
+        target="_blank"
+        rel="noreferrer"
+        className="text-primary underline underline-offset-2"
+      >
+        {children}
+      </a>
+    ) : (
+      <span>{children}</span>
+    );
+  },
+  // 围栏块由自定义组件承接，去掉外层默认 pre 以免双层滚动
+  pre: ({ children }) => <>{children}</>,
+  code: ({ className, children }) => {
+    const text = markdownChildrenToText(children).replace(/\n$/, "");
+    const language = /language-([A-Za-z0-9_+-]+)/.exec(className ?? "")?.[1];
+    const isBlock = Boolean(language) || text.includes("\n");
+    if (isBlock) {
+      return <AgentMarkdownCodeBlock code={text} language={language} />;
+    }
+    return (
+      <code className="bg-background/70 text-foreground rounded px-1 py-0.5 font-mono text-[11px]">
+        {children}
+      </code>
+    );
+  },
+  table: ({ children }) => (
+    <div className="border-border my-2 max-w-full overflow-x-auto rounded-md border">
+      <table className="w-full border-collapse text-left text-[11px]">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="bg-background/50">{children}</thead>,
+  th: ({ children }) => (
+    <th className="border-border text-foreground border-b px-2 py-1.5 font-semibold">{children}</th>
+  ),
+  td: ({ children }) => (
+    <td className="border-border border-b px-2 py-1 align-top last:border-b-0">{children}</td>
+  ),
+  blockquote: ({ children }) => (
+    <blockquote className="border-border text-muted-foreground my-2 border-l-2 pl-2.5">
+      {children}
+    </blockquote>
+  ),
+  img: ({ src, alt }) => <AgentMarkdownImage src={src} alt={alt} />,
+  h1: ({ children }) => (
+    <h1 className="text-foreground mt-3 mb-2 border-border/60 border-b pb-1 text-sm font-semibold first:mt-0">
+      {children}
+    </h1>
+  ),
+  h2: ({ children }) => (
+    <h2 className="text-foreground mt-3 mb-1.5 border-border/60 border-b pb-1 text-sm font-semibold first:mt-0">
+      {children}
+    </h2>
+  ),
+  h3: ({ children }) => (
+    <h3 className="text-foreground border-border/50 mt-4 mb-1.5 border-t pt-3 text-[13px] font-semibold">
+      {children}
+    </h3>
+  ),
+  h4: ({ children }) => (
+    <h4 className="text-foreground mt-2 mb-1 text-xs font-semibold first:mt-0">{children}</h4>
+  ),
+  strong: ({ children }) => <strong className="text-foreground font-semibold">{children}</strong>,
+  ul: ({ children }) => <ul className="my-1.5 list-disc space-y-0.5 pl-4">{children}</ul>,
+  ol: ({ children }) => <ol className="my-1.5 list-decimal space-y-0.5 pl-4">{children}</ol>,
+  li: ({ children }) => <li className="my-0">{children}</li>,
+  p: ({ children }) => <p className="my-1">{children}</p>,
+  hr: () => <hr className="border-border/60 my-3" />,
+};
 
 function parseCompareBranchesAction(raw: string): CompareBranchesAction | null {
   try {

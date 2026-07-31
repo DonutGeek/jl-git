@@ -22,6 +22,9 @@ interface AgentMessageListProps {
   emptyDescription?: string;
 }
 
+/** 距底部小于此值视为「在底部」，可重新开启跟随 */
+const STICK_BOTTOM_THRESHOLD_PX = 16;
+
 /** 消息列表：虚拟滚动 + 粘底跟随流式输出 */
 export function AgentMessageList({
   messages,
@@ -36,6 +39,8 @@ export function AgentMessageList({
 }: AgentMessageListProps) {
   const { t } = useTranslation();
   const stickToBottomRef = useRef(true);
+  /** 程序化贴底触发的 scroll 事件勿回写 stick，否则会立刻盖掉用户上滑 */
+  const programmaticScrollRef = useRef(false);
   const messageViewportRef = useRef<HTMLDivElement | null>(null);
   const messagesLengthRef = useRef(0);
   const virtualizerRef = useRef<ReactVirtualizer<HTMLDivElement, HTMLDivElement> | null>(null);
@@ -69,16 +74,23 @@ export function AgentMessageList({
     const count = messagesLengthRef.current;
     if (count > 0) {
       // 先让虚拟列表把末条排进可视区，再校准 viewport
+      programmaticScrollRef.current = true;
       virtualizerRef.current?.scrollToIndex(count - 1, { align: "end" });
     }
     const viewport = messageViewportRef.current;
     if (!viewport) {
+      programmaticScrollRef.current = false;
       return;
     }
     const maxTop = viewport.scrollHeight - viewport.clientHeight;
     if (maxTop > 0) {
+      programmaticScrollRef.current = true;
       viewport.scrollTop = maxTop;
     }
+    // 等浏览器派发完本次 scroll 再清除，避免误把 stick 重新打开
+    window.requestAnimationFrame(() => {
+      programmaticScrollRef.current = false;
+    });
   }, []);
 
   /** 用户新发消息时强制贴底（即使之前上滑看过历史） */
@@ -214,14 +226,37 @@ export function AgentMessageList({
     if (!messageViewport) {
       return;
     }
-    // 仅在用户滚动时更新 stick；挂载时勿按「未贴底」误关，否则 layout 贴底会被跳过
-    const updateStickiness = (): void => {
-      const remaining =
-        messageViewport.scrollHeight - messageViewport.scrollTop - messageViewport.clientHeight;
-      stickToBottomRef.current = remaining < 48;
+    let lastScrollTop = messageViewport.scrollTop;
+    // 上滑立刻脱离跟随（不必等滚出阈值）；程序化贴底的 scroll 忽略
+    const detachIfScrollingUp = (event: WheelEvent): void => {
+      if (event.deltaY < 0) {
+        stickToBottomRef.current = false;
+      }
     };
+    const updateStickiness = (): void => {
+      const scrollTop = messageViewport.scrollTop;
+      if (programmaticScrollRef.current) {
+        lastScrollTop = scrollTop;
+        return;
+      }
+      // 拖动滚动条 / 键盘上翻：scrollTop 减小即脱离
+      if (scrollTop < lastScrollTop - 1) {
+        stickToBottomRef.current = false;
+      }
+      lastScrollTop = scrollTop;
+      const remaining = messageViewport.scrollHeight - scrollTop - messageViewport.clientHeight;
+      if (remaining <= STICK_BOTTOM_THRESHOLD_PX) {
+        stickToBottomRef.current = true;
+      } else {
+        stickToBottomRef.current = false;
+      }
+    };
+    messageViewport.addEventListener("wheel", detachIfScrollingUp, { passive: true });
     messageViewport.addEventListener("scroll", updateStickiness, { passive: true });
-    return () => messageViewport.removeEventListener("scroll", updateStickiness);
+    return () => {
+      messageViewport.removeEventListener("wheel", detachIfScrollingUp);
+      messageViewport.removeEventListener("scroll", updateStickiness);
+    };
   }, [messageViewport]);
 
   const lastMessage = messages[messages.length - 1];

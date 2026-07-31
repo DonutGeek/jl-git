@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { FolderOpen, GitBranchPlus, Plus, Search } from "lucide-react";
+import { FolderOpen, GitBranchPlus, Plus, Search, SearchX } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
+import { EmptyState } from "@/components/common/EmptyState";
 import { HighlightText } from "@/components/common/HighlightText";
 import { ProjectContextMenu } from "@/components/project/ProjectContextMenu";
 import { ProjectIcon } from "@/components/project/ProjectIcon";
@@ -205,9 +206,14 @@ export function RepositoryQuickSwitcher({ className }: RepositoryQuickSwitcherPr
                   {/* 吸收 cmdk 默认选中第一项，打开时不出现可见高亮 */}
                   <CommandItem value={NO_HIGHLIGHT} className="hidden" />
                   {filteredProjects.length === 0 ? (
-                    <div className="text-muted-foreground px-3 py-6 text-center text-sm">
-                      {t("repo.switchProjectNoMatch")}
-                    </div>
+                    <EmptyState
+                      compact
+                      // 填满滚动区高度，居中展示（对齐变更/历史等面板空状态）
+                      className={cn("min-h-72", showFooter && "min-h-56")}
+                      icon={<SearchX />}
+                      title={t("repo.switchProjectNoMatch")}
+                      description={t("repo.switchProjectNoMatchHint")}
+                    />
                   ) : (
                     filteredProjects.map((project) => {
                       const workspace = project.workspaceId

@@ -19,6 +19,7 @@ import type { ProjectManageGitSnapshot } from "@/hooks/useProjectManageGitProbe"
 import { openExternalUrl } from "@/services/system/open-url";
 import type { Project } from "@/types/project";
 import { parseRemoteRepository } from "@/utils/remoteRepository";
+import { withSoftWrapOpportunities } from "@/utils/softWrapText";
 
 interface ProjectManageDetailDrawerProps {
   project: Project | null;
@@ -73,10 +74,10 @@ export function ProjectManageDetailDrawer({
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate text-sm font-semibold">{project.name}</h3>
                   <p
-                    className="text-muted-foreground mt-1 break-all font-mono text-xs"
+                    className="text-muted-foreground mt-1 break-words font-mono text-xs"
                     title={project.path}
                   >
-                    {project.path}
+                    {withSoftWrapOpportunities(project.path)}
                   </p>
                 </div>
               </div>

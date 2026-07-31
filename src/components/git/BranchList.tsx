@@ -1,8 +1,7 @@
-import type { FormEvent } from "react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Trans, useTranslation } from "react-i18next";
-import { Cloud, Monitor, Plus, TriangleAlert } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Cloud, Monitor, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -10,43 +9,31 @@ import {
   BranchGroup,
   BranchLeaf,
   flattenBranchTreeRows,
-  type BranchContextActions,
   type BranchVisibleRow,
 } from "@/components/git/BranchTree";
 import { BranchListChrome } from "@/components/git/BranchListChrome";
 import { CreateBranchDialog } from "@/components/git/CreateBranchDialog";
-import { MergeBranchDialog } from "@/components/git/MergeBranchDialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Spinner } from "@/components/ui/spinner";
-import { AppDialogContent } from "@/components/common/AppDialogContent";
-import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useConflictOperationGuard } from "@/hooks/useConflictOperationGuard";
+import { useBranchContextActions } from "@/hooks/useBranchContextActions";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
 import { cn } from "@/lib/utils";
 
 import { useRepoStore } from "@/store/useRepoStore";
 import { useProjectStore } from "@/store/useProjectStore";
-import { openBranchCompareWindow } from "@/services/window/branchCompareWindow";
 import { openBranchManageWindow } from "@/services/window/branchManageWindow";
 
 import { toUserMessage } from "@/types/error";
-import type { GitBranch, GitMergeOptions } from "@/types/git";
+import type { GitBranch } from "@/types/git";
 import {
   filterAndSortBranches,
   patchBranchListPrefs,
   readBranchListPrefs,
   type BranchListPrefs,
 } from "@/utils/branchListPrefs";
-import { copyToClipboard } from "@/utils/clipboard";
-import { deferUi } from "@/utils/deferUi";
 import { buildBranchTree } from "@/utils/branchTree";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
-import { isPushRejectedError, toastPushError } from "@/utils/gitPushError";
 
 const BRANCH_ROW_HEIGHT_PX = 30;
 const BRANCH_GROUP_HEIGHT_PX = 36;
@@ -64,12 +51,6 @@ export function BranchList() {
   const loading = useRepoStore((state) => state.loading);
   const checkout = useRepoStore((state) => state.checkout);
   const refreshBranches = useRepoStore((state) => state.refreshBranches);
-  const pullRemote = useRepoStore((state) => state.pull);
-  const pushRemote = useRepoStore((state) => state.push);
-  const fetchRemote = useRepoStore((state) => state.fetch);
-  const deleteBranch = useRepoStore((state) => state.deleteBranch);
-  const renameBranch = useRepoStore((state) => state.renameBranch);
-  const mergeBranch = useRepoStore((state) => state.merge);
   const projectId = useProjectStore((state) => state.current?.id);
 
   const [checkingOutName, setCheckingOutName] = useState<string | null>(null);
@@ -82,30 +63,21 @@ export function BranchList() {
   const [refreshing, setRefreshing] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
-  const [renameTarget, setRenameTarget] = useState<GitBranch | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const [renameBusy, setRenameBusy] = useState(false);
-
-  const [deleteTarget, setDeleteTarget] = useState<GitBranch | null>(null);
-  const [deleteRemoteAlso, setDeleteRemoteAlso] = useState(false);
-  const [deleteBusy, setDeleteBusy] = useState(false);
-
-  const [mergeTarget, setMergeTarget] = useState<GitBranch | null>(null);
-  const [mergeBusy, setMergeBusy] = useState(false);
-  const { guard: guardWriteOp, dialog: conflictGuardDialog } = useConflictOperationGuard();
+  const {
+    contextActions: baseContextActions,
+    dialogs: branchContextDialogs,
+    conflictGuard: guardWriteOp,
+  } = useBranchContextActions({
+    onAfterRename: (_from, to) => setSelectedName(to),
+    onAfterDelete: (name) => {
+      setSelectedName((prev) => (prev === name ? null : prev));
+    },
+  });
 
   useEffect(() => {
     setCheckingOutName(null);
     setSelectedName(null);
     setCreateOpen(false);
-    setRenameTarget(null);
-    setRenameValue("");
-    setRenameBusy(false);
-    setDeleteTarget(null);
-    setDeleteRemoteAlso(false);
-    setDeleteBusy(false);
-    setMergeTarget(null);
-    setMergeBusy(false);
     setRefreshing(false);
   }, [repoPath]);
 
@@ -130,7 +102,6 @@ export function BranchList() {
   const localTree = useMemo(() => buildBranchTree(localBranches), [localBranches]);
   const remoteTree = useMemo(() => buildBranchTree(remoteBranches), [remoteBranches]);
   const aheadCount = status?.ahead ?? 0;
-  const currentBranch = status?.branch ?? branches.find((item) => item.isCurrent)?.name ?? null;
   const isEmpty = branches.length === 0;
   const noMatch = !isEmpty && filteredBranches.length === 0;
 
@@ -202,219 +173,6 @@ export function BranchList() {
     setSelectedName(branch.name);
   }
 
-  async function handlePull(branch: GitBranch): Promise<void> {
-    if (!guardWriteOp()) {
-      return;
-    }
-    const toastId = toast.loading(t("repo.pullStart"));
-    try {
-      const result = await pullRemote({
-        remote: "origin",
-        branch: branch.name,
-      });
-      const seconds = (result.elapsedMs / 1000).toFixed(3);
-      if (result.conflict) {
-        toast.error(t("repo.pullConflict"), { id: toastId });
-      } else {
-        toast.success(t("repo.pullSuccess", { remote: result.remote, seconds }), {
-          id: toastId,
-        });
-      }
-    } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
-    }
-  }
-
-  async function handlePush(branch: GitBranch): Promise<void> {
-    const originPath = useRepoStore.getState().repoPath;
-    if (!originPath) {
-      return;
-    }
-    try {
-      const result = await pushRemote({
-        repoPath: originPath,
-        remote: "origin",
-        branch: branch.name,
-      });
-      const seconds = (result.elapsedMs / 1000).toFixed(3);
-      toast.success(t("repo.pushSuccess", { remote: result.remote, seconds }));
-    } catch (error) {
-      const stillOnOrigin = useRepoStore.getState().repoPath === originPath;
-      toastPushError(error, {
-        onUpdate: stillOnOrigin ? () => void handlePull(branch) : undefined,
-      });
-      if (isPushRejectedError(error) && stillOnOrigin) {
-        void fetchRemote().catch(() => undefined);
-      }
-    }
-  }
-
-  async function handlePublish(branch: GitBranch): Promise<void> {
-    const originPath = useRepoStore.getState().repoPath;
-    if (!originPath) {
-      return;
-    }
-    try {
-      const result = await pushRemote({
-        repoPath: originPath,
-        remote: "origin",
-        branch: branch.name,
-        setUpstream: true,
-      });
-      const seconds = (result.elapsedMs / 1000).toFixed(3);
-      toast.success(t("repo.publishSuccess", { remote: result.remote, seconds }));
-    } catch (error) {
-      const stillOnOrigin = useRepoStore.getState().repoPath === originPath;
-      toastPushError(error, {
-        onUpdate: stillOnOrigin ? () => void handlePull(branch) : undefined,
-      });
-      if (isPushRejectedError(error) && stillOnOrigin) {
-        void fetchRemote().catch(() => undefined);
-      }
-    }
-  }
-
-  async function handleCopyName(branch: GitBranch): Promise<void> {
-    try {
-      await copyToClipboard(branch.name);
-      toast.success(t("repo.copyBranchNameSuccess"));
-    } catch {
-      toast.error(t("repo.copyBranchNameFailed"));
-    }
-  }
-
-  function openRename(branch: GitBranch): void {
-    setRenameTarget(branch);
-    setRenameValue(branch.name);
-    setRenameBusy(false);
-  }
-
-  async function submitRename(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    if (!renameTarget || renameBusy) {
-      return;
-    }
-    const from = renameTarget.name;
-    const next = renameValue.trim();
-    const originRepoPath = repoPath;
-    if (!originRepoPath || !next || next === from) {
-      return;
-    }
-
-    setRenameBusy(true);
-    try {
-      await renameBranch(from, next);
-      if (useRepoStore.getState().repoPath === originRepoPath) {
-        setRenameTarget(null);
-        setSelectedName(next);
-      }
-      toast.success(t("repo.renameBranchSuccess", { name: next }));
-    } catch (error) {
-      toast.error(toUserMessage(error));
-    } finally {
-      if (useRepoStore.getState().repoPath === originRepoPath) {
-        setRenameBusy(false);
-      }
-    }
-  }
-
-  function openDelete(branch: GitBranch): void {
-    // 等右键菜单卸载后再开确认框，避免焦点冲突导致无二次确认
-    deferUi(() => {
-      setDeleteTarget(branch);
-      setDeleteRemoteAlso(false);
-      setDeleteBusy(false);
-    });
-  }
-
-  function openMerge(branch: GitBranch): void {
-    if (!currentBranch || branch.name === currentBranch || mergeBusy) {
-      return;
-    }
-    if (!guardWriteOp()) {
-      return;
-    }
-    setMergeTarget(branch);
-  }
-
-  async function confirmMerge(options: GitMergeOptions): Promise<void> {
-    if (!mergeTarget || !currentBranch || mergeBusy) {
-      return;
-    }
-
-    const source = mergeTarget.name;
-    const target = currentBranch;
-    const originRepoPath = repoPath;
-    if (!originRepoPath) {
-      return;
-    }
-    setMergeBusy(true);
-
-    try {
-      const result = await mergeBranch(source, options);
-      if (result.conflict) {
-        toast.error(t("repo.mergeConflict"));
-      } else if (result.ok) {
-        toast.success(t("repo.mergeSuccess", { source, target }));
-      } else {
-        toast.error(t("repo.mergeFailed"));
-      }
-      if (useRepoStore.getState().repoPath === originRepoPath) {
-        setMergeTarget(null);
-      }
-    } catch (error) {
-      toast.error(toUserMessage(error));
-    } finally {
-      if (useRepoStore.getState().repoPath === originRepoPath) {
-        setMergeBusy(false);
-      }
-    }
-  }
-
-  const deleteHasRemote = useMemo(() => {
-    if (!deleteTarget || deleteTarget.isRemote) {
-      return false;
-    }
-    const remoteName = `origin/${deleteTarget.name}`;
-    return branches.some((branch) => branch.isRemote && branch.name === remoteName);
-  }, [branches, deleteTarget]);
-
-  async function confirmDelete(): Promise<void> {
-    if (!deleteTarget || deleteBusy) {
-      return;
-    }
-
-    const targetName = deleteTarget.name;
-    const alsoRemote = deleteHasRemote && deleteRemoteAlso;
-    const originRepoPath = repoPath;
-    if (!originRepoPath) {
-      return;
-    }
-
-    setDeleteBusy(true);
-    try {
-      await deleteBranch(targetName, {
-        force: true,
-        deleteRemote: alsoRemote,
-        remote: "origin",
-      });
-      if (useRepoStore.getState().repoPath === originRepoPath) {
-        setDeleteTarget(null);
-        setDeleteRemoteAlso(false);
-        if (selectedName === targetName) {
-          setSelectedName(null);
-        }
-      }
-      toast.success(t("repo.deleteBranchSuccess", { name: targetName }));
-    } catch (error) {
-      toast.error(toUserMessage(error));
-    } finally {
-      if (useRepoStore.getState().repoPath === originRepoPath) {
-        setDeleteBusy(false);
-      }
-    }
-  }
-
   async function handleRefresh(): Promise<void> {
     const originRepoPath = repoPath;
     if (!originRepoPath) {
@@ -444,36 +202,9 @@ export function BranchList() {
     });
   }
 
-  function handleCompareWithCurrent(branch: GitBranch): void {
-    const currentBranch = status?.branch ?? branches.find((item) => item.isCurrent)?.name;
-    if (!projectId || !currentBranch) {
-      return;
-    }
-    void openBranchCompareWindow({
-      projectId,
-      mode: "branch",
-      base: currentBranch,
-      target: branch.name,
-    }).catch((error: unknown) => {
-      toast.error(toUserMessage(error) || t("agent.compareBranchesFailed"));
-    });
-  }
-
-  const contextActions: BranchContextActions = {
-    onCheckout: (branch) => void handleCheckout(branch),
-    onPull: (branch) => void handlePull(branch),
-    onPush: (branch) => void handlePush(branch),
-    onPublish: (branch) => void handlePublish(branch),
-    onRename: openRename,
-    onCopyName: (branch) => void handleCopyName(branch),
-    onCompareWithCurrent: handleCompareWithCurrent,
-    canCompareWithCurrent: () => {
-      const currentBranch = status?.branch ?? branches.find((item) => item.isCurrent)?.name;
-      return Boolean(projectId && currentBranch);
-    },
-    onMergeIntoCurrent: openMerge,
-    canMergeIntoCurrent: (branch) => Boolean(currentBranch && currentBranch !== branch.name),
-    onDelete: openDelete,
+  const contextActions = {
+    ...baseContextActions,
+    onCheckout: (branch: GitBranch) => void handleCheckout(branch),
   };
 
   const remoteGroupTrailing = (
@@ -611,141 +342,7 @@ export function BranchList() {
 
       <CreateBranchDialog open={createOpen} onOpenChange={setCreateOpen} />
 
-      <MergeBranchDialog
-        open={Boolean(mergeTarget)}
-        source={mergeTarget?.name ?? null}
-        target={currentBranch}
-        busy={mergeBusy}
-        onOpenChange={(open) => {
-          if (!open && !mergeBusy) {
-            setMergeTarget(null);
-          }
-        }}
-        onConfirm={(options) => void confirmMerge(options)}
-      />
-
-      {conflictGuardDialog}
-
-      <Dialog
-        open={Boolean(renameTarget)}
-        onOpenChange={(open) => {
-          if (!open && !renameBusy) {
-            setRenameTarget(null);
-          }
-        }}
-      >
-        <AppDialogContent size="sm">
-          <DialogHeader>
-            <DialogTitle>{t("repo.renameBranchTitle")}</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={(event) => void submitRename(event)}>
-            <Field>
-              <FieldLabel className="sr-only" htmlFor="rename-branch-name">
-                {t("repo.branchName")}
-              </FieldLabel>
-              <Input
-                id="rename-branch-name"
-                value={renameValue}
-                onChange={(event) => setRenameValue(event.target.value)}
-                placeholder={t("repo.branchNamePlaceholder")}
-                autoFocus
-                disabled={renameBusy}
-              />
-            </Field>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={renameBusy}
-                onClick={() => setRenameTarget(null)}
-              >
-                {t("common.cancel")}
-              </Button>
-              <Button
-                type="submit"
-                disabled={
-                  renameBusy || !renameValue.trim() || renameValue.trim() === renameTarget?.name
-                }
-              >
-                {renameBusy ? <Spinner className="size-3.5" /> : null}
-                {t("repo.renameBranchAction")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </AppDialogContent>
-      </Dialog>
-
-      <Dialog
-        open={Boolean(deleteTarget)}
-        onOpenChange={(open) => {
-          if (!open && !deleteBusy) {
-            setDeleteTarget(null);
-          }
-        }}
-      >
-        <AppDialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("repo.deleteBranchTitle")}</DialogTitle>
-          </DialogHeader>
-
-          <div className="flex gap-3">
-            <TriangleAlert className="text-chart-4 mt-0.5 size-5 shrink-0" aria-hidden="true" />
-            <div className="min-w-0 flex-1 space-y-3">
-              <div className="space-y-1">
-                <p className="text-foreground text-sm">
-                  <Trans
-                    i18nKey="repo.deleteBranchQuestion"
-                    values={{ name: deleteTarget?.name ?? "" }}
-                    components={{
-                      name: <span className="font-mono font-medium" />,
-                    }}
-                  />
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {t("repo.deleteBranchIrreversible")}
-                </p>
-              </div>
-
-              {deleteHasRemote ? (
-                <Field orientation="horizontal">
-                  <Checkbox
-                    id="delete-branch-remote"
-                    checked={deleteRemoteAlso}
-                    onCheckedChange={(checked) => setDeleteRemoteAlso(checked === true)}
-                    disabled={deleteBusy}
-                  />
-                  <FieldContent>
-                    <FieldLabel htmlFor="delete-branch-remote">
-                      {t("repo.deleteBranchRemoteCheckbox")}
-                    </FieldLabel>
-                    <FieldDescription>{t("repo.deleteBranchRemoteHint")}</FieldDescription>
-                  </FieldContent>
-                </Field>
-              ) : null}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={deleteBusy}
-              onClick={() => setDeleteTarget(null)}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deleteBusy}
-              onClick={() => void confirmDelete()}
-            >
-              {deleteBusy ? <Spinner className="size-3.5" /> : null}
-              {t("repo.deleteBranchAction")}
-            </Button>
-          </DialogFooter>
-        </AppDialogContent>
-      </Dialog>
+      {branchContextDialogs}
     </>
   );
 }

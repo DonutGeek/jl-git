@@ -20,6 +20,7 @@ import {
   Folder,
   GitBranch as GitBranchIcon,
   GitCompareArrows,
+  Globe,
   LayoutDashboard,
   ListTree,
   MoreHorizontal,
@@ -48,19 +49,23 @@ import {
 } from "@/components/ui/context-menu";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useConflictOperationGuard } from "@/hooks/useConflictOperationGuard";
+import { useBranchContextActions } from "@/hooks/useBranchContextActions";
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 import { cn } from "@/lib/utils";
 
+import { openPrimaryRemoteInBrowser } from "@/services/git";
 import { systemOpenService } from "@/services/system/system.open";
 import { openBranchCompareWindow } from "@/services/window/branchCompareWindow";
+import { useAppPrefsStore } from "@/store/useAppPrefsStore";
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { useProjectStore } from "@/store/useProjectStore";
 import { useRepoStore } from "@/store/useRepoStore";
@@ -124,6 +129,8 @@ export function RepoToolbar({
   const projects = useProjectStore((state) => state.projects);
   const workspaces = useProjectStore((state) => state.workspaces);
   const openRepositoryTab = useOpenTabsStore((state) => state.openRepositoryTab);
+  const pullStrategy = useAppPrefsStore((state) => state.pullStrategy);
+  const setPullStrategy = useAppPrefsStore((state) => state.setPullStrategy);
 
   const status = useRepoStore((state) => (loadingShell ? null : state.status));
   const branches = useRepoStore((state) => (loadingShell ? EMPTY_BRANCHES : state.branches));
@@ -144,7 +151,14 @@ export function RepoToolbar({
   const [pushing, setPushing] = useState(false);
   const [projectFilter, setProjectFilter] = useState("");
   const [density, setDensity] = useState<RepoToolbarDensity>("comfortable");
-  const { guard: guardWriteOp, dialog: conflictGuardDialog } = useConflictOperationGuard();
+  const {
+    contextActions: baseBranchContextActions,
+    dialogs: branchContextDialogs,
+    conflictGuard: guardWriteOp,
+  } = useBranchContextActions({
+    // Dialog 挂在工具栏层，先关下拉避免焦点与卸载冲突
+    onBeforeDialog: () => setBranchMenuOpen(false),
+  });
 
   const toolbarRef = useRef<HTMLDivElement>(null);
   const densityRef = useRef<RepoToolbarDensity>(density);
@@ -211,15 +225,6 @@ export function RepoToolbar({
     openSyncPendingPreview(next);
   }
   const localBranches = useMemo(() => branches.filter((branch) => !branch.isRemote), [branches]);
-  /** 下拉：本地在上；仅纳入 origin/ 开头的远端；组内按名称排序 */
-  const menuBranches = useMemo(() => {
-    const byName = (left: GitBranch, right: GitBranch) => left.name.localeCompare(right.name);
-    const local = branches.filter((branch) => !branch.isRemote).sort(byName);
-    const originRemote = branches
-      .filter((branch) => branch.isRemote && branch.name.startsWith("origin/"))
-      .sort(byName);
-    return [...local, ...originRemote];
-  }, [branches]);
   // 当前检出分支尚未发布到远端时，在「推送」右侧显示「发布分支」
   const needsPublish = useMemo(() => {
     if (!status?.branch || status.detached) {
@@ -280,6 +285,14 @@ export function RepoToolbar({
     }
   }
 
+  const branchContextActions = {
+    ...baseBranchContextActions,
+    onCheckout: (branch: GitBranch) => {
+      setBranchMenuOpen(false);
+      void handleCheckout(branch.name);
+    },
+  };
+
   async function handleCheckUpdate(): Promise<void> {
     if (syncBusy) {
       return;
@@ -295,7 +308,7 @@ export function RepoToolbar({
     }
   }
 
-  async function handlePull(): Promise<void> {
+  async function handlePull(options?: { rebase?: boolean }): Promise<void> {
     if (syncBusy || needsPublish) {
       return;
     }
@@ -303,6 +316,7 @@ export function RepoToolbar({
       return;
     }
 
+    const rebase = options?.rebase ?? pullStrategy === "rebase";
     setPulling(true);
     try {
       // 有当前分支时显式 pull origin <branch>，与 ugit 一致；分离头则走 upstream
@@ -310,6 +324,7 @@ export function RepoToolbar({
       const result = await pullRemote({
         remote: "origin",
         branch,
+        rebase,
       });
       if (result.conflict) {
         toast.error(t("repo.pullConflict"));
@@ -421,6 +436,22 @@ export function RepoToolbar({
   async function handleOpenInTerminal(): Promise<void> {
     try {
       await systemOpenService.openTerminal(project.path);
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    }
+  }
+
+  async function handleOpenRemoteInBrowser(): Promise<void> {
+    try {
+      const result = await openPrimaryRemoteInBrowser(project.path);
+      if (result === "empty") {
+        toast.message(t("repo.tabCopyRemoteEmpty"));
+        return;
+      }
+      if (result === "unsupported") {
+        toast.error(t("repo.openRemoteUnsupported"));
+        return;
+      }
     } catch (error) {
       toast.error(toUserMessage(error));
     }
@@ -547,7 +578,8 @@ export function RepoToolbar({
             maxHeight={288}
             availableHeightOffset={41}
           >
-            <div className="min-w-0 p-1">
+            {/* 与分支下拉一致：左右对称内边距 */}
+            <div className="min-w-0 px-2 py-1">
               {filteredProjects.length === 0 ? (
                 <p className="text-muted-foreground px-2 py-3 text-center text-xs">
                   {t("repo.switchProjectNoMatch")}
@@ -560,7 +592,7 @@ export function RepoToolbar({
                   return (
                     <DropdownMenuItem
                       key={item.id}
-                      className="flex w-full max-w-full min-w-0 items-start gap-2.5 overflow-hidden px-2 py-2"
+                      className="flex w-full max-w-full min-w-0 items-start gap-2.5 overflow-hidden rounded-md px-1.5 py-2"
                       onSelect={() => {
                         handleSelectProject(item);
                       }}
@@ -674,12 +706,28 @@ export function RepoToolbar({
           align="start"
           // 禁止 Content 原生滚动，滚动交给内部 ScrollArea；p-0 对齐历史用户筛选
           className="w-72 overflow-hidden p-0"
+          // 右键菜单挂在 Portal，点菜单项时勿关掉分支下拉
+          onPointerDownOutside={(event) => {
+            const target = event.target;
+            if (target instanceof Element && target.closest('[data-slot="context-menu-content"]')) {
+              event.preventDefault();
+            }
+          }}
+          onFocusOutside={(event) => {
+            const target = event.target;
+            if (target instanceof Element && target.closest('[data-slot="context-menu-content"]')) {
+              event.preventDefault();
+            }
+          }}
         >
           <LocalBranchMenuList
-            branches={menuBranches}
+            branches={branches}
             checkingOut={checkingOut}
             open={branchMenuOpen}
+            aheadCount={ahead}
+            contextActions={branchContextActions}
             onCheckout={(branchName) => {
+              setBranchMenuOpen(false);
               void handleCheckout(branchName);
             }}
           />
@@ -711,43 +759,117 @@ export function RepoToolbar({
           <TooltipContent>{t("repo.checkUpdate")}</TooltipContent>
         </Tooltip>
 
-        {behind > 0 ? (
-          <ButtonGroup
-            aria-label={t("repo.pull")}
-            className={cn(
-              // Tooltip / disabled 外包层会挡住默认 [&>*] 接缝
-              "[&_button]:rounded-none [&_button]:shadow-none",
-              "[&>:first-child_button]:rounded-l-md [&>button:first-child]:rounded-l-md",
-              "[&>button:last-child]:rounded-r-md [&>:last-child_button]:rounded-r-md",
-              "[&>:not(:first-child)_button]:border-l-0 [&>button:not(:first-child)]:border-l-0",
-            )}
-          >
+        <ButtonGroup
+          aria-label={t("repo.pull")}
+          className={cn(
+            // Tooltip / Dropdown 外包层会挡住默认 [&>*] 接缝
+            "[&_button]:rounded-none [&_button]:shadow-none",
+            "[&>:first-child_button]:rounded-l-md [&>button:first-child]:rounded-l-md",
+            "[&>button:last-child]:rounded-r-md [&>:last-child_button]:rounded-r-md",
+            "[&>:not(:first-child)_button]:border-l-0 [&>button:not(:first-child)]:border-l-0",
+          )}
+        >
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn("h-8 shadow-none", iconOnly ? "gap-1 px-2" : "gap-1.5")}
+                  data-repo-git-control="pull"
+                  disabled={syncBusy || needsPublish}
+                  aria-label={t("repo.pull")}
+                  onClick={() => void handlePull()}
+                >
+                  {pulling ? (
+                    <Spinner className="size-3.5" />
+                  ) : (
+                    <ArrowDownToLine className="size-3.5" aria-hidden="true" />
+                  )}
+                  {iconOnly ? null : <span>{t("repo.pull")}</span>}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {needsPublish
+                ? t("repo.pullNeedsPublish")
+                : pullStrategy === "rebase"
+                  ? t("repo.pullRebaseHint")
+                  : t("repo.pullHint")}
+            </TooltipContent>
+          </Tooltip>
+
+          <DropdownMenu>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <span className="inline-flex">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className={cn("h-8 shadow-none", iconOnly ? "gap-1 px-2" : "gap-1.5")}
-                    data-repo-git-control="pull"
-                    disabled={syncBusy || needsPublish}
-                    aria-label={t("repo.pull")}
-                    onClick={() => void handlePull()}
-                  >
-                    {pulling ? (
-                      <Spinner className="size-3.5" />
-                    ) : (
-                      <ArrowDownToLine className="size-3.5" aria-hidden="true" />
-                    )}
-                    {iconOnly ? null : <span>{t("repo.pull")}</span>}
-                  </Button>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      className="h-8 w-7"
+                      disabled={syncBusy}
+                      aria-label={t("repo.pullMenu")}
+                    >
+                      <ChevronDown className="size-3.5" aria-hidden="true" />
+                    </Button>
+                  </DropdownMenuTrigger>
                 </span>
               </TooltipTrigger>
-              <TooltipContent>
-                {needsPublish ? t("repo.pullNeedsPublish") : t("repo.pullHint")}
-              </TooltipContent>
+              <TooltipContent>{t("repo.pullMenu")}</TooltipContent>
             </Tooltip>
+            <DropdownMenuContent align="start" className="min-w-52">
+              {/* 顶部只放「非默认」的一次更新，与常见 Git 客户端一致 */}
+              {pullStrategy === "rebase" ? (
+                <DropdownMenuItem
+                  disabled={syncBusy || needsPublish}
+                  onSelect={() => {
+                    void handlePull({ rebase: false });
+                  }}
+                >
+                  <ArrowDownToLine className="size-3.5" aria-hidden="true" />
+                  {t("repo.pullMerge")}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  disabled={syncBusy || needsPublish}
+                  onSelect={() => {
+                    void handlePull({ rebase: true });
+                  }}
+                >
+                  <ArrowDownToLine className="size-3.5" aria-hidden="true" />
+                  {t("repo.pullRebase")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={pullStrategy === "merge"}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    setPullStrategy("merge");
+                  }
+                }}
+              >
+                <ArrowDownToLine className="size-3.5" aria-hidden="true" />
+                {t("repo.pullStrategyMerge")}
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={pullStrategy === "rebase"}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    setPullStrategy("rebase");
+                  }
+                }}
+              >
+                <ArrowDownToLine className="size-3.5" aria-hidden="true" />
+                {t("repo.pullStrategyRebase")}
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {behind > 0 ? (
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 <span className="inline-flex">
@@ -772,35 +894,8 @@ export function RepoToolbar({
               </TooltipTrigger>
               <TooltipContent>{t("repo.unpulledCount", { count: behind })}</TooltipContent>
             </Tooltip>
-          </ButtonGroup>
-        ) : (
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <span className="inline-flex">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className={cn("h-8 shadow-none", iconOnly ? "gap-1 px-2" : "gap-1.5")}
-                  data-repo-git-control="pull"
-                  disabled={syncBusy || needsPublish}
-                  aria-label={t("repo.pull")}
-                  onClick={() => void handlePull()}
-                >
-                  {pulling ? (
-                    <Spinner className="size-3.5" />
-                  ) : (
-                    <ArrowDownToLine className="size-3.5" aria-hidden="true" />
-                  )}
-                  {iconOnly ? null : <span>{t("repo.pull")}</span>}
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              {needsPublish ? t("repo.pullNeedsPublish") : t("repo.pullHint")}
-            </TooltipContent>
-          </Tooltip>
-        )}
+          ) : null}
+        </ButtonGroup>
 
         {needsPublish ? (
           <Tooltip delayDuration={300}>
@@ -990,6 +1085,10 @@ export function RepoToolbar({
                 <Terminal className="size-3.5" aria-hidden="true" />
                 {t("repo.openInTerminal")}
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void handleOpenRemoteInBrowser()}>
+                <Globe className="size-3.5" aria-hidden="true" />
+                {t("repo.openRemoteInBrowser")}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
@@ -1057,11 +1156,27 @@ export function RepoToolbar({
               </TooltipTrigger>
               <TooltipContent>{t("repo.openInTerminal")}</TooltipContent>
             </Tooltip>
+
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  aria-label={t("repo.openRemoteInBrowser")}
+                  onClick={() => void handleOpenRemoteInBrowser()}
+                >
+                  <Globe className="size-3.5" aria-hidden="true" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("repo.openRemoteInBrowser")}</TooltipContent>
+            </Tooltip>
           </>
         )}
       </div>
 
-      {conflictGuardDialog}
+      {branchContextDialogs}
     </div>
   );
 }

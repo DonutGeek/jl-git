@@ -13,6 +13,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import type { Project, ProjectRemoteMatch } from "@/types/project";
+import { withSoftWrapOpportunities } from "@/utils/softWrapText";
 
 interface ExistingProjectDialogProps {
   open: boolean;
@@ -44,7 +45,9 @@ export function ExistingProjectDialog({
               {project ? (
                 <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-foreground">
                   <p className="font-medium">{project.name}</p>
-                  <p className="mt-0.5 break-all text-xs text-muted-foreground">{project.path}</p>
+                  <p className="mt-0.5 break-words text-xs text-muted-foreground">
+                    {withSoftWrapOpportunities(project.path)}
+                  </p>
                 </div>
               ) : null}
             </div>
@@ -96,7 +99,9 @@ export function ExistingRemoteCloneDialog({
                   {matches.map((item) => (
                     <li key={item.id}>
                       <p className="font-medium">{item.name}</p>
-                      <p className="break-all text-xs text-muted-foreground">{item.path}</p>
+                      <p className="break-words text-xs text-muted-foreground">
+                        {withSoftWrapOpportunities(item.path)}
+                      </p>
                     </li>
                   ))}
                 </ul>

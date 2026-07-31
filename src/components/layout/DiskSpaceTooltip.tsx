@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 import type { SystemDiskSpace } from "@/services/system/system.info";
+import { withSoftWrapOpportunities } from "@/utils/softWrapText";
 
 interface DiskSpaceTooltipProps {
   /** 状态栏摘要用的当前卷（通常为仓库所在盘） */
@@ -116,7 +117,7 @@ export function DiskSpaceTooltip({ current, volumes }: DiskSpaceTooltipProps) {
     return (
       <div className="space-y-1.5 text-xs">
         <p className="font-medium">{t("statusBar.diskSpace")}</p>
-        <p className="text-background/70 break-all">{space.path}</p>
+        <p className="text-background/70 break-words">{withSoftWrapOpportunities(space.path)}</p>
         <UsageBar ratio={ratio} nearFull={ratio >= 0.9} className="h-2" />
         <p>
           {t("statusBar.diskUsedPercent", { percent })}

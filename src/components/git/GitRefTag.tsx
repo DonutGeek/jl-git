@@ -1,4 +1,4 @@
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { forwardRef, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Tag } from "lucide-react";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { toUserMessage } from "@/types/error";
 
 import { copyToClipboard } from "@/utils/clipboard";
+import { withSoftWrapOpportunities } from "@/utils/softWrapText";
 
 /** 远端展示用 origin&name，复制时还原为 origin/name 便于粘贴到 Git 命令 */
 export function refClipboardText(ref: string): string {
@@ -44,6 +45,8 @@ interface GitRefTagProps {
   className?: string;
   /** 有 onClick 时渲染为 button，否则为纯展示 span */
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
+  /** 可点击时的无障碍名称（如「复制分支名」） */
+  "aria-label"?: string;
   children?: ReactNode;
 }
 
@@ -51,18 +54,22 @@ interface GitRefTagProps {
  * 历史 / 详情共用的分支·标签徽章：
  * bg-muted 圆角胶囊 + primary Tag 图标。
  */
-export function GitRefTag({
-  label,
-  extraCount = 0,
-  tooltip,
-  tooltipContent,
-  expand = false,
-  wrap = false,
-  showHoverTooltip,
-  className,
-  onClick,
-  children,
-}: GitRefTagProps) {
+export const GitRefTag = forwardRef<HTMLButtonElement, GitRefTagProps>(function GitRefTag(
+  {
+    label,
+    extraCount = 0,
+    tooltip,
+    tooltipContent,
+    expand = false,
+    wrap = false,
+    showHoverTooltip,
+    className,
+    onClick,
+    "aria-label": ariaLabel,
+    children,
+  },
+  ref,
+) {
   const tipBody = tooltipContent ?? tooltip ?? label;
   const hoverEnabled = showHoverTooltip ?? (!expand || extraCount > 0);
   const richTooltip = tooltipContent != null;
@@ -76,8 +83,8 @@ export function GitRefTag({
         aria-hidden="true"
       />
       {wrapText ? (
-        <span className="min-w-0 flex-1 text-left font-mono text-[11px] leading-snug break-all">
-          {label}
+        <span className="min-w-0 flex-1 text-left font-mono text-[11px] leading-snug break-words">
+          {withSoftWrapOpportunities(label)}
         </span>
       ) : (
         // 同一 TruncateStartPath：展开用 disabled 显示全文，避免切换时卸载闪烁
@@ -110,7 +117,13 @@ export function GitRefTag({
   );
 
   const shell = onClick ? (
-    <button type="button" className={shellClassName} onClick={onClick}>
+    <button
+      ref={ref}
+      type="button"
+      className={shellClassName}
+      aria-label={ariaLabel}
+      onClick={onClick}
+    >
       {content}
     </button>
   ) : (
@@ -130,14 +143,14 @@ export function GitRefTag({
         className={cn(
           richTooltip
             ? "border-border bg-popover text-popover-foreground max-w-sm border px-2 py-1.5 shadow-md [&_svg]:bg-popover [&_svg]:fill-popover"
-            : "max-w-xs break-all",
+            : "max-w-xs break-words",
         )}
       >
-        {tipBody}
+        {typeof tipBody === "string" ? withSoftWrapOpportunities(tipBody) : tipBody}
       </TooltipContent>
     </Tooltip>
   );
-}
+});
 
 interface CopyableGitRefTagProps {
   refName: string;
@@ -160,12 +173,27 @@ export function CopyableGitRefTag({
 }: CopyableGitRefTagProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<number | null>(null);
+  const clipboardText = refClipboardText(refName);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
 
   async function copyRef(): Promise<void> {
     try {
-      await copyToClipboard(refClipboardText(refName));
+      await copyToClipboard(clipboardText);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+      }
+      timerRef.current = window.setTimeout(() => {
+        setCopied(false);
+      }, 1500);
     } catch (error) {
       toast.error(toUserMessage(error) || t("repo.copyFailed"));
     }
@@ -180,13 +208,14 @@ export function CopyableGitRefTag({
           wrap={wrap}
           showHoverTooltip={false}
           className={className}
+          aria-label={t("repo.copyRefAria", { name: clipboardText })}
           onClick={() => {
             void copyRef();
           }}
         />
       </TooltipTrigger>
-      <TooltipContent className="max-w-xs break-all">
-        {copied ? t("repo.copySuccess") : refName}
+      <TooltipContent side="top" className="max-w-xs break-words">
+        {copied ? t("repo.copySuccess") : t("repo.copyRef")}
       </TooltipContent>
     </Tooltip>
   );

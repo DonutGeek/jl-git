@@ -125,7 +125,7 @@
 | 功能 | 状态 | 说明 |
 |------|------|------|
 | Fetch | Done | 工具栏「检查更新」：fetch --prune（默认 origin） |
-| Pull | Done | 工具栏「更新」：pull --recurse-submodules（origin + 当前分支） |
+| Pull | Done | 工具栏「更新」：merge / rebase（`--recurse-submodules`）；旁菜单可单次选择并记住默认策略 |
 | Push | Done | 提交区「推送到远程」勾选；工具栏推送按钮仍可后续接入 |
 | Force push（受保护） | Planned | |
 

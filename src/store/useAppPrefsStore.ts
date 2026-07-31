@@ -68,6 +68,8 @@ interface AppPrefsState {
   launchAtLogin: boolean;
   startupTabsMode: StartupTabsMode;
   pushAfterCommit: boolean;
+  /** 工具栏「更新」默认策略：merge 合并 / rebase 变基 */
+  pullStrategy: "merge" | "rebase";
   /** 创建分支预填 / AI 生成使用的分支名前缀 */
   branchPrefix: string;
   /** 仓库页左侧活动栏入口顺序 */
@@ -91,6 +93,7 @@ interface AppPrefsState {
   setLaunchAtLogin: (value: boolean) => void;
   setStartupTabsMode: (mode: StartupTabsMode) => void;
   setPushAfterCommit: (value: boolean) => void;
+  setPullStrategy: (strategy: "merge" | "rebase") => void;
   /** 非法前缀时返回 false，不写入 */
   setBranchPrefix: (value: string) => boolean;
   setActivityBarOrder: (order: readonly ActivityBarItemId[]) => void;
@@ -98,6 +101,10 @@ interface AppPrefsState {
 
 function normalizeStartupTabsMode(value: unknown): StartupTabsMode {
   return value === "fresh" ? "fresh" : "restore";
+}
+
+function normalizePullStrategy(value: unknown): "merge" | "rebase" {
+  return value === "rebase" ? "rebase" : "merge";
 }
 
 function isDocumentDarkNow(): boolean {
@@ -198,6 +205,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
       launchAtLogin: false,
       startupTabsMode: "restore",
       pushAfterCommit: false,
+      pullStrategy: "merge",
       branchPrefix: DEFAULT_BRANCH_PREFIX,
       activityBarOrder: [...DEFAULT_ACTIVITY_BAR_ORDER],
 
@@ -300,6 +308,10 @@ export const useAppPrefsStore = create<AppPrefsState>()(
         set({ pushAfterCommit: value });
         notifyGlobalPreferenceChange("app-prefs");
       },
+      setPullStrategy(strategy) {
+        set({ pullStrategy: normalizePullStrategy(strategy) });
+        notifyGlobalPreferenceChange("app-prefs");
+      },
       setBranchPrefix(value) {
         if (!isBranchPrefixInputValid(value)) {
           return false;
@@ -326,7 +338,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
     }),
     {
       name: APP_PREFS_STORAGE_KEY,
-      version: 17,
+      version: 18,
       migrate: (persisted, version) => {
         const state = persisted as Partial<AppPrefsState> & {
           editorChromeLight?: AppThemeChrome;
@@ -445,7 +457,11 @@ export const useAppPrefsStore = create<AppPrefsState>()(
           // 与编辑器/浏览器/终端一致：默认「系统默认」；历史自动发现路径不视为用户自定义
           state.gitExtraPathMode = "auto";
         }
+        if (version < 18) {
+          state.pullStrategy = "merge";
+        }
         state.gitExtraPathMode = state.gitExtraPathMode === "custom" ? "custom" : "auto";
+        state.pullStrategy = normalizePullStrategy(state.pullStrategy);
         return state as AppPrefsState;
       },
       onRehydrateStorage: () => (state) => {
@@ -460,6 +476,7 @@ export const useAppPrefsStore = create<AppPrefsState>()(
         state.themeChromeLight = normalizeAppThemeChrome(state.themeChromeLight, id, false);
         state.themeChromeDark = normalizeAppThemeChrome(state.themeChromeDark, id, true);
         state.startupTabsMode = normalizeStartupTabsMode(state.startupTabsMode);
+        state.pullStrategy = normalizePullStrategy(state.pullStrategy);
         state.activityBarOrder = normalizeActivityBarOrder(state.activityBarOrder);
         applyAppFonts(state.clientFont, state.editorFont);
         applyActiveTheme(state);

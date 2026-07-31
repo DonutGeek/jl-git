@@ -7,40 +7,49 @@ interface DropdownMenuScrollAreaProps extends Omit<ComponentProps<typeof ScrollA
   itemCount: number;
   /** 单行预估高度，默认与 DropdownMenuItem 的 32px 高度一致 */
   itemHeight?: number;
-  /** 列表最大高度 */
+  /** 分组标题等额外高度（随内容增高，避免只按条目数压矮） */
+  extraHeight?: number;
+  /** 列表最大高度；内容少时高度随内容，多时封顶并滚动 */
   maxHeight?: number;
-  /** 搜索栏等固定内容占用的高度 */
+  /**
+   * 搜索栏等固定内容占用的高度。
+   * 仅用于收紧视口上限，不再把短列表压成「一条多高」。
+   */
   availableHeightOffset?: number;
 }
 
 /**
  * 下拉菜单长列表滚动区。
- * ScrollArea 仅设置 max-height 时无法为 Radix viewport 提供确定高度，
- * 因此根据条目数计算显式高度，并继续受屏幕可用空间约束。
+ * 高度随条目与额外区域增长，上限 maxHeight；内容超出后滚动。
  */
 export function DropdownMenuScrollArea({
   itemCount,
   itemHeight = 32,
+  extraHeight = 0,
   maxHeight = 256,
   availableHeightOffset = 0,
   className,
   children,
   ...props
 }: DropdownMenuScrollAreaProps) {
-  const contentHeight = Math.min(Math.max(itemCount, 1) * itemHeight + 8, maxHeight);
-  const availableHeight =
+  const estimated = Math.max(itemCount, 1) * itemHeight + Math.max(0, extraHeight) + 8;
+  const contentHeight = Math.min(estimated, maxHeight);
+  const viewportCap =
     availableHeightOffset > 0
-      ? `max(2.5rem, calc(var(--radix-dropdown-menu-content-available-height) - ${availableHeightOffset}px))`
-      : "var(--radix-dropdown-menu-content-available-height)";
+      ? `min(${maxHeight}px, max(${contentHeight}px, calc(var(--radix-dropdown-menu-content-available-height, ${maxHeight}px) - ${availableHeightOffset}px)))`
+      : `${maxHeight}px`;
 
   return (
     <ScrollArea
       className={cn(
         "[&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full",
+        // 竖向滚动条叠在右侧对称 gutter（与列表 px-2 对齐），不额外撑开右边距
+        "[&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:absolute [&_[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:right-0.5",
         className,
       )}
       style={{
-        height: `min(${contentHeight}px, ${availableHeight})`,
+        height: `${contentHeight}px`,
+        maxHeight: viewportCap,
       }}
       {...props}
     >

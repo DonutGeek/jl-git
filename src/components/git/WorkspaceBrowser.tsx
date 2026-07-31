@@ -19,6 +19,7 @@ import { useRepoNavStore } from "@/store/useRepoNavStore";
 
 import { toUserMessage } from "@/types/error";
 import type { FsEntry } from "@/types/git";
+import { withSoftWrapOpportunities } from "@/utils/softWrapText";
 
 interface WorkspaceBrowserProps {
   repoPath: string;
@@ -391,7 +392,7 @@ export function WorkspaceBrowser({ repoPath, repoName, active = true }: Workspac
                         onClick={goParent}
                       >
                         <MaterialFileIcon name="folder" isDir className="size-10" />
-                        <span className="line-clamp-2 w-full break-all text-xs leading-tight">
+                        <span className="line-clamp-2 w-full break-words text-xs leading-tight">
                           ..
                         </span>
                       </button>
@@ -415,8 +416,8 @@ export function WorkspaceBrowser({ repoPath, repoName, active = true }: Workspac
                             isDir={entry.isDir}
                             className="size-10"
                           />
-                          <span className="line-clamp-2 w-full break-all text-xs leading-tight">
-                            {entry.name}
+                          <span className="line-clamp-2 w-full break-words text-xs leading-tight">
+                            {withSoftWrapOpportunities(entry.name)}
                           </span>
                         </button>
                       </li>

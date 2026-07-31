@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { TruncateStartPath, TRUNCATE_BUDGET_ATTR } from "@/components/common/TruncateStartPath";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { withSoftWrapOpportunities } from "@/utils/softWrapText";
 
 interface TruncateStartHoverLabelProps {
   /** 全文（省略时悬停 Tooltip 展开） */
@@ -46,8 +47,8 @@ export function TruncateStartHoverLabel({
             {trailing}
           </div>
         </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-sm break-all font-mono">
-          {text}
+        <TooltipContent side="top" className="max-w-sm break-words font-mono">
+          {withSoftWrapOpportunities(text)}
         </TooltipContent>
       </Tooltip>
     </div>

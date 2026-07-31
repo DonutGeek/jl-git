@@ -50,6 +50,7 @@ import {
 import { systemOpenService } from "@/services/system/system.open";
 import { toUserMessage } from "@/types/error";
 import { copyToClipboard } from "@/utils/clipboard";
+import { withSoftWrapOpportunities } from "@/utils/softWrapText";
 
 /** 设置表单控件：与其它设置分区同系 */
 const settingsFieldClassName =
@@ -373,9 +374,9 @@ export function SettingsSshPanel() {
                           </TooltipTrigger>
                           <TooltipContent
                             side="top"
-                            className="max-w-sm break-all text-left text-wrap"
+                            className="max-w-sm break-words text-left text-wrap"
                           >
-                            {key.name}
+                            {withSoftWrapOpportunities(key.name)}
                           </TooltipContent>
                         </Tooltip>
                         {key.hasPassphrase ? (
@@ -414,9 +415,9 @@ export function SettingsSshPanel() {
                         </TooltipTrigger>
                         <TooltipContent
                           side="top"
-                          className="max-w-sm break-all font-mono text-left text-wrap"
+                          className="max-w-sm break-words font-mono text-left text-wrap"
                         >
-                          {key.privateKeyPath}
+                          {withSoftWrapOpportunities(key.privateKeyPath)}
                         </TooltipContent>
                       </Tooltip>
                     </TableCell>
@@ -438,9 +439,9 @@ export function SettingsSshPanel() {
                         </TooltipTrigger>
                         <TooltipContent
                           side="top"
-                          className="max-w-md break-all font-mono text-[11px] text-left text-wrap"
+                          className="max-w-md break-words font-mono text-[11px] text-left text-wrap"
                         >
-                          {key.publicKey}
+                          {withSoftWrapOpportunities(key.publicKey)}
                         </TooltipContent>
                       </Tooltip>
                     </TableCell>

@@ -51,6 +51,7 @@ import {
   type AppDataPaths,
 } from "@/services/data/data.service";
 import { copyToClipboard } from "@/utils/clipboard";
+import { withSoftWrapOpportunities } from "@/utils/softWrapText";
 
 import { toUserMessage } from "@/types/error";
 
@@ -628,8 +629,8 @@ function PathRow({ icon, label, value, onReveal, revealLabel }: PathRowProps) {
                 </span>
               </button>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-sm break-all font-mono">
-              {copied ? t("settings.dataPathCopied") : value}
+            <TooltipContent side="top" className="max-w-sm break-words font-mono">
+              {copied ? t("settings.dataPathCopied") : withSoftWrapOpportunities(value)}
             </TooltipContent>
           </Tooltip>
         ) : (

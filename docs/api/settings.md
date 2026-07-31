@@ -80,6 +80,7 @@ Tokens 定义见 [theme](../development/theme.md)。
 | 字段 / 方法 | 行为 |
 |-------------|------|
 | `shell` / `shellPath` | 工具栏「在终端中打开」 |
+| `pullStrategy` / `setPullStrategy` | 工具栏「更新」默认策略：`merge` \| `rebase` |
 | `externalEditor` / `externalEditorPath` | 工具栏「在编辑器中打开」 |
 | `externalBrowser` / `externalBrowserPath` | 打开远程 / 外链（`openExternalUrl` → `system_open_url`）；下拉选项来自 `system_list_browsers` |
 | `gitExtraPathMode` / `setGitExtraPathMode` | `auto`（系统默认，运行时自动发现并注入）或 `custom` |
