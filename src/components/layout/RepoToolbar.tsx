@@ -768,22 +768,25 @@ export function RepoToolbar({
             </Tooltip>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    "h-8 px-1.5 shadow-none",
-                    syncPendingKind === "pull" && "bg-accent",
-                  )}
-                  aria-label={t("repo.unpulledCount", { count: behind })}
-                  aria-pressed={syncPendingKind === "pull"}
-                  onClick={(event) => toggleSyncPending("pull", event)}
-                >
-                  <Badge className="min-w-4 justify-center rounded-full px-1 py-0 text-[10px] leading-4 font-semibold tabular-nums">
-                    {behind > 99 ? "99+" : behind}
-                  </Badge>
-                </Button>
+                <span className="inline-flex">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "h-8 px-1.5 shadow-none",
+                      syncPendingKind === "pull" && "bg-accent",
+                    )}
+                    disabled={syncBusy}
+                    aria-label={t("repo.unpulledCount", { count: behind })}
+                    aria-pressed={syncPendingKind === "pull"}
+                    onClick={(event) => toggleSyncPending("pull", event)}
+                  >
+                    <Badge className="min-w-4 justify-center rounded-full px-1 py-0 text-[10px] leading-4 font-semibold tabular-nums">
+                      {behind > 99 ? "99+" : behind}
+                    </Badge>
+                  </Button>
+                </span>
               </TooltipTrigger>
               <TooltipContent>{t("repo.unpulledCount", { count: behind })}</TooltipContent>
             </Tooltip>
@@ -883,6 +886,7 @@ export function RepoToolbar({
                         variant="outline"
                         size="icon-sm"
                         className="h-8 w-7"
+                        disabled={syncBusy}
                         aria-label={t("repo.pushMenu")}
                       >
                         <ChevronDown className="size-3.5" aria-hidden="true" />
@@ -893,7 +897,7 @@ export function RepoToolbar({
                 <TooltipContent>{t("repo.pushMenu")}</TooltipContent>
               </Tooltip>
               <DropdownMenuContent align="start" className="min-w-40">
-                <DropdownMenuItem onSelect={handleUndoCommit}>
+                <DropdownMenuItem disabled={syncBusy} onSelect={handleUndoCommit}>
                   <Undo2 className="size-3.5" aria-hidden="true" />
                   {t("repo.undoCommitMenu")}
                 </DropdownMenuItem>
@@ -902,22 +906,25 @@ export function RepoToolbar({
 
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    "h-8 px-1.5 shadow-none",
-                    syncPendingKind === "push" && "bg-accent",
-                  )}
-                  aria-label={t("repo.unpushedCount", { count: ahead })}
-                  aria-pressed={syncPendingKind === "push"}
-                  onClick={(event) => toggleSyncPending("push", event)}
-                >
-                  <Badge className="min-w-4 justify-center rounded-full px-1 py-0 text-[10px] leading-4 font-semibold tabular-nums">
-                    {ahead > 99 ? "99+" : ahead}
-                  </Badge>
-                </Button>
+                <span className="inline-flex">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "h-8 px-1.5 shadow-none",
+                      syncPendingKind === "push" && "bg-accent",
+                    )}
+                    disabled={syncBusy}
+                    aria-label={t("repo.unpushedCount", { count: ahead })}
+                    aria-pressed={syncPendingKind === "push"}
+                    onClick={(event) => toggleSyncPending("push", event)}
+                  >
+                    <Badge className="min-w-4 justify-center rounded-full px-1 py-0 text-[10px] leading-4 font-semibold tabular-nums">
+                      {ahead > 99 ? "99+" : ahead}
+                    </Badge>
+                  </Button>
+                </span>
               </TooltipTrigger>
               <TooltipContent>{t("repo.unpushedCount", { count: ahead })}</TooltipContent>
             </Tooltip>
