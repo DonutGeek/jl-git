@@ -87,14 +87,6 @@ function capLogCommitsForSession(commits: GitCommitSummary[]): {
   return { commits: commits.slice(0, LOG_COMMITS_HARD_CAP), capped: true };
 }
 
-/** 历史默认范围：当前检出分支；游离 HEAD 用 HEAD */
-function historyLogRefFromStatus(status: GitStatusResult | null): string {
-  if (!status || status.detached || !status.branch) {
-    return "HEAD";
-  }
-  return status.branch;
-}
-
 /** 变更列表选中：worktree=变更区，index=待提交 */
 export type ChangeSide = "worktree" | "index";
 
@@ -1052,7 +1044,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       return;
     }
 
-    // 冷启动：清空旧数据；历史默认「当前分支」（先 status 再 log）
+    // 冷启动：清空旧数据；历史默认「所有分支」（logRef = null → --all）
     if (isLatestRepoLoad(repoPath, generation) && get().repoPath === repoPath) {
       set({
         repoPath,
@@ -1123,26 +1115,26 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         applyIfCurrent({ repoState });
         return repoState;
       });
-      const logPromise = statusPromise.then(async (status) => {
-        const defaultLogRef = historyLogRefFromStatus(status);
-        const log = await gitService.getLog(
+      const logPromise = gitService
+        .getLog(
           repoPath,
           buildHistoryLogOptions({
             limit: LOG_PAGE_SIZE,
-            logRef: defaultLogRef,
+            logRef: null,
             order: logOrder,
             advanced: historyAdvanced,
           }),
-        );
-        applyIfCurrent({
-          commits: log.commits,
-          hasMore: log.hasMore,
-          logRef: defaultLogRef,
+        )
+        .then((log) => {
+          applyIfCurrent({
+            commits: log.commits,
+            hasMore: log.hasMore,
+            logRef: null,
+          });
+          return log;
         });
-        return { defaultLogRef, log };
-      });
 
-      const [status, identity, branches, tags, logResult, repoState] = await Promise.all([
+      const [status, identity, branches, tags, log, repoState] = await Promise.all([
         statusPromise,
         identityPromise,
         branchesPromise,
@@ -1155,7 +1147,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         return;
       }
       if (get().repoPath !== repoPath) {
-        const { commits, capped } = applyLogCommits([], logResult.log.commits, true);
+        const { commits, capped } = applyLogCommits([], log.commits, true);
         putRepoSession(repoPath, {
           status,
           identity,
@@ -1163,8 +1155,8 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
           tags: tags.tags,
           remoteTags: null,
           commits,
-          hasMore: capped ? false : logResult.log.hasMore,
-          logRef: logResult.defaultLogRef,
+          hasMore: capped ? false : log.hasMore,
+          logRef: null,
           logOrder,
           historyAdvanced,
           commitMessage: "",
@@ -1183,9 +1175,9 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
         identity,
         branches,
         tags: tags.tags,
-        commits: logResult.log.commits,
-        hasMore: logResult.log.hasMore,
-        logRef: logResult.defaultLogRef,
+        commits: log.commits,
+        hasMore: log.hasMore,
+        logRef: null,
         repoState,
       });
       hydratedRepoPaths.add(repoPath);
@@ -1430,7 +1422,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
   async deleteTag(name) {
     const repoPath = requireRepoPath(get().repoPath);
-    const status = get().status;
     const logRef = get().logRef;
     const logOrder = get().logOrder;
     const historyAdvanced = get().historyAdvanced;
@@ -1441,18 +1432,17 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const tags = await gitService.listTags(repoPath);
       let logPatch: Partial<RepoSessionSnapshot> = {};
       if (deletedSelectedRef) {
-        const nextLogRef = historyLogRefFromStatus(status);
         const log = await gitService.getLog(
           repoPath,
           buildHistoryLogOptions({
             limit: LOG_PAGE_SIZE,
-            logRef: nextLogRef,
+            logRef: null,
             order: logOrder,
             advanced: historyAdvanced,
           }),
         );
         logPatch = {
-          logRef: nextLogRef,
+          logRef: null,
           commits: log.commits,
           hasMore: log.hasMore,
           selectedCommitId: null,
@@ -1508,7 +1498,6 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
 
   async deleteTagBoth(name) {
     const repoPath = requireRepoPath(get().repoPath);
-    const status = get().status;
     const logRef = get().logRef;
     const logOrder = get().logOrder;
     const historyAdvanced = get().historyAdvanced;
@@ -1523,18 +1512,17 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       const tags = await gitService.listTags(repoPath);
       let logPatch: Partial<RepoSessionSnapshot> = {};
       if (deletedSelectedRef) {
-        const nextLogRef = historyLogRefFromStatus(status);
         const log = await gitService.getLog(
           repoPath,
           buildHistoryLogOptions({
             limit: LOG_PAGE_SIZE,
-            logRef: nextLogRef,
+            logRef: null,
             order: logOrder,
             advanced: historyAdvanced,
           }),
         );
         logPatch = {
-          logRef: nextLogRef,
+          logRef: null,
           commits: log.commits,
           hasMore: log.hasMore,
           selectedCommitId: null,

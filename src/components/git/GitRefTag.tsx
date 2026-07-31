@@ -34,6 +34,11 @@ interface GitRefTagProps {
    * false：按行内剩余空间自适应——够宽则全文，不够才前省略。
    */
   expand?: boolean;
+  /**
+   * 与 expand 联用：详情区长 ref 在徽章内换行（参考 SourceGit），
+   * 而非单行撑破或裁切。
+   */
+  wrap?: boolean;
   /** 是否启用悬停提示；默认：未展开时开启，展开且有 +N 时开启 */
   showHoverTooltip?: boolean;
   className?: string;
@@ -52,6 +57,7 @@ export function GitRefTag({
   tooltip,
   tooltipContent,
   expand = false,
+  wrap = false,
   showHoverTooltip,
   className,
   onClick,
@@ -61,17 +67,27 @@ export function GitRefTag({
   const hoverEnabled = showHoverTooltip ?? (!expand || extraCount > 0);
   const richTooltip = tooltipContent != null;
   const extraLabel = extraCount > 0 ? ` +${extraCount}` : "";
+  const wrapText = wrap && expand;
 
   const content = (
     <>
-      <Tag className="text-primary size-3 shrink-0" aria-hidden="true" />
-      {/* 同一 TruncateStartPath：展开用 disabled 显示全文，避免切换时卸载闪烁 */}
-      <TruncateStartPath
-        path={label}
-        title=""
-        disabled={expand}
-        className="text-[11px] leading-none"
+      <Tag
+        className={cn("text-primary size-3 shrink-0", wrapText && "mt-0.5")}
+        aria-hidden="true"
       />
+      {wrapText ? (
+        <span className="min-w-0 flex-1 text-left font-mono text-[11px] leading-snug break-all">
+          {label}
+        </span>
+      ) : (
+        // 同一 TruncateStartPath：展开用 disabled 显示全文，避免切换时卸载闪烁
+        <TruncateStartPath
+          path={label}
+          title=""
+          disabled={expand}
+          className="text-[11px] leading-none"
+        />
+      )}
       {extraCount > 0 ? (
         <span className="shrink-0 text-[11px] leading-none whitespace-nowrap">{extraLabel}</span>
       ) : null}
@@ -80,12 +96,17 @@ export function GitRefTag({
   );
 
   const shellClassName = cn(
-    "bg-muted text-foreground inline-flex h-5 items-center gap-1 rounded-md border-0 px-1.5",
-    expand
+    "bg-muted text-foreground inline-flex gap-1 rounded-md border-0 px-1.5",
+    wrapText
+      ? "h-auto max-w-full min-w-0 items-start py-1"
+      : "h-5 items-center",
+    expand && !wrapText
       ? // 强制展开：宽度随全文
         "w-max shrink-0"
-      : // 折叠：药丸随内容；上限预算槽。截断串已按 DOM 量宽，无需再 overflow 裁半字
-        "min-w-0 w-max max-w-full",
+      : !expand
+        ? // 折叠：药丸随内容；上限预算槽。截断串已按 DOM 量宽，无需再 overflow 裁半字
+          "min-w-0 w-max max-w-full"
+        : null,
     onClick && "hover:bg-accent cursor-pointer transition-colors",
     className,
   );
@@ -127,11 +148,18 @@ interface CopyableGitRefTagProps {
    * 历史列表的「展开分支名」只影响 HistoryList，不得传到此处。
    */
   expand?: boolean;
+  /** 详情区：长分支名在徽章内换行 */
+  wrap?: boolean;
   className?: string;
 }
 
 /** 可点击复制的 ref 徽章（历史详情等）；默认全文，不受列表视图偏好控制 */
-export function CopyableGitRefTag({ refName, expand = true, className }: CopyableGitRefTagProps) {
+export function CopyableGitRefTag({
+  refName,
+  expand = true,
+  wrap = false,
+  className,
+}: CopyableGitRefTagProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
@@ -151,6 +179,7 @@ export function CopyableGitRefTag({ refName, expand = true, className }: Copyabl
         <GitRefTag
           label={refName}
           expand={expand}
+          wrap={wrap}
           showHoverTooltip={false}
           className={className}
           onClick={() => {

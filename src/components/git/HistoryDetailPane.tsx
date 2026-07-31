@@ -911,10 +911,10 @@ export function HistoryDetailPane() {
         ) : null}
 
         {refs.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-1">
+          <div className="flex min-w-0 flex-col items-start gap-1">
             {refs.map((ref) => (
-              // 详情区始终全文展示；与历史列表「展开分支名」无关
-              <CopyableGitRefTag key={ref} refName={ref} expand />
+              // 详情区全文 + 超宽换行；与历史列表「展开分支名」无关
+              <CopyableGitRefTag key={ref} refName={ref} expand wrap className="max-w-full" />
             ))}
           </div>
         ) : null}
