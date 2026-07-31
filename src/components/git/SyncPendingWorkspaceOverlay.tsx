@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import dayjs from "dayjs";
 import { ArrowLeft, FileSearch, Files, GitCommitHorizontal, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -7,14 +8,22 @@ import { SelectMenu } from "@/components/common/SelectMenu";
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import { BranchCompareFilePreview } from "@/components/git/BranchCompareFilePreview";
 import { DiffLineStats } from "@/components/git/DiffLineStats";
+import { GitIdentityAvatar } from "@/components/git/GitIdentityAvatar";
 import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
+import { TextDiffPreview } from "@/components/git/TextDiffPreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { getBranchCompare, getBranchFileDiff, getCommit, getLog } from "@/services/git";
+import {
+  getBranchCompare,
+  getBranchFileDiff,
+  getCommit,
+  getCommitFileDiff,
+  getLog,
+} from "@/services/git";
 import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { GitChangedFile, GitCommitDetail, GitCommitSummary, GitDiffResult } from "@/types/git";
@@ -39,8 +48,9 @@ function summarizeFiles(files: GitChangedFile[]): {
 }
 
 /**
- * 待推送 / 待更新全工作区覆盖层：盖住侧栏 + 主区整片（三块区域），
- * 交互对齐历史提交文件差异（返回/关闭 + 左列表右 Diff）。
+ * 待推送 / 待更新全工作区覆盖层。
+ * - 文件：改动文件 | Diff
+ * - 提交：多次时三栏（提交列表 | 该提交文件 | Diff）；单次时两栏（文件 | Diff）
  */
 export function SyncPendingWorkspaceOverlay() {
   const { t } = useTranslation();
@@ -53,22 +63,27 @@ export function SyncPendingWorkspaceOverlay() {
   const closeSyncPending = useRepoStore((state) => state.closeSyncPendingPreview);
 
   const [view, setView] = useState<SyncPendingView>("files");
-  const [files, setFiles] = useState<GitChangedFile[] | null>(null);
+  const [rangeFiles, setRangeFiles] = useState<GitChangedFile[] | null>(null);
   const [commits, setCommits] = useState<GitCommitSummary[] | null>(null);
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null);
   const [selectedCommit, setSelectedCommit] = useState<GitCommitDetail | null>(null);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileFilter, setFileFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [diff, setDiff] = useState<GitDiffResult | null>(null);
   const [diffError, setDiffError] = useState<string | null>(null);
   const [encoding, setEncoding] = useState(DEFAULT_TEXT_ENCODING);
   const [loading, setLoading] = useState(false);
-  const requestId = useRef(0);
+  const [commitLoading, setCommitLoading] = useState(false);
+  const listRequestId = useRef(0);
+  const commitRequestId = useRef(0);
   const diffRequestId = useRef(0);
 
   const show = Boolean(kind && repoPath);
   const showPush = ahead > 0;
   const showPull = behind > 0;
+  const pendingCount = kind === "push" ? ahead : behind;
+  const showCommitColumn = view === "commits" && (commits?.length ?? 0) > 1;
 
   const base = kind === "push" ? (upstream ?? "") : "HEAD";
   const target = kind === "push" ? "HEAD" : (upstream ?? "");
@@ -85,13 +100,16 @@ export function SyncPendingWorkspaceOverlay() {
     [ahead, behind, showPull, showPush, t],
   );
 
+  const commitFiles = selectedCommit?.diffs[0]?.files ?? [];
+  const activeFiles = view === "files" ? (rangeFiles ?? []) : commitFiles;
   const visibleFiles = useMemo(
     () =>
-      files?.filter((file) => file.path.toLowerCase().includes(fileFilter.trim().toLowerCase())) ??
-      [],
-    [fileFilter, files],
+      activeFiles.filter((file) =>
+        file.path.toLowerCase().includes(fileFilter.trim().toLowerCase()),
+      ),
+    [activeFiles, fileFilter],
   );
-  const summary = useMemo(() => summarizeFiles(files ?? []), [files]);
+  const summary = useMemo(() => summarizeFiles(activeFiles), [activeFiles]);
 
   useEffect(() => {
     if (!show) {
@@ -106,85 +124,134 @@ export function SyncPendingWorkspaceOverlay() {
     }
   }, [closeSyncPending, kind, setSyncPendingKind, show, showPull, showPush]);
 
+  // 打开 / 切换 push·pull：拉提交列表 + 区间文件
   useEffect(() => {
     if (!show || !repoPath || !upstream || !kind || !base || !target) {
       return;
     }
 
-    const currentRequest = ++requestId.current;
+    const currentRequest = ++listRequestId.current;
     setError(null);
-    setFiles(null);
+    setRangeFiles(null);
     setCommits(null);
-    setSelectedPath(null);
+    setSelectedCommitId(null);
     setSelectedCommit(null);
+    setSelectedPath(null);
     setDiff(null);
     setLoading(true);
 
+    const range = kind === "push" ? `${upstream}..HEAD` : `HEAD..${upstream}`;
+    void Promise.all([
+      getBranchCompare(repoPath, { base, target }),
+      getLog(repoPath, { ref: range, limit: 100 }),
+    ])
+      .then(([compareResult, logResult]) => {
+        if (currentRequest !== listRequestId.current) {
+          return;
+        }
+        setRangeFiles(compareResult.files);
+        setCommits(logResult.commits);
+        const firstCommit = logResult.commits[0] ?? null;
+        setSelectedCommitId(firstCommit?.id ?? null);
+        setSelectedPath(compareResult.files[0]?.path ?? null);
+      })
+      .catch((reason: unknown) => {
+        if (currentRequest === listRequestId.current) {
+          setError(toUserMessage(reason) || t("repo.syncPendingLoadFailed"));
+        }
+      })
+      .finally(() => {
+        if (currentRequest === listRequestId.current) {
+          setLoading(false);
+        }
+      });
+  }, [base, kind, repoPath, show, t, target, upstream]);
+
+  // 选中提交 → 拉详情与文件列表
+  useEffect(() => {
+    if (!show || !repoPath || !selectedCommitId || view !== "commits") {
+      return;
+    }
+
+    const currentRequest = ++commitRequestId.current;
+    setCommitLoading(true);
+    setSelectedCommit(null);
+    setSelectedPath(null);
+    setDiff(null);
+
+    void getCommit(repoPath, selectedCommitId)
+      .then((result) => {
+        if (currentRequest !== commitRequestId.current) {
+          return;
+        }
+        setSelectedCommit(result.commit);
+        setSelectedPath(result.commit.diffs[0]?.files[0]?.path ?? null);
+      })
+      .catch((reason: unknown) => {
+        if (currentRequest === commitRequestId.current) {
+          setError(toUserMessage(reason) || t("repo.syncPendingLoadFailed"));
+        }
+      })
+      .finally(() => {
+        if (currentRequest === commitRequestId.current) {
+          setCommitLoading(false);
+        }
+      });
+  }, [repoPath, selectedCommitId, show, t, view]);
+
+  // 切到文件视图时，用区间文件默认选中
+  useEffect(() => {
+    if (view !== "files") {
+      return;
+    }
+    setSelectedPath((prev) => {
+      if (prev && rangeFiles?.some((file) => file.path === prev)) {
+        return prev;
+      }
+      return rangeFiles?.[0]?.path ?? null;
+    });
+  }, [rangeFiles, view]);
+
+  // Diff：文件模式用区间对比；提交模式用 parent→commit
+  useEffect(() => {
+    if (!show || !repoPath || !selectedPath) {
+      return;
+    }
+
+    const currentRequest = ++diffRequestId.current;
+    setDiff(null);
+    setDiffError(null);
+
     if (view === "files") {
-      void getBranchCompare(repoPath, { base, target })
+      if (!base || !target) {
+        return;
+      }
+      void getBranchFileDiff(repoPath, {
+        base,
+        target,
+        filePath: selectedPath,
+        encoding,
+      })
         .then((result) => {
-          if (currentRequest !== requestId.current) {
-            return;
+          if (currentRequest === diffRequestId.current) {
+            setDiff(result);
           }
-          setFiles(result.files);
-          setSelectedPath(result.files[0]?.path ?? null);
         })
         .catch((reason: unknown) => {
-          if (currentRequest === requestId.current) {
-            setError(toUserMessage(reason) || t("repo.syncPendingLoadFailed"));
-          }
-        })
-        .finally(() => {
-          if (currentRequest === requestId.current) {
-            setLoading(false);
+          if (currentRequest === diffRequestId.current) {
+            setDiffError(toUserMessage(reason) || t("repo.syncPendingDiffFailed"));
           }
         });
       return;
     }
 
-    const range = kind === "push" ? `${upstream}..HEAD` : `HEAD..${upstream}`;
-    void getLog(repoPath, { ref: range, limit: 100 })
-      .then((result) => {
-        if (currentRequest !== requestId.current) {
-          return;
-        }
-        setCommits(result.commits);
-        const first = result.commits[0];
-        if (first) {
-          void getCommit(repoPath, first.id)
-            .then((showResult) => {
-              if (currentRequest === requestId.current) {
-                setSelectedCommit(showResult.commit);
-              }
-            })
-            .catch(() => {
-              /* 选中失败时右侧保持空 */
-            });
-        }
-      })
-      .catch((reason: unknown) => {
-        if (currentRequest === requestId.current) {
-          setError(toUserMessage(reason) || t("repo.syncPendingLoadFailed"));
-        }
-      })
-      .finally(() => {
-        if (currentRequest === requestId.current) {
-          setLoading(false);
-        }
-      });
-  }, [base, kind, repoPath, show, t, target, upstream, view]);
-
-  useEffect(() => {
-    if (!show || view !== "files" || !repoPath || !selectedPath || !base || !target) {
+    if (!selectedCommit) {
       return;
     }
-    const currentRequest = ++diffRequestId.current;
-    setDiff(null);
-    setDiffError(null);
-    void getBranchFileDiff(repoPath, {
-      base,
-      target,
+    void getCommitFileDiff(repoPath, {
       filePath: selectedPath,
+      commitRev: selectedCommit.id,
+      parentRev: selectedCommit.parents[0] ?? "",
       encoding,
     })
       .then((result) => {
@@ -197,23 +264,15 @@ export function SyncPendingWorkspaceOverlay() {
           setDiffError(toUserMessage(reason) || t("repo.syncPendingDiffFailed"));
         }
       });
-  }, [base, encoding, repoPath, selectedPath, show, t, target, view]);
+  }, [base, encoding, repoPath, selectedCommit, selectedPath, show, t, target, view]);
 
   if (!show || !kind) {
     return null;
   }
 
-  async function selectCommit(commit: GitCommitSummary): Promise<void> {
-    setSelectedCommit(null);
-    if (!repoPath) {
-      return;
-    }
-    try {
-      setSelectedCommit((await getCommit(repoPath, commit.id)).commit);
-    } catch (reason) {
-      setError(toUserMessage(reason) || t("repo.syncPendingLoadFailed"));
-    }
-  }
+  const gridClassName = showCommitColumn
+    ? "grid min-h-0 flex-1 grid-cols-[minmax(14rem,18rem)_minmax(14rem,18rem)_minmax(0,1fr)]"
+    : "grid min-h-0 flex-1 grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]";
 
   return (
     <div
@@ -278,6 +337,12 @@ export function SyncPendingWorkspaceOverlay() {
           ))}
         </div>
 
+        {pendingCount > 0 ? (
+          <span className="text-muted-foreground truncate text-xs tabular-nums">
+            {t("repo.syncPendingCommitCount", { count: commits?.length ?? pendingCount })}
+          </span>
+        ) : null}
+
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
             <Button
@@ -306,8 +371,64 @@ export function SyncPendingWorkspaceOverlay() {
               <Spinner className="size-4" />
               {t("common.loading")}
             </div>
-          ) : view === "files" ? (
-            <div className="grid min-h-0 flex-1 grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
+          ) : (
+            <div className={gridClassName}>
+              {showCommitColumn ? (
+                <aside className="border-border bg-muted/20 flex min-h-0 flex-col border-r">
+                  <div className="text-muted-foreground border-border border-b px-3 py-1.5 text-[11px]">
+                    {t("repo.syncPendingCommitCount", { count: commits?.length ?? 0 })}
+                  </div>
+                  <ScrollArea className="min-h-0 flex-1">
+                    {(commits?.length ?? 0) > 0 ? (
+                      <div className="space-y-0.5 p-1">
+                        {commits?.map((commit) => (
+                          <button
+                            type="button"
+                            key={commit.id}
+                            onClick={() => setSelectedCommitId(commit.id)}
+                            className={cn(
+                              "hover:bg-accent flex w-full min-w-0 items-start gap-2 rounded-md px-2 py-2 text-left transition-colors",
+                              selectedCommitId === commit.id && "bg-accent text-accent-foreground",
+                            )}
+                          >
+                            <GitIdentityAvatar
+                              name={commit.authorName}
+                              email={commit.authorEmail}
+                              label={commit.authorName}
+                              compact
+                              className="mt-0.5 size-7"
+                            />
+                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                              <span className="line-clamp-2 text-xs leading-snug font-medium">
+                                {commit.subject}
+                              </span>
+                              <span className="text-muted-foreground flex min-w-0 items-center gap-1 font-mono text-[10px] tabular-nums">
+                                <GitCommitHorizontal
+                                  className="size-3 shrink-0"
+                                  aria-hidden="true"
+                                />
+                                <span className="truncate">{commit.shortId}</span>
+                              </span>
+                              <span className="text-muted-foreground truncate text-[10px]">
+                                {commit.authorName} ·{" "}
+                                {dayjs(commit.authoredAt).format("YYYY-MM-DD")}
+                              </span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState
+                        compact
+                        className="py-8"
+                        icon={<GitCommitHorizontal />}
+                        title={t("repo.syncPendingNoCommits")}
+                      />
+                    )}
+                  </ScrollArea>
+                </aside>
+              ) : null}
+
               <aside className="border-border flex min-h-0 flex-col border-r">
                 <div className="text-muted-foreground border-border border-b px-3 py-1.5 text-[11px]">
                   {t("repo.syncPendingFileSummary", summary)}
@@ -322,7 +443,12 @@ export function SyncPendingWorkspaceOverlay() {
                   />
                 </div>
                 <ScrollArea className="min-h-0 flex-1">
-                  {visibleFiles.length > 0 ? (
+                  {view === "commits" && commitLoading ? (
+                    <div className="text-muted-foreground flex items-center justify-center gap-2 py-8 text-xs">
+                      <Spinner className="size-3.5" />
+                      {t("common.loading")}
+                    </div>
+                  ) : visibleFiles.length > 0 ? (
                     <div className="space-y-0.5 px-1 py-0.5">
                       {visibleFiles.map((file) => (
                         <button
@@ -370,6 +496,7 @@ export function SyncPendingWorkspaceOverlay() {
                   )}
                 </ScrollArea>
               </aside>
+
               <section className="min-h-0 min-w-0">
                 {diffError ? (
                   <p className="text-destructive p-4 text-sm">{diffError}</p>
@@ -384,7 +511,7 @@ export function SyncPendingWorkspaceOverlay() {
                     <Spinner className="size-4" />
                     {t("common.loading")}
                   </div>
-                ) : (
+                ) : view === "files" ? (
                   <BranchCompareFilePreview
                     repoPath={repoPath}
                     base={base}
@@ -394,99 +521,25 @@ export function SyncPendingWorkspaceOverlay() {
                     encoding={encoding}
                     onEncodingChange={setEncoding}
                   />
-                )}
-              </section>
-            </div>
-          ) : (
-            <div className="grid min-h-0 flex-1 grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
-              <aside className="border-border flex min-h-0 flex-col border-r">
-                <div className="text-muted-foreground border-border border-b px-3 py-1.5 text-[11px]">
-                  {t("repo.syncPendingCommitCount", { count: commits?.length ?? 0 })}
-                </div>
-                <ScrollArea className="min-h-0 flex-1">
-                  {(commits?.length ?? 0) > 0 ? (
-                    <div className="space-y-0.5 px-1 py-0.5">
-                      {commits?.map((commit) => (
-                        <button
-                          type="button"
-                          key={commit.id}
-                          onClick={() => {
-                            void selectCommit(commit);
-                          }}
-                          className={cn(
-                            "hover:bg-accent flex w-full min-w-0 flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left transition-colors",
-                            selectedCommit?.id === commit.id && "bg-accent text-accent-foreground",
-                          )}
-                        >
-                          <span className="flex w-full min-w-0 items-center gap-1.5">
-                            <GitCommitHorizontal
-                              className="text-muted-foreground size-3 shrink-0"
-                              aria-hidden="true"
-                            />
-                            <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                              {commit.subject}
-                            </span>
-                          </span>
-                          <span className="text-muted-foreground pl-5 font-mono text-[10px] tabular-nums">
-                            {commit.shortId} · {commit.authorName}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState
-                      compact
-                      className="py-8"
-                      icon={<GitCommitHorizontal />}
-                      title={t("repo.syncPendingNoCommits")}
-                    />
-                  )}
-                </ScrollArea>
-              </aside>
-              <section className="min-h-0 min-w-0 overflow-hidden">
-                {selectedCommit ? (
-                  <ScrollArea className="h-full">
-                    <div className="space-y-3 p-4">
-                      <div>
-                        <h2 className="text-sm font-semibold">{selectedCommit.subject}</h2>
-                        <p className="text-muted-foreground mt-1 text-xs">
-                          {selectedCommit.authorName} · {selectedCommit.shortId}
-                        </p>
-                      </div>
-                      {selectedCommit.body.trim() ? (
-                        <pre className="bg-muted/40 rounded-md p-3 text-xs whitespace-pre-wrap">
-                          {selectedCommit.body}
-                        </pre>
-                      ) : null}
-                      {selectedCommit.diffs[0]?.files.length ? (
-                        <div className="space-y-1">
-                          <p className="text-muted-foreground text-[11px] font-medium">
-                            {t("repo.syncPendingCommitFiles", {
-                              count: selectedCommit.diffs[0].files.length,
-                            })}
-                          </p>
-                          <ul className="space-y-0.5">
-                            {selectedCommit.diffs[0].files.slice(0, 80).map((file) => (
-                              <li
-                                key={file.path}
-                                className="flex min-w-0 items-center gap-1.5 text-xs"
-                              >
-                                <span
-                                  className={cn(
-                                    "w-3.5 shrink-0 text-center font-mono text-[11px] font-semibold",
-                                    gitStatusLetterClass(file.status),
-                                  )}
-                                >
-                                  {file.status}
-                                </span>
-                                <span className="min-w-0 truncate font-mono">{file.path}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-                    </div>
-                  </ScrollArea>
+                ) : selectedCommit ? (
+                  <TextDiffPreview
+                    path={selectedPath}
+                    diff={diff}
+                    selectionKey={`${selectedCommit.id}\0${selectedPath}`}
+                    encoding={encoding}
+                    onEncodingChange={setEncoding}
+                    repoPath={repoPath}
+                    blameRev={selectedCommit.id}
+                    oldLabel={
+                      <span className="truncate font-mono">
+                        {selectedCommit.parents[0]?.slice(0, 7) || t("repo.diffEmptyTree")}
+                      </span>
+                    }
+                    newLabel={<span className="truncate font-mono">{selectedCommit.shortId}</span>}
+                    binaryEncodingLabel="HEX"
+                    allowBinaryEditor
+                    className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+                  />
                 ) : (
                   <EmptyState
                     className="h-full"
