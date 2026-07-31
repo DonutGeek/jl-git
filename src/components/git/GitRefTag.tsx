@@ -106,8 +106,9 @@ export const GitRefTag = forwardRef<HTMLButtonElement, GitRefTagProps>(function 
   const shellClassName = cn(
     "bg-muted text-foreground inline-flex gap-1 rounded-md border-0 px-1.5",
     wrapText
-      ? // w-min：按最长可断片段收窄，避免 max-w-full 时整行撑满
-        "h-auto w-min max-w-full min-w-0 items-start py-1"
+      ? // w-max：优先按全文单行；父级变窄时再靠 max-w-full 换行。
+        // 勿用 w-min：配合软换行 ZWSP 会压成「最短片段」宽，长分支名竖成细条。
+        "h-auto w-max max-w-full min-w-0 items-start py-1"
       : "h-5 items-center",
     expand && !wrapText
       ? // 强制展开：宽度随全文
