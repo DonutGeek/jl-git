@@ -58,6 +58,7 @@ export function MergeBranchDialog({
     source: source ?? "",
     target: target ?? "",
   });
+  const actionLabel = t("repo.mergeAction", { source, target });
 
   const modeOptions = MERGE_MODE_OPTIONS.map((value) => ({
     value,
@@ -73,19 +74,20 @@ export function MergeBranchDialog({
         }
       }}
     >
-      <AppDialogContent>
+      <AppDialogContent className="min-w-0">
         <DialogHeader>
-          <DialogTitle className="pr-6 text-base">{title}</DialogTitle>
+          <DialogTitle className="min-w-0 pr-6 text-base break-words">{title}</DialogTitle>
         </DialogHeader>
 
-        <FieldGroup className="gap-4">
-          <Field>
+        <FieldGroup className="min-w-0 gap-4">
+          <Field className="min-w-0">
             <FieldLabel>{t("repo.mergeMode")}</FieldLabel>
             <SelectMenu
               value={mode}
               options={modeOptions}
               disabled={busy}
               ariaLabel={t("repo.mergeMode")}
+              triggerClassName="min-w-0 max-w-full"
               onChange={(next) => setMode(next as GitMergeMode)}
             />
           </Field>
@@ -117,15 +119,18 @@ export function MergeBranchDialog({
         </FieldGroup>
 
         {/* 主按钮独占一行；关闭仍用右上角 X */}
-        <DialogFooter className="sm:flex-col sm:justify-stretch">
+        <DialogFooter className="min-w-0 sm:flex-col sm:justify-stretch">
           <Button
             type="button"
-            className="w-full"
+            className="w-full min-w-0"
             disabled={!source || !target || busy}
             onClick={() => onConfirm({ mode, autostash: squash ? false : autostash })}
+            aria-label={busy ? t("repo.mergeRunning") : actionLabel}
           >
             {busy ? <Spinner className="size-3.5" /> : null}
-            {busy ? t("repo.mergeRunning") : t("repo.mergeAction", { source, target })}
+            <span className="min-w-0 truncate" title={busy ? undefined : actionLabel}>
+              {busy ? t("repo.mergeRunning") : actionLabel}
+            </span>
           </Button>
         </DialogFooter>
       </AppDialogContent>
