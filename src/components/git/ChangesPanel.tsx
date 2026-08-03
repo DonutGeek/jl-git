@@ -681,7 +681,8 @@ function ChangeGroup({
 /** 中栏：变更 / 待提交 */
 export function ChangesPanel() {
   const { t } = useTranslation();
-  const entries = useRepoStore((state) => state.status?.entries ?? EMPTY_ENTRIES);
+  const status = useRepoStore((state) => state.status);
+  const entries = status?.entries ?? EMPTY_ENTRIES;
   const repoPath = useRepoStore((state) => state.repoPath);
   const loading = useRepoStore((state) => state.loading);
   const selectedChange = useRepoStore((state) => state.selectedChange);
@@ -734,8 +735,8 @@ export function ChangesPanel() {
     [activeSearchQuery, demotedSet, entries, sortMode],
   );
   const busy = loading || mutating;
-  /** 首屏/切仓 status 尚未回来：两分区内小加载，避免整块空白或整区 Spinner */
-  const showGroupLoading = loading && entries.length === 0;
+  /** 仅在首屏/切仓尚未取得 status 时显示加载；干净仓推送不应覆盖为空加载态。 */
+  const showGroupLoading = loading && status === null;
   const unstagedTree = useMemo(() => buildChangeTree(unstagedEntries), [unstagedEntries]);
   const stagedTree = useMemo(() => buildChangeTree(stagedEntries), [stagedEntries]);
   const treeFolderKeys = useMemo(

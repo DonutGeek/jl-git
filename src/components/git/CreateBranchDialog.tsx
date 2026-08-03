@@ -41,6 +41,7 @@ export function CreateBranchDialog({
 }: CreateBranchDialogProps) {
   const { t } = useTranslation();
   const repoPath = useRepoStore((state) => state.repoPath);
+  const status = useRepoStore((state) => state.status);
   const branches = useRepoStore((state) => state.branches);
   const createBranch = useRepoStore((state) => state.createBranch);
   const pushRemote = useRepoStore((state) => state.push);
@@ -75,6 +76,13 @@ export function CreateBranchDialog({
     ];
   }, [branches]);
 
+  const currentBranch = useMemo(() => {
+    if (!status?.detached && status?.branch?.trim()) {
+      return status.branch.trim();
+    }
+    return branches.find((branch) => !branch.isRemote && branch.isCurrent)?.name ?? "";
+  }, [branches, status?.branch, status?.detached]);
+
   useEffect(() => {
     if (!open) {
       return;
@@ -91,7 +99,7 @@ export function CreateBranchDialog({
       // 从标签创建时默认不自动检出，与常见客户端一致
       setCheckoutAfterCreate(false);
     } else {
-      setStartPoint("");
+      setStartPoint(currentBranch);
       setCheckoutAfterCreate(true);
     }
 
@@ -113,7 +121,7 @@ export function CreateBranchDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, fixedStartPoint, branchPrefix, repoPath]);
+  }, [open, fixedStartPoint, branchPrefix, repoPath, currentBranch]);
 
   const canSubmit =
     !submitting && !loading && name.trim().length > 0 && startPoint.trim().length > 0;
@@ -288,16 +296,9 @@ export function CreateBranchDialog({
                   onCheckedChange={(checked) => handlePublishChange(checked === true)}
                   disabled={submitting || !hasRemote}
                 />
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <FieldLabel htmlFor="create-branch-publish">
-                    {t("repo.createBranchPublishAfter")}
-                  </FieldLabel>
-                  <p className="text-muted-foreground text-xs">
-                    {hasRemote
-                      ? t("repo.createBranchPublishAfterHint")
-                      : t("repo.createBranchPublishNoRemote")}
-                  </p>
-                </div>
+                <FieldLabel htmlFor="create-branch-publish">
+                  {t("repo.createBranchPublishAfter")}
+                </FieldLabel>
               </Field>
             </FieldGroup>
 
