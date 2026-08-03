@@ -1,0 +1,5 @@
+{
+  "windowTitle": "提交历史 - {{shortId}}",
+  "projectNotFound": "未找到该项目",
+  "loadFailed": "无法加载提交历史窗口"
+}

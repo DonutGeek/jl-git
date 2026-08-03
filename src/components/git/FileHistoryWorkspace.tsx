@@ -1,16 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileSearch, GitCommitHorizontal } from "lucide-react";
+import { toast } from "sonner";
 
 import { EmptyState } from "@/components/common/EmptyState";
 import { CommitAuthorAvatars } from "@/components/git/CommitAuthorAvatars";
 import { TextDiffPreview } from "@/components/git/TextDiffPreview";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { AppWindowHeader } from "@/components/layout/AppWindowHeader";
 import { ResizableSplit } from "@/components/layout/ResizableSplit";
 import { cn } from "@/lib/utils";
 
 import { getCommitFileDiff, getLog } from "@/services/git";
+import { openCommitHistoryWindow } from "@/services/window/historyWindows";
 import { toUserMessage } from "@/types/error";
 import type { GitCommitSummary, GitDiffResult } from "@/types/git";
 import type { Project } from "@/types/project";
@@ -139,39 +147,61 @@ export function FileHistoryWorkspace({ project, filePath, initialRef }: FileHist
                   description={t("fileHistory.emptyDescription")}
                 />
               ) : (
-                <ScrollArea className="h-full min-h-0 w-full flex-1 px-3 py-1 [&_[data-slot=scroll-area-viewport]]:overflow-x-hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
+                <ScrollArea className="h-full min-h-0 w-full flex-1 px-3 py-3 [&_[data-slot=scroll-area-viewport]]:overflow-x-hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div]:w-full">
                   <ul className="flex w-full min-w-0 flex-col gap-1">
                     {commits.map((commit) => {
                       const active = commit.id === selectedId;
                       return (
                         <li key={commit.id} className="min-w-0">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedId(commit.id)}
-                            className={cn(
-                              "hover:bg-accent flex w-full min-w-0 flex-col gap-0.5 overflow-hidden rounded-md px-1.5 py-1.5 text-left",
-                              active && "bg-accent",
-                            )}
-                          >
-                            <p
-                              className="min-w-0 truncate text-xs font-medium"
-                              title={commit.subject}
-                            >
-                              {commit.subject}
-                            </p>
-                            <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-[11px]">
-                              <CommitAuthorAvatars
-                                authorName={commit.authorName}
-                                authorEmail={commit.authorEmail ?? ""}
-                                coAuthors={commit.coAuthors ?? []}
-                              />
-                              <span className="min-w-0 truncate">{commit.authorName}</span>
-                              <span className="font-mono shrink-0">{commit.shortId}</span>
-                              <span className="ml-auto shrink-0 tabular-nums">
-                                {formatCommitDateTime(commit.authoredAt)}
-                              </span>
-                            </div>
-                          </button>
+                          <ContextMenu onOpenChange={(open) => open && setSelectedId(commit.id)}>
+                            <ContextMenuTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedId(commit.id)}
+                                className={cn(
+                                  "hover:bg-accent flex w-full min-w-0 flex-col gap-0.5 overflow-hidden rounded-md px-1.5 py-1.5 text-left",
+                                  active && "bg-accent",
+                                )}
+                              >
+                                <p
+                                  className="min-w-0 truncate text-xs font-medium"
+                                  title={commit.subject}
+                                >
+                                  {commit.subject}
+                                </p>
+                                <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-[11px]">
+                                  <CommitAuthorAvatars
+                                    authorName={commit.authorName}
+                                    authorEmail={commit.authorEmail ?? ""}
+                                    coAuthors={commit.coAuthors ?? []}
+                                  />
+                                  <span className="min-w-0 truncate">{commit.authorName}</span>
+                                  <span className="font-mono shrink-0">{commit.shortId}</span>
+                                  <span className="ml-auto shrink-0 tabular-nums">
+                                    {formatCommitDateTime(commit.authoredAt)}
+                                  </span>
+                                </div>
+                              </button>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent>
+                              <ContextMenuItem
+                                onSelect={() => {
+                                  void openCommitHistoryWindow({
+                                    projectId: project.id,
+                                    commitId: commit.id,
+                                  }).catch((error: unknown) => {
+                                    toast.error(
+                                      toUserMessage(error) ||
+                                        t("fileHistory.openCommitHistoryFailed"),
+                                    );
+                                  });
+                                }}
+                              >
+                                <GitCommitHorizontal aria-hidden="true" />
+                                {t("fileHistory.viewCommitHistory")}
+                              </ContextMenuItem>
+                            </ContextMenuContent>
+                          </ContextMenu>
                         </li>
                       );
                     })}

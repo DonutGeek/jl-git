@@ -2,6 +2,7 @@ import agent from "./agent.json";
 import ai from "./ai.json";
 import branchCompare from "./branchCompare.json";
 import branchHistory from "./branchHistory.json";
+import commitHistory from "./commitHistory.json";
 import branchManage from "./branchManage.json";
 import common from "./common.json";
 import dashboard from "./dashboard.json";
@@ -29,6 +30,7 @@ const zhCN = {
   agent,
   branchCompare,
   branchHistory,
+  commitHistory,
   branchManage,
   fileHistory,
   repo,

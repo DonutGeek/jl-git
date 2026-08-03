@@ -29,6 +29,11 @@ const FileHistoryPage = lazy(() =>
     default: module.FileHistoryPage,
   })),
 );
+const CommitHistoryPage = lazy(() =>
+  import("@/pages/CommitHistoryPage").then((module) => ({
+    default: module.CommitHistoryPage,
+  })),
+);
 const MultiAgentPage = lazy(() =>
   import("@/pages/MultiAgentPage").then((module) => ({
     default: module.MultiAgentPage,
@@ -45,6 +50,7 @@ const router = createBrowserRouter(
     <>
       <Route path="branch-compare" element={<BranchComparePage />} />
       <Route path="file-history" element={<FileHistoryPage />} />
+      <Route path="commit-history" element={<CommitHistoryPage />} />
       <Route path="branch-history" element={<BranchHistoryPage />} />
       <Route path="branch-manage" element={<BranchManagePage />} />
       <Route path="project-manage" element={<ProjectManagePage />} />

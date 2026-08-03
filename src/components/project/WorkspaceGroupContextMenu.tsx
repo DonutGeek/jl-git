@@ -206,7 +206,7 @@ export function WorkspaceGroupContextMenu({
           <AlertDialogHeader>
             <AlertDialogTitle>{t("projectManager.deleteGroupTitle")}</AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="text-muted-foreground space-y-2 text-sm">
+              <div className="text-muted-foreground text-sm">
                 <p className="text-foreground">
                   <Trans
                     i18nKey="projectManager.deleteGroupQuestion"
@@ -216,7 +216,6 @@ export function WorkspaceGroupContextMenu({
                     }}
                   />
                 </p>
-                <p>{t("projectManager.deleteGroupHint")}</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -2,6 +2,7 @@ import { useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Copy,
+  Clock3,
   ExternalLink,
   FilePlus,
   FolderOpen,
@@ -39,8 +40,11 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
+import { useProjectStore } from "@/store/useProjectStore";
+
 import { gitService } from "@/services/git";
 import { systemOpenService } from "@/services/system/system.open";
+import { openFileHistoryWindow } from "@/services/window/historyWindows";
 
 import { toUserMessage } from "@/types/error";
 import type { FsEntry } from "@/types/git";
@@ -120,6 +124,22 @@ export function FileTreeContextMenu({
     } catch (error) {
       toast.error(toUserMessage(error));
     }
+  }
+
+  async function handleOpenHistory(): Promise<void> {
+    const store = useProjectStore.getState();
+    let project = store.projects.find((item) => item.path === repoPath);
+    if (!project) {
+      const projects = await store.loadProjects();
+      project = projects.find((item) => item.path === repoPath);
+    }
+    if (!project) {
+      throw new Error(t("repo.diffOpenFileHistoryFailed"));
+    }
+    await openFileHistoryWindow({
+      projectId: project.id,
+      filePath: entry.path,
+    });
   }
 
   async function handleDelete(): Promise<void> {
@@ -262,6 +282,14 @@ export function FileTreeContextMenu({
             {t("repo.fileTreeRename")}
           </ContextMenuItem>
 
+          <ContextMenuItem
+            disabled={disabled || busy}
+            onSelect={() => void runAction(handleOpenHistory)}
+          >
+            <Clock3 aria-hidden="true" />
+            {t("repo.viewFileHistory")}
+          </ContextMenuItem>
+
           <ContextMenuSeparator />
 
           {/* 3 复制 */}
@@ -346,7 +374,6 @@ export function FileTreeContextMenu({
                 entry.isDir ? "repo.fileTreeDeleteDirQuestion" : "repo.fileTreeDeleteFileQuestion",
                 { name: entry.name },
               )}
-              <span className="mt-2 block">{t("repo.fileTreeDeleteHint")}</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

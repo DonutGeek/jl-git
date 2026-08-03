@@ -1144,7 +1144,7 @@ export function ProjectManager({
                     className="text-chart-4 mt-0.5 size-5 shrink-0"
                     aria-hidden="true"
                   />
-                  <div className="min-w-0 flex-1 space-y-1">
+                  <div className="min-w-0 flex-1">
                     <p className="text-foreground text-sm">
                       <Trans
                         i18nKey="projectManager.deleteGroupQuestion"
@@ -1153,9 +1153,6 @@ export function ProjectManager({
                           name: <span className="font-medium" />,
                         }}
                       />
-                    </p>
-                    <p className="text-muted-foreground text-xs">
-                      {t("projectManager.deleteGroupHint")}
                     </p>
                   </div>
                 </div>

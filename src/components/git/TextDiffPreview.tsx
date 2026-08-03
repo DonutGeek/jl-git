@@ -575,6 +575,8 @@ export const TextDiffPreview = forwardRef<TextDiffPreviewHandle, TextDiffPreview
                           options={
                             {
                               ...monacoCommonOptions,
+                              // 末条差异可继续向上滚动，避免贴在编辑器底边难以阅读。
+                              scrollBeyondLastLine: true,
                               minimap: { enabled: false },
                               renderOverviewRuler: false,
                               fontFamily,
@@ -626,6 +628,8 @@ export const TextDiffPreview = forwardRef<TextDiffPreviewHandle, TextDiffPreview
                       onMount={handleFileMount}
                       options={{
                         ...monacoCommonOptions,
+                        // 与差异视图保持一致，末行可继续向上滚动。
+                        scrollBeyondLastLine: true,
                         fontFamily,
                         wordWrap: viewPrefs.wordWrap ? "on" : "off",
                         minimap: monacoFileMinimapOptions,

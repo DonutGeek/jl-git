@@ -56,8 +56,8 @@ export function CopyablePathLabel({ path, className, highlightQuery }: CopyableP
             type="button"
             aria-label={t("repo.copy")}
             className={cn(
-              // 必须占满预算槽：勿用 w-max，否则截断后宽度随内容塌缩
-              "text-foreground inline-flex w-full min-w-0 max-w-full cursor-pointer border-0 bg-transparent p-0 text-left underline-offset-2 hover:underline",
+              // 触发器宽度贴合可见路径，Tooltip 才能围绕实际内容定位。
+              "text-foreground inline-flex min-w-0 max-w-full cursor-pointer border-0 bg-transparent p-0 text-left underline-offset-2 hover:underline",
               className,
             )}
             onClick={() => {
@@ -67,7 +67,7 @@ export function CopyablePathLabel({ path, className, highlightQuery }: CopyableP
             <TruncateStartPath
               path={path}
               highlightQuery={highlightQuery}
-              className="min-w-0 w-full font-mono"
+              className="min-w-0 font-mono"
             />
           </button>
         </TooltipTrigger>

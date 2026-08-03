@@ -238,7 +238,6 @@ export function ProjectContextMenu({
             <AlertDialogTitle>{t("projectManager.deleteProjectTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("projectManager.deleteProjectQuestion", { name: project.name })}
-              <span className="mt-2 block">{t("projectManager.deleteProjectHint")}</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

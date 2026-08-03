@@ -267,7 +267,6 @@ export function ChangeFileContextMenu({
             <AlertDialogTitle>{t("repo.discardChangesTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("repo.discardChangesQuestion", { path: entry.path })}
-              <span className="mt-2 block">{t("repo.discardChangesHint")}</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -9,5 +9,7 @@
   "emptyDescription": "当前范围内没有触及此文件的提交。",
   "selectCommit": "选择提交以查看差异",
   "selectCommitDescription": "左侧选择一条提交后，将显示该文件在父提交与此提交之间的差异。",
-  "noDiff": "此提交对该文件无文本差异"
+  "noDiff": "此提交对该文件无文本差异",
+  "viewCommitHistory": "查看此次提交",
+  "openCommitHistoryFailed": "无法打开提交历史窗口"
 }

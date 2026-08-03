@@ -1,0 +1,5 @@
+{
+  "windowTitle": "Commit History - {{shortId}}",
+  "projectNotFound": "Project not found",
+  "loadFailed": "Failed to load commit history"
+}

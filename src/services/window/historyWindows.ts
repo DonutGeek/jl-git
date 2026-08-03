@@ -24,6 +24,12 @@ export interface OpenBranchHistoryWindowOptions {
   ref?: string | null;
 }
 
+export interface OpenCommitHistoryWindowOptions {
+  projectId: string;
+  /** 完整提交 hash。子窗会定位到该提交并展示其全部变更文件。 */
+  commitId: string;
+}
+
 /** 文件历史子窗口：稳定 label，已存在则聚焦。 */
 export function createFileHistoryWindowTarget(
   options: OpenFileHistoryWindowOptions,
@@ -59,6 +65,21 @@ export function createBranchHistoryWindowTarget(
   };
 }
 
+/** 提交历史子窗口：从文件历史等上下文查看某次提交的完整变更。 */
+export function createCommitHistoryWindowTarget(
+  options: OpenCommitHistoryWindowOptions,
+): HistoryWindowTarget {
+  const query = new URLSearchParams({
+    projectId: options.projectId,
+    commitId: options.commitId,
+  });
+  const identity = `${options.projectId}\u0000commit\u0000${options.commitId}`;
+  return {
+    label: `commit-history-${fnv1a(identity)}`,
+    url: `/commit-history?${query.toString()}`,
+  };
+}
+
 /** 创建或聚焦文件历史窗口。 */
 export async function openFileHistoryWindow(options: OpenFileHistoryWindowOptions): Promise<void> {
   await openOrFocusWindow(createFileHistoryWindowTarget(options), "文件历史");
@@ -69,6 +90,13 @@ export async function openBranchHistoryWindow(
   options: OpenBranchHistoryWindowOptions,
 ): Promise<void> {
   await openOrFocusWindow(createBranchHistoryWindowTarget(options), "分支历史");
+}
+
+/** 创建或聚焦提交历史窗口。 */
+export async function openCommitHistoryWindow(
+  options: OpenCommitHistoryWindowOptions,
+): Promise<void> {
+  await openOrFocusWindow(createCommitHistoryWindowTarget(options), "提交历史");
 }
 
 async function openOrFocusWindow(target: HistoryWindowTarget, title: string): Promise<void> {

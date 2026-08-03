@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/context-menu";
 import { AppDialogContent } from "@/components/common/AppDialogContent";
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
@@ -521,7 +521,7 @@ export function TagList({ onSelectTag }: TagListProps) {
           <div className="flex gap-3">
             <TriangleAlert className="text-chart-4 mt-0.5 size-5 shrink-0" aria-hidden="true" />
             <div className="min-w-0 flex-1 space-y-3">
-              <div className="space-y-1">
+              <div>
                 <p className="text-foreground text-sm">
                   <Trans
                     i18nKey={
@@ -534,11 +534,6 @@ export function TagList({ onSelectTag }: TagListProps) {
                       name: <span className="font-mono font-medium" />,
                     }}
                   />
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {deleteTarget?.scope === "remote"
-                    ? t("repo.deleteTagRemoteHint")
-                    : t("repo.deleteTagIrreversible")}
                 </p>
               </div>
 
@@ -554,7 +549,6 @@ export function TagList({ onSelectTag }: TagListProps) {
                     <FieldLabel htmlFor="delete-tag-remote">
                       {t("repo.deleteTagRemoteCheckbox")}
                     </FieldLabel>
-                    <FieldDescription>{t("repo.deleteTagRemoteCheckboxHint")}</FieldDescription>
                   </FieldContent>
                 </Field>
               ) : null}

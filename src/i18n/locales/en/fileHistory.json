@@ -9,5 +9,7 @@
   "emptyDescription": "No commits in the current range touch this file.",
   "selectCommit": "Select a commit to view the diff",
   "selectCommitDescription": "Choose a commit on the left to see this file’s changes against its parent.",
-  "noDiff": "No text diff for this file in the selected commit"
+  "noDiff": "No text diff for this file in the selected commit",
+  "viewCommitHistory": "View this commit",
+  "openCommitHistoryFailed": "Failed to open commit history"
 }

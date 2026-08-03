@@ -249,7 +249,6 @@ export function ProjectManagePanel({
               {t("projectManager.deleteProjectQuestion", {
                 name: deleteProject?.name ?? "",
               })}
-              <span className="mt-2 block">{t("projectManager.deleteProjectHint")}</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
