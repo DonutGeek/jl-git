@@ -166,7 +166,8 @@ const agentMarkdownComponents: Components = {
   ),
   strong: ({ children }) => <strong className="text-foreground font-semibold">{children}</strong>,
   ul: ({ children }) => <ul className="my-1.5 list-disc space-y-0.5 pl-4">{children}</ul>,
-  ol: ({ children }) => <ol className="my-1.5 list-decimal space-y-0.5 pl-4">{children}</ol>,
+  // list marker 默认绘制在内容框外；为两位及以上序号预留空间，避免越出消息气泡。
+  ol: ({ children }) => <ol className="my-1.5 list-decimal space-y-0.5 pl-8">{children}</ol>,
   li: ({ children }) => <li className="my-0">{children}</li>,
   p: ({ children }) => <p className="my-1">{children}</p>,
   hr: () => <hr className="border-border/60 my-3" />,

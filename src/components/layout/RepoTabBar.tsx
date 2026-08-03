@@ -20,7 +20,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { FolderPlus, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { MultiAgentWindowButton } from "@/components/agent/MultiAgentWindowButton";
@@ -38,7 +38,6 @@ import {
   SortableRepoTab,
   type TabDisplayItem,
 } from "@/components/layout/RepoTabItem";
-import { OpenRepoDialog } from "@/components/project/OpenRepoDialog";
 import { Button } from "@/components/ui/button";
 import { AppDialogContent } from "@/components/common/AppDialogContent";
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -101,7 +100,6 @@ export function RepoTabBar() {
   const updateAlias = useProjectStore((state) => state.updateAlias);
   const updateProject = useProjectStore((state) => state.updateProject);
   const reorderGroupedItems = useProjectStore((state) => state.reorderGroupedItems);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [draggingGroupWorkspaceId, setDraggingGroupWorkspaceId] = useState<string | null>(null);
   const [aliasTarget, setAliasTarget] = useState<Project | null>(null);
@@ -683,7 +681,7 @@ export function RepoTabBar() {
             isDraggingAnything ? "z-60" : "z-40",
           )}
         >
-          {/* 交互控件 no-drag；拖拽留白必须是兄弟节点，不能包在 no-drag 里（否则加载页无工具栏时窗口无法拖动） */}
+          {/* 新建标签固定在左侧；标签滚动区内的其余空白保留为窗口拖拽面。 */}
           {/* mr-2：与首个分组壳拉开间隔（勿用仅内边距，易被滚动区视觉「吃掉」） */}
           <div className="mr-2 flex h-7 shrink-0 items-center" style={noDragStyle}>
             <Tooltip delayDuration={300}>
@@ -693,22 +691,26 @@ export function RepoTabBar() {
                   variant="ghost"
                   size="icon"
                   className="text-muted-foreground hover:text-foreground size-7 shrink-0"
-                  aria-label={t("dashboard.openRepoAction")}
-                  onClick={() => setDialogOpen(true)}
+                  aria-label={t("repo.addTab")}
+                  onClick={() => {
+                    const tabId = openNewTab();
+                    activateTab(tabId);
+                  }}
                 >
-                  <FolderPlus className="size-3.5" aria-hidden="true" />
+                  <Plus className="size-3.5" aria-hidden="true" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>{t("dashboard.openRepoAction")}</TooltipContent>
+              <TooltipContent>{t("repo.addTab")}</TooltipContent>
             </Tooltip>
           </div>
-          {/* flex-1：标签区吃满至右侧控件前，避免 + 与鲸灵按钮之间大片空位 */}
-          <div className="flex h-full min-w-0 flex-1 items-center gap-1" style={noDragStyle}>
+          {/* 标签区吃满右侧鲸灵按钮前的空间。 */}
+          <div className="flex h-full min-w-0 flex-1 items-center">
             {/* 主滚动用 shadcn ScrollArea：细滚动条、悬停/滚动时才显示，不再用裸 overflow-x-auto */}
             {/* pb-px：分组壳底边不压住 header 底部分隔线 */}
-            <div className="relative h-full min-w-0 flex-1 pb-px">
+            {/* 空白滚动区是标题栏拖拽面；实际标签内容单独标记 no-drag，保留点击与排序。 */}
+            <div {...dragProps} className="relative h-full min-w-0 flex-1 pb-px">
               <ScrollArea ref={bindScrollArea} className={REPO_TAB_SCROLL_AREA_CLASSNAME}>
-                <div className={REPO_TAB_CONTENT_CLASSNAME}>
+                <div className={REPO_TAB_CONTENT_CLASSNAME} style={noDragStyle}>
                   {tabGroups.map((group) => (
                     <RepositoryTabGroup
                       key={group.key}
@@ -779,24 +781,6 @@ export function RepoTabBar() {
                 aria-hidden="true"
               />
             </div>
-            <Tooltip delayDuration={300}>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-foreground size-7 shrink-0"
-                  aria-label={t("repo.addTab")}
-                  onClick={() => {
-                    const tabId = openNewTab();
-                    activateTab(tabId);
-                  }}
-                >
-                  <Plus className="size-3.5" aria-hidden="true" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t("repo.addTab")}</TooltipContent>
-            </Tooltip>
           </div>
           {/* 窄拖拽缝：窗口拖动仍可用，又不拉开标签与右侧按钮 */}
           <div {...dragProps} className="h-full w-1.5 shrink-0" />
@@ -827,7 +811,6 @@ export function RepoTabBar() {
           ) : null}
         </DragOverlay>
       </DndContext>
-      <OpenRepoDialog open={dialogOpen} onOpenChange={setDialogOpen} />
       <Dialog
         open={Boolean(aliasTarget)}
         onOpenChange={(open) => {

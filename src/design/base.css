@@ -22,6 +22,23 @@
     /* 避免窗口圆角处透出背后内容；字体可由设置覆盖 */
     background-color: var(--background);
     font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+    /* 桌面应用的普通展示文本不应被拖拽选中。 */
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* 编辑与复制代码仍需原生文本选择；其他内容保持桌面客户端的无选区交互。 */
+  input,
+  textarea,
+  [contenteditable=""],
+  [contenteditable="true"],
+  [data-jlgit-selectable="true"],
+  pre,
+  code,
+  .jlgit-monaco-host,
+  .jlgit-monaco-host * {
+    -webkit-user-select: text;
+    user-select: text;
   }
 
   /* 交互控件禁止选中文字，避免右键菜单时拖出文本选区；放全局以免被 shadcn CLI 覆盖 ui/button */
