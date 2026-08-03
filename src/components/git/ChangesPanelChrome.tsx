@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,8 @@ interface ChangeGroupChromeProps {
   actionLabel: string;
   actionDisabled?: boolean;
   onAction: () => void;
+  /** 分组标题右键菜单项 */
+  contextMenu?: ReactNode;
   children: ReactNode;
 }
 
@@ -72,41 +75,53 @@ export function ChangeGroupChrome({
   actionLabel,
   actionDisabled = false,
   onAction,
+  contextMenu,
   children,
 }: ChangeGroupChromeProps) {
+  const header = (
+    <div className="group/header hover:bg-accent/60 flex h-7 items-center justify-between gap-1 rounded-md px-2 transition-colors">
+      <div className="flex min-w-0 flex-1 items-center">
+        {titleSlot ?? (
+          <h3 className="text-muted-foreground min-w-0 truncate text-[11px] font-medium">
+            {title}
+          </h3>
+        )}
+      </div>
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "size-6 shrink-0 [&_svg]:size-3",
+              "opacity-0 transition-opacity",
+              "group-hover/header:opacity-100 focus-visible:opacity-100",
+              "disabled:opacity-0 group-hover/header:disabled:opacity-40",
+            )}
+            onClick={onAction}
+            disabled={actionDisabled}
+            aria-label={actionLabel}
+          >
+            {action}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="left">{actionLabel}</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+
   return (
     <section className="flex h-full min-h-0 flex-col overflow-hidden py-1">
       <div className="shrink-0 px-2">
-        <div className="group/header hover:bg-accent/60 flex h-7 items-center justify-between gap-1 rounded-md px-2 transition-colors">
-          <div className="flex min-w-0 flex-1 items-center">
-            {titleSlot ?? (
-              <h3 className="text-muted-foreground min-w-0 truncate text-[11px] font-medium">
-                {title}
-              </h3>
-            )}
-          </div>
-          <Tooltip delayDuration={300}>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "size-6 shrink-0 [&_svg]:size-3",
-                  "opacity-0 transition-opacity",
-                  "group-hover/header:opacity-100 focus-visible:opacity-100",
-                  "disabled:opacity-0 group-hover/header:disabled:opacity-40",
-                )}
-                onClick={onAction}
-                disabled={actionDisabled}
-                aria-label={actionLabel}
-              >
-                {action}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">{actionLabel}</TooltipContent>
-          </Tooltip>
-        </div>
+        {contextMenu ? (
+          <ContextMenu>
+            <ContextMenuTrigger asChild>{header}</ContextMenuTrigger>
+            <ContextMenuContent className="min-w-48">{contextMenu}</ContextMenuContent>
+          </ContextMenu>
+        ) : (
+          header
+        )}
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
     </section>

@@ -9,10 +9,12 @@ import {
   ChevronRight,
   FileDiff,
   Inbox,
+  RotateCcw,
   TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
 import { EmptyState } from "@/components/common/EmptyState";
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import { ChangeFileContextMenu } from "@/components/git/ChangeFileContextMenu";
@@ -28,6 +30,15 @@ import { MaterialFileIcon } from "@/components/git/MaterialFileIcon";
 import { RepoLoadingIndicator } from "@/components/layout/RepoLoadingIndicator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ContextMenuItem, ContextMenuSeparator } from "@/components/ui/context-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useScrollAreaViewport } from "@/hooks/useScrollAreaViewport";
@@ -693,6 +704,7 @@ export function ChangesPanel() {
   const unstage = useRepoStore((state) => state.unstage);
   const stageAll = useRepoStore((state) => state.stageAll);
   const unstageAll = useRepoStore((state) => state.unstageAll);
+  const discard = useRepoStore((state) => state.discard);
 
   const [view, setView] = useState<"list" | "tree">("list");
   const [sortMode, setSortMode] = useState<ChangeSortMode>("default");
@@ -707,6 +719,7 @@ export function ChangesPanel() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [mutating, setMutating] = useState(false);
+  const [discardAllOpen, setDiscardAllOpen] = useState(false);
 
   const activeSearchQuery = searchOpen ? searchQuery : "";
   const demotedSet = useMemo(() => new Set(demotedConflictPaths), [demotedConflictPaths]);
@@ -735,6 +748,7 @@ export function ChangesPanel() {
     [activeSearchQuery, demotedSet, entries, sortMode],
   );
   const busy = loading || mutating;
+  const hasConflict = entries.some(isConflictEntry);
   /** 仅在首屏/切仓尚未取得 status 时显示加载；干净仓推送不应覆盖为空加载态。 */
   const showGroupLoading = loading && status === null;
   const unstagedTree = useMemo(() => buildChangeTree(unstagedEntries), [unstagedEntries]);
@@ -778,6 +792,18 @@ export function ChangesPanel() {
 
   async function handleUnstageAll(): Promise<void> {
     await runMutation(() => unstageAll());
+  }
+
+  async function handleDiscardAll(): Promise<void> {
+    const paths = [...new Set(entries.map((entry) => entry.path))];
+    if (paths.length === 0 || hasConflict) {
+      return;
+    }
+    await runMutation(async () => {
+      await discard(paths);
+      toast.success(t("repo.discardAllSuccess", { count: paths.length }));
+      setDiscardAllOpen(false);
+    });
   }
 
   function showTreeView(): void {
@@ -860,145 +886,201 @@ export function ChangesPanel() {
   const listGroupByStatus = view === "list" && listGroupMode === "status";
   const listGroupByDate = view === "list" && listGroupMode === "date";
   return (
-    <ChangesPanelChrome
-      view={view}
-      sortMode={sortMode}
-      searchOpen={searchOpen}
-      searchQuery={searchQuery}
-      showLineStats={showLineStats}
-      listGroupMode={listGroupMode}
-      treeActionsDisabled={treeFolderKeys.length === 0}
-      onViewChange={(nextView) => {
-        if (nextView === "tree") {
-          showTreeView();
-          return;
+    <>
+      <ChangesPanelChrome
+        view={view}
+        sortMode={sortMode}
+        searchOpen={searchOpen}
+        searchQuery={searchQuery}
+        showLineStats={showLineStats}
+        listGroupMode={listGroupMode}
+        treeActionsDisabled={treeFolderKeys.length === 0}
+        onViewChange={(nextView) => {
+          if (nextView === "tree") {
+            showTreeView();
+            return;
+          }
+          setView("list");
+        }}
+        onSortModeChange={setSortMode}
+        onExpandAll={expandAllTrees}
+        onCollapseAll={collapseAllTrees}
+        onToggleSearch={toggleSearch}
+        onSearchQueryChange={setSearchQuery}
+        onSearchEscape={() => {
+          setSearchOpen(false);
+          setSearchQuery("");
+        }}
+        onShowLineStatsChange={setShowLineStats}
+        onListGroupModeChange={setListGroupMode}
+        unstaged={
+          <ChangeGroupChrome
+            title={t("repo.changesCount", { count: unstagedEntries.length })}
+            action={<ArrowDown aria-hidden="true" />}
+            actionLabel={t("repo.stageAll")}
+            onAction={() => void handleStageAll()}
+            actionDisabled={busy || unstagedEntries.length === 0}
+            contextMenu={
+              <>
+                <ContextMenuItem
+                  disabled={busy || unstagedEntries.length === 0}
+                  onSelect={() => void handleStageAll()}
+                >
+                  <ArrowDown aria-hidden="true" />
+                  {t("repo.stageAll")}
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  variant="destructive"
+                  disabled={busy || entries.length === 0 || hasConflict}
+                  onSelect={() => setDiscardAllOpen(true)}
+                >
+                  <RotateCcw aria-hidden="true" />
+                  {t("repo.discardAllChanges")}
+                </ContextMenuItem>
+              </>
+            }
+          >
+            {showGroupLoading ? (
+              <RepoLoadingIndicator area="unstaged" label={t("common.loading")} />
+            ) : (
+              <ChangeGroup
+                ariaLabel={t("repo.changesCount", { count: unstagedEntries.length })}
+                groupByStatus={listGroupByStatus}
+                collapsedStatusCategories={collapsedStatusCategories}
+                onToggleStatusCategory={toggleStatusCategory}
+                statusCategoryLabel={statusCategoryLabel}
+                groupByDate={listGroupByDate}
+                collapsedDateKeys={collapsedDateKeys}
+                onToggleDateKey={toggleDateKey}
+                dateGroupLabel={dateGroupLabel}
+                entries={unstagedEntries}
+                changeTree={unstagedTree}
+                rootName={rootName}
+                side="worktree"
+                selectedPath={unstagedSelectedPath}
+                onSelectEntry={(path, side) => {
+                  // 再次点击当前项则取消选中
+                  if (selectedChange?.path === path && selectedChange.side === side) {
+                    selectChange(null);
+                    return;
+                  }
+                  selectChange({ path, side });
+                }}
+                onToggleEntry={(path) => void handleStage(path)}
+                disabled={busy}
+                toggleLabelFor={(path) => t("repo.stageFile", { path })}
+                emptyIcon={<FileDiff />}
+                emptyTitle={t("repo.changesEmpty")}
+                emptyDescription={t("repo.changesEmptyHint")}
+                view={view}
+                expandedTreePaths={expandedTreePaths}
+                onToggleTreeFolder={toggleTreeFolder}
+                showLineStats={showLineStats}
+                highlightQuery={activeSearchQuery}
+              />
+            )}
+          </ChangeGroupChrome>
         }
-        setView("list");
-      }}
-      onSortModeChange={setSortMode}
-      onExpandAll={expandAllTrees}
-      onCollapseAll={collapseAllTrees}
-      onToggleSearch={toggleSearch}
-      onSearchQueryChange={setSearchQuery}
-      onSearchEscape={() => {
-        setSearchOpen(false);
-        setSearchQuery("");
-      }}
-      onShowLineStatsChange={setShowLineStats}
-      onListGroupModeChange={setListGroupMode}
-      unstaged={
-        <ChangeGroupChrome
-          title={t("repo.changesCount", { count: unstagedEntries.length })}
-          action={<ArrowDown aria-hidden="true" />}
-          actionLabel={t("repo.stageAll")}
-          onAction={() => void handleStageAll()}
-          actionDisabled={busy || unstagedEntries.length === 0}
-        >
-          {showGroupLoading ? (
-            <RepoLoadingIndicator area="unstaged" label={t("common.loading")} />
-          ) : (
-            <ChangeGroup
-              ariaLabel={t("repo.changesCount", { count: unstagedEntries.length })}
-              groupByStatus={listGroupByStatus}
-              collapsedStatusCategories={collapsedStatusCategories}
-              onToggleStatusCategory={toggleStatusCategory}
-              statusCategoryLabel={statusCategoryLabel}
-              groupByDate={listGroupByDate}
-              collapsedDateKeys={collapsedDateKeys}
-              onToggleDateKey={toggleDateKey}
-              dateGroupLabel={dateGroupLabel}
-              entries={unstagedEntries}
-              changeTree={unstagedTree}
-              rootName={rootName}
-              side="worktree"
-              selectedPath={unstagedSelectedPath}
-              onSelectEntry={(path, side) => {
-                // 再次点击当前项则取消选中
-                if (selectedChange?.path === path && selectedChange.side === side) {
-                  selectChange(null);
-                  return;
+        staged={
+          <ChangeGroupChrome
+            title={t("repo.stagedCount", { count: stagedEntries.length })}
+            titleSlot={
+              conflictCount > 0 ? (
+                <Badge
+                  variant="outline"
+                  role="status"
+                  className="border-destructive/40 bg-destructive/10 text-destructive gap-1 rounded-md px-1.5 py-0 text-[11px] font-medium [&>svg]:size-3"
+                >
+                  <TriangleAlert aria-hidden="true" />
+                  {t("repo.conflictBanner", { count: conflictCount })}
+                </Badge>
+              ) : undefined
+            }
+            action={<ArrowUp aria-hidden="true" />}
+            actionLabel={t("repo.unstageAll")}
+            onAction={() => void handleUnstageAll()}
+            actionDisabled={
+              busy ||
+              stagedEntries.length === 0 ||
+              stagedEntries.every((entry) => isConflictEntry(entry))
+            }
+            contextMenu={
+              <ContextMenuItem
+                disabled={
+                  busy ||
+                  stagedEntries.length === 0 ||
+                  stagedEntries.every((entry) => isConflictEntry(entry))
                 }
-                selectChange({ path, side });
-              }}
-              onToggleEntry={(path) => void handleStage(path)}
-              disabled={busy}
-              toggleLabelFor={(path) => t("repo.stageFile", { path })}
-              emptyIcon={<FileDiff />}
-              emptyTitle={t("repo.changesEmpty")}
-              emptyDescription={t("repo.changesEmptyHint")}
-              view={view}
-              expandedTreePaths={expandedTreePaths}
-              onToggleTreeFolder={toggleTreeFolder}
-              showLineStats={showLineStats}
-              highlightQuery={activeSearchQuery}
-            />
-          )}
-        </ChangeGroupChrome>
-      }
-      staged={
-        <ChangeGroupChrome
-          title={t("repo.stagedCount", { count: stagedEntries.length })}
-          titleSlot={
-            conflictCount > 0 ? (
-              <Badge
-                variant="outline"
-                role="status"
-                className="border-destructive/40 bg-destructive/10 text-destructive gap-1 rounded-md px-1.5 py-0 text-[11px] font-medium [&>svg]:size-3"
+                onSelect={() => void handleUnstageAll()}
               >
-                <TriangleAlert aria-hidden="true" />
-                {t("repo.conflictBanner", { count: conflictCount })}
-              </Badge>
-            ) : undefined
-          }
-          action={<ArrowUp aria-hidden="true" />}
-          actionLabel={t("repo.unstageAll")}
-          onAction={() => void handleUnstageAll()}
-          actionDisabled={
-            busy ||
-            stagedEntries.length === 0 ||
-            stagedEntries.every((entry) => isConflictEntry(entry))
-          }
-        >
-          {showGroupLoading ? (
-            <RepoLoadingIndicator area="staged" label={t("common.loading")} />
-          ) : (
-            <ChangeGroup
-              ariaLabel={t("repo.stagedCount", { count: stagedEntries.length })}
-              groupByStatus={listGroupByStatus}
-              collapsedStatusCategories={collapsedStatusCategories}
-              onToggleStatusCategory={toggleStatusCategory}
-              statusCategoryLabel={statusCategoryLabel}
-              groupByDate={listGroupByDate}
-              collapsedDateKeys={collapsedDateKeys}
-              onToggleDateKey={toggleDateKey}
-              dateGroupLabel={dateGroupLabel}
-              entries={stagedEntries}
-              changeTree={stagedTree}
-              rootName={rootName}
-              side="index"
-              selectedPath={stagedSelectedPath}
-              onSelectEntry={(path, side) => {
-                if (selectedChange?.path === path && selectedChange.side === side) {
-                  selectChange(null);
-                  return;
-                }
-                selectChange({ path, side });
+                <ArrowUp aria-hidden="true" />
+                {t("repo.unstageAll")}
+              </ContextMenuItem>
+            }
+          >
+            {showGroupLoading ? (
+              <RepoLoadingIndicator area="staged" label={t("common.loading")} />
+            ) : (
+              <ChangeGroup
+                ariaLabel={t("repo.stagedCount", { count: stagedEntries.length })}
+                groupByStatus={listGroupByStatus}
+                collapsedStatusCategories={collapsedStatusCategories}
+                onToggleStatusCategory={toggleStatusCategory}
+                statusCategoryLabel={statusCategoryLabel}
+                groupByDate={listGroupByDate}
+                collapsedDateKeys={collapsedDateKeys}
+                onToggleDateKey={toggleDateKey}
+                dateGroupLabel={dateGroupLabel}
+                entries={stagedEntries}
+                changeTree={stagedTree}
+                rootName={rootName}
+                side="index"
+                selectedPath={stagedSelectedPath}
+                onSelectEntry={(path, side) => {
+                  if (selectedChange?.path === path && selectedChange.side === side) {
+                    selectChange(null);
+                    return;
+                  }
+                  selectChange({ path, side });
+                }}
+                onToggleEntry={(path) => void handleUnstage(path)}
+                disabled={busy}
+                toggleLabelFor={(path) => t("repo.unstageFile", { path })}
+                emptyIcon={<Inbox />}
+                emptyTitle={t("repo.stagedEmpty")}
+                emptyDescription={t("repo.stagedEmptyHint")}
+                view={view}
+                expandedTreePaths={expandedTreePaths}
+                onToggleTreeFolder={toggleTreeFolder}
+                showLineStats={showLineStats}
+                highlightQuery={activeSearchQuery}
+              />
+            )}
+          </ChangeGroupChrome>
+        }
+      />
+
+      <AlertDialog open={discardAllOpen} onOpenChange={setDiscardAllOpen}>
+        <AppAlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("repo.discardAllChangesTitle")}</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={busy || entries.length === 0 || hasConflict}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleDiscardAll();
               }}
-              onToggleEntry={(path) => void handleUnstage(path)}
-              disabled={busy}
-              toggleLabelFor={(path) => t("repo.unstageFile", { path })}
-              emptyIcon={<Inbox />}
-              emptyTitle={t("repo.stagedEmpty")}
-              emptyDescription={t("repo.stagedEmptyHint")}
-              view={view}
-              expandedTreePaths={expandedTreePaths}
-              onToggleTreeFolder={toggleTreeFolder}
-              showLineStats={showLineStats}
-              highlightQuery={activeSearchQuery}
-            />
-          )}
-        </ChangeGroupChrome>
-      }
-    />
+            >
+              {busy ? t("common.loading") : t("repo.discardAllChanges")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AppAlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
