@@ -130,6 +130,25 @@ pub fn get_repo_state(repo_path: &Path) -> Result<GitRepoState, AppError> {
     })
 }
 
+/// 终止当前 Git 序列操作，恢复到操作开始前的 HEAD 与工作区状态。
+pub fn abort_in_progress(repo_path: &Path) -> Result<(), AppError> {
+    let state = get_repo_state(repo_path)?;
+    let args = abort_args(&state.kind)
+        .ok_or_else(|| AppError::new("VALIDATION", "当前没有可终止的 Git 操作"))?;
+
+    runner::run_git(repo_path, &args)?;
+    Ok(())
+}
+
+fn abort_args(kind: &str) -> Option<Vec<&'static str>> {
+    match kind {
+        "merge" => Some(vec!["merge", "--abort"]),
+        "rebase" => Some(vec!["rebase", "--abort"]),
+        "cherryPick" => Some(vec!["cherry-pick", "--abort"]),
+        _ => None,
+    }
+}
+
 fn resolve_git_dir(repo_path: &Path) -> Result<std::path::PathBuf, AppError> {
     let output = runner::run_git(repo_path, &["rev-parse", "--git-dir"])?;
     let raw = output.stdout.trim();
@@ -240,7 +259,7 @@ fn read_tip_meta(repo_path: &Path, rev: &str) -> Option<ConflictSideMeta> {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_merge_branch_from_message, simplify_ref_label};
+    use super::{abort_args, extract_merge_branch_from_message, simplify_ref_label};
 
     #[test]
     fn extracts_branch_from_merge_message() {
@@ -254,6 +273,17 @@ mod tests {
             ),
             Some("origin/agent/feat".to_string())
         );
+    }
+
+    #[test]
+    fn selects_abort_command_for_each_supported_operation() {
+        assert_eq!(abort_args("merge"), Some(vec!["merge", "--abort"]));
+        assert_eq!(abort_args("rebase"), Some(vec!["rebase", "--abort"]));
+        assert_eq!(
+            abort_args("cherryPick"),
+            Some(vec!["cherry-pick", "--abort"])
+        );
+        assert_eq!(abort_args("none"), None);
     }
 
     #[test]

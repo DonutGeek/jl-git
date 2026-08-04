@@ -33,6 +33,7 @@ import {
   unstageAll,
 } from "./git.commit";
 import {
+  abortOperation,
   conflictMarkResolved,
   conflictTake,
   getRepoState,
@@ -127,6 +128,7 @@ export const gitService = {
   restoreLintStagedBackup,
   merge,
   getRepoState,
+  abortOperation,
   conflictTake,
   readWorktreeFile,
   writeWorktreeFile,

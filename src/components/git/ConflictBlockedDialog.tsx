@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { TriangleAlert } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { AppDialogContent } from "@/components/common/AppDialogContent";
@@ -10,6 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useRepoStore } from "@/store/useRepoStore";
+import { toUserMessage } from "@/types/error";
 
 interface ConflictBlockedDialogProps {
   open: boolean;
@@ -21,6 +25,21 @@ interface ConflictBlockedDialogProps {
 /** 冲突/进行中操作拦截提示 */
 export function ConflictBlockedDialog({ open, onOpenChange, reason }: ConflictBlockedDialogProps) {
   const { t } = useTranslation();
+  const abortOperation = useRepoStore((state) => state.abortOperation);
+  const [aborting, setAborting] = useState(false);
+
+  async function handleAbort(): Promise<void> {
+    setAborting(true);
+    try {
+      await abortOperation();
+      toast.success(t("repo.abortOperationSuccess"));
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(toUserMessage(error));
+    } finally {
+      setAborting(false);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -40,8 +59,21 @@ export function ConflictBlockedDialog({ open, onOpenChange, reason }: ConflictBl
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button type="button" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={aborting}
+            onClick={() => onOpenChange(false)}
+          >
             {t("repo.conflictOpBlockedClose")}
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={aborting}
+            onClick={() => void handleAbort()}
+          >
+            {aborting ? t("repo.abortOperationRunning") : t("repo.abortOperation")}
           </Button>
         </DialogFooter>
       </AppDialogContent>

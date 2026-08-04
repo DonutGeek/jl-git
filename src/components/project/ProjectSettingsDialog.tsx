@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 
-import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
+import { AppAlertDialogContent, AppAlertDialogHeader } from "@/components/common/AppDialogContent";
 import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { LucideIconPicker } from "@/components/common/LucideIconPicker";
 import { lucideIconPickerI18n } from "@/components/project/lucideIconPickerI18n";
@@ -16,7 +16,6 @@ import {
   AlertDialogCancel,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -316,14 +315,14 @@ export function ProjectSettingsDialog({ project, open, onOpenChange }: ProjectSe
         }}
       >
         <AppAlertDialogContent>
-          <AlertDialogHeader>
+          <AppAlertDialogHeader>
             <AlertDialogTitle>
               {t("projectManager.projectPathRemoteMismatchTitle")}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {t("projectManager.projectPathRemoteMismatchDescription")}
             </AlertDialogDescription>
-          </AlertDialogHeader>
+          </AppAlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={saving}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction

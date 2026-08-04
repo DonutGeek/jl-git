@@ -54,6 +54,8 @@ async function resolveRepoIdentity(repoPath: string): Promise<GitIdentity> {
 }
 
 const LOG_PAGE_SIZE = 50;
+/** 检出后远端检查的最短间隔，避免频繁切分支时重复联网。 */
+const REMOTE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 /** 历史列表常驻提交硬顶：超出后停止加载更多，避免无限追加占内存 */
 const LOG_COMMITS_HARD_CAP = 1500;
 const COMMIT_DETAIL_CACHE_MAX = 24;
@@ -129,6 +131,10 @@ interface RepoSessionSnapshot {
 }
 
 const repoSessionCache = new Map<string, RepoSessionSnapshot>();
+/** 本次应用运行期间各仓库最近一次成功远端检查时间。 */
+const remoteCheckedAtByRepo = new Map<string, number>();
+/** 已排队的检出后检查，避免短时间连续检出重复发起 fetch。 */
+const scheduledRemoteChecks = new Set<string>();
 const repoLoadGenerations = new Map<string, number>();
 const repoActiveLoadGenerations = new Map<string, number>();
 const repoColdLoadGenerations = new Map<string, number>();
@@ -587,6 +593,8 @@ interface RepoStoreActions {
   unstageAll: () => Promise<void>;
   /** 放弃更改（调用前 UI 须确认） */
   discard: (paths: string[]) => Promise<void>;
+  /** 终止当前合并、变基或 cherry-pick。 */
+  abortOperation: () => Promise<void>;
   commit: () => Promise<string>;
   /** 仅修改 HEAD 提交信息（rev 须为当前 HEAD） */
   amendMessage: (rev: string, message: string) => Promise<string>;
@@ -604,7 +612,10 @@ interface RepoStoreActions {
   ) => Promise<void>;
   renameBranch: (oldName: string, newName: string) => Promise<void>;
   /** 检查更新：fetch 远端后刷新 status / branches */
-  fetch: (remote?: string) => Promise<{ remote: string; elapsedMs: number }>;
+  fetch: (
+    remote?: string,
+    options?: { silentError?: boolean },
+  ) => Promise<{ remote: string; elapsedMs: number }>;
   /** 更新：pull 后刷新 status / branches / log */
   pull: (options?: {
     remote?: string;
@@ -728,6 +739,37 @@ function requireRepoPath(repoPath: string | null): string {
   }
 
   return repoPath;
+}
+
+function shouldCheckRemoteAfterCheckout(repoPath: string): boolean {
+  const checkedAt = remoteCheckedAtByRepo.get(repoPath);
+  return checkedAt == null || Date.now() - checkedAt >= REMOTE_CHECK_INTERVAL_MS;
+}
+
+/**
+ * 检出完成后下一轮事件循环静默检查远端：不阻塞切分支，且切仓/已有操作时直接跳过。
+ */
+function scheduleRemoteCheckAfterCheckout(repoPath: string, get: () => RepoStore): void {
+  if (!shouldCheckRemoteAfterCheckout(repoPath) || scheduledRemoteChecks.has(repoPath)) {
+    return;
+  }
+
+  scheduledRemoteChecks.add(repoPath);
+  window.setTimeout(() => {
+    if (get().repoPath !== repoPath || hasRepoPendingOp(repoPath)) {
+      scheduledRemoteChecks.delete(repoPath);
+      return;
+    }
+
+    void get()
+      .fetch(undefined, { silentError: true })
+      .catch((error: unknown) => {
+        console.warn("[checkout] background remote check failed", error);
+      })
+      .finally(() => {
+        scheduledRemoteChecks.delete(repoPath);
+      });
+  }, 0);
 }
 
 /** 解析默认远端名（origin 优先，否则第一个）；无远端返回 null */
@@ -1811,6 +1853,28 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     }
   },
 
+  async abortOperation() {
+    set({ error: null });
+    const repoPath = requireRepoPath(get().repoPath);
+
+    try {
+      await gitService.abortOperation(repoPath);
+      const [status, branches, log, repoState] = await Promise.all([
+        gitService.getStatus(repoPath),
+        gitService.listBranches(repoPath),
+        gitService.getLog(repoPath),
+        gitService.getRepoState(repoPath),
+      ]);
+      applyStatusResult(repoPath, status, set, get);
+      if (get().repoPath === repoPath) {
+        set({ branches, commits: log.commits, hasMore: log.hasMore, repoState });
+      }
+    } catch (error) {
+      setError(set, get, repoPath, error);
+      throw error;
+    }
+  },
+
   async unstageAll() {
     set({ error: null });
     const repoPath = requireRepoPath(get().repoPath);
@@ -2201,6 +2265,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     try {
       await gitService.checkout(repoPath, ref);
       await syncCheckoutState();
+      scheduleRemoteCheckAfterCheckout(repoPath, get);
     } catch (error) {
       // Git 复合命令可能已经切换 HEAD；失败路径同样以磁盘真实状态为准。
       try {
@@ -2372,12 +2437,13 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     }
   },
 
-  async fetch(remote) {
+  async fetch(remote, options) {
     const repoPath = requireRepoPath(get().repoPath);
 
     beginLoadingOp(repoPath, set, get);
     try {
       const result = await gitService.fetch(repoPath, remote);
+      remoteCheckedAtByRepo.set(repoPath, Date.now());
       const [status, branches] = await Promise.all([
         gitService.getStatus(repoPath),
         gitService.listBranches(repoPath, true),
@@ -2391,7 +2457,9 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
       }
       return { remote: result.remote, elapsedMs: result.elapsedMs };
     } catch (error) {
-      setError(set, get, repoPath, error);
+      if (!options?.silentError) {
+        setError(set, get, repoPath, error);
+      }
       throw error;
     } finally {
       endLoadingOp(repoPath, set, get);
@@ -2414,6 +2482,7 @@ export const useRepoStore = create<RepoStore>((set, get) => ({
     beginLoadingOp(repoPath, set, get);
     try {
       const result = await gitService.pull(repoPath, options);
+      remoteCheckedAtByRepo.set(repoPath, Date.now());
       const [branches, log] = await Promise.all([
         gitService.listBranches(repoPath, true),
         gitService.getLog(

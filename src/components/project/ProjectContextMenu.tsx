@@ -15,14 +15,13 @@ import { toast } from "sonner";
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
 import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { ProjectSettingsDialog } from "@/components/project/ProjectSettingsDialog";
-import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
+import { AppAlertDialogContent, AppAlertDialogHeader } from "@/components/common/AppDialogContent";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
@@ -235,12 +234,12 @@ export function ProjectContextMenu({
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AppAlertDialogContent>
-          <AlertDialogHeader>
+          <AppAlertDialogHeader>
             <AlertDialogTitle>{t("projectManager.deleteProjectTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("projectManager.deleteProjectQuestion", { name: project.name })}
             </AlertDialogDescription>
-          </AlertDialogHeader>
+          </AppAlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction

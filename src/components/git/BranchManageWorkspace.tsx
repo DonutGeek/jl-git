@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
-import { GitBranch as GitBranchIcon, RefreshCw, Search, TriangleAlert } from "lucide-react";
+import { GitBranch as GitBranchIcon, RefreshCw, Search } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AppDialogContent } from "@/components/common/AppDialogContent";
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -321,41 +321,32 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
             <DialogTitle>{t("repo.deleteBranchTitle")}</DialogTitle>
           </DialogHeader>
 
-          <div className="flex gap-3">
-            <TriangleAlert className="text-chart-4 mt-0.5 size-5 shrink-0" aria-hidden="true" />
-            <div className="min-w-0 flex-1 space-y-3">
-              <div className="space-y-1">
-                <p className="text-foreground text-sm">
-                  <Trans
-                    i18nKey="repo.deleteBranchQuestion"
-                    values={{ name: deleteTarget?.name ?? "" }}
-                    components={{
-                      name: <span className="font-mono font-medium" />,
-                    }}
-                  />
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {t("repo.deleteBranchIrreversible")}
-                </p>
-              </div>
+          <div className="space-y-3">
+            <p className="text-foreground text-sm">
+              <Trans
+                i18nKey="repo.deleteBranchQuestion"
+                values={{ name: deleteTarget?.name ?? "" }}
+                components={{
+                  name: <span className="font-mono font-medium" />,
+                }}
+              />
+            </p>
 
-              {deleteHasRemote ? (
-                <Field orientation="horizontal">
-                  <Checkbox
-                    id="manage-delete-branch-remote"
-                    checked={deleteRemoteAlso}
-                    onCheckedChange={(checked) => setDeleteRemoteAlso(checked === true)}
-                    disabled={deleteBusy}
-                  />
-                  <FieldContent>
-                    <FieldLabel htmlFor="manage-delete-branch-remote">
-                      {t("repo.deleteBranchRemoteCheckbox")}
-                    </FieldLabel>
-                    <FieldDescription>{t("repo.deleteBranchRemoteHint")}</FieldDescription>
-                  </FieldContent>
-                </Field>
-              ) : null}
-            </div>
+            {deleteHasRemote ? (
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="manage-delete-branch-remote"
+                  checked={deleteRemoteAlso}
+                  onCheckedChange={(checked) => setDeleteRemoteAlso(checked === true)}
+                  disabled={deleteBusy}
+                />
+                <FieldContent>
+                  <FieldLabel htmlFor="manage-delete-branch-remote">
+                    {t("repo.deleteBranchRemoteCheckbox")}
+                  </FieldLabel>
+                </FieldContent>
+              </Field>
+            ) : null}
           </div>
 
           <DialogFooter>

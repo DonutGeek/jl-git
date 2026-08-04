@@ -470,7 +470,8 @@ export const ConflictFilePreview = forwardRef<ConflictFilePreviewHandle, Conflic
       try {
         const nextText = applyConflictHunkAction(text, index, action);
         const remaining = parseConflictHunks(nextText);
-        const stage = remaining.length === 0;
+        // 仅在所有完整块与残缺标记都已清除后自动暂存，避免提交带残留标记的文件。
+        const stage = remaining.length === 0 && !hasConflictMarkers(nextText);
         await gitService.writeWorktreeFile(repoPath, filePath, nextText, {
           stage,
           encoding,

@@ -28,9 +28,15 @@ export function parseConflictHunks(text: string): ConflictHunk[] {
     const startLine = i + 1;
     let separator = -1;
     let end = -1;
+    let baseSeparator = -1;
 
     for (let j = i + 1; j < lines.length; j += 1) {
       const current = lines[j] ?? "";
+      // diff3 / zdiff3 在双方内容之间带共同祖先段；解决时不能把它误保留为当前内容。
+      if (separator < 0 && current.startsWith("|||||||")) {
+        baseSeparator = j;
+        continue;
+      }
       if (separator < 0 && current.startsWith("=======")) {
         separator = j;
         continue;
@@ -50,7 +56,7 @@ export function parseConflictHunks(text: string): ConflictHunk[] {
       startLine,
       separatorLine: separator + 1,
       endLine: end + 1,
-      ours: lines.slice(i + 1, separator).join("\n"),
+      ours: lines.slice(i + 1, baseSeparator >= 0 ? baseSeparator : separator).join("\n"),
       theirs: lines.slice(separator + 1, end).join("\n"),
     });
     i = end + 1;
@@ -60,7 +66,14 @@ export function parseConflictHunks(text: string): ConflictHunk[] {
 }
 
 export function hasConflictMarkers(text: string): boolean {
-  return parseConflictHunks(text).length > 0;
+  return text.split("\n").some((line) => {
+    return (
+      line.startsWith("<<<<<<<") ||
+      line.startsWith("|||||||") ||
+      line.startsWith("=======") ||
+      line.startsWith(">>>>>>>")
+    );
+  });
 }
 
 /** 对指定 hunk 应用解决策略，返回新文本 */

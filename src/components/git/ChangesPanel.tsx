@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
+import { AppAlertDialogContent, AppAlertDialogHeader } from "@/components/common/AppDialogContent";
 import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { EmptyState } from "@/components/common/EmptyState";
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
@@ -37,7 +37,6 @@ import {
   AlertDialogCancel,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ContextMenuItem, ContextMenuSeparator } from "@/components/ui/context-menu";
@@ -1065,12 +1064,12 @@ export function ChangesPanel() {
 
       <AlertDialog open={discardAllOpen} onOpenChange={setDiscardAllOpen}>
         <AppAlertDialogContent>
-          <AlertDialogHeader>
+          <AppAlertDialogHeader>
             <AlertDialogTitle>{t("repo.discardAllChangesTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("repo.discardAllChangesDescription")}
             </AlertDialogDescription>
-          </AlertDialogHeader>
+          </AppAlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction

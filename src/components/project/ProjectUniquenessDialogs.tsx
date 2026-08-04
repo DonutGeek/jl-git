@@ -1,13 +1,12 @@
 import { useTranslation } from "react-i18next";
 
-import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
+import { AppAlertDialogContent, AppAlertDialogHeader } from "@/components/common/AppDialogContent";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -37,7 +36,7 @@ export function ExistingProjectDialog({
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AppAlertDialogContent size="md">
-        <AlertDialogHeader>
+        <AppAlertDialogHeader>
           <AlertDialogTitle>{t("openRepo.existingTitle")}</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2 text-sm text-muted-foreground">
@@ -52,7 +51,7 @@ export function ExistingProjectDialog({
               ) : null}
             </div>
           </AlertDialogDescription>
-        </AlertDialogHeader>
+        </AppAlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
           <AlertDialogAction
@@ -89,7 +88,7 @@ export function ExistingRemoteCloneDialog({
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AppAlertDialogContent size="md">
-        <AlertDialogHeader>
+        <AppAlertDialogHeader>
           <AlertDialogTitle>{t("cloneRepo.existingRemoteTitle")}</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2 text-sm text-muted-foreground">
@@ -108,7 +107,7 @@ export function ExistingRemoteCloneDialog({
               </ScrollArea>
             </div>
           </AlertDialogDescription>
-        </AlertDialogHeader>
+        </AppAlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
           <AlertDialogAction onClick={onContinue}>

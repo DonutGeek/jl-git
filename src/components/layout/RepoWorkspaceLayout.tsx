@@ -14,6 +14,8 @@ interface RepoWorkspaceLayoutProps extends Pick<AriaAttributes, "aria-busy" | "a
   sidebarView: SidebarView;
   mainView: RepoMainView;
   toolbarLoading?: boolean;
+  /** 工具栏下方的仓库状态条。 */
+  operationBanner?: ReactNode;
   sidebar: ReactNode;
   main: ReactNode;
   /** 盖住侧栏+主区左侧的浮层（如历史提交文件对比） */
@@ -27,6 +29,7 @@ export function RepoWorkspaceLayout({
   sidebarView,
   mainView,
   toolbarLoading = false,
+  operationBanner,
   sidebar,
   main,
   coverOverlay,
@@ -49,6 +52,8 @@ export function RepoWorkspaceLayout({
         loadingShell={toolbarLoading}
         onMainViewChange={onMainViewChange}
       />
+
+      {operationBanner}
 
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <ActivityBar active={sidebarView} onChange={onSidebarViewChange} />

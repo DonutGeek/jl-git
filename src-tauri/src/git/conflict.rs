@@ -40,14 +40,27 @@ pub fn take_side(
     if file_path.is_empty() {
         return Err(AppError::new("VALIDATION", "缺少文件路径"));
     }
-    validate_repo_relative_paths(&[file_path.to_string()])?;
+    validate_conflict_file_path(file_path)?;
 
-    let which = match side {
-        ConflictSide::Ours => "--ours",
-        ConflictSide::Theirs => "--theirs",
+    let stages = unmerged_stages(repo_path, file_path)?;
+    if stages.is_empty() {
+        return Err(AppError::new("VALIDATION", "该文件当前不处于冲突状态"));
+    }
+
+    let (which, stage) = match side {
+        ConflictSide::Ours => ("--ours", 2),
+        ConflictSide::Theirs => ("--theirs", 3),
     };
-    runner::run_git(repo_path, &["checkout", which, "--", file_path])?;
-    runner::run_git(repo_path, &["add", "--", file_path])?;
+    if stages.contains(&stage) {
+        runner::run_git(repo_path, &["checkout", which, "--", file_path])?;
+        runner::run_git(repo_path, &["add", "--", file_path])?;
+    } else {
+        // modify/delete、双方删除等冲突中，目标侧没有 stage 版本；选择它即表示删除文件。
+        runner::run_git(
+            repo_path,
+            &["rm", "--force", "--ignore-unmatch", "--", file_path],
+        )?;
+    }
     Ok(OkResult { ok: true })
 }
 
@@ -62,7 +75,7 @@ pub fn read_worktree_file(
     if file_path.is_empty() {
         return Err(AppError::new("VALIDATION", "缺少文件路径"));
     }
-    validate_repo_relative_paths(&[file_path.to_string()])?;
+    validate_conflict_file_path(file_path)?;
 
     let abs = resolve_under_repo(repo_path, file_path)?;
     if !abs.is_file() {
@@ -100,7 +113,7 @@ pub fn write_worktree_file(
     if file_path.is_empty() {
         return Err(AppError::new("VALIDATION", "缺少文件路径"));
     }
-    validate_repo_relative_paths(&[file_path.to_string()])?;
+    validate_conflict_file_path(file_path)?;
 
     let abs = resolve_under_repo(repo_path, file_path)?;
     // 仅允许写已存在路径下的文件，或父目录已在仓库内
@@ -128,9 +141,39 @@ pub fn mark_resolved(repo_path: &Path, file_path: &str) -> Result<OkResult, AppE
     if file_path.is_empty() {
         return Err(AppError::new("VALIDATION", "缺少文件路径"));
     }
-    validate_repo_relative_paths(&[file_path.to_string()])?;
+    validate_conflict_file_path(file_path)?;
+    if unmerged_stages(repo_path, file_path)?.is_empty() {
+        return Err(AppError::new("VALIDATION", "该文件当前不处于冲突状态"));
+    }
     runner::run_git(repo_path, &["add", "--", file_path])?;
     Ok(OkResult { ok: true })
+}
+
+/** 返回冲突 index 中存在的 stage 编号（1=base、2=ours、3=theirs）。 */
+fn unmerged_stages(repo_path: &Path, file_path: &str) -> Result<Vec<u8>, AppError> {
+    let output = runner::run_git(repo_path, &["ls-files", "-u", "--", file_path])?;
+    let mut stages = Vec::new();
+    for line in output.stdout.lines() {
+        let metadata = line
+            .split_once('\t')
+            .map(|(metadata, _)| metadata)
+            .unwrap_or(line);
+        let Some(raw_stage) = metadata.split_whitespace().nth(2) else {
+            continue;
+        };
+        if let Ok(stage) = raw_stage.parse::<u8>() {
+            stages.push(stage);
+        }
+    }
+    Ok(stages)
+}
+
+fn validate_conflict_file_path(file_path: &str) -> Result<(), AppError> {
+    validate_repo_relative_paths(&[file_path.to_string()])?;
+    if file_path == "." {
+        return Err(AppError::new("VALIDATION", "冲突操作必须指定单个文件"));
+    }
+    Ok(())
 }
 
 fn resolve_under_repo(repo_path: &Path, file_path: &str) -> Result<std::path::PathBuf, AppError> {
@@ -191,5 +234,149 @@ fn resolve_encoding(encoding_id: &str) -> &'static Encoding {
         "euc-kr" => encoding_rs::EUC_KR,
         "iso-8859-1" => encoding_rs::WINDOWS_1252,
         _ => Encoding::for_label(encoding_id.as_bytes()).unwrap_or(encoding_rs::UTF_8),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+
+    use super::{mark_resolved, take_side, ConflictSide};
+    use crate::git::status;
+
+    fn git(repo: &Path, args: &[&str]) {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(repo)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn git_fails(repo: &Path, args: &[&str]) {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(repo)
+            .status()
+            .unwrap();
+        assert!(!status.success(), "git {args:?} unexpectedly succeeded");
+    }
+
+    fn test_repo() -> PathBuf {
+        let repo = std::env::temp_dir().join(format!("jlgit-conflict-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&repo).unwrap();
+        git(&repo, &["init", "-q"]);
+        git(&repo, &["config", "user.name", "JLGit Test"]);
+        git(&repo, &["config", "user.email", "test@example.com"]);
+        repo
+    }
+
+    fn current_branch(repo: &Path) -> String {
+        let output = Command::new("git")
+            .args(["branch", "--show-current"])
+            .current_dir(repo)
+            .output()
+            .unwrap();
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    }
+
+    #[test]
+    fn takes_existing_side_and_stages_the_resolution() {
+        let repo = test_repo();
+        std::fs::write(repo.join("conflict.txt"), "base\n").unwrap();
+        git(&repo, &["add", "conflict.txt"]);
+        git(&repo, &["commit", "-q", "-m", "base"]);
+        let main = current_branch(&repo);
+
+        git(&repo, &["checkout", "-q", "-b", "feature"]);
+        std::fs::write(repo.join("conflict.txt"), "theirs\n").unwrap();
+        git(&repo, &["commit", "-qam", "theirs"]);
+        git(&repo, &["checkout", "-q", &main]);
+        std::fs::write(repo.join("conflict.txt"), "ours\n").unwrap();
+        git(&repo, &["commit", "-qam", "ours"]);
+        git_fails(&repo, &["merge", "feature"]);
+
+        take_side(&repo, "conflict.txt", ConflictSide::Ours).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(repo.join("conflict.txt")).unwrap(),
+            "ours\n"
+        );
+        assert!(!status::has_unmerged_entries(
+            &status::get_status(&repo).unwrap()
+        ));
+        std::fs::remove_dir_all(repo).unwrap();
+    }
+
+    #[test]
+    fn takes_deleted_side_for_modify_delete_conflict() {
+        let repo = test_repo();
+        std::fs::write(repo.join("conflict.txt"), "base\n").unwrap();
+        git(&repo, &["add", "conflict.txt"]);
+        git(&repo, &["commit", "-q", "-m", "base"]);
+        let main = current_branch(&repo);
+
+        git(&repo, &["checkout", "-q", "-b", "feature"]);
+        git(&repo, &["rm", "-q", "conflict.txt"]);
+        git(&repo, &["commit", "-q", "-m", "delete"]);
+        git(&repo, &["checkout", "-q", &main]);
+        std::fs::write(repo.join("conflict.txt"), "ours\n").unwrap();
+        git(&repo, &["commit", "-qam", "ours"]);
+        git_fails(&repo, &["merge", "feature"]);
+
+        take_side(&repo, "conflict.txt", ConflictSide::Theirs).unwrap();
+
+        assert!(!repo.join("conflict.txt").exists());
+        assert!(!status::has_unmerged_entries(
+            &status::get_status(&repo).unwrap()
+        ));
+        std::fs::remove_dir_all(repo).unwrap();
+    }
+
+    #[test]
+    fn takes_theirs_for_add_add_conflict() {
+        let repo = test_repo();
+        std::fs::write(repo.join("base.txt"), "base\n").unwrap();
+        git(&repo, &["add", "base.txt"]);
+        git(&repo, &["commit", "-q", "-m", "base"]);
+        let main = current_branch(&repo);
+
+        git(&repo, &["checkout", "-q", "-b", "feature"]);
+        std::fs::write(repo.join("new.txt"), "theirs\n").unwrap();
+        git(&repo, &["add", "new.txt"]);
+        git(&repo, &["commit", "-q", "-m", "theirs"]);
+        git(&repo, &["checkout", "-q", &main]);
+        std::fs::write(repo.join("new.txt"), "ours\n").unwrap();
+        git(&repo, &["add", "new.txt"]);
+        git(&repo, &["commit", "-q", "-m", "ours"]);
+        git_fails(&repo, &["merge", "feature"]);
+
+        take_side(&repo, "new.txt", ConflictSide::Theirs).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(repo.join("new.txt")).unwrap(),
+            "theirs\n"
+        );
+        assert!(!status::has_unmerged_entries(
+            &status::get_status(&repo).unwrap()
+        ));
+        std::fs::remove_dir_all(repo).unwrap();
+    }
+
+    #[test]
+    fn rejects_marking_a_non_conflicted_file_as_resolved() {
+        let repo = test_repo();
+        std::fs::write(repo.join("clean.txt"), "clean\n").unwrap();
+        git(&repo, &["add", "clean.txt"]);
+        git(&repo, &["commit", "-q", "-m", "base"]);
+
+        assert!(mark_resolved(&repo, "clean.txt").is_err());
+        assert!(take_side(&repo, ".", ConflictSide::Ours).is_err());
+        std::fs::remove_dir_all(repo).unwrap();
     }
 }

@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GitBranch as GitBranchIcon, Sparkles, Tag } from "lucide-react";
 import { toast } from "sonner";
@@ -56,6 +56,7 @@ export function CreateBranchDialog({
   const [hasRemote, setHasRemote] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const initializedRef = useRef(false);
   const lockedStart = Boolean(fixedStartPoint?.trim());
 
   const startOptions = useMemo(() => {
@@ -85,8 +86,13 @@ export function CreateBranchDialog({
 
   useEffect(() => {
     if (!open) {
+      initializedRef.current = false;
       return;
     }
+    if (initializedRef.current) {
+      return;
+    }
+    initializedRef.current = true;
 
     setName(normalizeBranchPrefix(branchPrefix));
     setSubmitting(false);
@@ -102,8 +108,11 @@ export function CreateBranchDialog({
       setStartPoint(currentBranch);
       setCheckoutAfterCreate(true);
     }
+  }, [branchPrefix, currentBranch, fixedStartPoint, open]);
 
-    if (!repoPath) {
+  useEffect(() => {
+    if (!open || !repoPath) {
+      setHasRemote(false);
       return;
     }
     let cancelled = false;
@@ -121,7 +130,7 @@ export function CreateBranchDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, fixedStartPoint, branchPrefix, repoPath, currentBranch]);
+  }, [open, repoPath]);
 
   const canSubmit =
     !submitting && !loading && name.trim().length > 0 && startPoint.trim().length > 0;

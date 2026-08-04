@@ -15,14 +15,17 @@ import { toast } from "sonner";
 
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
 import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
-import { AppAlertDialogContent, AppDialogContent } from "@/components/common/AppDialogContent";
+import {
+  AppAlertDialogContent,
+  AppAlertDialogHeader,
+  AppDialogContent,
+} from "@/components/common/AppDialogContent";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -368,7 +371,7 @@ export function FileTreeContextMenu({
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AppAlertDialogContent>
-          <AlertDialogHeader>
+          <AppAlertDialogHeader>
             <AlertDialogTitle>{t("repo.fileTreeDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t(
@@ -376,7 +379,7 @@ export function FileTreeContextMenu({
                 { name: entry.name },
               )}
             </AlertDialogDescription>
-          </AlertDialogHeader>
+          </AppAlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction

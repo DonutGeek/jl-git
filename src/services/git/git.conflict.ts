@@ -7,6 +7,11 @@ export async function getRepoState(repoPath: string): Promise<GitRepoState> {
   return invokeCommand<GitRepoState>("git_repo_state", { path: repoPath });
 }
 
+/** 终止当前合并、变基或 cherry-pick。 */
+export async function abortOperation(repoPath: string): Promise<OkResult> {
+  return invokeCommand<OkResult>("git_abort_operation", { path: repoPath });
+}
+
 /** 整文件采用 ours / theirs 并标记已解决 */
 export async function conflictTake(
   repoPath: string,

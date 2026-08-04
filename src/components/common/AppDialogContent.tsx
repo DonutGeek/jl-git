@@ -1,6 +1,5 @@
-import type { ComponentProps } from "react";
-
-import { AlertDialogContent } from "@/components/ui/alert-dialog";
+import type { ComponentProps, ReactNode } from "react";
+import { AlertDialogContent, AlertDialogHeader } from "@/components/ui/alert-dialog";
 import { DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +30,10 @@ interface AppAlertDialogContentProps extends Omit<
   size?: AppDialogSize;
 }
 
+interface AppAlertDialogHeaderProps {
+  children: ReactNode;
+}
+
 /** JLGit 业务弹窗统一外壳：只组合 shadcn Dialog，不修改基础组件。 */
 export function AppDialogContent({ size = "md", className, ...props }: AppDialogContentProps) {
   return (
@@ -55,4 +58,9 @@ export function AppAlertDialogContent({
       {...props}
     />
   );
+}
+
+/** 二次确认统一头部：保持紧凑，仅承载标题与必要说明。 */
+export function AppAlertDialogHeader({ children }: AppAlertDialogHeaderProps) {
+  return <AlertDialogHeader>{children}</AlertDialogHeader>;
 }

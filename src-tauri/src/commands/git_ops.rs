@@ -873,6 +873,26 @@ pub fn git_repo_state(path: String) -> Result<GitRepoState, AppError> {
     repo_state::get_repo_state(&repo_path)
 }
 
+/// 终止当前合并、变基或 cherry-pick。
+#[tauri::command]
+pub async fn git_abort_operation(app: AppHandle, path: String) -> Result<OkResult, AppError> {
+    let repo_path = resolve_repo_path(&path)?;
+    let repo_key = path;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        oplog::run_logged(&app, &repo_key, "abortOperation", || {
+            write_lock::with_repo_write_lock(&repo_path, || {
+                repo_state::abort_in_progress(&repo_path)?;
+                Ok(OkResult { ok: true })
+            })
+        })
+    })
+    .await
+    .map_err(|error| {
+        AppError::new("INTERNAL", "终止 Git 操作任务失败").with_details(error.to_string())
+    })?
+}
+
 /// 冲突整文件取 ours / theirs 并标记已解决
 #[tauri::command]
 pub async fn git_conflict_take(

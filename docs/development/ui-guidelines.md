@@ -287,6 +287,8 @@ pnpm dlx shadcn@latest add sonner
 - 完整应用设置用右侧 **Sheet 抽屉**（保留当前仓库工作区），不要用 Dialog 堆完整设置；也不强制跳转 `/settings` 路由页
 - 业务弹窗统一组合 `@/components/common/AppDialogContent`，禁止在各业务模块重复定义 `gap`、`padding`、标题字号与圆角
 - 普通编辑/创建使用 `AppDialogContent`；需要用户确认后才执行的操作使用 `AppAlertDialogContent` + shadcn `AlertDialog`
+- 二次确认的头部必须组合 `AppAlertDialogHeader`，保持“标题 + 必要确认对象”两层信息；不放装饰性警告图标或重复风险文案。危险性由 destructive 主按钮表达
+- 复选项只保留其动作标签；标签已明确影响范围时，不再追加重复说明。仅当前不可用或规则不直观时才显示 `FieldDescription`
 - 宽度按信息量选择 `sm` / `md` / `lg` / `xl` / `2xl`，默认 `md`；同类任务必须使用同一档位
 - 表单字段纵向间距统一为 `gap-4`；按钮区使用 `DialogFooter` / `AlertDialogFooter`，取消在前、主操作在后
 - 危险操作的主按钮必须使用 `destructive`，并在描述中明确影响范围与是否可恢复

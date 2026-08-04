@@ -15,6 +15,7 @@ import { BranchList } from "@/components/git/BranchList";
 import { ChangesPanelLoadingShell } from "@/components/git/ChangesPanelLoadingShell";
 import { CommitBox } from "@/components/git/CommitBox";
 import { CommitFileDiffWorkspaceOverlay } from "@/components/git/CommitFileDiffWorkspaceOverlay";
+import { RepoOperationBanner } from "@/components/git/RepoOperationBanner";
 import { SyncPendingWorkspaceOverlay } from "@/components/git/SyncPendingWorkspaceOverlay";
 import type { SidebarView } from "@/components/layout/ActivityBar";
 import { RepoLoadingIndicator } from "@/components/layout/RepoLoadingIndicator";
@@ -591,6 +592,7 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
       sidebarView={sidebarView}
       mainView={mainView}
       sidebar={sidebar}
+      operationBanner={<RepoOperationBanner />}
       main={<div className="h-full min-h-0 min-w-0 overflow-hidden">{activeMainPane}</div>}
       coverOverlay={
         syncPendingKind ? (

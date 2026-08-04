@@ -3,7 +3,11 @@ import { useTranslation } from "react-i18next";
 import { Copy, FileDown, Hash, PencilLine, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
-import { AppAlertDialogContent, AppDialogContent } from "@/components/common/AppDialogContent";
+import {
+  AppAlertDialogContent,
+  AppAlertDialogHeader,
+  AppDialogContent,
+} from "@/components/common/AppDialogContent";
 import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
 import {
@@ -12,7 +16,6 @@ import {
   AlertDialogCancel,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
@@ -249,10 +252,10 @@ export function HistoryCommitContextMenu({
 
       <AlertDialog open={confirmPushOpen} onOpenChange={setConfirmPushOpen}>
         <AppAlertDialogContent>
-          <AlertDialogHeader>
+          <AppAlertDialogHeader>
             <AlertDialogTitle>{t("repo.amendMessageTitle")}</AlertDialogTitle>
             <AlertDialogDescription>{t("repo.amendMessagePushedHint")}</AlertDialogDescription>
-          </AlertDialogHeader>
+          </AppAlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction

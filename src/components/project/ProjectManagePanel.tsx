@@ -8,14 +8,13 @@ import { ProjectManageFilterForm } from "@/components/project/ProjectManageFilte
 import { ProjectManageTable } from "@/components/project/ProjectManageTable";
 import { ProjectManageToolbar } from "@/components/project/ProjectManageToolbar";
 import { ProjectSettingsDialog } from "@/components/project/ProjectSettingsDialog";
-import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
+import { AppAlertDialogContent, AppAlertDialogHeader } from "@/components/common/AppDialogContent";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
@@ -244,14 +243,14 @@ export function ProjectManagePanel({
         }}
       >
         <AppAlertDialogContent>
-          <AlertDialogHeader>
+          <AppAlertDialogHeader>
             <AlertDialogTitle>{t("projectManager.deleteProjectTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("projectManager.deleteProjectQuestion", {
                 name: deleteProject?.name ?? "",
               })}
             </AlertDialogDescription>
-          </AlertDialogHeader>
+          </AppAlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction

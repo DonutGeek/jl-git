@@ -1,7 +1,6 @@
 import type { FormEvent, ReactNode } from "react";
 import { useEffect, useId, useMemo, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import type { BranchContextActions } from "@/components/git/BranchContextMenuContent";
@@ -10,7 +9,7 @@ import { AppDialogContent } from "@/components/common/AppDialogContent";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useConflictOperationGuard } from "@/hooks/useConflictOperationGuard";
@@ -111,7 +110,7 @@ export function useBranchContextActions(
     const toastId = toast.loading(t("repo.checkoutStart", { branch: branch.name }));
     try {
       await checkout(branch.name);
-      toast.success(t("repo.checkoutSuccess", { branch: branch.name }), { id: toastId });
+      toast.dismiss(toastId);
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     }
@@ -146,13 +145,11 @@ export function useBranchContextActions(
       return;
     }
     try {
-      const result = await pushRemote({
+      await pushRemote({
         repoPath: originPath,
         remote: "origin",
         branch: branch.name,
       });
-      const seconds = (result.elapsedMs / 1000).toFixed(3);
-      toast.success(t("repo.pushSuccess", { remote: result.remote, seconds }));
     } catch (error) {
       const stillOnOrigin = useRepoStore.getState().repoPath === originPath;
       toastPushError(error, {
@@ -265,7 +262,6 @@ export function useBranchContextActions(
     }
 
     const source = mergeTarget.name;
-    const target = currentBranch;
     const originRepoPath = repoPath;
     if (!originRepoPath) {
       return;
@@ -276,9 +272,7 @@ export function useBranchContextActions(
       const result = await mergeBranch(source, mergeOptions);
       if (result.conflict) {
         toast.error(t("repo.mergeConflict"));
-      } else if (result.ok) {
-        toast.success(t("repo.mergeSuccess", { source, target }));
-      } else {
+      } else if (!result.ok) {
         toast.error(t("repo.mergeFailed"));
       }
       if (useRepoStore.getState().repoPath === originRepoPath) {
@@ -439,41 +433,32 @@ export function useBranchContextActions(
             <DialogTitle>{t("repo.deleteBranchTitle")}</DialogTitle>
           </DialogHeader>
 
-          <div className="flex gap-3">
-            <TriangleAlert className="text-chart-4 mt-0.5 size-5 shrink-0" aria-hidden="true" />
-            <div className="min-w-0 flex-1 space-y-3">
-              <div className="space-y-1">
-                <p className="text-foreground text-sm">
-                  <Trans
-                    i18nKey="repo.deleteBranchQuestion"
-                    values={{ name: deleteTarget?.name ?? "" }}
-                    components={{
-                      name: <span className="font-mono font-medium" />,
-                    }}
-                  />
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {t("repo.deleteBranchIrreversible")}
-                </p>
-              </div>
+          <div className="space-y-3">
+            <p className="text-foreground text-sm">
+              <Trans
+                i18nKey="repo.deleteBranchQuestion"
+                values={{ name: deleteTarget?.name ?? "" }}
+                components={{
+                  name: <span className="font-mono font-medium" />,
+                }}
+              />
+            </p>
 
-              {deleteHasRemote ? (
-                <Field orientation="horizontal">
-                  <Checkbox
-                    id={deleteRemoteFieldId}
-                    checked={deleteRemoteAlso}
-                    onCheckedChange={(checked) => setDeleteRemoteAlso(checked === true)}
-                    disabled={deleteBusy}
-                  />
-                  <FieldContent>
-                    <FieldLabel htmlFor={deleteRemoteFieldId}>
-                      {t("repo.deleteBranchRemoteCheckbox")}
-                    </FieldLabel>
-                    <FieldDescription>{t("repo.deleteBranchRemoteHint")}</FieldDescription>
-                  </FieldContent>
-                </Field>
-              ) : null}
-            </div>
+            {deleteHasRemote ? (
+              <Field orientation="horizontal">
+                <Checkbox
+                  id={deleteRemoteFieldId}
+                  checked={deleteRemoteAlso}
+                  onCheckedChange={(checked) => setDeleteRemoteAlso(checked === true)}
+                  disabled={deleteBusy}
+                />
+                <FieldContent>
+                  <FieldLabel htmlFor={deleteRemoteFieldId}>
+                    {t("repo.deleteBranchRemoteCheckbox")}
+                  </FieldLabel>
+                </FieldContent>
+              </Field>
+            ) : null}
           </div>
 
           <DialogFooter>

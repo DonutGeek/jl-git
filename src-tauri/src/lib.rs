@@ -153,6 +153,7 @@ pub fn run() {
             commands::git_ops::git_undo_commit,
             commands::git_ops::git_merge,
             commands::git_ops::git_repo_state,
+            commands::git_ops::git_abort_operation,
             commands::git_ops::git_conflict_take,
             commands::git_ops::git_read_worktree_file,
             commands::git_ops::git_grep,

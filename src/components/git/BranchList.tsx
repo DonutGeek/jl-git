@@ -159,7 +159,7 @@ export function BranchList() {
 
     try {
       await checkout(branch.name);
-      toast.success(t("repo.checkoutSuccess", { branch: branch.name }), { id: toastId });
+      toast.dismiss(toastId);
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     } finally {

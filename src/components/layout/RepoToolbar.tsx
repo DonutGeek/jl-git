@@ -352,13 +352,11 @@ export function RepoToolbar({
     const originBranch = status?.detached ? undefined : (status?.branch ?? undefined);
     setPushing(true);
     try {
-      const result = await pushRemote({
+      await pushRemote({
         repoPath: originPath,
         remote: "origin",
         branch: originBranch,
       });
-      const seconds = (result.elapsedMs / 1000).toFixed(1);
-      toast.success(t("repo.pushSuccess", { remote: result.remote, seconds }));
     } catch (error) {
       const stillOnOrigin = useRepoStore.getState().repoPath === originPath;
       toastPushError(error, {

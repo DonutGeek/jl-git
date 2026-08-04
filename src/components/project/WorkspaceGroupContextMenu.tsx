@@ -3,7 +3,11 @@ import { Trans, useTranslation } from "react-i18next";
 import { Lock, LockOpen, Palette, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
-import { AppAlertDialogContent, AppDialogContent } from "@/components/common/AppDialogContent";
+import {
+  AppAlertDialogContent,
+  AppAlertDialogHeader,
+  AppDialogContent,
+} from "@/components/common/AppDialogContent";
 import { SettingsColorSwatch } from "@/components/settings/SettingsColorSwatch";
 import {
   AlertDialog,
@@ -11,7 +15,6 @@ import {
   AlertDialogCancel,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
@@ -205,7 +208,7 @@ export function WorkspaceGroupContextMenu({
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AppAlertDialogContent>
-          <AlertDialogHeader>
+          <AppAlertDialogHeader>
             <AlertDialogTitle>{t("projectManager.deleteGroupTitle")}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="text-muted-foreground text-sm">
@@ -220,7 +223,7 @@ export function WorkspaceGroupContextMenu({
                 </p>
               </div>
             </AlertDialogDescription>
-          </AlertDialogHeader>
+          </AppAlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction

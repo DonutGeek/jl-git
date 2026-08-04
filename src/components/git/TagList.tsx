@@ -11,7 +11,6 @@ import {
   Monitor,
   Tag,
   Trash2,
-  TriangleAlert,
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -302,7 +301,7 @@ export function TagList({ onSelectTag }: TagListProps) {
       if (useRepoStore.getState().repoPath === originRepoPath) {
         void refreshRemoteTags();
       }
-      toast.success(t("repo.pushTagSuccess", { name }), { id: toastId });
+      toast.dismiss(toastId);
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     } finally {
@@ -352,7 +351,7 @@ export function TagList({ onSelectTag }: TagListProps) {
     const toastId = toast.loading(t("repo.checkoutTagStart", { name }));
     try {
       await checkout(`tags/${name}`);
-      toast.success(t("repo.checkoutTagSuccess", { name }), { id: toastId });
+      toast.dismiss(toastId);
     } catch (error) {
       toast.error(toUserMessage(error), { id: toastId });
     } finally {
@@ -521,41 +520,38 @@ export function TagList({ onSelectTag }: TagListProps) {
                 : t("repo.deleteTagTitle")}
             </DialogTitle>
           </DialogHeader>
-          <div className="flex gap-3">
-            <TriangleAlert className="text-chart-4 mt-0.5 size-5 shrink-0" aria-hidden="true" />
-            <div className="min-w-0 flex-1 space-y-3">
-              <div>
-                <p className="text-foreground text-sm">
-                  <Trans
-                    i18nKey={
-                      deleteTarget?.scope === "remote"
-                        ? "repo.deleteTagRemoteQuestion"
-                        : "repo.deleteTagQuestion"
-                    }
-                    values={{ name: deleteTarget?.name ?? "" }}
-                    components={{
-                      name: <span className="font-mono font-medium" />,
-                    }}
-                  />
-                </p>
-              </div>
-
-              {deleteHasRemote ? (
-                <Field orientation="horizontal">
-                  <Checkbox
-                    id="delete-tag-remote"
-                    checked={deleteRemoteAlso}
-                    onCheckedChange={(checked) => setDeleteRemoteAlso(checked === true)}
-                    disabled={deleteBusy}
-                  />
-                  <FieldContent>
-                    <FieldLabel htmlFor="delete-tag-remote">
-                      {t("repo.deleteTagRemoteCheckbox")}
-                    </FieldLabel>
-                  </FieldContent>
-                </Field>
-              ) : null}
+          <div className="space-y-3">
+            <div>
+              <p className="text-foreground text-sm">
+                <Trans
+                  i18nKey={
+                    deleteTarget?.scope === "remote"
+                      ? "repo.deleteTagRemoteQuestion"
+                      : "repo.deleteTagQuestion"
+                  }
+                  values={{ name: deleteTarget?.name ?? "" }}
+                  components={{
+                    name: <span className="font-mono font-medium" />,
+                  }}
+                />
+              </p>
             </div>
+
+            {deleteHasRemote ? (
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="delete-tag-remote"
+                  checked={deleteRemoteAlso}
+                  onCheckedChange={(checked) => setDeleteRemoteAlso(checked === true)}
+                  disabled={deleteBusy}
+                />
+                <FieldContent>
+                  <FieldLabel htmlFor="delete-tag-remote">
+                    {t("repo.deleteTagRemoteCheckbox")}
+                  </FieldLabel>
+                </FieldContent>
+              </Field>
+            ) : null}
           </div>
           <DialogFooter>
             <Button
