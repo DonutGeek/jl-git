@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mineradio · Splash Source Demo</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #010304; }
+      body { font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif; }
+      #splash {
+        position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden;
+        background: #010304; box-shadow: inset 0 0 180px rgba(0, 0, 0, .88);
+      }
+      #splash::before {
+        content: ""; position: absolute; inset: -8%; z-index: 0; pointer-events: none;
+        background: linear-gradient(115deg, transparent 0%, rgba(255,83,103,.055) 24%, transparent 42%, rgba(244,210,138,.052) 62%, transparent 82%), repeating-linear-gradient(90deg, rgba(255,255,255,.03) 0 1px, transparent 1px 54px), repeating-linear-gradient(0deg, rgba(255,255,255,.02) 0 1px, transparent 1px 46px), linear-gradient(180deg, #020606, #050607 42%, #000);
+        filter: blur(.4px); opacity: .9; animation: breathe 7s ease-in-out infinite alternate;
+      }
+      #splash::after { content: ""; position: absolute; inset: 0; z-index: 4; pointer-events: none; background: linear-gradient(90deg, rgba(0,0,0,.82), transparent 21%, transparent 79%, rgba(0,0,0,.82)), linear-gradient(180deg, rgba(0,0,0,.68), transparent 32%, transparent 64%, rgba(0,0,0,.74)); }
+      #field { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; }
+      .noise { position: absolute; inset: 0; z-index: 3; opacity: .038; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E"); }
+      .content { position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 16px; transform: translateY(4px); }
+      .wordmark { position: relative; display: flex; align-items: baseline; justify-content: center; height: clamp(70px, 12vw, 136px); min-width: min(74vw, 760px); font-size: clamp(52px, 8.8vw, 112px); line-height: .92; font-weight: 720; letter-spacing: -.055em; color: #f8f8f2; isolation: isolate; filter: drop-shadow(0 0 22px rgba(244,210,138,.075)); }
+      .wordmark span { position: absolute; top: 50%; left: 50%; white-space: nowrap; will-change: opacity, transform, letter-spacing; }
+      /* Source: XxHuberrr/Mineradio, GPL-3.0. The source wordmark markup,
+         timings, colours and keyframes below are retained for this standalone demo. */
+      .splash-word-mine { position: absolute; top: 50%; left: 50%; opacity: 0; color: #f8f8f2; white-space: nowrap; will-change: opacity, transform, letter-spacing; animation: splash-mine-in 5200ms cubic-bezier(.22,1,.36,1) forwards; text-shadow: -2px 0 0 rgba(255,83,103,.24), 2px 0 0 rgba(122,215,194,.18), 0 22px 72px rgba(0,0,0,.58), 0 0 34px rgba(244,210,138,.10); }
+      .splash-word-radio { position: absolute; top: 50%; left: 50%; opacity: 0; white-space: nowrap; will-change: opacity, transform, letter-spacing; letter-spacing: -.018em; background: linear-gradient(94deg, rgba(255,255,255,.06), #fff 26%, rgba(244,210,138,.98) 48%, rgba(122,215,194,.90) 68%, rgba(255,255,255,.82)); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; animation: splash-radio-in 5200ms cubic-bezier(.22,1,.36,1) forwards; text-shadow: -2px 0 0 rgba(255,83,103,.16), 2px 0 0 rgba(122,215,194,.22), 0 0 34px rgba(122,215,194,.10); }
+      .splash-word-i { display: inline-block; position: relative; width: .24em; height: .86em; margin: 0 .022em; vertical-align: -.015em; color: transparent; -webkit-text-fill-color: transparent; }
+      .splash-word-i::before { content: ''; position: absolute; left: 50%; bottom: .015em; width: .108em; height: .565em; border-radius: .06em; background: linear-gradient(180deg, #f8edd1 0%, #d8bd78 100%); transform: translateX(-50%); box-shadow: 0 0 14px rgba(244,210,138,.12); }
+      .splash-word-i::after { content: ''; position: absolute; left: 50%; top: .035em; width: .142em; height: .142em; border-radius: 50%; background: #fff; box-shadow: 0 0 16px rgba(244,210,138,.44), 0 0 36px rgba(255,255,255,.16); opacity: 0; transform: translate(-50%,.22em) scale(.34); animation: splash-i-dot-pop 4200ms cubic-bezier(.22,1,.36,1) forwards; }
+      .signal { position: relative; width: min(460px, 54vw); height: 2px; opacity: 0; transform: scaleX(.12); background: linear-gradient(90deg, transparent, rgba(122,215,194,.22), rgba(255,255,255,.78), rgba(244,210,138,.66), rgba(255,83,103,.22), transparent); box-shadow: 0 0 18px rgba(244,210,138,.24); animation: signal 4200ms cubic-bezier(.22,1,.36,1) forwards; }
+      .signal::after { content: ""; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.82); box-shadow: 0 0 24px rgba(244,210,138,.54); transform: translate(-50%,-50%) scale(.32); opacity: 0; animation: blip 4200ms cubic-bezier(.22,1,.36,1) forwards; }
+      .sub { color: rgba(255,255,255,.34); font-size: 10px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; opacity: 0; animation: sub-in 4200ms cubic-bezier(.22,1,.36,1) forwards; }
+      .enter { margin-top: 8px; color: rgba(255,255,255,.62); font-size: 11px; font-weight: 700; letter-spacing: .24em; opacity: 0; transform: translateY(10px); text-transform: uppercase; animation: enter-in 300ms 1500ms forwards, enter-pulse 1800ms 1800ms ease-in-out infinite alternate; }
+      .replay { position: fixed; z-index: 20; right: 20px; bottom: 18px; border: 0; border-radius: 4px; padding: 8px 10px; background: transparent; color: rgba(255,255,255,.32); cursor: pointer; font: 11px inherit; letter-spacing: .08em; }
+      .replay:hover { color: rgba(255,255,255,.75); }
+      @keyframes breathe { to { opacity: 1; transform: scale(1.035); } }
+      @keyframes splash-mine-in { 0% { opacity: 0; clip-path: inset(48% 0 49% 0); transform: translate(calc(-50% - 10px),-42%) skewX(-10deg) scaleX(1.08); letter-spacing: .055em; } 14% { opacity: .92; clip-path: inset(40% 0 42% 0); transform: translate(calc(-50% - 4px),-50%) skewX(-4deg) scaleX(1.04); letter-spacing: .014em; } 26% { opacity: 1; clip-path: inset(0); transform: translate(-50%,-50%) skewX(0) scaleX(1); letter-spacing: -.040em; } 48% { opacity: 1; transform: translate(-50%,-50%) scale(1); } 67%,100% { opacity: 1; transform: translate(calc(-50% - clamp(66px,10.8vw,130px)),-50%) scale(.998); letter-spacing: -.055em; } }
+      @keyframes splash-radio-in { 0%,32% { opacity: 0; clip-path: inset(52% 0 44% 0); transform: translate(calc(-50% + clamp(78px,12vw,142px)),-50%) skewX(9deg) scaleX(1.06); background-position: 0 0; } 48% { opacity: .88; clip-path: inset(34% 0 32% 0); transform: translate(calc(-50% + clamp(72px,11.5vw,138px)),-50%) skewX(3deg) scaleX(1.02); background-position: 52% 0; } 66%,100% { opacity: 1; clip-path: inset(0); transform: translate(calc(-50% + clamp(70px,11.4vw,136px)),-50%) scale(1); background-position: 100% 0; } }
+      @keyframes splash-i-dot-pop { 0%,48% { opacity: 0; transform: translate(-50%,.22em) scale(.34); } 60% { opacity: 1; transform: translate(-50%,-.018em) scale(1.12); } 68% { opacity: .92; transform: translate(-50%,.010em) scale(.94); } 76%,100% { opacity: 1; transform: translate(-50%,0) scale(1); } }
+      @keyframes signal { 0%, 38% { opacity: 0; transform: scaleX(.12); } 60% { opacity: .95; transform: scaleX(1.03); } 100% { opacity: .65; transform: scaleX(1); } }
+      @keyframes blip { 0%, 52% { opacity: 0; transform: translate(-50%,-50%) scale(.32); } 68% { opacity: 1; transform: translate(-50%,-50%) scale(1.4); } 100% { opacity: .72; transform: translate(-50%,-50%) scale(1); } }
+      @keyframes sub-in { 0%, 62% { opacity: 0; transform: translateY(5px); } 100% { opacity: 1; transform: translateY(0); } }
+      @keyframes enter-in { to { opacity: 1; transform: translateY(0); } }
+      @keyframes enter-pulse { to { color: rgba(255,255,255,.96); text-shadow: 0 0 18px rgba(244,210,138,.24); } }
+      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; } }
+    </style>
+  </head>
+  <body>
+    <main id="splash" aria-label="Mineradio 启动开屏">
+      <canvas id="field" aria-hidden="true"></canvas><div class="noise"></div>
+      <div class="content"><div class="wordmark" id="splash-wordmark" aria-label="Mineradio"><span class="splash-word-mine">Mine</span><span class="splash-word-radio" aria-label="radio">rad<span class="splash-word-i" aria-hidden="true"></span><span class="splash-word-o">o</span></span></div><div class="signal"></div><div class="sub">private visual radio</div><div class="enter">点击进入</div></div>
+    </main>
+    <button class="replay" type="button" id="replay">重新播放</button>
+    <script>
+      const canvas = document.querySelector('#field'); const ctx = canvas.getContext('2d'); let dust = []; let streaks = []; let start = performance.now();
+      function resize() { const dpr = Math.min(devicePixelRatio || 1, 1.5); canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr; canvas.style.width = innerWidth + 'px'; canvas.style.height = innerHeight + 'px'; ctx.setTransform(dpr,0,0,dpr,0,0); dust = Array.from({length:84}, () => ({x:Math.random()*innerWidth,y:Math.random()*innerHeight,r:Math.random()*1.4+.25,a:Math.random()*.35+.08,p:Math.random()*7,vx:(Math.random()-.5)*.18,vy:(Math.random()-.5)*.11})); streaks = Array.from({length:22}, () => ({x:Math.random()*innerWidth,y:innerHeight*(.2+Math.random()*.62),len:innerWidth*(.12+Math.random()*.24),speed:innerWidth*(.00028+Math.random()*.00042),angle:(Math.random()-.5)*.35,a:Math.random()*.35+.18,p:Math.random()*7,c:Math.random()>.5?'122,215,194':'255,83,103'})); }
+      function clamp(v) { return Math.max(0,Math.min(1,v)); } function smooth(a,b,x) { x=clamp((x-a)/(b-a)); return x*x*(3-2*x); }
+      function draw(now) { requestAnimationFrame(draw); const t=(now-start)/1000, w=innerWidth,h=innerHeight; ctx.clearRect(0,0,w,h); const bg=ctx.createLinearGradient(0,0,w,h); bg.addColorStop(0,'rgba(1,6,7,.68)'); bg.addColorStop(1,'rgba(0,0,0,.84)'); ctx.fillStyle=bg;ctx.fillRect(0,0,w,h); ctx.fillStyle='rgba(255,255,255,.035)'; for(let y=-(t*28%36);y<h;y+=36)ctx.fillRect(0,y,w,1);
+        dust.forEach(d=>{d.x+=d.vx;d.y+=d.vy;d.p+=.018;if(d.x<0)d.x=w;if(d.x>w)d.x=0;if(d.y<0)d.y=h;if(d.y>h)d.y=0;ctx.beginPath();ctx.arc(d.x,d.y,d.r,0,7);ctx.fillStyle=`rgba(255,255,255,${d.a*(.58+Math.sin(d.p+t*.8)*.34)})`;ctx.fill();});
+        ctx.save();ctx.globalCompositeOperation='lighter';streaks.forEach(s=>{const fade=smooth(.1,1,t)*(1-smooth(3.52,4.12,t));if(fade<=0)return;const x=((t*s.speed*240+s.x)%(w+s.len+180))-s.len-90;ctx.save();ctx.translate(x,s.y+Math.sin(t*.75+s.p)*18);ctx.rotate(s.angle);const g=ctx.createLinearGradient(-s.len/2,0,s.len/2,0);g.addColorStop(0,`rgba(${s.c},0)`);g.addColorStop(.52,`rgba(${s.c},${s.a*fade})`);g.addColorStop(1,`rgba(${s.c},0)`);ctx.strokeStyle=g;ctx.lineWidth=1.5;ctx.shadowColor=`rgba(${s.c},.34)`;ctx.shadowBlur=18;ctx.beginPath();ctx.moveTo(-s.len/2,0);ctx.lineTo(s.len/2,0);ctx.stroke();ctx.restore();});ctx.restore(); }
+      function replay(){ start=performance.now(); const content=document.querySelector('.content'); content.style.display='none'; requestAnimationFrame(()=>{content.style.display='flex';}); }
+      addEventListener('resize',resize); document.querySelector('#replay').addEventListener('click',replay); resize(); requestAnimationFrame(draw);
+    </script>
+  </body>
+</html>

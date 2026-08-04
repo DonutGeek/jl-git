@@ -38,7 +38,7 @@ import {
   normalizeWorkspaceColor,
   WORKSPACE_COLOR_PRESETS,
 } from "@/utils/workspaceColor";
-import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
+import { useContextMenuOpen, withContextMenuHighlight } from "@/utils/contextMenuHighlight";
 import { deferUi } from "@/utils/deferUi";
 
 interface WorkspaceGroupContextMenuProps {
@@ -56,7 +56,7 @@ export function WorkspaceGroupContextMenu({
   const { t } = useTranslation();
   const updateWorkspace = useProjectStore((state) => state.updateWorkspace);
   const removeWorkspace = useProjectStore((state) => state.removeWorkspace);
-  const { onOpenChange } = useContextMenuOpen();
+  const { menuOpen, onOpenChange } = useContextMenuOpen();
   const [colorOpen, setColorOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -118,7 +118,9 @@ export function WorkspaceGroupContextMenu({
   return (
     <>
       <ContextMenu onOpenChange={onOpenChange}>
-        <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+        <ContextMenuTrigger asChild>
+          {withContextMenuHighlight(children, menuOpen)}
+        </ContextMenuTrigger>
         <ContextMenuContent className="w-48">
           <ContextMenuItem
             disabled={busy}

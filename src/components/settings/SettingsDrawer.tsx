@@ -2058,11 +2058,6 @@ export function SettingsDrawer() {
                     title={t("settings.sectionShortcuts")}
                     tip={t("settings.sectionShortcutsHint")}
                     tipAria={t("settings.sectionShortcutsTipAria")}
-                    action={
-                      <Badge variant="secondary" className="text-[10px]">
-                        {t("settings.shortcutsPreviewBadge")}
-                      </Badge>
-                    }
                   >
                     <SettingsShortcutsPanel />
                   </SettingsSection>

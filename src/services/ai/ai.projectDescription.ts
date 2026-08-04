@@ -13,7 +13,7 @@ const AI_REQUEST_TIMEOUT_MS = 30_000;
 const MAX_DESCRIPTION_CHARS = 800;
 
 /**
- * 根据仓库 README / 清单生成项目简介（2～4 句）。
+ * 根据项目入口、业务逻辑与依赖清单生成项目简介（2～4 句）。
  */
 export async function generateProjectDescription(
   repoPath: string,
@@ -31,12 +31,22 @@ export async function generateProjectDescription(
 
   const userContent = [
     `目录名：${snapshot.folderName}`,
+    snapshot.structure.length > 0
+      ? [
+          "### 项目目录结构（已忽略依赖、构建产物与隐藏文件）",
+          "```text",
+          ...snapshot.structure,
+          "```",
+        ].join("\n")
+      : null,
     ...snapshot.files.map((file) => {
       const body = redactSecrets(file.content);
       const note = file.truncated ? "（内容已截断）" : "";
       return [`### ${file.name}${note}`, "```", body, "```"].join("\n");
     }),
-  ].join("\n\n");
+  ]
+    .filter((section): section is string => section !== null)
+    .join("\n\n");
 
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);

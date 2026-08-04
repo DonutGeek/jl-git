@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 
 import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { EmptyState } from "@/components/common/EmptyState";
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
 import { ChangeFileContextMenu } from "@/components/git/ChangeFileContextMenu";
@@ -34,6 +35,7 @@ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -1065,6 +1067,9 @@ export function ChangesPanel() {
         <AppAlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("repo.discardAllChangesTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("repo.discardAllChangesDescription")}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy}>{t("common.cancel")}</AlertDialogCancel>
@@ -1076,7 +1081,9 @@ export function ChangesPanel() {
                 void handleDiscardAll();
               }}
             >
-              {busy ? t("common.loading") : t("repo.discardAllChanges")}
+              <ButtonLoadingContent loading={busy} loadingLabel={t("common.loading")}>
+                {t("repo.discardAllChanges")}
+              </ButtonLoadingContent>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AppAlertDialogContent>

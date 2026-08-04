@@ -2,18 +2,19 @@ import { cloneElement, useState, type ReactElement } from "react";
 
 import { cn } from "@/lib/utils";
 
-/** 列表项右键打开时的默认高亮（对齐常见选中态） */
-export const CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS = "bg-accent text-accent-foreground";
+/** 列表项右键打开时的目标高亮；与选中态背景区分。 */
+export const CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS =
+  "bg-muted/80 text-foreground ring-primary/35 ring-1 ring-inset";
 
 /**
- * 右键锚点用悬停态（不抢选中态）。
- * 变更列表等：右键 B 时 B 显示 hover，A 保持选中。
+ * 右键锚点用弱强调态，不抢选中态。
+ * 变更列表等：右键 B 时 B 显示目标边框，A 保持选中背景。
  */
-export const CONTEXT_MENU_ITEM_HOVER_HIGHLIGHT_CLASS = "bg-accent/60";
+export const CONTEXT_MENU_ITEM_HOVER_HIGHLIGHT_CLASS = CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS;
 
 /** 历史提交行：高亮在 li > button 上（与选中态 primary/15 对齐） */
 export const CONTEXT_MENU_HISTORY_HIGHLIGHT_CLASS =
-  "[&>button]:bg-primary/15 [&>button]:text-foreground";
+  "[&>button]:bg-muted/80 [&>button]:text-foreground [&>button]:ring-primary/35 [&>button]:ring-1 [&>button]:ring-inset";
 
 /**
  * 跟踪 ContextMenu 开关；打开时可选回调（如选中该行）。

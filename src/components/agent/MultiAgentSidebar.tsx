@@ -44,7 +44,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 
 import type { AgentConversation } from "@/types/ai";
-import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
+import {
+  CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS,
+  useContextMenuOpen,
+} from "@/utils/contextMenuHighlight";
 
 interface MultiAgentSidebarProps {
   conversations: readonly AgentConversation[];
@@ -133,9 +136,7 @@ function SortableConversationRow({
     id: conversation.id,
   });
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
-  const { menuOpen: contextMenuOpen, onOpenChange: onContextMenuOpenChange } = useContextMenuOpen(
-    () => onSelect(conversation.id),
-  );
+  const { menuOpen: contextMenuOpen, onOpenChange: onContextMenuOpenChange } = useContextMenuOpen();
 
   return (
     <ContextMenu onOpenChange={onContextMenuOpenChange}>
@@ -145,9 +146,8 @@ function SortableConversationRow({
           className={cn(
             // min-w-0：否则 flex 子项按内容撑开，标题 truncate 不生效
             "group/row flex min-w-0 items-center gap-0.5 rounded-md pr-0.5 transition-colors",
-            isActive || contextMenuOpen
-              ? "bg-muted text-foreground"
-              : "hover:bg-accent hover:text-foreground",
+            isActive ? "bg-muted text-foreground" : "hover:bg-accent hover:text-foreground",
+            contextMenuOpen && CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS,
             isDragging && "opacity-40",
           )}
           style={{ transform: CSS.Transform.toString(transform), transition }}
@@ -157,7 +157,7 @@ function SortableConversationRow({
           <ConversationRowChrome
             conversation={conversation}
             label={label}
-            isActive={isActive || contextMenuOpen}
+            isActive={isActive}
             onSelect={onSelect}
           />
           <DropdownMenu open={overflowMenuOpen} onOpenChange={setOverflowMenuOpen}>

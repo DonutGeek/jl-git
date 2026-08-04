@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
@@ -15,6 +15,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
+import { useShortcutAction } from "@/hooks/useShortcutAction";
 import { cn } from "@/lib/utils";
 
 import { generateCommitMessage, toastAiFailure } from "@/services/ai";
@@ -383,6 +384,14 @@ export function CommitBox({ loadingShell = false }: CommitBoxProps) {
       setCommittingRepoPaths((current) => updateRepoTaskPaths(current, originRepoPath, false));
     }
   }
+
+  const handleCommitShortcut = useCallback((): void => {
+    if (!working && stagedCount > 0) {
+      void handleCommit();
+    }
+  }, [handleCommit, stagedCount, working]);
+
+  useShortcutAction("commit", handleCommitShortcut, !loadingShell);
 
   async function handleUndo(): Promise<void> {
     if (working) {

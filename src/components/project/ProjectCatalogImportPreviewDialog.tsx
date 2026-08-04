@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { TruncateStartPath } from "@/components/common/TruncateStartPath";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -221,7 +222,9 @@ export function ProjectCatalogImportPreviewDialog({
             disabled={running || (counts.create === 0 && counts.update === 0)}
             onClick={() => void handleConfirm()}
           >
-            {running ? t("common.loading") : t("projectManager.catalogImportConfirm")}
+            <ButtonLoadingContent loading={running} loadingLabel={t("common.loading")}>
+              {t("projectManager.catalogImportConfirm")}
+            </ButtonLoadingContent>
           </Button>
         </DialogFooter>
       </DialogContent>

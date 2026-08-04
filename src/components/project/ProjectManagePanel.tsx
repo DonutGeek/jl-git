@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { ProjectManageDetailDrawer } from "@/components/project/ProjectManageDetailDrawer";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { ProjectManageFilterForm } from "@/components/project/ProjectManageFilterForm";
 import { ProjectManageTable } from "@/components/project/ProjectManageTable";
 import { ProjectManageToolbar } from "@/components/project/ProjectManageToolbar";
@@ -261,7 +262,9 @@ export function ProjectManagePanel({
                 void handleDelete();
               }}
             >
-              {deleting ? t("common.loading") : t("projectManager.deleteProject")}
+              <ButtonLoadingContent loading={deleting} loadingLabel={t("common.loading")}>
+                {t("projectManager.deleteProject")}
+              </ButtonLoadingContent>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AppAlertDialogContent>

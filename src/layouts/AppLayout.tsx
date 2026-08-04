@@ -1,9 +1,11 @@
-import { lazy, Suspense, useEffect, useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { RepoTabBar } from "@/components/layout/RepoTabBar";
 import { StatusBar } from "@/components/layout/StatusBar";
 import { WorkspaceHost } from "@/components/layout/WorkspaceHost";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useShortcutAction } from "@/hooks/useShortcutAction";
 import {
   listenOpenProjectInMain,
   listenProjectsChanged,
@@ -71,10 +73,25 @@ function SettingsDrawerHost() {
 /** 标签栏 + 工作区保活宿主常驻，子路由只负责改 URL */
 export function AppLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const openNewTab = useOpenTabsStore((state) => state.openNewTab);
   const openRepositoryTab = useOpenTabsStore((state) => state.openRepositoryTab);
   const loadProjects = useProjectStore((state) => state.loadProjects);
   const loadRecent = useProjectStore((state) => state.loadRecent);
   const loadWorkspaces = useProjectStore((state) => state.loadWorkspaces);
+  const openSettingsDrawer = useSettingsDrawerStore((state) => state.openDrawer);
+
+  const handleNewTab = useCallback((): void => {
+    const tabId = openNewTab();
+    navigate(`/tab/${tabId}`);
+  }, [navigate, openNewTab]);
+  const handleOpenSettings = useCallback((): void => {
+    openSettingsDrawer();
+  }, [openSettingsDrawer]);
+
+  useShortcutAction("newTab", handleNewTab);
+  useShortcutAction("openSettings", handleOpenSettings);
+  useKeyboardShortcuts({ repositoryActive: location.pathname.startsWith("/repo/") });
 
   useEffect(() => {
     let cancelled = false;

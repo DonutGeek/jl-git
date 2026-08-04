@@ -148,9 +148,9 @@ interface AppError {
 
 | | |
 |--|--|
-| **目的** | 读取仓库根 README* 与常见清单（`package.json` / `Cargo.toml` / `pyproject.toml` / `go.mod` / `composer.json`）文本快照，供 AI 生成项目简介 |
+| **目的** | 读取项目入口、路由/页面、功能模块、服务与后端命令等实际代码逻辑（按优先级至多 12 个文件），并补充受限目录结构、README 与依赖清单，供 AI 归纳项目详情；跳过依赖、构建产物、隐藏与 `.env*` 文件 |
 | **输入** | `{ path: string }` |
-| **输出** | `{ folderName: string; files: { name: string; content: string; truncated: boolean }[] }` |
+| **输出** | `{ folderName: string; structure: string[]; files: { name: string; content: string; truncated: boolean }[] }` |
 | **错误** | `INVALID_PATH` `NOT_A_REPO` `IO_ERROR` |
 
 ### `workspace_list` / `workspace_create` / `workspace_update` / `workspace_delete`

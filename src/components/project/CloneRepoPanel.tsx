@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { LucideIconPicker } from "@/components/common/LucideIconPicker";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { CloneProjectDetailDialog } from "@/components/project/CloneProjectDetailDialog";
 import { lucideIconPickerI18n } from "@/components/project/lucideIconPickerI18n";
 import { ExistingRemoteCloneDialog } from "@/components/project/ProjectUniquenessDialogs";
@@ -303,7 +304,9 @@ export function CloneRepoPanel({ onOpenProject, disabled = false }: CloneRepoPan
 
           <div className="flex items-center gap-2">
             <Button type="submit" disabled={!canSubmit}>
-              {cloning ? t("cloneRepo.cloning") : t("cloneRepo.submitButton")}
+              <ButtonLoadingContent loading={cloning} loadingLabel={t("cloneRepo.cloning")}>
+                {t("cloneRepo.submitButton")}
+              </ButtonLoadingContent>
             </Button>
             <Button
               type="button"

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { TreeSelect } from "@/components/common/TreeSelect";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { LucideIconPicker } from "@/components/common/LucideIconPicker";
 import { AppDialogContent } from "@/components/common/AppDialogContent";
 import { lucideIconPickerI18n } from "@/components/project/lucideIconPickerI18n";
@@ -274,11 +275,9 @@ export function WorkspaceGroupDialog(props: WorkspaceGroupDialogProps) {
               {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={!name.trim() || saving}>
-              {saving
-                ? t("common.loading")
-                : mode === "edit"
-                  ? t("projectManager.saveGroup")
-                  : t("projectManager.createGroup")}
+              <ButtonLoadingContent loading={saving} loadingLabel={t("common.loading")}>
+                {mode === "edit" ? t("projectManager.saveGroup") : t("projectManager.createGroup")}
+              </ButtonLoadingContent>
             </Button>
           </DialogFooter>
         </form>

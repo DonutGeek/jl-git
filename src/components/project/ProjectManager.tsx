@@ -36,6 +36,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 
 import { HighlightText } from "@/components/common/HighlightText";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { LucideIconPicker } from "@/components/common/LucideIconPicker";
 import { CloneRepoPanel } from "@/components/project/CloneRepoPanel";
 import { ProjectContextMenu } from "@/components/project/ProjectContextMenu";
@@ -943,7 +944,9 @@ export function ProjectManager({
 
               <div className="flex items-center gap-2">
                 <Button type="submit" disabled={!path.trim() || opening || descriptionGenerating}>
-                  {opening ? t("common.loading") : t("openRepo.submitButton")}
+                  <ButtonLoadingContent loading={opening} loadingLabel={t("common.loading")}>
+                    {t("openRepo.submitButton")}
+                  </ButtonLoadingContent>
                 </Button>
                 <Button
                   type="button"
@@ -1171,7 +1174,9 @@ export function ProjectManager({
                     disabled={deleteBusy}
                     onClick={() => void confirmDeleteGroup()}
                   >
-                    {deleteBusy ? t("common.loading") : t("projectManager.deleteGroupAction")}
+                    <ButtonLoadingContent loading={deleteBusy} loadingLabel={t("common.loading")}>
+                      {t("projectManager.deleteGroupAction")}
+                    </ButtonLoadingContent>
                   </Button>
                 </DialogFooter>
               </AppDialogContent>

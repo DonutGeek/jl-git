@@ -24,7 +24,10 @@ import { cn } from "@/lib/utils";
 
 import type { GitBranch } from "@/types/git";
 import type { BranchTreeNode } from "@/utils/branchTree";
-import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
+import {
+  CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS,
+  useContextMenuOpen,
+} from "@/utils/contextMenuHighlight";
 import { withSoftWrapOpportunities } from "@/utils/softWrapText";
 
 export type { BranchContextActions };
@@ -335,9 +338,10 @@ export function BranchLeaf({
                 "h-7 w-full min-w-0 justify-start gap-1 overflow-hidden rounded-md px-1.5 text-left text-xs transition-colors [&_svg]:size-3",
                 isCurrent
                   ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
-                  : selected || menuOpen
+                  : selected
                     ? "bg-accent text-foreground hover:bg-accent"
                     : "text-foreground",
+                menuOpen && CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS,
                 isBusy && "cursor-wait",
               )}
               onClick={() => {

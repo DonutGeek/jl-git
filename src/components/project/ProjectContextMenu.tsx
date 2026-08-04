@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { ProjectSettingsDialog } from "@/components/project/ProjectSettingsDialog";
 import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
 import {
@@ -250,7 +251,9 @@ export function ProjectContextMenu({
                 void handleDelete();
               }}
             >
-              {deleting ? t("common.loading") : t("projectManager.deleteProject")}
+              <ButtonLoadingContent loading={deleting} loadingLabel={t("common.loading")}>
+                {t("projectManager.deleteProject")}
+              </ButtonLoadingContent>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AppAlertDialogContent>

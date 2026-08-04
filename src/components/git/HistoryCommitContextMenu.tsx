@@ -4,6 +4,7 @@ import { Copy, FileDown, Hash, PencilLine, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppAlertDialogContent, AppDialogContent } from "@/components/common/AppDialogContent";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
 import {
   AlertDialog,
@@ -335,7 +336,9 @@ export function HistoryCommitContextMenu({
               disabled={loadingMessage || saving || isGenerating || !message.trim()}
               onClick={() => void handleSaveEdit()}
             >
-              {saving ? t("common.loading") : t("repo.amendMessageSave")}
+              <ButtonLoadingContent loading={saving} loadingLabel={t("common.loading")}>
+                {t("repo.amendMessageSave")}
+              </ButtonLoadingContent>
             </Button>
           </DialogFooter>
         </AppDialogContent>

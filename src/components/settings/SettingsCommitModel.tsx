@@ -17,11 +17,11 @@ import {
 
 interface SettingsCommitModelProps {
   hasEnabledKey: boolean;
-  /** 进入鲸灵分类或 Key 变更后触发重新拉取官方模型列表 */
+  /** 进入鲸灵分类或 Key 变更后刷新可用模型 */
   refreshToken: string;
 }
 
-/** 设置 → 鲸灵：生成提交信息所用模型（列表来自官方 GET /models） */
+/** 设置 → 鲸灵：配置生成提交信息所用模型。 */
 export function SettingsCommitModel({ hasEnabledKey, refreshToken }: SettingsCommitModelProps) {
   const { t } = useTranslation();
   const [models, setModels] = useState<DeepSeekModelInfo[]>([]);
@@ -74,7 +74,7 @@ export function SettingsCommitModel({ hasEnabledKey, refreshToken }: SettingsCom
     label: formatDeepSeekModelLabel(model.id),
     shortLabel: formatDeepSeekModelShortLabel(model.id),
   }));
-  // 无官方列表时仍展示已选/默认，避免 Select 空 value
+  // 暂无可用模型时仍展示已选/默认值，避免 Select 空 value。
   const displayOptions =
     options.length > 0
       ? options

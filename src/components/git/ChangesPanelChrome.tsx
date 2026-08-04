@@ -26,6 +26,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 
 import { resolveChangesToolbarLeadingControl } from "@/utils/changesToolbarLayout";
+import { useContextMenuOpen, withContextMenuHighlight } from "@/utils/contextMenuHighlight";
 
 export type ChangesViewMode = "list" | "tree";
 export type ChangeSortMode = "default" | "status" | "name";
@@ -78,6 +79,7 @@ export function ChangeGroupChrome({
   contextMenu,
   children,
 }: ChangeGroupChromeProps) {
+  const { menuOpen, onOpenChange } = useContextMenuOpen();
   const header = (
     <div className="group/header hover:bg-accent/60 flex h-7 items-center justify-between gap-1 rounded-md px-2 transition-colors">
       <div className="flex min-w-0 flex-1 items-center">
@@ -115,8 +117,10 @@ export function ChangeGroupChrome({
     <section className="flex h-full min-h-0 flex-col overflow-hidden py-1">
       <div className="shrink-0 px-2">
         {contextMenu ? (
-          <ContextMenu>
-            <ContextMenuTrigger asChild>{header}</ContextMenuTrigger>
+          <ContextMenu onOpenChange={onOpenChange}>
+            <ContextMenuTrigger asChild>
+              {withContextMenuHighlight(header, menuOpen)}
+            </ContextMenuTrigger>
             <ContextMenuContent className="min-w-48">{contextMenu}</ContextMenuContent>
           </ContextMenu>
         ) : (

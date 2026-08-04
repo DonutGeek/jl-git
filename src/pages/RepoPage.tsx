@@ -1,4 +1,12 @@
-import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -17,6 +25,7 @@ import { ResizableSplit } from "@/components/layout/ResizableSplit";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useHasAgentApiKey } from "@/hooks/useHasAgentApiKey";
+import { useShortcutAction } from "@/hooks/useShortcutAction";
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as CSSProperties;
@@ -201,6 +210,14 @@ export function RepoPage({ projectId, active }: RepoPageProps) {
         readyRepoPath,
       })
     : !error;
+
+  const openWorkspace = useCallback((): void => setMainView("workspace"), []);
+  const openChanges = useCallback((): void => setMainView("changes"), []);
+  const openHistory = useCallback((): void => setMainView("history"), []);
+  const canNavigateWithShortcut = active && Boolean(project) && !bootstrapping;
+  useShortcutAction("workspace", openWorkspace, canNavigateWithShortcut);
+  useShortcutAction("changes", openChanges, canNavigateWithShortcut);
+  useShortcutAction("history", openHistory, canNavigateWithShortcut);
 
   // 无 API Key 时不可停留在鲸灵侧栏
   useEffect(() => {

@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { AppAlertDialogContent, AppDialogContent } from "@/components/common/AppDialogContent";
 import {
   AlertDialog,
@@ -386,7 +387,9 @@ export function FileTreeContextMenu({
                 void handleDelete();
               }}
             >
-              {busy ? t("common.loading") : t("repo.fileTreeDelete")}
+              <ButtonLoadingContent loading={busy} loadingLabel={t("common.loading")}>
+                {t("repo.fileTreeDelete")}
+              </ButtonLoadingContent>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AppAlertDialogContent>

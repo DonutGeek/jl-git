@@ -70,6 +70,12 @@
     text-wrap: pretty !important;
   }
 
+  /* 菜单展开后保留触发器高亮，避免用户失去当前操作目标。 */
+  [data-slot="dropdown-menu-trigger"][data-state="open"],
+  [data-slot="popover-trigger"][data-state="open"] {
+    @apply bg-accent text-accent-foreground;
+  }
+
   code,
   kbd,
   pre,

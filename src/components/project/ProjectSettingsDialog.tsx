@@ -5,6 +5,7 @@ import { FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 
 import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { LucideIconPicker } from "@/components/common/LucideIconPicker";
 import { lucideIconPickerI18n } from "@/components/project/lucideIconPickerI18n";
 import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
@@ -294,7 +295,9 @@ export function ProjectSettingsDialog({ project, open, onOpenChange }: ProjectSe
                 type="submit"
                 disabled={!name.trim() || !path.trim() || saving || descriptionGenerating}
               >
-                {saving ? t("common.loading") : t("projectManager.saveProjectSettings")}
+                <ButtonLoadingContent loading={saving} loadingLabel={t("common.loading")}>
+                  {t("projectManager.saveProjectSettings")}
+                </ButtonLoadingContent>
               </Button>
             </SheetFooter>
           </form>
@@ -332,7 +335,9 @@ export function ProjectSettingsDialog({ project, open, onOpenChange }: ProjectSe
                 }
               }}
             >
-              {saving ? t("common.loading") : t("projectManager.projectPathRemoteMismatchConfirm")}
+              <ButtonLoadingContent loading={saving} loadingLabel={t("common.loading")}>
+                {t("projectManager.projectPathRemoteMismatchConfirm")}
+              </ButtonLoadingContent>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AppAlertDialogContent>

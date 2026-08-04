@@ -46,7 +46,10 @@ import { resolveRepoTabWheelDelta } from "@/components/layout/repoLoadingLayout"
 import { cn } from "@/lib/utils";
 
 import type { AgentConversation } from "@/types/ai";
-import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
+import {
+  CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS,
+  useContextMenuOpen,
+} from "@/utils/contextMenuHighlight";
 
 interface AgentConversationTabsProps {
   conversations: readonly AgentConversation[];
@@ -65,6 +68,7 @@ interface ConversationTabChromeProps {
   conversation: AgentConversation;
   label: string;
   isActive: boolean;
+  contextMenuOpen?: boolean;
   dragging?: boolean;
   canDelete: boolean;
   onSelect: (conversationId: string) => void;
@@ -76,6 +80,7 @@ function ConversationTabChrome({
   conversation,
   label,
   isActive,
+  contextMenuOpen = false,
   dragging = false,
   canDelete,
   onSelect,
@@ -89,6 +94,7 @@ function ConversationTabChrome({
         isActive
           ? "bg-accent text-foreground"
           : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground",
+        contextMenuOpen && CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS,
         dragging && "bg-accent text-foreground",
       )}
     >
@@ -171,7 +177,7 @@ function SortableConversationTab({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: conversation.id,
   });
-  const { menuOpen, onOpenChange } = useContextMenuOpen(() => onSelect(conversation.id));
+  const { menuOpen, onOpenChange } = useContextMenuOpen();
 
   return (
     <ContextMenu onOpenChange={onOpenChange}>
@@ -186,7 +192,8 @@ function SortableConversationTab({
           <ConversationTabChrome
             conversation={conversation}
             label={label}
-            isActive={isActive || menuOpen}
+            isActive={isActive}
+            contextMenuOpen={menuOpen}
             canDelete={canDelete}
             onSelect={onSelect}
             onDelete={onDelete}

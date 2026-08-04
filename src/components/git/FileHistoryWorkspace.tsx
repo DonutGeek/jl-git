@@ -36,6 +36,7 @@ export function FileHistoryWorkspace({ project, filePath, initialRef }: FileHist
   const { t } = useTranslation();
   const [commits, setCommits] = useState<GitCommitSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [contextMenuCommitId, setContextMenuCommitId] = useState<string | null>(null);
   const [diff, setDiff] = useState<GitDiffResult | null>(null);
   const [encoding, setEncoding] = useState(DEFAULT_TEXT_ENCODING);
   const [listError, setListError] = useState<string | null>(null);
@@ -153,7 +154,9 @@ export function FileHistoryWorkspace({ project, filePath, initialRef }: FileHist
                       const active = commit.id === selectedId;
                       return (
                         <li key={commit.id} className="min-w-0">
-                          <ContextMenu onOpenChange={(open) => open && setSelectedId(commit.id)}>
+                          <ContextMenu
+                            onOpenChange={(open) => setContextMenuCommitId(open ? commit.id : null)}
+                          >
                             <ContextMenuTrigger asChild>
                               <button
                                 type="button"
@@ -161,6 +164,8 @@ export function FileHistoryWorkspace({ project, filePath, initialRef }: FileHist
                                 className={cn(
                                   "hover:bg-accent flex w-full min-w-0 flex-col gap-0.5 overflow-hidden rounded-md px-1.5 py-1.5 text-left",
                                   active && "bg-accent",
+                                  contextMenuCommitId === commit.id &&
+                                    "bg-muted/80 text-foreground ring-primary/35 ring-1 ring-inset",
                                 )}
                               >
                                 <p

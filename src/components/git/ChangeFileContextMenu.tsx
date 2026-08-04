@@ -14,6 +14,7 @@ import {
 import { toast } from "sonner";
 
 import { ContextMenuSubTrigger } from "@/components/common/ContextMenuSubTrigger";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { AppAlertDialogContent } from "@/components/common/AppDialogContent";
 import {
   AlertDialog,
@@ -279,7 +280,9 @@ export function ChangeFileContextMenu({
                 void handleDiscard();
               }}
             >
-              {busy ? t("common.loading") : t("repo.discardChanges")}
+              <ButtonLoadingContent loading={busy} loadingLabel={t("common.loading")}>
+                {t("repo.discardChanges")}
+              </ButtonLoadingContent>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AppAlertDialogContent>

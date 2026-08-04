@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -124,7 +125,9 @@ export function ProjectCatalogExportDialog({
             disabled={exporting || summary.projectCount === 0}
             onClick={() => void handleExport()}
           >
-            {exporting ? t("common.loading") : t("projectManager.catalogExportConfirm")}
+            <ButtonLoadingContent loading={exporting} loadingLabel={t("common.loading")}>
+              {t("projectManager.catalogExportConfirm")}
+            </ButtonLoadingContent>
           </Button>
         </DialogFooter>
       </DialogContent>

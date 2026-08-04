@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { LucideIconPicker } from "@/components/common/LucideIconPicker";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { AppDialogContent } from "@/components/common/AppDialogContent";
 import { lucideIconPickerI18n } from "@/components/project/lucideIconPickerI18n";
 import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
@@ -254,7 +255,9 @@ export function OpenRepoDialog({
                 {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={!canSubmit}>
-                {loading ? t("common.loading") : t("openRepo.submitButton")}
+                <ButtonLoadingContent loading={loading} loadingLabel={t("common.loading")}>
+                  {t("openRepo.submitButton")}
+                </ButtonLoadingContent>
               </Button>
             </DialogFooter>
           </form>

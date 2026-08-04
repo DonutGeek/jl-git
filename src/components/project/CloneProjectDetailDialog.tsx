@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { ProjectDescriptionField } from "@/components/project/ProjectDescriptionField";
+import { ButtonLoadingContent } from "@/components/common/ButtonLoadingContent";
 import { Button } from "@/components/ui/button";
 import { AppDialogContent } from "@/components/common/AppDialogContent";
 import {
@@ -129,7 +130,9 @@ export function CloneProjectDetailDialog({
             disabled={saving || generating}
             onClick={() => void handleConfirm()}
           >
-            {saving ? t("common.loading") : t("cloneRepo.detailConfirm")}
+            <ButtonLoadingContent loading={saving} loadingLabel={t("common.loading")}>
+              {t("cloneRepo.detailConfirm")}
+            </ButtonLoadingContent>
           </Button>
         </DialogFooter>
       </AppDialogContent>

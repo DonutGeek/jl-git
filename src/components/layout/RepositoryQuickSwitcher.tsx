@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { FolderOpen, GitBranchPlus, Plus, Search, SearchX } from "lucide-react";
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useShortcutAction } from "@/hooks/useShortcutAction";
 import { cn } from "@/lib/utils";
 import { useOpenTabsStore } from "@/store/useOpenTabsStore";
 import { useProjectStore } from "@/store/useProjectStore";
@@ -81,6 +82,13 @@ export function RepositoryQuickSwitcher({ className }: RepositoryQuickSwitcherPr
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: "search",
   });
+
+  const handleShortcutOpen = useCallback((): void => {
+    setOpen(true);
+    setHighlight(NO_HIGHLIGHT);
+  }, []);
+
+  useShortcutAction("switchRepository", handleShortcutOpen);
 
   function handleNewTab(): void {
     const tabId = openNewTab();

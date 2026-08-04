@@ -59,6 +59,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useBranchContextActions } from "@/hooks/useBranchContextActions";
+import { useShortcutAction } from "@/hooks/useShortcutAction";
 import { useWindowChromeLayout } from "@/hooks/useWindowChromeLayout";
 import { cn } from "@/lib/utils";
 
@@ -74,6 +75,10 @@ import { toUserMessage } from "@/types/error";
 import type { GitBranch } from "@/types/git";
 import type { Project } from "@/types/project";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
+import {
+  CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS,
+  useContextMenuOpen,
+} from "@/utils/contextMenuHighlight";
 import { isPushRejectedError, toastPushError } from "@/utils/gitPushError";
 import { revealInFileManagerLabel as revealInFileManagerLabelForOs } from "@/utils/platformLabels";
 import {
@@ -149,6 +154,8 @@ export function RepoToolbar({
   const [fetching, setFetching] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [pushing, setPushing] = useState(false);
+  const { menuOpen: pushContextMenuOpen, onOpenChange: onPushContextMenuOpenChange } =
+    useContextMenuOpen();
   const [projectFilter, setProjectFilter] = useState("");
   const [density, setDensity] = useState<RepoToolbarDensity>("comfortable");
   const {
@@ -367,6 +374,9 @@ export function RepoToolbar({
       }
     }
   }
+
+  useShortcutAction("pull", handlePull, !loadingShell);
+  useShortcutAction("push", handlePush, !loadingShell);
 
   async function handlePublish(): Promise<void> {
     if (syncBusy || !needsPublish || !status?.branch) {
@@ -1007,7 +1017,7 @@ export function RepoToolbar({
             </Tooltip>
           </ButtonGroup>
         ) : (
-          <ContextMenu>
+          <ContextMenu onOpenChange={onPushContextMenuOpenChange}>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
                 {/* disabled 时包一层，保证仍能显示「无可推送」提示 */}
@@ -1017,7 +1027,11 @@ export function RepoToolbar({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className={cn("h-8 shadow-none", iconOnly ? "gap-1 px-2" : "gap-1.5")}
+                      className={cn(
+                        "h-8 shadow-none",
+                        iconOnly ? "gap-1 px-2" : "gap-1.5",
+                        pushContextMenuOpen && CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS,
+                      )}
                       data-repo-git-control="push"
                       disabled={syncBusy || ahead <= 0}
                       aria-label={t("repo.push")}

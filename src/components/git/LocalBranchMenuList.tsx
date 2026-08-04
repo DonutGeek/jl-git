@@ -14,7 +14,10 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { GitBranch } from "@/types/git";
 import { isLocalBranchPublished } from "@/utils/branchPublish";
-import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
+import {
+  CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS,
+  useContextMenuOpen,
+} from "@/utils/contextMenuHighlight";
 
 interface LocalBranchMenuListProps {
   branches: readonly GitBranch[];
@@ -287,9 +290,9 @@ function BranchMenuItem({
             // 悬停 / 键盘焦点高亮（点选态用更实的 accent）
             "hover:bg-accent/70 hover:text-accent-foreground",
             "focus:bg-accent/70 focus:text-accent-foreground",
-            // 单击高亮 / 右键锚点高亮
-            (isHighlighted || menuOpen) &&
-              "bg-accent text-accent-foreground hover:bg-accent focus:bg-accent",
+            // 单击选中与右键锚点使用不同视觉层级。
+            isHighlighted && "bg-accent text-accent-foreground hover:bg-accent focus:bg-accent",
+            menuOpen && CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS,
           )}
           onSelect={(event) => {
             event.preventDefault();

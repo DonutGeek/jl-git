@@ -44,7 +44,10 @@ import { useRepoStore } from "@/store/useRepoStore";
 import { toUserMessage } from "@/types/error";
 import type { GitRemoteTag, GitTag } from "@/types/git";
 import { copyToClipboard } from "@/utils/clipboard";
-import { useContextMenuOpen } from "@/utils/contextMenuHighlight";
+import {
+  CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS,
+  useContextMenuOpen,
+} from "@/utils/contextMenuHighlight";
 import { deferUi } from "@/utils/deferUi";
 import {
   filterAndSortTags,
@@ -631,9 +634,8 @@ function TagRow({
               variant="ghost"
               className={cn(
                 "h-7 w-full min-w-0 justify-start gap-1 overflow-hidden rounded-md px-1.5 text-left text-xs transition-colors [&_svg]:size-3",
-                selected || menuOpen
-                  ? "bg-accent text-foreground hover:bg-accent"
-                  : "text-foreground",
+                selected ? "bg-accent text-foreground hover:bg-accent" : "text-foreground",
+                menuOpen && CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS,
                 busy && "cursor-wait",
               )}
               disabled={busy}
@@ -734,7 +736,7 @@ function RemoteTagRow({ tag, busy, onFetch, onCopyName, onDeleteRemote }: Remote
               className={cn(
                 "text-muted-foreground h-7 w-full min-w-0 justify-start gap-1 overflow-hidden rounded-md px-1.5 text-left text-xs transition-colors [&_svg]:size-3",
                 "hover:text-foreground",
-                menuOpen && "bg-accent text-foreground",
+                menuOpen && CONTEXT_MENU_ITEM_HIGHLIGHT_CLASS,
                 busy && "cursor-wait",
               )}
               disabled={busy}
