@@ -155,13 +155,11 @@ export function BranchList() {
     }
     setCheckingOutName(branch.name);
     setSelectedName(branch.name);
-    const toastId = toast.loading(t("repo.checkoutStart", { branch: branch.name }));
 
     try {
       await checkout(branch.name);
-      toast.dismiss(toastId);
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toast.error(toUserMessage(error));
     } finally {
       if (useRepoStore.getState().repoPath === originRepoPath) {
         setCheckingOutName(null);
@@ -179,12 +177,10 @@ export function BranchList() {
       return;
     }
     setRefreshing(true);
-    const toastId = toast.loading(t("repo.refreshStart"));
     try {
       await refreshBranches();
-      toast.success(t("repo.refreshSuccess"), { id: toastId });
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toast.error(toUserMessage(error));
     } finally {
       if (useRepoStore.getState().repoPath === originRepoPath) {
         setRefreshing(false);

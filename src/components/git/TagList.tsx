@@ -225,13 +225,11 @@ export function TagList({ onSelectTag }: TagListProps) {
   }
 
   async function refresh(): Promise<void> {
-    const toastId = toast.loading(t("repo.refreshStart"));
     try {
-      // 本地必成功；远端联网失败不应影响提示
+      // 本地必成功；远端联网失败不应影响列表刷新结果
       await Promise.all([refreshTags(), refreshRemoteTags()]);
-      toast.success(t("repo.tagRefreshSuccess"), { id: toastId });
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toast.error(toUserMessage(error));
     }
   }
 
@@ -295,15 +293,13 @@ export function TagList({ onSelectTag }: TagListProps) {
       return;
     }
     setBusyName(name);
-    const toastId = toast.loading(t("repo.pushTagStart", { name }));
     try {
       await pushTag(name);
       if (useRepoStore.getState().repoPath === originRepoPath) {
         void refreshRemoteTags();
       }
-      toast.dismiss(toastId);
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toast.error(toUserMessage(error));
     } finally {
       if (useRepoStore.getState().repoPath === originRepoPath) {
         setBusyName(null);
@@ -317,15 +313,13 @@ export function TagList({ onSelectTag }: TagListProps) {
       return;
     }
     setBusyName(name);
-    const toastId = toast.loading(t("repo.fetchTagStart", { name }));
     try {
       await fetchRemoteTag(name);
       if (useRepoStore.getState().repoPath === originRepoPath) {
         void refreshRemoteTags();
       }
-      toast.success(t("repo.fetchTagSuccess", { name }), { id: toastId });
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toast.error(toUserMessage(error));
     } finally {
       if (useRepoStore.getState().repoPath === originRepoPath) {
         setBusyName(null);
@@ -348,12 +342,10 @@ export function TagList({ onSelectTag }: TagListProps) {
       return;
     }
     setBusyName(name);
-    const toastId = toast.loading(t("repo.checkoutTagStart", { name }));
     try {
       await checkout(`tags/${name}`);
-      toast.dismiss(toastId);
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toast.error(toUserMessage(error));
     } finally {
       if (useRepoStore.getState().repoPath === originRepoPath) {
         setBusyName(null);

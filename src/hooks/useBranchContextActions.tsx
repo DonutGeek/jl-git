@@ -107,12 +107,11 @@ export function useBranchContextActions(
     if (!originRepoPath) {
       return;
     }
-    const toastId = toast.loading(t("repo.checkoutStart", { branch: branch.name }));
+    // 切分支：工具栏/列表已有忙态，成功不弹 toast，避免挡住顶栏按钮
     try {
       await checkout(branch.name);
-      toast.dismiss(toastId);
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toast.error(toUserMessage(error));
     }
   }
 
@@ -120,22 +119,17 @@ export function useBranchContextActions(
     if (!guardWriteOp()) {
       return;
     }
-    const toastId = toast.loading(t("repo.pullStart"));
+    // 更新：成功静默；仅冲突/失败提示
     try {
       const result = await pullRemote({
         remote: "origin",
         branch: branch.name,
       });
-      const seconds = (result.elapsedMs / 1000).toFixed(3);
       if (result.conflict) {
-        toast.error(t("repo.pullConflict"), { id: toastId });
-      } else {
-        toast.success(t("repo.pullSuccess", { remote: result.remote, seconds }), {
-          id: toastId,
-        });
+        toast.error(t("repo.pullConflict"));
       }
     } catch (error) {
-      toast.error(toUserMessage(error), { id: toastId });
+      toast.error(toUserMessage(error));
     }
   }
 
@@ -167,14 +161,12 @@ export function useBranchContextActions(
       return;
     }
     try {
-      const result = await pushRemote({
+      await pushRemote({
         repoPath: originPath,
         remote: "origin",
         branch: branch.name,
         setUpstream: true,
       });
-      const seconds = (result.elapsedMs / 1000).toFixed(3);
-      toast.success(t("repo.publishSuccess", { remote: result.remote, seconds }));
     } catch (error) {
       const stillOnOrigin = useRepoStore.getState().repoPath === originPath;
       toastPushError(error, {

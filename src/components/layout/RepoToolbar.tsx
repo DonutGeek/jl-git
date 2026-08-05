@@ -208,12 +208,12 @@ export function RepoToolbar({
     setBranchMenuOpen(false);
   }, [project.path]);
 
-  // 同步进行中关闭分支菜单，避免禁用后菜单仍挂着
+  // 仅在真正占用写锁的同步中关闭分支菜单；勿因推送后的刷新 loading 误关下拉
   useEffect(() => {
-    if (fetching || pulling || pushing || loading) {
+    if (fetching || pulling || pushing || checkingOut) {
       setBranchMenuOpen(false);
     }
-  }, [fetching, pulling, pushing, loading]);
+  }, [fetching, pulling, pushing, checkingOut]);
 
   const changeCount = useMemo(() => {
     return status?.entries.length ?? 0;
@@ -243,9 +243,13 @@ export function RepoToolbar({
     }
     return !isLocalBranchPublished(current, branches);
   }, [branches, localBranches, status?.branch, status?.detached, status?.upstream]);
+  /** 同步按钮：含仓库全局 loading（推送后刷新 status 等） */
   const syncBusy = fetching || pulling || pushing || loading;
-  /** 推送/拉取等同步中只禁用分支切换，勿用 Spinner 冒充加载 */
-  const branchSwitchLocked = checkingOut || syncBusy;
+  /**
+   * 分支切换只在 checkout / push / pull 进行中锁定。
+   * 不把全局 loading、fetch 算进来，避免「刚推送完还要等刷新才能切分支」。
+   */
+  const branchSwitchLocked = checkingOut || pushing || pulling;
 
   const branchLabel = status?.detached
     ? t("repo.detached")
@@ -385,14 +389,12 @@ export function RepoToolbar({
     const originBranch = status.branch;
     setPushing(true);
     try {
-      const result = await pushRemote({
+      await pushRemote({
         repoPath: originPath,
         remote: "origin",
         branch: originBranch,
         setUpstream: true,
       });
-      const seconds = (result.elapsedMs / 1000).toFixed(1);
-      toast.success(t("repo.publishSuccess", { remote: result.remote, seconds }));
     } catch (error) {
       const stillOnOrigin = useRepoStore.getState().repoPath === originPath;
       toastPushError(error, {

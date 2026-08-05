@@ -173,12 +173,10 @@ export function FileTree({ repoPath }: FileTreeProps) {
       return;
     }
     setRefreshing(true);
-    const toastId = toast.loading(t("repo.refreshStart"));
     try {
       await loadRoot();
-      toast.success(t("repo.refreshSuccess"), { id: toastId });
     } catch (refreshError) {
-      toast.error(toUserMessage(refreshError), { id: toastId });
+      toast.error(toUserMessage(refreshError));
     } finally {
       setRefreshing(false);
     }

@@ -28,13 +28,13 @@ function AppContent() {
       <App />
       <Toaster
         containerAriaLabel={t("common.notifications")}
-        position="top-center"
+        // 右下角，避免挡住顶栏标签与工具栏按钮
+        position="bottom-right"
         richColors
         theme={theme}
         // 成功提示尽量短；错误仍用默认时长便于阅读
         duration={2500}
-        // 避开 macOS 标题栏 / 顶栏标签，略向下偏移
-        offset={{ top: 48 }}
+        offset={16}
       />
     </>
   );

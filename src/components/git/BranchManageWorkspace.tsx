@@ -158,7 +158,6 @@ export function BranchManageWorkspace({ project }: BranchManageWorkspaceProps) {
     setRefreshing(true);
     try {
       await loadBranches();
-      toast.success(t("branchManage.refreshSuccess"));
     } catch (reason: unknown) {
       toast.error(toUserMessage(reason) || t("branchManage.refreshFailed"));
     } finally {
