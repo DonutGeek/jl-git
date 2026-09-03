@@ -1,23 +1,25 @@
-import i18next from "i18next";
-import { initReactI18next } from "react-i18next";
+import { i18n } from "@/locales/instance";
 
-import en from "./locales/en";
-import zhCN from "./locales/zh-CN";
+import type { AppLocale } from "@/i18n/locale";
 
-i18next.use(initReactI18next).init({
-  resources: {
-    "zh-CN": {
-      translation: zhCN,
-    },
-    en: {
-      translation: en,
-    },
+type TranslateOptions = Record<string, unknown>;
+
+function translate(key: string, options?: TranslateOptions): string {
+  const locale = typeof options?.lng === "string" ? options.lng : undefined;
+  const params: TranslateOptions = { ...options };
+  delete params.lng;
+  if (locale) {
+    return String(i18n.global.t(key, params, locale));
+  }
+  return String(i18n.global.t(key, params));
+}
+
+/** 服务层兼容门面：`t` / `changeLanguage` 对齐旧 i18next 调用点 */
+const i18nFacade = {
+  t: translate,
+  changeLanguage(locale: string): void {
+    i18n.global.locale.value = locale as AppLocale;
   },
-  lng: "zh-CN",
-  fallbackLng: "zh-CN",
-  interpolation: {
-    escapeValue: false,
-  },
-});
+};
 
-export default i18next;
+export default i18nFacade;

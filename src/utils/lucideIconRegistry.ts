@@ -1,10 +1,34 @@
-import { iconNames } from "lucide-react/dynamic";
+import * as LucideIcons from "lucide";
 
-const ICON_NAME_SET = new Set<string>(iconNames);
+function toKebabCase(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+    .toLowerCase();
+}
+
+function isIconExport(name: string, value: unknown): boolean {
+  if (name === "createLucideIcon" || name === "Icon" || name === "icons" || name === "default") {
+    return false;
+  }
+  if (name.startsWith("Lucide")) {
+    return false;
+  }
+  if (!/^[A-Z]/.test(name)) {
+    return false;
+  }
+  return Array.isArray(value);
+}
+
+const ICON_NAME_SET = new Set(
+  Object.entries(LucideIcons)
+    .filter(([name, value]) => isIconExport(name, value))
+    .map(([name]) => toKebabCase(name)),
+);
 
 /** 排序后的 Lucide kebab-case 名称（模块级只算一次） */
-export const LUCIDE_ICON_NAMES: readonly string[] = [...iconNames].sort((a, b) =>
-  a.localeCompare(b),
+export const LUCIDE_ICON_NAMES: readonly string[] = [...ICON_NAME_SET].sort((left, right) =>
+  left.localeCompare(right),
 );
 
 const LABEL_CACHE = new Map<string, string>();

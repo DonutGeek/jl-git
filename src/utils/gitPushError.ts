@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { message } from "antdv-next";
 
 import i18n from "@/i18n";
 import { isAppError, toUserMessage } from "@/types/error";
@@ -41,23 +41,16 @@ export function isPushRejectedError(error: unknown): boolean {
 }
 
 interface ToastPushErrorOptions {
-  toastId?: string | number;
-  /** 提供时：拒绝推送场景展示「更新」操作；点击后调用 */
+  /** 提供时：拒绝推送场景引导用户先更新 */
   onUpdate?: () => void;
 }
 
-/** 推送失败 toast：拒绝推送时友好文案 + 可选「更新」动作，其它错误走原文 */
+/** 推送失败提示：拒绝推送时友好文案，其它错误走原文 */
 export function toastPushError(error: unknown, options: ToastPushErrorOptions = {}): void {
   if (isPushRejectedError(error) && options.onUpdate) {
-    toast.error(i18n.t("repo.pushRejected"), {
-      id: options.toastId,
-      action: {
-        label: i18n.t("repo.pull"),
-        onClick: options.onUpdate,
-      },
-    });
+    message.error(i18n.t("repo.pushRejected"));
     return;
   }
 
-  toast.error(toUserMessage(error), { id: options.toastId });
+  message.error(toUserMessage(error));
 }

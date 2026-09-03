@@ -1,3 +1,7 @@
+//! Git CLI 执行与解析。UI 不得直接拼命令；一律经 `commands/git_ops` 入参校验后再到这里。
+//!
+//! 每个子模块对应一类能力（status / diff / log / branch…），返回可序列化结构给前端。
+
 pub mod blame;
 pub mod branch;
 pub mod branch_compare;

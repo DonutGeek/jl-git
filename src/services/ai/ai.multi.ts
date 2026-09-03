@@ -1,6 +1,7 @@
+import { postDeepSeekChatStream } from "@/api/deepseek";
 import { formatJlgitMetaBlock } from "@/services/agent/agent.profile";
 import { getAgentKey } from "@/services/ai/ai.settings";
-import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
+import { mapDeepSeekApiError } from "@/services/ai/ai.httpError";
 import { DEFAULT_AGENT_MODEL } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getAgentSafetyRefusal } from "@/services/ai/ai.safety";
@@ -15,7 +16,6 @@ import { isRecord, type AppError } from "@/types/error";
 import type { AgentChatMessage } from "@/types/ai";
 import type { AgentProjectProfile } from "@/types/agent";
 
-const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
 const REQUEST_TIMEOUT_MS = 150_000;
 const HISTORY_LIMIT = 24;
 const CONTEXT_CHAR_BUDGET = 48_000;
@@ -115,13 +115,10 @@ export async function streamMultiAgentReply({
       return;
     }
 
-    const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
+    const stream = await postDeepSeekChatStream({
+      apiKey,
+      signal: controller.signal,
+      body: {
         model: modelId,
         stream: true,
         // 成稿类技能略高；通用多仓问答更克制
@@ -141,24 +138,15 @@ export async function streamMultiAgentReply({
           },
           ...history,
         ],
-      }),
-      signal: controller.signal,
+      },
     });
 
-    if (!response.ok) {
-      const payload = await readResponseJson(response);
-      throw mapDeepSeekHttpError(response.status, payload, i18n.t("multiAgent.replyFailed"));
-    }
-    if (!response.body) {
-      throw appError("INTERNAL", i18n.t("multiAgent.replyFailed"));
-    }
-
-    await readSseStream(response.body, onDelta, onReasoningDelta);
+    await readSseStream(stream, onDelta, onReasoningDelta);
   } catch (error) {
     if (controller.signal.aborted) {
       throw appError("INTERNAL", i18n.t("multiAgent.replyTimeout"));
     }
-    throw error;
+    throw mapDeepSeekApiError(error, i18n.t("multiAgent.replyFailed"));
   } finally {
     window.clearTimeout(timeoutId);
     signal?.removeEventListener("abort", abortFromCaller);
@@ -441,14 +429,6 @@ async function readSseStream(
         // 忽略残缺 SSE 行
       }
     }
-  }
-}
-
-async function readResponseJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
   }
 }
 

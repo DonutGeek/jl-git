@@ -1,5 +1,5 @@
 import { invokeCommand } from "@/services/invoke";
-import { useAppPrefsStore } from "@/store/useAppPrefsStore";
+import { useAppPrefsStoreWithOut } from "@/store/modules/app";
 
 /** 使用设置中的外部浏览器偏好打开安全的 HTTP(S) 地址。 */
 export async function openExternalUrl(value: string): Promise<void> {
@@ -8,7 +8,7 @@ export async function openExternalUrl(value: string): Promise<void> {
     throw new Error("仅支持打开 HTTP(S) 地址");
   }
 
-  const { externalBrowser, externalBrowserPath } = useAppPrefsStore.getState();
+  const { externalBrowser, externalBrowserPath } = useAppPrefsStoreWithOut();
   const preference = externalBrowser || "auto";
   await invokeCommand<{ ok: boolean }>("system_open_url", {
     url: url.toString(),

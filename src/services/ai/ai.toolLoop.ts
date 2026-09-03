@@ -1,4 +1,5 @@
-import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
+import { postDeepSeekChatStream } from "@/api/deepseek";
+import { mapDeepSeekApiError } from "@/services/ai/ai.httpError";
 import { AGENT_CODE_TOOL_MAX_ROUNDS } from "@/services/agent/agent.codePolicy";
 import {
   buildAgentCodeToolDefinitions,
@@ -8,9 +9,7 @@ import {
   type AgentToolDefinition,
 } from "@/services/ai/ai.tools";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
-import { isRecord, type AppError } from "@/types/error";
-
-const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
+import { isRecord } from "@/types/error";
 
 type ChatRole = "system" | "user" | "assistant" | "tool";
 
@@ -142,25 +141,16 @@ async function requestCompletionStreaming(input: {
     body.tools = input.tools;
   }
 
-  const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${input.apiKey}`,
-    },
-    body: JSON.stringify(body),
-    signal: input.signal,
-  });
-
-  if (!response.ok) {
-    const payload = await readResponseJson(response);
-    throw mapDeepSeekHttpError(response.status, payload, input.failureMessage);
+  try {
+    const stream = await postDeepSeekChatStream({
+      apiKey: input.apiKey,
+      signal: input.signal,
+      body,
+    });
+    return await readToolLoopSseStream(stream, input.onDelta);
+  } catch (error) {
+    throw mapDeepSeekApiError(error, input.failureMessage);
   }
-  if (!response.body) {
-    throw appError("INTERNAL", input.failureMessage);
-  }
-
-  return readToolLoopSseStream(response.body, input.onDelta);
 }
 
 /**
@@ -281,18 +271,6 @@ function finalizeToolCalls(
         arguments: call.arguments || "{}",
       },
     }));
-}
-
-async function readResponseJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-
-function appError(code: AppError["code"], message: string): AppError {
-  return { code, message };
 }
 
 /** 供单测 / 文档：工具启用条件 */

@@ -6,7 +6,7 @@
 
 状态：**已配置**
 
-本文定义 JLGit 前端代码的静态检查、格式化与本地质量门禁。目标是尽早发现 TypeScript、React Hooks、Vite HMR 和格式问题，同时避免自动工具改写 shadcn CLI 管理的生成代码。
+本文定义 JLGit 前端代码的静态检查、格式化与本地质量门禁。目标是尽早发现 TypeScript、Vue、Vite HMR 和格式问题。
 
 本工具链不替代测试、Rust Clippy、安全审计或 CI。提交前请手动运行 `pnpm check`（本仓库不再使用 Husky / lint-staged 本地 Git hooks）。
 
@@ -14,7 +14,7 @@
 
 | 工具 | 状态 | 职责 |
 |---|---|---|
-| ESLint 10 Flat Config | 已安装 | TypeScript、React Hooks 与 Vite HMR 静态检查 |
+| ESLint 10 Flat Config | 已安装 | TypeScript、Vue 与 Vite 静态检查 |
 | typescript-eslint | 已安装 | 基于 TypeScript 类型信息的规则 |
 | Prettier | 已安装 | 前端源码和根配置文件的确定性格式化 |
 | eslint-config-prettier | 已安装 | 关闭与 Prettier 冲突的 ESLint 格式规则 |
@@ -44,7 +44,7 @@ pnpm install --frozen-lockfile
 | `pnpm lint:fix` | 全量执行 ESLint 安全修复 | 是 |
 | `pnpm format` | 按 Prettier 配置格式化允许范围 | 是 |
 | `pnpm format:check` | 检查格式是否一致 | 否 |
-| `pnpm typecheck` | TypeScript `noEmit` 类型检查 | 否 |
+| `pnpm typecheck` | `vue-tsc --noEmit` 类型检查（含 `.vue`） | 否 |
 | `pnpm check` | 依次执行 lint、格式检查和类型检查 | 否 |
 
 ## 5. 提交前检查
@@ -55,16 +55,15 @@ pnpm install --frozen-lockfile
 pnpm check
 ```
 
-## 6. shadcn/ui 生成目录保护
+## 6. 组件库约定
 
-`src/components/ui/**` 是官方 shadcn CLI 管理区，严格禁止手工或自动改写：
+基础控件使用 **antdv-next** 局部导入，不再维护 `src/components/ui/` 生成目录。
 
-- `eslint.config.js` 全局忽略该目录
-- `.prettierignore` 忽略该目录
-- 不允许编辑器保存动作、批量格式化覆盖该目录
-- 组件只能通过 `pnpm dlx shadcn@latest add <component>` 引入或更新
+- 禁止 `app.use()` 全局注册 antdv-next
+- 禁止引入 `ant-design-vue`
+- 领域包装放在 `src/components/` 或 `src/views/*/components/`
 
-需要定制时，在 `src/components/common/` 或各业务域目录创建包装/组合组件。详见 [ui-guidelines](ui-guidelines.md)。
+详见 [ui-guidelines](ui-guidelines.md)。
 
 ## 7. 配置文件
 
@@ -80,7 +79,7 @@ pnpm check
 
 - `pnpm install --frozen-lockfile` 可重复安装
 - `pnpm check` 通过
-- `src/components/ui/**` 不被 ESLint、Prettier 改写
+- Vue 单文件与 TypeScript 均纳入 ESLint / Prettier
 
 ## 9. 官方参考
 

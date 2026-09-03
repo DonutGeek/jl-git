@@ -1,3 +1,5 @@
+//! Git 相关 Command：路径校验后把参数数组交给 `crate::git`，禁止 `shell: true`。
+
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use tauri::AppHandle;

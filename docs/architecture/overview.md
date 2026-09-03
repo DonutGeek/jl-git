@@ -10,7 +10,7 @@
 
 桌面 Git 客户端同时触及：
 
-- 高频 UI 交互（React）
+- 高频 UI 交互（Vue）
 - 系统能力（对话框、通知、FS）
 - 外部进程（`git`）
 - 本地持久化（项目列表、设置、AI 历史）
@@ -20,25 +20,27 @@
 因此采用严格单向依赖：
 
 ```
-React UI
-  → Router / Page
+Vue UI
+  → Router / View
     → Feature / Component
-      → Service（TS）
-        → Tauri Command
-          → Rust 模块
-            → Git CLI / 文件系统 / SQLite
+      ├─ Service（TS）→ Tauri Command → Rust → Git CLI / FS / SQLite
+      └─ api（TS）→ Axios requestClient → 外部 HTTP
 ```
 
 ```mermaid
 flowchart LR
   subgraph frontend [Frontend]
-    P[Pages]
+    P[Views]
     C[Components]
     S[Services]
-    Z[Zustand]
-    P --> C --> S
+    A[api / Axios]
+    Z[Pinia]
+    P --> C
+    C --> S
+    C --> A
     C --> Z
     S --> Z
+    A --> Z
   end
   subgraph bridge [Bridge]
     CMD[Tauri Commands]
@@ -48,10 +50,14 @@ flowchart LR
     FS[Path Guard]
     DB[(SQLite)]
   end
+  subgraph http [External HTTP]
+    NET[AI / Hosting]
+  end
   S --> CMD --> G
   CMD --> FS
   CMD --> DB
   G --> CLI[git]
+  A --> NET
 ```
 
 ---
@@ -60,13 +66,14 @@ flowchart LR
 
 | 层 | 职责 | 不负责 |
 |----|------|--------|
-| **Page** | 路由级布局、组合 Feature、页面级数据加载入口 | 解析 `git status` 文本 |
-| **Feature / Component** | 展示与交互；调用 hooks / store / service | 直接 `invoke`、直接读盘 |
+| **View** | 路由级布局、组合 Feature、页面级数据加载入口 | 解析 `git status` 文本 |
+| **Feature / Component** | 展示与交互；调用 hooks / store / service / api | 直接 `invoke`、直接 `axios`、直接读盘 |
 | **Hook** | 封装订阅与副作用（刷新 status、监听焦点） | 隐藏业务规则到「魔法」副作用 |
-| **Store (Zustand)** | 会话级全局状态（当前仓库、UI 面板） | 永久真相（应落库的数据） |
-| **Service** | 前端唯一 IO 出口；类型化请求/响应；错误归一 | UI 样式、路由跳转细节 |
+| **Store (Pinia)** | 会话级全局状态（当前仓库、UI 面板） | 永久真相（应落库的数据） |
+| **Service** | 本地 IO 出口（Tauri `invoke`）；类型化请求/响应；错误归一 | UI 样式、外部 HTTP |
+| **api** | 外部 HTTP 出口；复用 `requestClient` | Tauri IPC、拼 shell |
 | **Tauri Command** | 稳定 IPC 契约；参数校验；调用 Rust 域逻辑 | 复杂 UI 决策 |
-| **Rust 域模块** | Git 执行、路径安全、SQL、系统 API | React 状态形状 |
+| **Rust 域模块** | Git 执行、路径安全、SQL、系统 API | Vue 状态形状 |
 | **Git CLI** | 版本控制真相源 | 应用配置、窗口状态 |
 
 前端分层展开：[frontend.md](frontend.md)  
@@ -96,20 +103,20 @@ Git 执行模型：[git.md](git.md)
 | **备选** | 仅 JSON / Store：简单，但查询与迁移弱 |
 | **详见** | [database.md](database.md) |
 
-### ADR-3：Service 强制门面
+### ADR-3：双门面 IO（Service + api）
 
 | | |
 |--|--|
-| **选择** | 组件不直接 `invoke`；一律经 `src/services/*` |
-| **原因** | 统一错误、日志、类型；便于测试与替换 mock |
+| **选择** | 本地能力经 `src/services/*` → Tauri `invoke`；外部 HTTP 经 `src/api/*` → Axios `requestClient`（`src/utils/http/`） |
+| **原因** | 统一错误、日志、类型；页面不散落 `invoke` / `axios.create`；对齐 work-center-web |
 | **代价** | 多一层薄封装（可接受） |
 
-### ADR-4：Zustand 唯一全局状态方案
+### ADR-4：Pinia 唯一全局状态方案
 
 | | |
 |--|--|
-| **选择** | 不用 Redux / Jotai / Context 全局树 |
-| **原因** | API 小、与 React 19 搭配简单、心智负担低 |
+| **选择** | 不用第二套全局状态库；目录名固定 `src/store` |
+| **原因** | 与 Vue 3 官方生态一致，对齐 work-center-web；API 小、心智负担低 |
 | **详见** | [state-management](../development/state-management.md) |
 
 ### ADR-5：目标架构文档先行
@@ -151,7 +158,7 @@ sequenceDiagram
 ```
 Local State     组件内瞬时 UI（输入框、悬停）
      ↓
-Zustand         当前仓库、选中文件、面板开关（会话）
+Pinia           当前仓库、选中文件、面板开关（会话）
      ↓
 SQLite          项目列表、设置、收藏、AI 历史（跨启动）
 ```
@@ -185,9 +192,10 @@ Git 工作区内容**不以** SQLite 为真相源；每次以 Git 查询为准�
 
 | 架构层 | 目录 |
 |--------|------|
-| Pages / Layouts | `src/pages`、`src/layouts` |
+| Views / Layouts | `src/views`、`src/layouts` |
 | Components | `src/components/**` |
 | Services | `src/services/**` |
+| HTTP api | `src/api/**`、`src/utils/http/**` |
 | Store | `src/store/**` |
 | Commands | `src-tauri/src/commands/**` |
 | Git Runner | `src-tauri/src/git/**` |

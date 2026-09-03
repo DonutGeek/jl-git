@@ -1,0 +1,14 @@
+{
+  "badRequest": "请求参数错误",
+  "unauthorized": "登录状态已失效",
+  "forbidden": "没有访问权限",
+  "notFound": "请求的资源不存在",
+  "timeout": "请求超时",
+  "payloadTooLarge": "请求体过大",
+  "serverError": "服务器内部错误",
+  "badGateway": "网关错误",
+  "unavailable": "服务暂不可用",
+  "gatewayTimeout": "网关超时",
+  "networkFailed": "网络请求失败，请稍后重试",
+  "cancelled": "请求已取消"
+}

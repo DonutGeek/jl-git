@@ -1,4 +1,4 @@
-import type { Monaco } from "@monaco-editor/react";
+import type { MonacoThemeHost } from "@/types/monaco";
 
 import { isDocumentDark, withAlpha } from "@/design/themes/color-utils";
 import { getAppThemePack, usesNativeDesignTokens } from "@/design/themes/registry";
@@ -81,7 +81,7 @@ export const getEditorMonacoThemeName = getAppMonacoThemeName;
 
 /** 按当前 chrome 定义并切换 Monaco 主题 */
 export function applyAppMonacoTheme(
-  monaco: Monaco,
+  monaco: MonacoThemeHost,
   themeId: AppThemeId,
   chrome: AppThemeChrome,
 ): string {

@@ -1,4 +1,7 @@
-import type { CSSProperties } from "react";
+type BadgeStyle = {
+  color: string;
+  backgroundColor: string;
+};
 
 import {
   hexToHsl,
@@ -101,10 +104,7 @@ export function workspaceColorRing(value: unknown, dark: boolean = isDocumentDar
 }
 
 /** 徽章用：前景 + 底色（均已按主题适配） */
-export function workspaceBadgeStyle(
-  value: unknown,
-  dark: boolean = isDocumentDark(),
-): Pick<CSSProperties, "color" | "backgroundColor"> {
+export function workspaceBadgeStyle(value: unknown, dark: boolean = isDocumentDark()): BadgeStyle {
   const color = adaptWorkspaceColorForTheme(value, dark);
   return {
     color,

@@ -1,4 +1,4 @@
-import type { Monaco } from "@monaco-editor/react";
+import type { MonacoThemeHost } from "@/types/monaco";
 
 /** 与 Design Tokens 同步的 Monaco 主题名（明暗分主题，切换时才能强制刷新） */
 export const JLGIT_MONACO_THEME_LIGHT = "jlgit-light";
@@ -63,7 +63,7 @@ function withAlpha(hex: string, alpha: number): string {
  * 明暗使用不同 themeName，避免同名改色后不重绘。
  * @returns 当前激活的主题名
  */
-export function applyJlGitMonacoTheme(monaco: Monaco): string {
+export function applyJlGitMonacoTheme(monaco: MonacoThemeHost): string {
   const dark = isDocumentDark();
   const themeName = getJlGitMonacoThemeName(dark);
   const background = resolveCssColor("--background", dark ? "#252525" : "#ffffff");

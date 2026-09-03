@@ -1,8 +1,8 @@
 # 编码风格
 
 > **相关文档：** [AGENTS.md](../../AGENTS.md) · [project-structure](project-structure.md) · [frontend](../architecture/frontend.md)
-
-本文是风格细则的唯一真相源。AGENTS 只保留硬规则摘要。
+>
+> 前端风格对齐 **work-center-web**（`<script setup>`、`defineOptions`、就近分层）。本文是风格细则的唯一真相源。AGENTS 只保留硬规则摘要。
 
 ---
 
@@ -27,20 +27,36 @@ export type ThemeMode = (typeof ThemeMode)[keyof typeof ThemeMode];
 
 ---
 
-## React
+## Vue
 
-- 函数组件 + Hooks；箭头函数导出：
+- 仅 `<script setup lang="ts">` + 组合式 API
+- 每个组件用 `defineOptions` 声明 PascalCase 名称
+- 路由页目录用 camelCase；页面入口为 `index.vue`（`defineOptions` 仍用 PascalCase 组件名）
+- layouts / 可复用封装目录仍可用 `index.vue` / `index.ts`
 
-```ts
-export const ProjectCard = ({ name, branch }: ProjectCardProps) => {
-  return <article>...</article>;
-};
+```vue
+<script setup lang="ts">
+import { Button } from "antdv-next";
+
+import type { ProjectCardProps } from "./types";
+
+defineOptions({ name: "ProjectCard" });
+
+const props = defineProps<ProjectCardProps>();
+</script>
+
+<template>
+  <article>
+    <Button type="primary">{{ props.name }}</Button>
+  </article>
+</template>
 ```
 
-- Props：同文件 `interface XxxProps`
-- 事件处理命名：`handleSubmit`、`onBranchChange`（props 用 `on*`）
-- 不要为「可能优化」默认包 `memo` / `useCallback`
-- 条件渲染保持可读；复杂条件提取变量或组件
+- Props：同文件或就近 `interface XxxProps`，经 `defineProps`
+- 事件：`defineEmits`；处理函数命名 `handleSubmit`，对外事件 `on*` / `update:*`
+- 不要为「可能优化」默认包多余 `computed` / `watch`
+- 条件渲染保持可读；复杂条件提取变量或子组件
+- 通用副作用优先 `@vueuse/core`；深拷贝 / 路径 / 集合操作优先 `lodash-es`
 
 ---
 
@@ -48,19 +64,29 @@ export const ProjectCard = ({ name, branch }: ProjectCardProps) => {
 
 | 种类 | 规则 | 示例 |
 |------|------|------|
-| 组件文件 | PascalCase | `CommitList.tsx` |
+| 路由页目录 | camelCase | `views/projectManage/` |
+| 路由页文件 | `index.vue` | `views/repo/index.vue` |
+| 组件名 | PascalCase + `defineOptions` | `RepoPage` |
+| 可复用组件目录 | PascalCase | `components/Icon/` |
+| 页面私有组件文件 | PascalCase `.vue` | `TaskFormModal.vue` |
 | 工具文件 | camelCase 或 kebab 主题名 | `formatDate.ts` |
 | Service | `domain.action.ts` | `git.status.ts` |
-| Store | `useXxxStore.ts` | `useGitStore.ts` |
+| Store 文件 | 域名词 `locale.ts`，禁止 `useLocaleStore.ts` | `store/modules/locale.ts` |
+| Store 导出 | `useXxxStore`；组件外 `useXxxStoreWithOut()` | `useLocaleStore` |
+| 路由 name | lowerCamelCase | `repoStatus` |
+| 路由 path | kebab-case | `/repo/:project-id` |
 | 常量 | UPPER_SNAKE 或 const 对象 | `MAX_LOG_PAGE = 50` |
 | 布尔 | `is` / `has` / `can` 前缀 | `isDetached` |
 | 异步函数 | 动词原形即可 | `fetchStatus` |
+
+同一功能内，TypeScript 模块 / Store / 工具 / 指令文件不得混用 lower camel 与 kebab-case。
 
 ---
 
 ## 文件与文件夹
 
-- 文件夹：`kebab-case` 或小写单词（与现有 `components/ui` 一致用小写）
+- `src/views/` 业务模块目录：`camelCase`；页面入口为 `index.vue`
+- 可复用组件封装目录：`PascalCase`，`index.ts` 为公开入口，实现放 `src/`
 - 一文件一主导出组件（辅助子组件可同文件，不宜喧宾夺主）
 - 组件超过 ~300 行：拆子组件或 hook
 - 禁止 `utils.ts` 变成杂物间；按域拆分
@@ -70,29 +96,30 @@ export const ProjectCard = ({ name, branch }: ProjectCardProps) => {
 ## Import 顺序
 
 ```ts
-import { useState } from "react";
+import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
 
-import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
+import { Button, Modal } from "antdv-next";
+import { useI18n } from "vue-i18n";
 
-import { ProjectCard } from "@/components/project/ProjectCard";
-import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/Icon";
+import { ProjectManager } from "@/components/Project";
 
-import { useProjects } from "@/hooks/useProjects";
+import { useTheme } from "@/hooks/setting/useTheme";
+import { useProjectList } from "@/views/dashboard/hooks/useProjectList";
 
-import { useProjectStore } from "@/store/useProjectStore";
+import { useProjectStore } from "@/store/modules/project";
 
 import { projectService } from "@/services/project";
 import { formatRelative } from "@/utils/formatDate";
 
 import type { Project } from "@/types/project";
-
-import "./ProjectList.css"; // 若有
 ```
 
 - 组间空行
 - `type` import 使用 `import type`
 - 路径别名 `@/` 指向 `src/`（与 Vite/tsconfig 一致）
+- 第三方包导入置顶于本仓库模块
 
 ---
 
@@ -120,12 +147,13 @@ try {
   await gitService.commit(path, message, { paths });
 } catch (error) {
   console.error(error);
-  toast.error(toUserMessage(error));
+  message.error(toUserMessage(error));
 }
 ```
 
 - Service 可抛 `AppError` 或 Result；UI 统一 `toUserMessage`
 - 禁止 `.catch(() => {})`
+- 同类交互使用一致的 loading：列表用 `Spin`，单次操作用按钮 `loading`
 
 ---
 
@@ -147,6 +175,6 @@ try {
 
 ## 格式化
 
-- 前端：ESLint + Prettier + Husky，见 [code-quality-tooling](code-quality-tooling.md)
-- `src/components/ui/**` 不参与格式化改写
+- 前端：ESLint + Prettier，见 [code-quality-tooling](code-quality-tooling.md)
+- Vue 文件走 `eslint-plugin-vue` + `vue-eslint-parser`
 - PR 不夹带全文件无关格式化

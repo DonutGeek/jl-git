@@ -8,7 +8,7 @@
 
 Tauri 是桌面壳与权限边界：
 
-- WebView 跑 React
+- WebView 跑 Vue 3
 - Rust 拥有：进程、FS、SQLite、通知、更新、剪贴板
 - IPC 通过 **Commands**（及事件）完成
 

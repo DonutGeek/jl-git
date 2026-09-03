@@ -38,7 +38,7 @@
 
 ---
 
-鲸灵Git（仓库名 **JLGit**）基于 **Tauri 2 + React 19 + TypeScript**，专注开发者日常的本地 Git 工作流：管理多个仓库、看清改动、提交与同步，并在需要时获得 AI 辅助。
+鲸灵Git（仓库名 **JLGit**）基于 **Tauri 2 + Vue 3 + TypeScript**，专注开发者日常的本地 Git 工作流：管理多个仓库、看清改动、提交与同步，并在需要时获得 AI 辅助。
 
 产品追求 **克制、清晰、快**，体验参考 GitHub Desktop、SourceGit、Linear 与 VS Code。它不会替代 IDE，也不试图成为 CI/CD 或全能 DevOps 控制台。
 
@@ -132,6 +132,7 @@ Vite 按 mode 加载环境文件（后者覆盖前者）：
 当前可配置的键：
 
 - `VITE_APP_NAME_ZH` / `VITE_APP_NAME_EN` — 应用中英文展示名（开发英文名为 `JLGit Dev`）
+- `VITE_API_BASE_URL` — 外部 HTTP 网关前缀（可选；空则 `src/api` 使用完整 URL）
 
 `VITE_*` 会进入前端构建产物，只允许非敏感配置；API Key、token、密码等仍必须使用应用安全存储或系统环境变量。桌面端 `productName` / bundle id 由 `src-tauri/tauri.conf*.json` 控制，与上述前端展示名相互独立。
 
@@ -152,21 +153,24 @@ pnpm tauri build
 | 层 | 技术 |
 |----|------|
 | Desktop | Tauri 2、Rust |
-| Frontend | React 19、TypeScript、Vite |
-| UI | Tailwind CSS 4、shadcn/ui、lucide-react |
-| 状态与路由 | Zustand、React Router |
-| 表单与校验 | React Hook Form、Zod |
+| Frontend | Vue 3、TypeScript、Vite |
+| UI | Tailwind CSS 4、antdv-next、`@/components/Icon`（morphicons + lucide） |
+| 状态与路由 | Pinia、Vue Router |
+| 表单与校验 | antdv-next Form、Zod |
+| HTTP | Axios（`src/api/` + `src/utils/http`） |
 | 数据 | SQLite、Tauri Store |
-| 编辑与列表 | Monaco Editor、TanStack Virtual |
-| 国际化 | i18next、react-i18next |
+| 编辑与列表 | Monaco Editor、TanStack Virtual（Vue） |
+| 国际化 | vue-i18n |
 
 ## 架构
 
 ```mermaid
 flowchart LR
-  UI["React UI"] --> Service["Services"]
+  UI["Vue UI"] --> Service["Services"]
+  UI --> API["api / Axios"]
   Service --> Command["Tauri Commands"]
   Command --> Rust["Rust Modules"]
+  API --> HTTP["External HTTP"]
   Rust --> Git["Git CLI"]
   Rust --> FS["File System"]
   Rust --> DB[("SQLite")]
@@ -175,11 +179,14 @@ flowchart LR
 核心调用链是：
 
 ```text
-React → Page / Component → Service → Tauri Command → Rust → Git CLI / FS / SQLite
+Vue → View / Component
+  ├─ Service → Tauri Command → Rust → Git CLI / FS / SQLite
+  └─ api → Axios requestClient → 外部 HTTP
 ```
 
 - UI 不直接执行 Git，也不拼接 shell
-- Service 是前端能力的统一出口，Tauri Command 是 Rust 侧唯一入口
+- 本地能力只经 Service，外部 HTTP 只经 `api/` + `requestClient`
+- Tauri Command 是 Rust 侧唯一入口
 - Git 与文件系统操作在 Rust 侧完成，路径和参数经过显式校验
 - SQLite 保存应用业务数据，Git 对象仍由 Git 管理
 
@@ -189,7 +196,7 @@ React → Page / Component → Service → Tauri Command → Rust → Git CLI / 
 
 ```text
 JLGit/
-├── src/                 # React 前端
+├── src/                 # Vue 前端
 ├── src-tauri/           # Rust / Tauri
 ├── scripts/             # 开发与发版脚本
 ├── docs/                # 架构、开发、产品与 API 文档

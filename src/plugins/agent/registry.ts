@@ -1,5 +1,3 @@
-import { FileUser, Sparkles, type LucideIcon } from "lucide-react";
-
 /** 鲸灵扩展（插件 / 技能共用结构；单仓/多仓共用壳） */
 export interface AgentPluginDefinition {
   id: string;
@@ -11,7 +9,8 @@ export interface AgentPluginDefinition {
   descriptionKey: string;
   /** 「立即试用」预填示例文案的 i18n key（跟在 @提及 后） */
   tryExampleKey: string;
-  icon: LucideIcon;
+  /** Lucide 图标名，经 `@/components/Icon` 渲染 */
+  icon: string;
 }
 
 /** 简历能力：归入技能（非插件列表） */
@@ -22,7 +21,7 @@ export const AGENT_RESUME_SKILL: AgentPluginDefinition = {
   titleKey: "agent.pluginResumeTitle",
   descriptionKey: "agent.pluginResumeDescription",
   tryExampleKey: "agent.pluginResumeTryExample",
-  icon: FileUser,
+  icon: "FileUser",
 };
 
 /** @deprecated 使用 AGENT_RESUME_SKILL */
@@ -36,7 +35,7 @@ export const AGENT_SKILL_CREATOR_SKILL: AgentPluginDefinition = {
   titleKey: "agent.pluginSkillCreatorTitle",
   descriptionKey: "agent.pluginSkillCreatorDescription",
   tryExampleKey: "agent.pluginSkillCreatorTryExample",
-  icon: Sparkles,
+  icon: "Sparkles",
 };
 
 /** 已注册内置插件（顺序即插件列表展示顺序） */
@@ -58,7 +57,7 @@ export function getAgentPluginByMentionId(mentionId: string): AgentPluginDefinit
   return AGENT_EXTENSIONS.find((item) => item.mentionId === mentionId);
 }
 
-/** 拼 Mentions 标记（与 react-mentions-ts 默认 markup 一致） */
+/** 拼 Mentions 标记（与历史 @提及 markup 一致） */
 export function buildAgentMentionMarkup(display: string, id: string): string {
   return `@[${display}](${id})`;
 }

@@ -48,7 +48,7 @@ flowchart TB
 - 打开仓库：并行「项目元数据（DB）」+ `git_status`，不要串行无谓等待
 - `git_log` 分页；进入 History 再拉
 - 切换仓库：优先还原会话缓存再后台刷新；冷开仓才清空 store，避免闪现旧数据与切标签卡顿
-- 标签高亮走紧急更新，路由 / 仓库大树走 React Transition；禁止在点击帧同步清空 Git Store
+- 标签高亮走紧急更新，路由 / 仓库大树走 Vue Transition；禁止在点击帧同步清空 Git Store
 
 ---
 
@@ -56,7 +56,7 @@ flowchart TB
 
 适用：文件更改列表、提交历史、分支多时。
 
-使用 `@tanstack/react-virtual`（已在依赖中）。固定或估算行高，避免测量抖动。
+使用 `@tanstack/vue-virtual`。固定或估算行高，避免测量抖动。
 
 已落地：
 
@@ -66,7 +66,7 @@ flowchart TB
 - 标签列表（`TagList`）
 - 提交历史（`HistoryList`；常驻提交硬顶约 1500）
 
-约定（硬性，见 [AGENTS.md §15](../../AGENTS.md) / [ui-guidelines](ui-guidelines.md)）：面板主滚动用 shadcn `ScrollArea`，禁止裸 `overflow-*-auto` 交付；`ScrollArea` + Radix viewport 作为 `getScrollElement`（见 `useScrollAreaViewport`）；树结构先按展开状态展平再虚拟化。
+约定（硬性，见 [AGENTS.md §15](../../AGENTS.md) / [ui-guidelines](ui-guidelines.md)）：面板主滚动用统一滚动封装，禁止裸 `overflow-*-auto` 交付；虚拟列表的 `getScrollElement` 绑该封装的 viewport；树结构先按展开状态展平再虚拟化。
 
 ---
 
@@ -108,8 +108,8 @@ flowchart TB
 
 - Store 用 selector
 - 列表 item 回调稳定（必要时再优化）
-- 已访问的主模块用 React `Activity` 保留状态；隐藏时清理 Effects，减少后台订阅
-- 先 Profiler / 实测，再加 `memo`
+- 已访问的主模块用 `KeepAlive` / 显式缓存保留状态；隐藏时清理副作用，减少后台订阅
+- 先 Profiler / 实测，再加多余 `computed` / `watch`
 
 ---
 

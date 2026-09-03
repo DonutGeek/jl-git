@@ -1,5 +1,5 @@
 /**
- * 前端样式入口（shadcn / Vite 约定路径）
- * 实际 Design Tokens 与主题在 ./design/
+ * 前端样式入口。
+ * Design Tokens 与主题在 ./design/
  */
 @import "./design/index.css";

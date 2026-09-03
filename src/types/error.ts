@@ -13,6 +13,9 @@ export type AppErrorCode =
   | "ALREADY_EXISTS"
   | "REMOTE_MISMATCH"
   | "CANCELLED"
+  | "HTTP"
+  | "HTTP_UNAUTHORIZED"
+  | "HTTP_TIMEOUT"
   | "INTERNAL";
 
 export interface AppError {

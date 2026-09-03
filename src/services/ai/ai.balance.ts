@@ -1,11 +1,11 @@
+import { getDeepSeekBalance } from "@/api/deepseek";
+import { mapDeepSeekApiError } from "@/services/ai/ai.httpError";
 import { getAgentKey } from "@/services/ai/ai.settings";
-import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
 
 import i18n from "@/i18n";
 import type { AppError } from "@/types/error";
 import { isRecord } from "@/types/error";
 
-const DEEPSEEK_BALANCE_URL = "https://api.deepseek.com/user/balance";
 const DEEPSEEK_TOP_UP_URL = "https://platform.deepseek.com/top_up";
 const DEEPSEEK_API_KEYS_URL = "https://platform.deepseek.com/api_keys";
 /** 余额 API 官方文档 */
@@ -49,34 +49,18 @@ export async function fetchDeepSeekBalance(): Promise<DeepSeekBalanceResult> {
     throw appError("VALIDATION", i18n.t("ai.errors.missingApiKey"));
   }
 
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(DEEPSEEK_BALANCE_URL, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-      },
-      signal: controller.signal,
+    const payload = await getDeepSeekBalance({
+      apiKey,
+      timeout: REQUEST_TIMEOUT_MS,
     });
-
-    const payload: unknown = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw mapDeepSeekHttpError(response.status, payload, i18n.t("settings.balanceFetchFailed"));
-    }
-
     return parseBalancePayload(payload);
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error) {
-      throw error;
-    }
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw appError("INTERNAL", i18n.t("settings.balanceTimeout"));
-    }
-    throw appError("INTERNAL", i18n.t("settings.balanceFetchFailed"));
-  } finally {
-    window.clearTimeout(timeoutId);
+    throw mapDeepSeekApiError(
+      error,
+      i18n.t("settings.balanceFetchFailed"),
+      i18n.t("settings.balanceTimeout"),
+    );
   }
 }
 

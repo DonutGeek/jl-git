@@ -27,6 +27,7 @@ export {
   AI_SERVER_ERROR_CODE,
   isAiAuthFailedError,
   isAiBalanceExhaustedError,
+  mapDeepSeekApiError,
   mapDeepSeekHttpError,
   toastAiFailure,
 } from "./ai.httpError";

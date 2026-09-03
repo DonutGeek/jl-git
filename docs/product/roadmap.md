@@ -38,7 +38,7 @@ flowchart LR
 
 - 文档体系（AGENTS / docs/**）
 - Tauri 2 窗口与插件预置
-- 前端工程基线（Vite、Tailwind、shadcn 起步）
+- 前端工程基线（Vite、Tailwind、Vue 3、antdv-next；结构对齐 work-center-web）
 - 目录与命名约定落地准备
 
 **退出标准：** 新贡献者/Agent 能按文档找到分层与 Command 契约。

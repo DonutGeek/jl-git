@@ -172,7 +172,7 @@
 | 应用线上升级 | Done | GitHub Releases + updater；状态栏「更新」检查/下载/重启；需 CI 配置签名私钥 |
 | Git 操作日志 | Done | 后台记录命令明细；面板由用户手动打开；状态栏图标反映最近结果 |
 | 文档体系 | Done | 本仓库 docs |
-| shadcn Button 起步 | In Progress | |
+| antdv-next 基础控件 | In Progress | 局部导入，禁止全局注册 |
 | 示例 greet Command | In Progress | 将被业务 Command 替换 |
 
 ---

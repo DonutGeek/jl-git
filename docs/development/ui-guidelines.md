@@ -13,8 +13,8 @@
 2. 一层主操作 + 一层次要操作；避免工具条按钮墙
 3. 用排版与留白分层，而不是重阴影与渐变
 4. 所有颜色来自 Tokens（[theme](theme.md)）
-5. UI 图标仅 `lucide-react`；工作区文件/目录类型图标用 `material-icon-theme`（VS Code Material Icon Theme），禁止用 lucide 冒充文件类型
-6. 基础控件 **必须**用 **shadcn/ui 官方 CLI** 引入（`pnpm dlx shadcn@latest add <name>`）；禁止手写 / 私改 `src/components/ui/`
+5. UI 图标仅经 `@/components/Icon`（内部 [morphicons](https://www.morphicons.com/) + `lucide` 图标数据）；工作区文件/目录类型图标用 `material-icon-theme`（VS Code Material Icon Theme），禁止用 Lucide 冒充文件类型，禁止页面直接导入 `lucide` / `morphicons`
+6. 基础控件 **必须**用 **antdv-next** 局部导入；禁止 `app.use()` 全局注册，禁止引入 `ant-design-vue`
 7. 宽高 / 间距 / 圆角等尺寸**尽量使用 Tailwind 内置尺度**（见下节），避免随意 `w-[140px]` 一类任意值
 
 ---
@@ -35,7 +35,7 @@
 
 ## 前省略 + 悬停展开（硬性）
 
-表格内长路径 / 分支名等「前省略 + 悬停看全文」**优先**用 `@/components/common/TruncateStartHoverLabel`，不要每次手拼 flex。
+表格内长路径 / 分支名等「前省略 + 悬停看全文」优先复用 `components/Common` 已有控件，或 antdv-next `Typography.Text` ellipsis + `Tooltip`，不要每次手拼 flex。
 
 | 规则 | 说明 |
 |------|------|
@@ -62,146 +62,64 @@
 
 ---
 
-## shadcn/ui
+## antdv-next
 
-JLGit 以 [shadcn/ui](https://ui.shadcn.com/) 作为基础组件来源（代码生成进仓库，而非运行时依赖整包 UI 库）。
+JLGit 以 [antdv-next](https://www.antdv-next.com/) 作为基础组件库（Vue 3 + Ant Design 设计体系）。工程约定对齐 **work-center-web**。
 
 | 资源 | 链接 |
 |------|------|
-| 官网 / 文档 | https://ui.shadcn.com/ |
-| 组件目录 | https://ui.shadcn.com/docs/components |
-| 安装与 CLI | https://ui.shadcn.com/docs/cli |
-| 主题 / CSS Variables | https://ui.shadcn.com/docs/theming |
-
-本仓库已配置 `components.json`（style: `new-york`，输出目录 `@/components/ui`，图标 `lucide`）。
+| 官网 / 文档 | https://www.antdv-next.com/ |
+| npm | `antdv-next` |
+| 主题 | CSS-in-JS Design Token + 项目 `src/design/` 语义色 |
 
 ### 选型优先级（硬性）
 
-**能用 shadcn 就尽量用 shadcn**，禁止业务层再手搓一套等价基础控件。
+**能用 antdv-next 就尽量用**，禁止业务层再手搓一套等价基础控件。
 
 | 场景 | 做法 |
 |------|------|
-| 官方有同名/等价组件 | **必须**用 `@/components/ui/*`（先查下表与 [组件目录](https://ui.shadcn.com/docs/components)） |
-| 常见叫法对照 | 「Tag / 标签 / 胶囊状态」→ **`Badge`**；「开关」→ **`Switch`**；「抽屉」→ **`Sheet`**；「表格」→ **`Table`** |
-| 仓库尚未引入 | `pnpm dlx shadcn@latest add <name>` 引入后再用，**禁止**用原生标签或手写仿造冒充 |
-| 官方没有、且属领域 UI | 放 `components/common` 或各域目录，**不要**塞进 `ui/` |
-| AI / 贡献者 | 写 UI 前先搜 `src/components/ui/` 与官方文档；缺件先 CLI，再写业务 |
+| 官方有等价组件 | **必须**局部导入 `antdv-next`（按钮、输入、选择、弹窗、抽屉、表格、标签、卡片、菜单、排版、开关、Tooltip、Spin） |
+| 常见对照 | 「胶囊状态」→ `Tag` / `Badge`；「开关」→ `Switch`；「抽屉」→ `Drawer`；「表格」→ `Table`；「确认」→ `Modal` / `Popconfirm` |
+| 禁止 | `app.use()` 全局注册；引入 `ant-design-vue`；原生 `<button>` / `<input>` 冒充基础控件 |
+| 官方没有、且属领域 UI | 放 `components/` 或 `views/*/components/`（Diff、提交图、文件树） |
+| 图标 | `<Icon name="..." />`；新映射加到 `src/components/Icon/data/icons.ts` |
 
-### 本仓库已引入（`src/components/ui/`）
+使用前查阅官方文档或已安装版本的类型声明，确认 props / events / slots / Design Token，不得靠记忆臆测。
 
-| 组件 | 文件 |
-|------|------|
-| Alert | `alert.tsx` |
-| Alert Dialog | `alert-dialog.tsx` |
-| Avatar | `avatar.tsx` |
-| Badge | `badge.tsx` |
-| Button | `button.tsx` |
-| Button Group | `button-group.tsx` |
-| Calendar | `calendar.tsx` |
-| Card | `card.tsx` |
-| Checkbox | `checkbox.tsx` |
-| Command | `command.tsx` |
-| Context Menu | `context-menu.tsx` |
-| Dialog | `dialog.tsx` |
-| Dropdown Menu | `dropdown-menu.tsx` |
-| Empty | `empty.tsx` |
-| Field | `field.tsx` |
-| Input | `input.tsx` |
-| Item | `item.tsx` |
-| Kbd | `kbd.tsx` |
-| Label | `label.tsx` |
-| Popover | `popover.tsx` |
-| Radio Group | `radio-group.tsx` |
-| Resizable | `resizable.tsx` |
-| Scroll Area | `scroll-area.tsx` |
-| Select | `select.tsx` |
-| Separator | `separator.tsx` |
-| Sheet | `sheet.tsx` |
-| Skeleton | `skeleton.tsx` |
-| Sonner | `sonner.tsx` |
-| Spinner | `spinner.tsx` |
-| Switch | `switch.tsx` |
-| Table | `table.tsx` |
-| Tabs | `tabs.tsx` |
-| Textarea | `textarea.tsx` |
-| Tooltip | `tooltip.tsx` |
+### 局部导入（硬性）
 
-Toast 统一使用 shadcn 官方 Sonner 方案：
+```vue
+<script setup lang="ts">
+import { Button, Drawer, Modal, Tag } from "antdv-next";
 
-- 通过 `pnpm dlx shadcn@latest add sonner` 引入 `src/components/ui/sonner.tsx`，禁止继续使用已弃用的 Toast / Toaster / `useToast`
-- 应用根节点从 `@/components/ui/sonner` 引入 `Toaster`；业务调用按官方用法从 `sonner` 引入 `toast`
-- `Toaster` 必须接入 JLGit 的 `light` / `dark` / `system` 主题模式，颜色继续使用生成组件映射的 Design Tokens
-- Toast 正文、操作按钮与可访问文本必须走 i18n，并同时维护 `zh-CN`、`en`
-
-> CLI 提示：若本机 `pnpm dlx shadcn@latest` 因 zod / MCP SDK 报 `Package subpath './v3' is not defined` 或 `Package subpath './v4' is not defined`，可在临时目录安装 `shadcn@latest` + `zod@3.25.76` 后执行 `./node_modules/.bin/shadcn add <name> --yes --cwd <项目根>`。依赖组件若提示覆盖已有文件，加 `--overwrite`。
-
-### 官方有、本仓库尚未引入（摘录）
-
-对照 [All Components](https://ui.shadcn.com/docs/components)。**不默认全量 `add`**：全量会引入大量未用 Radix/图表/日历依赖，违背项目 YAGNI（见 [AGENTS.md](../../AGENTS.md) §4 / §9）。缺什么加什么；常用缺口优先：
-
-| 优先级 | 组件 | 典型用途 |
-|--------|------|----------|
-| 中 | `progress` / `collapsible` / `toggle` / `toggle-group` | 进度、折叠、工具条切换 |
-| 中 | `combobox` / `input-group` | 命令面板与增强输入 |
-| 低 / 按需 | `calendar`、`chart`、`carousel`、`sidebar`、`menubar`、`navigation-menu`、`pagination`、`drawer`、会话类 `message` / `bubble` 等 | 有明确产品需求再引入 |
-
-完整未引入列表随时可用：
-
-```bash
-# 本地已有
-ls src/components/ui | sed 's/\.tsx$//'
-
-# 对照官方目录：https://ui.shadcn.com/docs/components
+defineOptions({ name: "ExamplePanel" });
+</script>
 ```
 
-若产品明确要求「预置全量 ui」，须单独批准后再执行（例如按批 `pnpm dlx shadcn@latest add …`），并在 PR 中说明依赖增量。
+- 只在实际使用的 `.vue` 中导入
+- 模板使用 PascalCase：`<Button>`、`<Drawer>`
+- 全局仅允许 `src/components/index.ts` 的 `registerGlobComp` 注册 `Icon`、`Page` 等应用壳组件，**不得**把 antdv-next 放进全局注册
 
-### 按需引入（硬性）
+### Toast / 反馈
 
-需要 Dialog、Dropdown、Tabs、Tooltip、Command、Spinner、**Badge / Table** 等时，**必须**用官方 CLI **按需添加**。与 [AGENTS.md §15 / Never Rules §14](../../AGENTS.md) 一致：
-
-| 要求 | 说明 |
-|------|------|
-| 必须 | `pnpm dlx shadcn@latest add <component>`（更新/恢复加 `--overwrite`） |
-| 禁止手写 | 不得在 `src/components/ui/` 手写、粘贴 registry、或用 Agent 工具仿造官方文件 |
-| 禁止私改 | 不得改 `ui/` 内样式/结构/导出；业务只组合引用 |
-| 禁止自动改写 | ESLint / Prettier / 编辑器 format-on-save 均不得改写该目录（见 [code-quality-tooling](code-quality-tooling.md)） |
-| CLI 失败 | 修环境后重试官方命令，**禁止**退化为手写落地 |
-
-```bash
-pnpm dlx shadcn@latest add button
-pnpm dlx shadcn@latest add dialog
-pnpm dlx shadcn@latest add dropdown-menu
-pnpm dlx shadcn@latest add spinner
-pnpm dlx shadcn@latest add badge
-pnpm dlx shadcn@latest add table
-pnpm dlx shadcn@latest add sonner
-# 其余组件名见官方组件目录
-```
-
-其它规则：
-
-1. `src/components/ui/` **只**存放官方 CLI 生成件
-2. 业务组件（`components/git` 等）**组合** ui 层，不复制、不改写 ui 源码
-3. **默认按需添加**；避免无产品批准的一次性全量 `add`
-4. 新增官方组件若引入额外 Radix / 依赖，在 PR 中说明用途；仍遵守「不引入第二套 UI 体系」
-5. 官方没有、且属于领域 UI 的控件，放 `components/common` 或对应域目录，而不是硬塞进 `ui/`
+- 统一走 antdv-next 的 `message` / `notification`（经 `hooks/web/useAntdApp` 一类封装）
+- 必须接入 JLGit 的 `light` / `dark` / `system` 主题
+- 正文、操作按钮与可访问文本必须走 i18n，并同时维护 `zh-CN`、`en`
 
 ### 滚动区域（硬性）
 
-面板主滚动**必须**使用 `@/components/ui/scroll-area`（shadcn `ScrollArea`），与 [AGENTS.md §15 / Never Rules](../../AGENTS.md) 一致。
+面板主滚动**必须**使用统一滚动封装（优先 antdv-next 已有滚动能力，或 `@/components/ScrollArea`），与 [AGENTS.md §15 / Never Rules](../../AGENTS.md) 一致。
 
 | 要求 | 说明 |
 |------|------|
-| 组件 | `import { ScrollArea } from "@/components/ui/scroll-area"` |
 | 禁止 | 以裸 `overflow-auto` / `overflow-x-auto` / `overflow-y-auto` 作为列表、侧栏、主内容区的交付滚动方案 |
-| 滚动条 | 默认悬停/滚动可见；不设 `type="always"` |
-| 高度链 | Root 用 `h-full` / `flex-1 min-h-0`；**禁止**在 ScrollArea Root 上用 `absolute` 定高（会弄坏 viewport） |
-| 虚拟列表 | 大列表另加 `@tanstack/react-virtual`，`getScrollElement` 绑 Radix viewport（见 [performance](performance.md)、`useScrollAreaViewport`） |
+| 滚动条 | 默认悬停/滚动可见 |
+| 高度链 | 根节点用 `h-full` / `flex-1 min-h-0`；禁止用 `absolute` 定高弄坏滚动链 |
+| 虚拟列表 | 大列表另加 `@tanstack/vue-virtual`（见 [performance](performance.md)） |
 | 局部裁切 | `overflow-hidden` 仅用于裁切/叠层，不代替可滚动面板 |
-| 左右 gutter | 列表内容**左右对称**（常用 `px-2`）；禁止单侧加宽「给滚动条」；竖条叠在右侧 gutter（见 `src/utils/scrollListGutter.ts`、`DropdownMenuScrollArea`） |
+| 左右 gutter | 列表内容**左右对称**（常用 `px-2`）；禁止单侧加宽「给滚动条」 |
 
-例外：极短的调试对照、或非交互装饰性裁切。History 图谱列等横向溢出也走 `ScrollArea`（可配合 `overflow-y-hidden` 仅保留横轴）。
+例外：极短的调试对照、或非交互装饰性裁切。History 图谱列等横向溢出也走统一滚动封装。
 
 ---
 
@@ -273,8 +191,8 @@ pnpm dlx shadcn@latest add sonner
 
 ## 表格与列表
 
-- 提交历史、分支表：TanStack Table 可选
-- 大列表：TanStack Virtual
+- 提交历史、分支表：antdv-next `Table` 或领域表格
+- 大列表：`@tanstack/vue-virtual`
 - 行悬停态轻量；选中态明确
 - 数字/hash 等宽字体
 
@@ -284,13 +202,14 @@ pnpm dlx shadcn@latest add sonner
 
 - 用于：确认危险操作、创建分支、设置片段
 - 焦点陷阱、Esc 关闭、主按钮明确
-- 完整应用设置用右侧 **Sheet 抽屉**（保留当前仓库工作区），不要用 Dialog 堆完整设置；也不强制跳转 `/settings` 路由页
-- 业务弹窗统一组合 `@/components/common/AppDialogContent`，禁止在各业务模块重复定义 `gap`、`padding`、标题字号与圆角
-- 普通编辑/创建使用 `AppDialogContent`；需要用户确认后才执行的操作使用 `AppAlertDialogContent` + shadcn `AlertDialog`
+- 完整应用设置用右侧 **Drawer**（保留当前仓库工作区），不要用 Modal 堆完整设置；也不强制跳转 `/settings` 路由页
+- 业务弹窗统一组合领域封装（基于 antdv-next `Modal`），禁止在各业务模块重复定义 `gap`、`padding`、标题字号与圆角
+- 普通编辑/创建使用 `Modal`；需要用户确认后才执行的操作使用 `Modal` 确认态或 `Popconfirm`
 - 二次确认的头部必须组合 `AppAlertDialogHeader`，保持“标题 + 必要确认对象”两层信息；不放装饰性警告图标或重复风险文案。危险性由 destructive 主按钮表达
 - 复选项只保留其动作标签；标签已明确影响范围时，不再追加重复说明。仅当前不可用或规则不直观时才显示 `FieldDescription`
 - 宽度按信息量选择 `sm` / `md` / `lg` / `xl` / `2xl`，默认 `md`；同类任务必须使用同一档位
-- 表单字段纵向间距统一为 `gap-4`；按钮区使用 `DialogFooter` / `AlertDialogFooter`，取消在前、主操作在后
+- 业务表单必须局部导入 antdv-next 的 `Form`、`FormItem`、`Row`、`Col`；禁止 `<form>` + `<label>` 手搓栅格。纵向表单用 `layout="vertical"`
+- 表单字段纵向间距交给 `FormItem`；按钮区取消在前、主操作在后
 - 危险操作的主按钮必须使用 `destructive`，并在描述中明确影响范围与是否可恢复
 
 ### 弹窗尺寸与用途
@@ -309,9 +228,9 @@ pnpm dlx shadcn@latest add sonner
 ## 设置抽屉
 
 - 入口：活动栏底部「设置」
-- 形态：`Sheet` `side="right"`，遮罩可点关闭，Esc 关闭
+- 形态：antdv-next `Drawer` `placement="right"`，遮罩可点关闭，Esc 关闭
 - 分组：外观 / Git / 通知…；内容增多时可在抽屉内加左侧小导航
-- 瞬时开合状态进 Zustand，不进 URL
+- 瞬时开合状态进 Pinia，不进 URL
 
 ---
 
@@ -350,7 +269,7 @@ pnpm dlx shadcn@latest add sonner
 
 | 要求 | 说明 |
 |------|------|
-| Tooltip | 无文字的图标按钮悬停必须出现 Tooltip（shadcn `Tooltip`），文案走 i18n |
+| Tooltip | 无文字的图标按钮悬停必须出现 Tooltip（antdv-next `Tooltip`），文案走 i18n |
 | aria-label | 与 Tooltip 文案一致，保证键盘与读屏 |
 | 延迟 | 默认约 300ms，避免鼠标划过刷屏 |
 | 位置 | 活动栏靠右；顶栏靠下；不遮挡关键内容 |
@@ -375,7 +294,7 @@ pnpm dlx shadcn@latest add sonner
 | 按钮、可点击列表行、标签、活动栏图标 | `cursor-pointer` | 明确「可点」 |
 | 禁用按钮 / 不可点 | `cursor-not-allowed` 或保持默认且无 pointer | 与 `disabled` 一致 |
 | 异步进行中（整行打开中） | `cursor-wait` 可选用 | 防重复点 |
-| 面板分隔线（左右拖） | `cursor-col-resize` | 悬停即显示，不必等按下；**全部**可拖分栏用 shadcn Resizable：双栏走 `ResizableSplit`，特殊布局（如历史图谱列）直接组合 `ResizablePanelGroup` + `ResizableHandle`，手柄样式统一用 `RESIZABLE_HANDLE_CLASSNAME`（禁止改 `ui/resizable`、禁止自绘 pointer 分隔） |
+| 面板分隔线（左右拖） | `cursor-col-resize` | 悬停即显示，不必等按下；**全部**可拖分栏走统一 `ResizableSplit` / 同套手柄样式，禁止各页自绘 pointer 分隔 |
 | 面板分隔线（上下拖） | `cursor-row-resize` | 同上 |
 | 文本输入 / 可选中正文 | `cursor-text`（浏览器默认即可） | 勿强行 pointer |
 | 仅展示、暂不可点的列表行 | `cursor-default` | 可有轻悬停底，但不要假 pointer |
@@ -456,7 +375,7 @@ pnpm dlx shadcn@latest add sonner
 
 - 用户可见文案（含 Tooltip、空状态、toast、aria-label）一律走 i18n
 - 品牌名 `JLGit` 可硬编码；路径、分支名、hash 等数据不翻译
-- 资源按语言分目录、按域分文件：`src/i18n/locales/<lng>/<domain>.json`，由该语言目录下的 `index.ts` 合并；新增域时同步补齐 `zh-CN` 与 `en`，并在两侧 `index.ts` 注册
+- 资源按语言分目录、按域分文件：`src/locales/lang/<lng>/<domain>.json`；新增域时同步补齐 `zh-CN` 与 `en`
 
 ### 7. 验收清单（功能合入前）
 
@@ -465,8 +384,8 @@ pnpm dlx shadcn@latest add sonner
 - [ ] 空状态与加载态已覆盖主路径
 - [ ] 异步操作有防重复与错误提示
 - [ ] 分隔线悬停有视觉反馈且**不挤动布局**
-- [ ] 面板主滚动使用 shadcn `ScrollArea`（无裸 `overflow-*-auto` 交付）
-- [ ] 新增/更新 `src/components/ui/` 仅经官方 `pnpm dlx shadcn@latest add …`（无手写、无私改）
+- [ ] 面板主滚动使用统一滚动封装（无裸 `overflow-*-auto` 交付）
+- [ ] antdv-next 均为局部导入（无 `app.use()`，无 `ant-design-vue`）
 - [ ] 无硬编码产品文案（除品牌名）
 - [ ] 右键菜单分组顺序 / 系统打开顺序 / 危险项样式符合 §2.3
 

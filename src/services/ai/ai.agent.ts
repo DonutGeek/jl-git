@@ -1,5 +1,6 @@
+import { postDeepSeekChatStream } from "@/api/deepseek";
 import { getAgentKey } from "@/services/ai/ai.settings";
-import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
+import { mapDeepSeekApiError } from "@/services/ai/ai.httpError";
 import { DEFAULT_AGENT_MODEL } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getAgentSafetyRefusal } from "@/services/ai/ai.safety";
@@ -36,7 +37,6 @@ import type {
   GitStatusResult,
 } from "@/types/git";
 
-const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
 const AGENT_REQUEST_TIMEOUT_MS = 150_000;
 const AGENT_HISTORY_LIMIT = 20;
 const AGENT_LOG_LIMIT = 16;
@@ -146,13 +146,10 @@ export async function streamAgentReply({
       return;
     }
 
-    const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
+    const stream = await postDeepSeekChatStream({
+      apiKey,
+      signal: controller.signal,
+      body: {
         model: modelId,
         stream: true,
         // 成稿类技能略高；通用 Git 问答更克制
@@ -173,24 +170,15 @@ export async function streamAgentReply({
           // 只回传正文；reasoning 仅 UI 展示，不进入下一轮上下文
           ...history,
         ],
-      }),
-      signal: controller.signal,
+      },
     });
 
-    if (!response.ok) {
-      const payload = await readResponseJson(response);
-      throw mapDeepSeekHttpError(response.status, payload, i18n.t("agent.replyFailed"));
-    }
-    if (!response.body) {
-      throw appError("INTERNAL", i18n.t("agent.replyFailed"));
-    }
-
-    await readSseStream(response.body, onDelta, onReasoningDelta);
+    await readSseStream(stream, onDelta, onReasoningDelta);
   } catch (error) {
     if (controller.signal.aborted) {
       throw appError("INTERNAL", i18n.t("agent.replyTimeout"));
     }
-    throw error;
+    throw mapDeepSeekApiError(error, i18n.t("agent.replyFailed"));
   } finally {
     window.clearTimeout(timeoutId);
     signal?.removeEventListener("abort", abortFromCaller);
@@ -792,14 +780,6 @@ function applySseDelta(
     }
   } catch {
     // 忽略残缺 SSE 行
-  }
-}
-
-async function readResponseJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
   }
 }
 

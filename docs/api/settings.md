@@ -66,7 +66,7 @@ type ThemeMode = "light" | "dark" | "system";
 | 方法 | 行为 |
 |------|------|
 | `setAppThemeId(themeId)` | 切换主题包，并重套该主题浅/深两套默认参数 |
-| `patchThemeChrome(patch)` | 修改当前有效明暗模式的语义色、侧栏透明度或对比度，并由 Zustand persist 自动保存 |
+| `patchThemeChrome(patch)` | 修改当前有效明暗模式的语义色、侧栏透明度或对比度，并由 Pinia persist 自动保存 |
 | `applyAppThemeToDocument(themeId, chrome)` | 把当前主题映射到整站语义 Tokens |
 
 内置主题保持鲸灵 Git、GitHub、ChatGPT、Claude、Codex、VS Code 六套。每套主题显式提供背景、卡片/弹层、次要区、侧栏、选中态、边框、危险色、Diff 与 Git 文件状态色，并同步映射图表、仓库分组与 Monaco。自定义色使用应用内 Popover + HEX 输入，明暗配置分别保存在 `themeChromeLight` / `themeChromeDark`。切换应用主题会重新应用该主题的浅/深完整默认配色。

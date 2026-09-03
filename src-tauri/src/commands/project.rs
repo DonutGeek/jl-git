@@ -1,3 +1,5 @@
+//! 项目与工作区 Command：读写 SQLite 登记表，打开目录前校验是否 Git 仓库。
+
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};

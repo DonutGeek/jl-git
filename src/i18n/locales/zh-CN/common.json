@@ -12,6 +12,8 @@
   "datePickerPlaceholder": "请选择日期",
   "datePickerClear": "清除",
   "productName": "鲸灵Git",
+  "migrationTitle": "界面迁移中",
+  "migrationDescription": "JLGit 正在迁到 Vue 3。当前窗口已用 Vue 启动，功能将按页面逐个对齐。",
   "aiApiKeyRequired": "请先在设置中配置并启用 API Key",
   "gitNotFound": "未检测到本机 Git，请先安装并确保已加入系统 PATH"
 }

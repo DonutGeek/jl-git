@@ -12,6 +12,8 @@
   "datePickerPlaceholder": "Select a date",
   "datePickerClear": "Clear",
   "productName": "JL Git",
+  "migrationTitle": "UI migration in progress",
+  "migrationDescription": "JLGit is moving to Vue 3. This window now boots with Vue; pages will be restored one by one.",
   "aiApiKeyRequired": "Configure and enable an API Key in Settings first",
   "gitNotFound": "Git was not found. Install Git and make sure it is on your PATH"
 }

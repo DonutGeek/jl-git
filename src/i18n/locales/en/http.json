@@ -1,0 +1,14 @@
+{
+  "badRequest": "Invalid request",
+  "unauthorized": "Session expired",
+  "forbidden": "Access denied",
+  "notFound": "Resource not found",
+  "timeout": "Request timed out",
+  "payloadTooLarge": "Request payload is too large",
+  "serverError": "Internal server error",
+  "badGateway": "Bad gateway",
+  "unavailable": "Service unavailable",
+  "gatewayTimeout": "Gateway timeout",
+  "networkFailed": "Network request failed. Please try again later",
+  "cancelled": "Request cancelled"
+}

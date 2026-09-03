@@ -1,5 +1,6 @@
+import { postDeepSeekChat } from "@/api/deepseek";
 import { buildProjectDescriptionSystemPrompt } from "@/prompts/git";
-import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
+import { mapDeepSeekApiError } from "@/services/ai/ai.httpError";
 import { DEFAULT_UTILITY_MODEL } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getAgentKey } from "@/services/ai/ai.settings";
@@ -8,7 +9,6 @@ import { getProjectProfileSnapshot } from "@/services/project/project.profile";
 import i18n from "@/i18n";
 import type { AppError } from "@/types/error";
 
-const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
 const AI_REQUEST_TIMEOUT_MS = 30_000;
 const MAX_DESCRIPTION_CHARS = 800;
 
@@ -48,16 +48,11 @@ export async function generateProjectDescription(
     .filter((section): section is string => section !== null)
     .join("\n\n");
 
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
+    const payload = await postDeepSeekChat({
+      apiKey,
+      timeout: AI_REQUEST_TIMEOUT_MS,
+      body: {
         model: DEFAULT_UTILITY_MODEL,
         temperature: 0.3,
         // V4 默认 thinking 开启；短任务保持非思考（旧 deepseek-chat 行为）
@@ -72,13 +67,8 @@ export async function generateProjectDescription(
             content: userContent,
           },
         ],
-      }),
-      signal: controller.signal,
+      },
     });
-    const payload: unknown = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw mapDeepSeekHttpError(response.status, payload, i18n.t("ai.errors.requestFailed"));
-    }
 
     const content = readChoiceContent(payload);
     const description = normalizeDescription(content);
@@ -87,12 +77,11 @@ export async function generateProjectDescription(
     }
     return description;
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw appError("INTERNAL", i18n.t("ai.errors.timeout"));
-    }
-    throw error;
-  } finally {
-    window.clearTimeout(timeoutId);
+    throw mapDeepSeekApiError(
+      error,
+      i18n.t("ai.errors.requestFailed"),
+      i18n.t("ai.errors.timeout"),
+    );
   }
 }
 

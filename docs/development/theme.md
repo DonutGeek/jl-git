@@ -23,7 +23,7 @@
 ```
 原始色板（可选，仅 styles 内部）
   → 语义 Token（组件使用）
-    → 组件变体（CVA / class）
+    → 组件变体（antdv-next Token / Tailwind class）
 ```
 
 组件只引用语义 Token。
@@ -108,11 +108,11 @@ Git 状态色：
 
 ---
 
-## 与 shadcn
+## 与 antdv-next
 
-shadcn/ui 的 CSS 变量命名与上表对齐；新增 Token 先改 `styles`，再改组件。  
-官方主题说明：https://ui.shadcn.com/docs/theming  
-按需添加组件：见 [ui-guidelines · shadcn/ui](ui-guidelines.md#shadcnui)。
+项目语义 Token（`--background`、`--primary` 等）经 ConfigProvider / Design Token 接到 antdv-next。  
+新增 Token 先改 `src/design/`，再映射到 antdv-next 主题。  
+组件用法见 [ui-guidelines · antdv-next](ui-guidelines.md#antdv-next)。
 
 ---
 
@@ -146,4 +146,4 @@ settings theme.mode
 
 ### 控件与主题
 
-业务层选择器优先 `SelectMenu` / `GitRefPicker`（outline + `border-input` + focus `ring`，选中项 `bg-accent`）。勾选框用 shadcn `Checkbox`，筛选框用 `Input`；**禁止**再落原生 `<select>` / `<input type="checkbox">` 作为产品控件。
+业务层选择器优先领域封装（outline + `border-input` + focus `ring`，选中项 `bg-accent`）。勾选框用 antdv-next `Checkbox`，筛选框用 `Input`；**禁止**再落原生 `<select>` / `<input type="checkbox">` 作为产品控件。

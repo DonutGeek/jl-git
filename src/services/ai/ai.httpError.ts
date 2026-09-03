@@ -1,8 +1,11 @@
-import { toast } from "sonner";
+import { AxiosError } from "axios";
+import { message } from "antdv-next";
 
 import i18n from "@/i18n";
 import { getDeepSeekApiKeysUrl, getDeepSeekTopUpUrl } from "@/services/ai/ai.balance";
 import { openExternalUrl } from "@/services/system/open-url";
+import { HttpRequestError } from "@/utils/http";
+
 import { isAppError, isRecord, toUserMessage, type AppError } from "@/types/error";
 
 /** DeepSeek HTTP 错误码（与官方文档对齐） */
@@ -32,6 +35,32 @@ type DeepSeekMappedError = {
  * 将 DeepSeek HTTP 失败规范为领域错误（官方错误码产品化文案）。
  * @see https://api-docs.deepseek.com/quick_start/error_codes
  */
+/** 将 requestClient / SSE fetch 的失败收成 DeepSeek 领域错误 */
+export function mapDeepSeekApiError(
+  error: unknown,
+  fallbackMessage: string,
+  timeoutMessage?: string,
+): AppError {
+  if (isAppError(error)) {
+    return error;
+  }
+
+  if (error instanceof HttpRequestError) {
+    if (error.code === AxiosError.ERR_CANCELED || error.code === AxiosError.ECONNABORTED) {
+      return {
+        code: error.code === AxiosError.ECONNABORTED ? "HTTP_TIMEOUT" : "CANCELLED",
+        message: timeoutMessage ?? fallbackMessage,
+      };
+    }
+    return mapDeepSeekHttpError(error.status ?? 0, error.payload, fallbackMessage);
+  }
+
+  return {
+    code: "INTERNAL",
+    message: fallbackMessage,
+  };
+}
+
 export function mapDeepSeekHttpError(
   status: number,
   payload: unknown,
@@ -61,37 +90,25 @@ export function isAiAuthFailedError(error: unknown): boolean {
 
 /** Toast 展示 AI 失败；401/402 附带跳转操作。 */
 export function toastAiFailure(error: unknown, fallbackMessage: string): void {
-  const message = toUserMessage(error) || fallbackMessage;
+  const text = toUserMessage(error) || fallbackMessage;
 
   if (isAiAuthFailedError(error)) {
-    toast.error(message, {
-      action: {
-        label: i18n.t("ai.errors.createApiKeyAction"),
-        onClick: () => {
-          void openExternalUrl(getDeepSeekApiKeysUrl()).catch(() => {
-            toast.error(i18n.t("settings.apiKeyOpenConsoleFailed"));
-          });
-        },
-      },
+    message.error(text);
+    void openExternalUrl(getDeepSeekApiKeysUrl()).catch(() => {
+      message.error(i18n.t("settings.apiKeyOpenConsoleFailed"));
     });
     return;
   }
 
   if (isAiBalanceExhaustedError(error)) {
-    toast.error(message, {
-      action: {
-        label: i18n.t("ai.errors.topUpAction"),
-        onClick: () => {
-          void openExternalUrl(getDeepSeekTopUpUrl()).catch(() => {
-            toast.error(i18n.t("settings.balanceTopUpFailed"));
-          });
-        },
-      },
+    message.error(text);
+    void openExternalUrl(getDeepSeekTopUpUrl()).catch(() => {
+      message.error(i18n.t("settings.balanceTopUpFailed"));
     });
     return;
   }
 
-  toast.error(message);
+  message.error(text);
 }
 
 function resolveDeepSeekError(status: number, payload: unknown): DeepSeekMappedError | null {

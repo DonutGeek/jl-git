@@ -1,5 +1,6 @@
+import { postDeepSeekChat } from "@/api/deepseek";
 import { buildBranchNameSystemPrompt } from "@/prompts/git";
-import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
+import { mapDeepSeekApiError } from "@/services/ai/ai.httpError";
 import { readCommitModelId } from "@/services/ai/ai.models";
 import { getAgentKey } from "@/services/ai/ai.settings";
 import { normalizeBranchPrefix } from "@/utils/branchPrefix";
@@ -7,7 +8,6 @@ import { normalizeBranchPrefix } from "@/utils/branchPrefix";
 import i18n from "@/i18n";
 import type { AppError } from "@/types/error";
 
-const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
 const AI_REQUEST_TIMEOUT_MS = 30_000;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_BRANCH_NAME_LENGTH = 120;
@@ -44,16 +44,11 @@ export async function generateBranchName(options: GenerateBranchNameOptions): Pr
 
   const prefix = normalizeBranchPrefix(options.prefix);
   const userContent = buildBranchNameUserContent(detail, attachments, prefix);
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
+    const payload = await postDeepSeekChat({
+      apiKey,
+      timeout: AI_REQUEST_TIMEOUT_MS,
+      body: {
         model: readCommitModelId(),
         temperature: 0.2,
         thinking: { type: "disabled" },
@@ -67,13 +62,8 @@ export async function generateBranchName(options: GenerateBranchNameOptions): Pr
             content: userContent,
           },
         ],
-      }),
-      signal: controller.signal,
+      },
     });
-    const payload: unknown = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw mapDeepSeekHttpError(response.status, payload, i18n.t("ai.errors.requestFailed"));
-    }
 
     const content = readChoiceContent(payload);
     const branchName = normalizeBranchName(content, prefix);
@@ -82,12 +72,11 @@ export async function generateBranchName(options: GenerateBranchNameOptions): Pr
     }
     return branchName;
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw appError("INTERNAL", i18n.t("ai.errors.timeout"));
-    }
-    throw error;
-  } finally {
-    window.clearTimeout(timeoutId);
+    throw mapDeepSeekApiError(
+      error,
+      i18n.t("ai.errors.requestFailed"),
+      i18n.t("ai.errors.timeout"),
+    );
   }
 }
 

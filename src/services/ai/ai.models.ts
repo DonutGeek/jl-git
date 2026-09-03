@@ -1,12 +1,11 @@
+import { getDeepSeekModels } from "@/api/deepseek";
+import { mapDeepSeekApiError } from "@/services/ai/ai.httpError";
 import { getAgentKey } from "@/services/ai/ai.settings";
-import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
 
 import i18n from "@/i18n";
 import type { AppError } from "@/types/error";
 import { isRecord } from "@/types/error";
 
-/** @see https://api-docs.deepseek.com/zh-cn/api/list-models */
-const DEEPSEEK_MODELS_URL = "https://api.deepseek.com/models";
 const REQUEST_TIMEOUT_MS = 20_000;
 const AGENT_MODEL_STORAGE_KEY = "jlgit:agent-model";
 const COMMIT_MODEL_STORAGE_KEY = "jlgit:commit-model";
@@ -63,34 +62,18 @@ export async function fetchDeepSeekModels(): Promise<DeepSeekModelInfo[]> {
     throw appError("VALIDATION", i18n.t("ai.errors.missingApiKey"));
   }
 
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(DEEPSEEK_MODELS_URL, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-      },
-      signal: controller.signal,
+    const payload = await getDeepSeekModels({
+      apiKey,
+      timeout: REQUEST_TIMEOUT_MS,
     });
-
-    const payload: unknown = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw mapDeepSeekHttpError(response.status, payload, i18n.t("ai.errors.modelsFetchFailed"));
-    }
-
     return parseModelsPayload(payload);
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error) {
-      throw error;
-    }
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw appError("INTERNAL", i18n.t("ai.errors.modelsTimeout"));
-    }
-    throw appError("INTERNAL", i18n.t("ai.errors.modelsFetchFailed"));
-  } finally {
-    window.clearTimeout(timeoutId);
+    throw mapDeepSeekApiError(
+      error,
+      i18n.t("ai.errors.modelsFetchFailed"),
+      i18n.t("ai.errors.modelsTimeout"),
+    );
   }
 }
 

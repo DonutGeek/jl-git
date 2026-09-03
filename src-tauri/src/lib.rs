@@ -1,4 +1,6 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+//! JLGit 桌面端入口：挂载插件、SQLite、菜单，并注册前端经 `src/services` 调用的 Command。
+//! 不要在这里堆业务；Git / 项目 / 系统能力分别在 `git/`、`commands/`、`db/`。
+
 mod commands;
 mod db;
 mod error;
@@ -13,6 +15,7 @@ mod system_windows;
 
 use tauri::Manager;
 
+/// 脚手架遗留，前端未调用；保留以免旧 capability 清单对不上。
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)

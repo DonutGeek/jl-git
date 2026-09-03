@@ -1,14 +1,14 @@
+import { postDeepSeekChat } from "@/api/deepseek";
 import { buildCommitMessageSystemPrompt } from "@/prompts/git";
-import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
-import { mapDeepSeekHttpError } from "@/services/ai/ai.httpError";
+import { mapDeepSeekApiError } from "@/services/ai/ai.httpError";
 import { readCommitModelId } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
+import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
 import { getCommitPatchDiff, getStagedDiff } from "@/services/git/git.diff";
 
 import i18n from "@/i18n";
 import type { AppError } from "@/types/error";
 
-const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
 const AI_REQUEST_TIMEOUT_MS = 30_000;
 const AI_DIFF_MAX_BYTES = 65_536;
 const CONVENTIONAL_COMMIT_PATTERN =
@@ -46,16 +46,11 @@ export async function generateCommitMessage(
     );
   }
 
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
+    const payload = await postDeepSeekChat({
+      apiKey,
+      timeout: AI_REQUEST_TIMEOUT_MS,
+      body: {
         model: readCommitModelId(),
         temperature: 0.2,
         // 提交文案固定非思考，与设置所选模型无关
@@ -81,13 +76,8 @@ export async function generateCommitMessage(
             ].join("\n"),
           },
         ],
-      }),
-      signal: controller.signal,
+      },
     });
-    const payload: unknown = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw mapDeepSeekHttpError(response.status, payload, i18n.t("ai.errors.requestFailed"));
-    }
 
     const content = readCommitChoiceContent(payload);
     const message = normalizeCommitMessage(content);
@@ -96,12 +86,11 @@ export async function generateCommitMessage(
     }
     return message;
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw appError("INTERNAL", i18n.t("ai.errors.timeout"));
-    }
-    throw error;
-  } finally {
-    window.clearTimeout(timeoutId);
+    throw mapDeepSeekApiError(
+      error,
+      i18n.t("ai.errors.requestFailed"),
+      i18n.t("ai.errors.timeout"),
+    );
   }
 }
 

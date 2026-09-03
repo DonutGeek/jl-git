@@ -1,4 +1,4 @@
-import type { OpenTab } from "@/store/useOpenTabsStore";
+import type { OpenTab } from "@/store/modules/multipleTab";
 
 export function resolveRoutedTabId(pathname: string, tabs: readonly OpenTab[]): string | null {
   const repositoryMatch = pathname.match(/^\/repo\/([^/]+)/);

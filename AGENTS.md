@@ -3,12 +3,14 @@
 > 本文是 AI Agent 与人类贡献者的**硬性约束**。细节以下沉文档为唯一真相源；此处只保留不可违反的边界与索引。
 >
 > 语言：中文。架构立场：目标架构（非仅描述当前脚手架）。
+>
+> 前端工程化（目录、命名、组合式分层、antdv-next 局部导入、Axios HTTP）对齐 **work-center-web** 的约定；桌面 Git / FS / SQLite 仍走 Tauri Command / `services/`。
 
 ---
 
 ## 1. 项目哲学
 
-JLGit 是基于 **Tauri 2 + React + TypeScript** 的现代 Git 桌面客户端。
+JLGit 是基于 **Tauri 2 + Vue 3 + TypeScript** 的现代 Git 桌面客户端。
 
 我们追求：
 
@@ -37,15 +39,18 @@ JLGit 是基于 **Tauri 2 + React + TypeScript** 的现代 Git 桌面客户端�
 | 层 | 选型 | 说明 |
 |----|------|------|
 | Desktop | Tauri 2 | 系统能力、Git CLI、FS、SQLite |
-| UI | React 19 + TypeScript（strict） | 函数组件 + Hooks |
-| 构建 | Vite | 前端打包 |
-| 样式 | Tailwind CSS 4 + CSS Variables | 禁止硬编码颜色 |
-| 组件 | [shadcn/ui](https://ui.shadcn.com/) + lucide-react | **硬性**：能用 shadcn 就尽量用；**必须**用官方 CLI `pnpm dlx shadcn@latest add <name>` 引入（更新 `--overwrite`）；**禁止手写**、**禁止私自改** `src/components/ui/`。业务只组合引用。**UI 图标**仅 lucide；工作区文件类型图标例外：`material-icon-theme`。**面板主滚动**必须用 `@/components/ui/scroll-area`（见 §15）。细则与已引入清单见 [ui-guidelines](docs/development/ui-guidelines.md) |
-| 状态 | Zustand | 唯一全局状态方案 |
-| 路由 | React Router | 见 routing 文档 |
-| 表单 | React Hook Form + Zod | 校验与提交 |
+| UI | Vue 3（`<script setup>`）+ TypeScript（strict） | 组合式 API；`defineOptions` 声明组件名 |
+| 构建 | Vite + `@vitejs/plugin-vue` | 前端打包 |
+| 样式 | Tailwind CSS 4 + CSS Variables | 禁止硬编码颜色；全局样式与组件库覆盖在 `src/design/` |
+| 组件 | [antdv-next](https://www.antdv-next.com/) | **硬性**：能用 antdv-next 就尽量用；**禁止** `app.use()` 全局注册；必须在实际使用的 `.vue` 中局部导入，模板用 PascalCase。**禁止**引入 `ant-design-vue`。细则见 [ui-guidelines](docs/development/ui-guidelines.md) |
+| 图标 | `@/components/Icon`（内部 `morphicons` + `lucide` 数据）+ `material-icon-theme` | UI 图标只能通过 `@/components/Icon`；页面/布局不得直接导入 Lucide / morphicons。工作区文件类型图标用 `material-icon-theme`，禁止用 Lucide 冒充文件类型 |
+| 状态 | Pinia（+ 可选 persist 插件） | 唯一全局状态方案；目录名固定为单数 `src/store` |
+| 路由 | Vue Router | 见 routing 文档 |
+| 表单 | antdv-next Form + Zod | 校验与提交 |
+| 组合式 | `@vueuse/core`；通用工具优先 `lodash-es` | 禁止手写已有库函数的弱化版 |
+| HTTP | Axios | 封装在 `src/utils/http/`；接口函数放 `src/api/`，复用 `requestClient`；页面不得临时 `axios.create` |
 | 持久化 | SQLite（业务）+ Tauri Store（轻量偏好） | 见 database 文档 |
-| i18n | i18next + react-i18next | 文案不写死在组件里（产品文案） |
+| i18n | vue-i18n | 文案不写死在组件里（产品文案）；资源在 `src/locales/` |
 
 选型理由与边界见 [docs/architecture/overview.md](docs/architecture/overview.md)。
 
@@ -54,11 +59,14 @@ JLGit 是基于 **Tauri 2 + React + TypeScript** 的现代 Git 桌面客户端�
 ## 3. 架构一句话
 
 ```
-React → Router → Page → Feature/Component → Service → Tauri Command → Rust → Git CLI / FS / SQLite
+Vue → Router → View → Feature/Component
+  ├─ Service → Tauri Command → Rust → Git CLI / FS / SQLite
+  └─ api → Axios（requestClient）→ 外部 HTTP
 ```
 
 - **UI 永不直接执行 Git**，永不直接拼 shell
-- **Service 是前端唯一出口**；Command 是 Rust 唯一入口
+- **Tauri IPC 只经 `src/services/`**；**外部 HTTP 只经 `src/api/` + `src/utils/http/`**
+- Command 是 Rust 唯一入口；页面不得直接 `invoke`，也不得临时创建 Axios 实例
 - **SQLite 存应用数据**；Git 对象仍由 Git 管理
 
 分层职责：[docs/architecture/overview.md](docs/architecture/overview.md)
@@ -71,42 +79,54 @@ React → Router → Page → Feature/Component → Service → Tauri Command �
 2. **Readability First** — 命名清晰，函数单一职责
 3. **Modular Design** — 模块边界清晰，文件不宜膨胀（组件建议 ≤ 300 行）
 4. **Strong Typing** — 禁止 `any`；`unknown` 仅在边界解析后立即收窄
-5. **No Duplicate** — 重复超过两次必须抽象到 hooks / utils / services
-6. **Composition over Inheritance** — React 用组合
+5. **No Duplicate** — 重复超过两次必须抽象到 hooks / utils / services / api
+6. **Composition over Inheritance** — Vue 用组合式 API
 7. **Explicit over Implicit** — 副作用、权限、路径校验必须显式
 8. **Convention over Configuration** — 目录与命名遵循本文与 structure 文档
-9. **YAGNI** — 不为未排期功能预埋复杂抽象
+9. **YAGNI** — 不为未排期功能预埋复杂抽象（不引入 work-center 的 VxeTable / 权限指令，除非产品明确需要）
 
 ---
 
 ## 5. 目录与命名（摘要）
 
-目标前端结构（细节与归属规则见 [project-structure](docs/development/project-structure.md)）：
+目标前端结构对齐 work-center-web（细节与归属规则见 [project-structure](docs/development/project-structure.md)）：
 
 ```
 src/
 ├── assets/
-├── components/     # common | git | layout | project | ui
-├── hooks/
-├── layouts/
-├── pages/
-├── router/
-├── services/       # git | project | settings | notification | theme | ai
-├── store/
-├── design/         # Design Tokens / 主题 CSS / Monaco 桥接
+├── components/   # 可复用、非页面级；公开入口 index.ts，实现放 src/
+├── design/       # Design Tokens / Tailwind 入口 / 组件库覆盖 / Monaco 桥接
+├── hooks/        # 应用级组合式；按 setting / web / core / event / component 分层
+├── layouts/      # default（header/footer/content/sider/setting/feature）+ page + iframe
+├── locales/      # vue-i18n 初始化与 JSON 文案
+├── api/          # 外部 HTTP 接口（Axios / requestClient）
+├── router/       # 实例、routes/modules、guard、helper、types
+├── services/     # Tauri / 持久化门面（Git / FS / SQLite）
+├── store/        # Pinia 实例、plugin/、modules/；目录名固定单数
 ├── types/
 ├── utils/
-└── main.tsx
+├── views/        # 路由级页面（camelCase 目录 + index.vue + 就近分层）
+├── App.vue
+└── main.ts
 ```
 
 | 类别 | 约定 | 示例 |
 |------|------|------|
-| 组件 | PascalCase | `ProjectCard` |
-| Hook | `use` + PascalCase | `useGitStatus` |
-| Store | `use` + Domain + `Store` | `useProjectStore` |
+| 路由页目录 | camelCase | `views/projectManage/` |
+| 路由页文件 | `index.vue` | `views/repo/index.vue` |
+| 组件名 | PascalCase + `defineOptions` | `defineOptions({ name: 'RepoPage' })` |
+| 可复用组件目录 | PascalCase，`index.ts` + `src/` | `components/Git/` |
+| 页面私有组件 | `views/<module>/components/Xxx.vue` | `views/tasks/components/TaskFormModal.vue` |
+| 应用级 Hook | `hooks/<layer>/useXxx.ts` | `hooks/setting/useTheme.ts` |
+| 页面私有 Hook | `views/<module>/hooks/useXxx.ts` | `views/repo/hooks/useGitStatus.ts` |
+| Store 文件 | 域名词，禁止 `use` 前缀 | `store/modules/locale.ts` |
+| Store 导出 | `useXxxStore`；setup 外用 `useXxxStoreWithOut()` | `useLocaleStore` |
 | Service 文件 | domain 分段 | `git.status.ts` |
+| API 文件 | 域名词 | `src/api/ai.ts` |
 | Utils | camelCase 动词短语 | `formatDate` |
 | 类型 | PascalCase | `GitStatusResult` |
+| 路由 name | lowerCamelCase | `repoStatus` |
+| 路由 path | kebab-case | `/repo/:project-id/status` |
 | 常量 | UPPER_SNAKE 或 `as const` 对象 | `MAX_RECENT_PROJECTS` |
 | Rust 模块 | snake_case | `commands/git_status.rs` |
 
@@ -119,19 +139,21 @@ src/
 - 公共数据结构必须有 `interface` / `type`，放在 `src/types` 或就近 feature 类型文件
 - 函数返回值在非显然处显式标注
 - 错误类型在边界处规范化（见 Error Handling）
+- `src` 内模块优先 `@/`；类型导入使用 `import type`
 
 细则：[docs/development/coding-style.md](docs/development/coding-style.md)
 
 ---
 
-## 7. React 硬规则
+## 7. Vue 硬规则
 
-- 仅函数组件 + Hooks
-- 禁止 Class Component
-- 避免无意义的 `useMemo` / `useCallback`（有实测瓶颈再加）
-- 避免深层 Props Drilling；跨树状态进 Zustand
+- 仅 `<script setup lang="ts">` + 组合式 API；禁止 Options API / Class 组件
+- 每个 `.vue` 必须 `defineOptions({ name: 'Xxx' })`
+- 避免无意义的 `computed` / `watch`（有实测瓶颈再加）
+- 避免深层 Props 透传；跨树状态进 Pinia
 - 列表大数据必须考虑虚拟滚动（见 performance）
-- Props 必须定义 Interface
+- Props 必须用 `defineProps` + 类型（`interface` / type）
+- 通用副作用优先 `@vueuse/core`；数组/对象/深拷贝优先 `lodash-es`
 
 ---
 
@@ -166,13 +188,14 @@ UI / Hook → src/services/git/* → invoke(command) → Rust git_* → git CLI
 优先级：
 
 ```
-Local State → Zustand → SQLite
+Local State → Pinia → SQLite
 ```
 
-- 全局状态只放 `src/store`，只用 Zustand
-- UI 瞬时状态用 `useState` / `useReducer`
+- 全局状态只放 `src/store`，只用 Pinia；不得再创建 `src/stores/`
+- Pinia 实例在 `src/store/index.ts` 经 `setupStore(app)` 注册
+- UI 瞬时状态用组件 `ref` / `reactive`
 - 需要跨启动持久化的业务数据进 SQLite
-- 轻量偏好（窗口、主题键）可用 Tauri Store
+- 轻量偏好（窗口、主题键、语言）可用 persist 插件或 Tauri Store
 
 详见：[docs/development/state-management.md](docs/development/state-management.md)
 
@@ -181,8 +204,8 @@ Local State → Zustand → SQLite
 ## 11. Import 顺序
 
 ```
-1. React
-2. 第三方库
+1. vue / vue-router / pinia
+2. 第三方库（antdv-next、@vueuse/core…）
 3. Components
 4. Hooks
 5. Store
@@ -191,14 +214,14 @@ Local State → Zustand → SQLite
 8. Styles
 ```
 
-组与组之间空一行。
+组与组之间空一行。类型导入使用 `import type`。
 
 ---
 
 ## 12. Error Handling
 
-- 所有 Promise / `invoke` 必须处理失败
-- Service 层捕获并转换为领域错误；UI 用 toast / 内联提示展示
+- 所有 Promise / `invoke` / Axios 请求必须处理失败
+- Service / api 层捕获并转换为领域错误；UI 用 antdv-next `message` / `notification` 或内联提示展示
 - 禁止空 `catch`
 - 日志：开发期 `console` + Tauri log plugin；生产避免刷屏敏感信息
 
@@ -216,27 +239,27 @@ Local State → Zustand → SQLite
 
 - 不引入与现有能力重复的库
 - 新增依赖需说明：解决的问题、体积/许可、是否有更轻替代
-- 禁止混用多个**UI**图标库、多个状态库、多个 UI 体系（文件类型图标仅允许 `material-icon-theme`）
+- 禁止混用多个 **UI** 图标库、多个状态库、多个 UI 体系（文件类型图标仅允许 `material-icon-theme`）
+- 禁止同时存在 React 与 Vue 运行时作为产品 UI；迁移期间不得双栈交付
 - 锁文件（`pnpm-lock.yaml` / `Cargo.lock`）必须提交
 - JavaScript/TypeScript **只允许 pnpm**；Node 推荐版本见 `.nvmrc`（`24.14.0`），最低 `>=22.22.1`
 - 提交前必须通过质量工具链：ESLint、Prettier、`pnpm check`；细则见 [code-quality-tooling](docs/development/code-quality-tooling.md)
-- **`src/components/ui/**` 禁止**被 ESLint、Prettier、编辑器 format-on-save 或手工改写；只能官方 shadcn CLI 写入
 
 ---
 
 ## 15. UI / Theme
 
 - 风格关键词：Minimal、Professional、Developer-first、Fast、Clean
-- 颜色 / 圆角 / 阴影只用 Design Tokens（CSS Variables）
+- 颜色 / 圆角 / 阴影只用 Design Tokens（CSS Variables）；antdv-next 主题经 ConfigProvider / Design Token 接到同一套语义色
 - 必须支持 Light / Dark
-- 图标：UI 仅 `lucide-react`；工作区文件类型图标用 `material-icon-theme`（禁止再用 lucide 冒充文件类型）
-- **shadcn / `src/components/ui/`（硬性，AI 与人类同等）**：
-  1. **能用 shadcn 就尽量用**：官方有等价组件（如状态胶囊用 `Badge`、开关用 `Switch`、表用 `Table`）时，禁止业务层手搓或退回原生控件冒充
-  2. **必须**用官方命令引入或覆盖：`pnpm dlx shadcn@latest add <name>`（更新/恢复加 `--overwrite`）
-  3. **禁止手写**：不得用编辑器 / Agent Write 工具 / 从 registry JSON 粘贴等方式「仿造」官方组件写入 `ui/`
-  4. **禁止私自更改**：不得改样式、结构、依赖、导出名；业务需求只在业务层**组合** `@/components/ui/*`，或把领域控件放 `components/common` / 各域目录
-  5. CLI 失败时修环境/换官方推荐调用方式后重试，**不得**退化为手写落地；**默认按需引入**，全量预置须产品明确批准（见 [ui-guidelines · shadcn](docs/development/ui-guidelines.md)）
-- **滚动区域（硬性）**：面板 / 列表 / 侧栏等**主滚动容器**必须使用 shadcn `@/components/ui/scroll-area`；**禁止**以裸 `overflow-auto` / `overflow-x-auto` / `overflow-y-auto` 作为交付用的主滚动方案（调试对照除外）。滚动条默认悬停/滚动时显示（不设 `type="always"`）。大列表另须虚拟滚动，见 §16 与 [performance](docs/development/performance.md)。细则见 [ui-guidelines](docs/development/ui-guidelines.md)
+- 图标：UI 仅经 `@/components/Icon`（内部 morphicons + lucide 数据）；工作区文件类型图标用 `material-icon-theme`
+- **antdv-next（硬性，AI 与人类同等）**：
+  1. **能用 antdv-next 就尽量用**：官方有等价组件（按钮、输入、选择、弹窗、抽屉、表格、标签、卡片、菜单、排版、开关、Tooltip、**Form / FormItem / Row / Col**）时，禁止业务层手搓或退回原生控件冒充。业务表单必须 `Form` + `FormItem`，栅格用 `Row` / `Col`，禁止 `<form>` + `<label>` 手搓布局
+  2. **局部导入**：在使用它的 `.vue` 中 `import { Button, Modal } from 'antdv-next'`，模板写 `<Button>`；**禁止** `app.use(Antd)`
+  3. **禁止引入** `ant-design-vue` 或第二套 Ant Design Vue 实现
+  4. 使用前查阅官方文档或已安装版本的类型声明，确认 props / events / slots / Design Token；不得靠记忆臆测 API
+  5. 领域控件（Diff、提交图、文件树）放 `components/` 或 `views/*/components/`，不要伪造 antdv 没有的「官方组件」
+- **滚动区域（硬性）**：面板 / 列表 / 侧栏等**主滚动容器**必须使用项目统一滚动封装（优先 antdv-next 已有滚动能力，或 `components/ScrollArea`）；**禁止**以裸 `overflow-auto` / `overflow-x-auto` / `overflow-y-auto` 作为交付用的主滚动方案（调试对照除外）。大列表另须虚拟滚动，见 §16 与 [performance](docs/development/performance.md)
 
 详见：[docs/development/theme.md](docs/development/theme.md)、[docs/development/ui-guidelines.md](docs/development/ui-guidelines.md)
 
@@ -283,8 +306,9 @@ Local State → Zustand → SQLite
 
 - 用户可见文案走 i18n 资源，不硬编码中文/英文在业务组件中（品牌名 `JLGit` 除外）
 - 默认提供 `zh-CN`；`en` 作为第二语言预留
-- 文案资源按语言分目录、按域分文件：`src/i18n/locales/<lng>/<domain>.json`（禁止把全部文案堆进单一大 JSON）
-- 日期/相对时间用统一工具（如 dayjs + locale）
+- 文案资源：`src/locales/lang/<lng>/<domain>.json`（禁止把全部文案堆进单一大 JSON）
+- 页面、布局、菜单与路由 `meta.title` 不得硬编码展示文案
+- 日期/相对时间用统一工具（dayjs + locale），与 `setLocale()` 同步
 
 ---
 
@@ -324,14 +348,14 @@ AI 修改代码时必须：
 3. 不修改未请求的功能与文件
 4. 优先复用已有组件 / hooks / services
 5. 保持 TypeScript 类型完整
-6. 不引入不必要依赖
+6. 不引入不必要依赖（含 VxeTable、第二套 UI 库）；HTTP 只用已约定的 Axios 封装
 7. 改动范围尽可能小
-8. 新文件放入正确目录
+8. 新文件放入正确目录（`views/` 就近分层，可复用组件进 `components/`）
 9. 注释使用中文，且仅解释非显然逻辑
 10. 涉及 Git/FS/安全时先读 security 与 git 架构文档
 11. **写完必须自检**（见 [quality](docs/development/quality.md)）：至少 `pnpm check` + 相关冒烟；不得把 S0/S1 留给用户发现
 12. 向用户声称完成前，按 quality 文档的 Bug 级别自查；已知未修问题须标明级别
-13. **shadcn 硬性**：能用官方组件就用；缺组件只跑官方 `pnpm dlx shadcn@latest add <name>`；**禁止**手写 / 粘贴 registry / 私改 `src/components/ui/`（见 §15 / Never Rules）
+13. **antdv-next 硬性**：能用官方组件就局部导入使用；禁止 `app.use()`；禁止引入 `ant-design-vue`（见 §15 / Never Rules）
 
 ---
 
@@ -345,7 +369,7 @@ AI 修改代码时必须：
 - [ ] 错误可被用户感知或已记录
 - [ ] 必要文档已更新（命令/API/功能状态）
 - [ ] Commit message 符合约定
-- [ ] 未引入与范围无关的格式化大爆炸；未改写 `src/components/ui/**`
+- [ ] 未引入与范围无关的格式化大爆炸
 - [ ] **质量自检通过**：无已知 **S0/S1**；运行时冒烟已做（见 [quality](docs/development/quality.md)）
 - [ ] 若残留 **S2+**，PR/回复中写明级别、现象与是否阻塞验收
 
@@ -367,9 +391,11 @@ AI 修改代码时必须：
 10. 在文档中留 TODO / 占位假内容冒充完成
 11. 带着 **S0/S1**（崩溃、无限重渲染、核心路径不可用）声称完成或请用户验收
 12. 只跑类型检查、不跑与改动相关的运行时冒烟就交付
-13. 用裸 `overflow-*-auto` 替代 shadcn `ScrollArea` 作为面板主滚动交付方案
-14. **手写、粘贴或私自修改** `src/components/ui/` 下任何文件（含「顺手修样式」、从 registry 抄文件冒充官方引入）；该目录**只允许**官方 `pnpm dlx shadcn@latest add …` 引入/覆盖
-15. 用 Prettier / ESLint / 编辑器保存动作改写 `src/components/ui/**`
+13. 用裸 `overflow-*-auto` 替代统一滚动封装作为面板主滚动交付方案
+14. **`app.use()` 全局注册 antdv-next**，或引入 `ant-design-vue` / 第二套 Ant Design Vue
+15. 在页面或布局中直接 `import` Lucide / morphicons（必须经 `@/components/Icon`）
+16. 把页面私有 `useXxx` / 工具函数堆在 `views/<module>/` 根目录（必须进 `hooks/` / `utils/`）
+17. 在页面或组件里临时 `axios.create` / 直接 `axios.get`；HTTP 必须走 `src/api/` + `requestClient`
 
 ---
 

@@ -1,7 +1,7 @@
-import type { NavigateFunction } from "react-router-dom";
+import { pathForOpenTab, useOpenTabsStoreWithOut, type OpenTab } from "@/store/modules/multipleTab";
+import { useAppPrefsStoreWithOut } from "@/store/modules/app";
 
-import { useAppPrefsStore } from "@/store/useAppPrefsStore";
-import { pathForOpenTab, useOpenTabsStore, type OpenTab } from "@/store/useOpenTabsStore";
+export type StartupNavigate = (to: string, options?: { replace?: boolean }) => void;
 
 let startupTabsApplied = false;
 const appliedListeners = new Set<() => void>();
@@ -30,23 +30,6 @@ function markStartupTabsApplied(): void {
   appliedListeners.clear();
 }
 
-function waitForPersistHydration(store: {
-  persist: {
-    hasHydrated: () => boolean;
-    onFinishHydration: (fn: () => void) => () => void;
-  };
-}): Promise<void> {
-  if (store.persist.hasHydrated()) {
-    return Promise.resolve();
-  }
-  return new Promise((resolve) => {
-    const unsub = store.persist.onFinishHydration(() => {
-      unsub();
-      resolve();
-    });
-  });
-}
-
 function resolveStartupTab(
   tabs: readonly OpenTab[],
   lastActiveTabId: string | null,
@@ -67,24 +50,22 @@ function resolveStartupTab(
  * 主窗冷启动：按「恢复上次 / 每次新标签」导航一次。
  * 子窗（agent 等）不挂 AppLayout，不会执行。
  */
-export async function applyStartupTabsBootstrap(navigate: NavigateFunction): Promise<void> {
+export async function applyStartupTabsBootstrap(navigate: StartupNavigate): Promise<void> {
   if (startupTabsApplied) {
     return;
   }
 
-  await Promise.all([
-    waitForPersistHydration(useAppPrefsStore),
-    waitForPersistHydration(useOpenTabsStore),
-  ]);
+  useAppPrefsStoreWithOut();
+  useOpenTabsStoreWithOut();
 
   if (startupTabsApplied) {
     return;
   }
 
   // 水合后立刻快照，避免与标签栏 effect 竞态读到被改写的 lastActive
-  const mode = useAppPrefsStore.getState().startupTabsMode;
+  const mode = useAppPrefsStoreWithOut().startupTabsMode;
   const { tabs, lastActiveTabId, setLastActiveTabId, resetToFreshStartup } =
-    useOpenTabsStore.getState();
+    useOpenTabsStoreWithOut();
 
   if (mode === "fresh") {
     const id = resetToFreshStartup();

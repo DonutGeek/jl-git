@@ -7,6 +7,7 @@ import branchManage from "./branchManage.json";
 import common from "./common.json";
 import dashboard from "./dashboard.json";
 import fileHistory from "./fileHistory.json";
+import http from "./http.json";
 import cloneRepo from "./cloneRepo.json";
 import openRepo from "./openRepo.json";
 import opLog from "./opLog.json";
@@ -33,6 +34,7 @@ const zhCN = {
   commitHistory,
   branchManage,
   fileHistory,
+  http,
   repo,
   multiAgent,
 };
