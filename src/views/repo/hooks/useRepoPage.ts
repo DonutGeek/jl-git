@@ -1,12 +1,11 @@
 import { computed, onUnmounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 
-import { message } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { useHasAgentApiKey } from "@/hooks/core/useHasAgentApiKey";
 import { useShortcutAction } from "@/hooks/core/useShortcutAction";
-import { useZustand } from "@/hooks/core/useZustand";
+import { useMessage } from "@/hooks/web/useMessage";
 import { useProjectStore, useProjectStoreWithOut } from "@/store/modules/project";
 import { useRepoNavStore } from "@/store/modules/repoNav";
 import {
@@ -45,6 +44,7 @@ export function createRepoBootstrapStub(projectId: string): Project {
     description: null,
     icon: DEFAULT_PROJECT_ICON,
     path: projectId,
+    remoteUrl: null,
     lastOpenedAt: null,
     pinned: false,
     sortOrder: 0,
@@ -55,12 +55,12 @@ export function createRepoBootstrapStub(projectId: string): Project {
 
 export function useRepoPage(projectId: () => string, active: () => boolean) {
   const { t } = useI18n();
-  const project = useZustand(
-    useProjectStore,
-    (state) => state.projects.find((item) => item.id === projectId()) ?? null,
-  );
-  const activeRepoPath = useZustand(useRepoStore, (state) => state.repoPath);
-  const conflictFocusEpoch = useZustand(useRepoStore, (state) => state.conflictFocusEpoch);
+  const message = useMessage();
+  const projectStore = useProjectStore();
+  const repoStore = useRepoStore();
+  const { projects } = storeToRefs(projectStore);
+  const { repoPath: activeRepoPath, conflictFocusEpoch } = storeToRefs(repoStore);
+  const project = computed(() => projects.value.find((item) => item.id === projectId()) ?? null);
   const { fileTreeReveal, workspacePreview } = storeToRefs(useRepoNavStore());
   const hasApiKey = useHasAgentApiKey();
 
@@ -244,7 +244,7 @@ export function useRepoPage(projectId: () => string, active: () => boolean) {
               if (!cancelled) {
                 const next = toUserMessage(initError);
                 loadError.value = { projectId: id, message: next };
-                message.error(next);
+                message.error(initError);
               }
             }
           })();

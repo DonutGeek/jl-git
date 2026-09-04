@@ -8,17 +8,7 @@ import {
   serializeZustandPersist,
 } from "@/store/plugin/zustandPersist";
 
-import {
-  applyAppThemeToDocument,
-  APP_THEME_CLAUDE_CODE,
-  APP_THEME_CODEX,
-  chromeFromPreset,
-  DEFAULT_APP_THEME_ID,
-  normalizeAppThemeChrome,
-  normalizeAppThemeId,
-  type AppThemeChrome,
-  type AppThemeId,
-} from "@/design/editor-themes";
+import { clearAppThemeTokenOverrides } from "@/design/themes/apply-document";
 import {
   listenGlobalPreferenceChange,
   notifyGlobalPreferenceChange,
@@ -53,12 +43,6 @@ export type StartupTabsMode = "restore" | "fresh";
 interface AppPrefsState {
   clientFont: string;
   editorFont: string;
-  /** 应用主题包（整站 + Monaco） */
-  appThemeId: AppThemeId;
-  /** @deprecated 读时映射到 appThemeId */
-  editorThemeId: AppThemeId;
-  themeChromeLight: AppThemeChrome;
-  themeChromeDark: AppThemeChrome;
   externalEditor: string;
   externalEditorPath: string;
   /** 外部浏览器：auto / 探测 id / custom */
@@ -83,12 +67,6 @@ interface AppPrefsState {
   activityBarOrder: ActivityBarItemId[];
   setClientFont: (font: string) => void;
   setEditorFont: (font: string) => void;
-  /** 切换主题包：自动套用该主题明暗预设色 */
-  setAppThemeId: (themeId: AppThemeId) => void;
-  /** @deprecated */
-  setEditorThemeId: (themeId: AppThemeId) => void;
-  /** 修改当前有效明暗模式；persist 中间件会立即保存 */
-  patchThemeChrome: (patch: Partial<AppThemeChrome>) => void;
   setExternalEditor: (value: string) => void;
   setExternalEditorPath: (value: string) => void;
   setExternalBrowser: (value: string) => void;
@@ -114,25 +92,9 @@ function normalizePullStrategy(value: unknown): "merge" | "rebase" {
   return value === "rebase" ? "rebase" : "merge";
 }
 
-function isDocumentDarkNow(): boolean {
-  return document.documentElement.classList.contains("dark");
-}
-
-export function getActiveThemeChrome(
-  state: Pick<
-    AppPrefsState,
-    "appThemeId" | "themeChromeLight" | "themeChromeDark"
-  > = useAppPrefsStoreWithOut(),
-): AppThemeChrome {
-  const dark = isDocumentDarkNow();
-  const raw = dark ? state.themeChromeDark : state.themeChromeLight;
-  return normalizeAppThemeChrome(raw, state.appThemeId, dark);
-}
-
-function applyActiveTheme(
-  state: Pick<AppPrefsState, "appThemeId" | "themeChromeLight" | "themeChromeDark">,
-): void {
-  applyAppThemeToDocument(state.appThemeId, getActiveThemeChrome(state));
+/** 启动时清掉旧主题包写入的 inline Token */
+function applyActiveTheme(): void {
+  clearAppThemeTokenOverrides();
 }
 
 function quoteFontFamily(name: string): string {
@@ -176,28 +138,9 @@ function persistFonts(clientFont: string, editorFont: string): void {
   });
 }
 
-function applyThemePack(themeId: AppThemeId): {
-  appThemeId: AppThemeId;
-  editorThemeId: AppThemeId;
-  themeChromeLight: AppThemeChrome;
-  themeChromeDark: AppThemeChrome;
-} {
-  const id = normalizeAppThemeId(themeId);
-  return {
-    appThemeId: id,
-    editorThemeId: id,
-    themeChromeLight: chromeFromPreset(id, false),
-    themeChromeDark: chromeFromPreset(id, true),
-  };
-}
-
 interface AppPrefsData {
   clientFont: string;
   editorFont: string;
-  appThemeId: AppThemeId;
-  editorThemeId: AppThemeId;
-  themeChromeLight: AppThemeChrome;
-  themeChromeDark: AppThemeChrome;
   externalEditor: string;
   externalEditorPath: string;
   externalBrowser: string;
@@ -217,13 +160,10 @@ interface AppPrefsData {
 
 type AppPrefsActions = Omit<AppPrefsState, keyof AppPrefsData>;
 
-const APP_PREFS_PERSIST_VERSION = 18;
+const APP_PREFS_PERSIST_VERSION = 19;
 
 function migrateAppPrefs(persisted: unknown, version: number): AppPrefsData {
-  const state = persisted as Partial<AppPrefsData> & {
-    editorChromeLight?: AppThemeChrome;
-    editorChromeDark?: AppThemeChrome;
-  };
+  const state = persisted as Partial<AppPrefsData>;
   if (!state) {
     return persisted as AppPrefsData;
   }
@@ -249,66 +189,8 @@ function migrateAppPrefs(persisted: unknown, version: number): AppPrefsData {
   if (version < 3) {
     state.launchAtLogin = false;
   }
-  if (version < 4) {
-    state.appThemeId = DEFAULT_APP_THEME_ID;
-    state.editorThemeId = DEFAULT_APP_THEME_ID;
-  }
-  if (version < 5) {
-    const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
-    Object.assign(state, applyThemePack(id));
-    if (state.editorChromeLight && !state.themeChromeLight) {
-      state.themeChromeLight = state.editorChromeLight;
-    }
-    if (state.editorChromeDark && !state.themeChromeDark) {
-      state.themeChromeDark = state.editorChromeDark;
-    }
-  }
-  if (version < 6) {
-    // 模块化主题：按 id 重套预设；曾误把 Codex 色当「鲸灵」的，回到默认鲸灵 Git
-    let id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
-    const darkBg = String(state.themeChromeDark?.background ?? "")
-      .trim()
-      .toUpperCase();
-    const lookedLikeFalseJingling =
-      id === DEFAULT_APP_THEME_ID && (darkBg === "#181818" || darkBg === "#0D1117");
-    if (lookedLikeFalseJingling) {
-      id = DEFAULT_APP_THEME_ID;
-    }
-    Object.assign(state, applyThemePack(id));
-  }
-  if (version < 7) {
-    // 按官网/公开设计系统校准色板后，重套当前主题预设
-    const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
-    Object.assign(state, applyThemePack(id));
-  }
-  if (version < 8) {
-    // 主题包从三种主色扩展为完整语义色板，避免旧派生色残留在卡片、侧栏与 Diff
-    const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
-    Object.assign(state, applyThemePack(id));
-  }
-  if (version < 9) {
-    const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
-    if (id === DEFAULT_APP_THEME_ID) {
-      // 修复旧派生 HEX 整套覆盖原生 OKLCH：恢复鲸灵 Git 浅/深默认配置
-      Object.assign(state, applyThemePack(id));
-    }
-  }
   if (version < 10) {
     state.activityBarOrder = normalizeActivityBarOrder(state.activityBarOrder);
-  }
-  if (version < 11) {
-    const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
-    if (id === APP_THEME_CODEX || id === APP_THEME_CLAUDE_CODE) {
-      // Codex / Claude 主题完成来源校准后，重套旧版持久化预设。
-      Object.assign(state, applyThemePack(id));
-    }
-  }
-  if (version < 12) {
-    const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
-    if (id === APP_THEME_CODEX) {
-      // ChatGPT 拆为独立主题后，恢复既有 Codex 用户的 Codex 配色。
-      Object.assign(state, applyThemePack(id));
-    }
   }
   if (version < 13) {
     const raw = state.branchPrefix;
@@ -346,19 +228,28 @@ function migrateAppPrefs(persisted: unknown, version: number): AppPrefsData {
 }
 
 function normalizeHydratedAppPrefs(state: AppPrefsData): AppPrefsData {
-  const clientFont = normalizeClientFont(state.clientFont);
-  const editorFont = normalizeEditorFont(state.editorFont);
-  const id = normalizeAppThemeId(state.appThemeId ?? state.editorThemeId);
   return {
-    ...state,
-    clientFont,
-    editorFont,
-    appThemeId: id,
-    editorThemeId: id,
-    themeChromeLight: normalizeAppThemeChrome(state.themeChromeLight, id, false),
-    themeChromeDark: normalizeAppThemeChrome(state.themeChromeDark, id, true),
+    clientFont: normalizeClientFont(state.clientFont),
+    editorFont: normalizeEditorFont(state.editorFont),
+    externalEditor: typeof state.externalEditor === "string" ? state.externalEditor : "auto",
+    externalEditorPath:
+      typeof state.externalEditorPath === "string" ? state.externalEditorPath : "",
+    externalBrowser: typeof state.externalBrowser === "string" ? state.externalBrowser : "auto",
+    externalBrowserPath:
+      typeof state.externalBrowserPath === "string" ? state.externalBrowserPath : "",
+    shell: typeof state.shell === "string" ? state.shell : "auto",
+    shellPath: typeof state.shellPath === "string" ? state.shellPath : "",
+    gitExtraPath: typeof state.gitExtraPath === "string" ? state.gitExtraPath : "",
+    gitExtraPathMode: state.gitExtraPathMode === "custom" ? "custom" : "auto",
+    gitExtraPathAutoSeeded: Boolean(state.gitExtraPathAutoSeeded),
+    launchAtLogin: Boolean(state.launchAtLogin),
     startupTabsMode: normalizeStartupTabsMode(state.startupTabsMode),
+    pushAfterCommit: Boolean(state.pushAfterCommit),
     pullStrategy: normalizePullStrategy(state.pullStrategy),
+    branchPrefix:
+      typeof state.branchPrefix === "string" && isBranchPrefixInputValid(state.branchPrefix)
+        ? normalizeBranchPrefix(state.branchPrefix)
+        : DEFAULT_BRANCH_PREFIX,
     activityBarOrder: normalizeActivityBarOrder(state.activityBarOrder),
   };
 }
@@ -378,10 +269,6 @@ export const useAppPrefsStore = defineStore("appPrefs", {
   state: (): AppPrefsData => ({
     clientFont: DEFAULT_APP_FONT,
     editorFont: DEFAULT_APP_FONT,
-    appThemeId: DEFAULT_APP_THEME_ID,
-    editorThemeId: DEFAULT_APP_THEME_ID,
-    themeChromeLight: chromeFromPreset(DEFAULT_APP_THEME_ID, false),
-    themeChromeDark: chromeFromPreset(DEFAULT_APP_THEME_ID, true),
     externalEditor: "auto",
     externalEditorPath: "",
     externalBrowser: "auto",
@@ -413,25 +300,6 @@ export const useAppPrefsStore = defineStore("appPrefs", {
       applyAppFonts(clientFont, next);
       set({ editorFont: next });
       persistFonts(clientFont, next);
-      notifyGlobalPreferenceChange("app-prefs");
-    },
-    setAppThemeId(themeId) {
-      const next = applyThemePack(themeId);
-      set(next);
-      applyActiveTheme({ ...get(), ...next });
-      notifyGlobalPreferenceChange("app-prefs");
-    },
-    setEditorThemeId(themeId) {
-      get().setAppThemeId(themeId);
-    },
-    patchThemeChrome(patch) {
-      const state = get();
-      const dark = isDocumentDarkNow();
-      const current = getActiveThemeChrome(state);
-      const merged = normalizeAppThemeChrome({ ...current, ...patch }, state.appThemeId, dark);
-      const next = dark ? { themeChromeDark: merged } : { themeChromeLight: merged };
-      set(next);
-      applyActiveTheme({ ...state, ...next });
       notifyGlobalPreferenceChange("app-prefs");
     },
     setExternalEditor(value) {
@@ -539,7 +407,7 @@ export const useAppPrefsStore = defineStore("appPrefs", {
     afterHydrate(ctx) {
       const prefs = ctx.store as unknown as AppPrefsData;
       applyAppFonts(prefs.clientFont, prefs.editorFont);
-      applyActiveTheme(prefs);
+      applyActiveTheme();
     },
   },
 });
@@ -551,7 +419,7 @@ export function useAppPrefsStoreWithOut() {
 export function initAppPrefs(): void {
   const state = useAppPrefsStoreWithOut();
   applyAppFonts(state.clientFont, state.editorFont);
-  applyActiveTheme(state);
+  applyActiveTheme();
 
   const syncAutostart = (): void => {
     const preferred = useAppPrefsStoreWithOut().launchAtLogin;
@@ -618,9 +486,4 @@ export function initAppPrefs(): void {
   }).catch((error: unknown) => {
     console.error("Failed to listen for app preference changes", error);
   });
-}
-
-/** 明暗 class 变化后重刷当前主题包色到 document */
-export function refreshAppThemeForColorMode(): void {
-  applyActiveTheme(useAppPrefsStoreWithOut());
 }

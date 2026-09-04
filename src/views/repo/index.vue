@@ -56,7 +56,6 @@ const layoutProject = computed(() => project.value ?? createRepoBootstrapStub(pr
       :main-view="mainView"
       toolbar-loading
       :aria-busy="true"
-      :aria-label="t('common.loading')"
       @update:sidebar-view="(view) => (sidebarView = view)"
       @update:main-view="(view) => (mainView = view)"
     >
@@ -80,7 +79,7 @@ const layoutProject = computed(() => project.value ?? createRepoBootstrapStub(pr
         <Button v-if="project" type="primary" size="small" @click="retryBootstrap">
           {{ t("repo.refresh") }}
         </Button>
-        <Button size="small" @click="void router.push('/')">{{ t("common.back") }}</Button>
+        <Button size="small" @click="router.push('/')">{{ t("common.back") }}</Button>
       </div>
     </div>
   </section>

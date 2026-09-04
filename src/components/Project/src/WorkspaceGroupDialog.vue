@@ -1,21 +1,26 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { storeToRefs } from "pinia";
 
-import { Button, Col, Form, FormItem, Input, Modal, Row, Select, message } from "antdv-next";
+import { Button, ColorPicker, Col, Form, FormItem, Input, Modal, Row, Select } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
-import { Icon } from "@/components/Icon";
 import { DEFAULT_WORKSPACE_ICON } from "./workspaceGroupAppearance";
-import { useZustand } from "@/hooks/core/useZustand";
+
+import { useMessage } from "@/hooks/web/useMessage";
+
 import { useProjectStore, useProjectStoreWithOut } from "@/store/modules/project";
-import { toUserMessage } from "@/types/error";
-import type { Workspace, WorkspaceColor, WorkspaceIcon } from "@/types/project";
+
 import {
   DEFAULT_WORKSPACE_COLOR,
   WORKSPACE_COLOR_PRESETS,
   normalizeWorkspaceColor,
 } from "@/utils/workspaceColor";
 import { buildWorkspaceOptions, collectWorkspaceSubtreeIds } from "@/utils/workspaceOptions";
+
+import { toUserMessage } from "@/types/error";
+import type { ColorValueType } from "antdv-next";
+import type { Workspace, WorkspaceColor, WorkspaceIcon } from "@/types/project";
 
 defineOptions({ name: "WorkspaceGroupDialog" });
 
@@ -36,7 +41,9 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const workspaces = useZustand(useProjectStore, (state) => state.workspaces);
+const message = useMessage();
+const projectStore = useProjectStore();
+const { workspaces } = storeToRefs(projectStore);
 const name = ref("");
 const parentId = ref("");
 const icon = ref<WorkspaceIcon>(DEFAULT_WORKSPACE_ICON);
@@ -56,6 +63,14 @@ const parentOptions = computed(() => [
   ...buildWorkspaceOptions(workspaces.value, parentExcludeIds.value),
 ]);
 
+const colorPresets = computed(() => [
+  {
+    label: t("projectManager.groupColorPresets"),
+    colors: [...WORKSPACE_COLOR_PRESETS],
+    defaultOpen: true,
+  },
+]);
+
 const iconOptions = computed(() => [
   { value: "code", label: t("projectManager.iconCode") },
   { value: "folder", label: t("projectManager.iconFolder") },
@@ -64,23 +79,9 @@ const iconOptions = computed(() => [
   { value: "box", label: t("projectManager.iconBox") },
 ]);
 
-const parentName = computed(() =>
-  parentId.value ? workspaces.value.find((item) => item.id === parentId.value)?.name : null,
-);
-
 const title = computed(() =>
   props.mode === "edit" ? t("projectManager.editGroup") : t("projectManager.createGroup"),
 );
-
-const description = computed(() => {
-  if (props.mode === "edit") {
-    return t("projectManager.editGroupDescription");
-  }
-  if (parentName.value) {
-    return t("projectManager.createChildGroup", { name: parentName.value });
-  }
-  return t("projectManager.groupName");
-});
 
 watch(
   () => [props.open, props.mode, props.workspace, props.initialParentId] as const,
@@ -103,6 +104,16 @@ watch(
     color.value = DEFAULT_WORKSPACE_COLOR;
   },
 );
+
+function handleColorChange(next: ColorValueType): void {
+  if (typeof next === "string") {
+    color.value = normalizeWorkspaceColor(next);
+    return;
+  }
+  if (next && typeof next === "object" && "toHexString" in next) {
+    color.value = normalizeWorkspaceColor(next.toHexString());
+  }
+}
 
 function handleOpenChange(next: boolean): void {
   if (!next && saving.value) {
@@ -142,9 +153,8 @@ async function handleSubmit(): Promise<void> {
     }
     emit("update:open", false);
   } catch (submitError) {
-    const nextMessage = toUserMessage(submitError);
-    error.value = nextMessage;
-    message.error(nextMessage);
+    error.value = toUserMessage(submitError);
+    message.error(submitError);
   } finally {
     saving.value = false;
   }
@@ -160,15 +170,13 @@ async function handleSubmit(): Promise<void> {
     :confirm-loading="saving"
     :ok-button-props="{ disabled: !name.trim() || saving }"
     @update:open="handleOpenChange"
-    @ok="void handleSubmit()"
+    @ok="handleSubmit"
   >
-    <p class="text-muted-foreground mb-4 text-sm">{{ description }}</p>
     <Form layout="vertical">
       <Row :gutter="16">
         <Col :span="24">
           <FormItem :label="t('projectManager.groupName')" name="name">
             <Input
-              id="workspace-group-dialog-name"
               v-model:value="name"
               :placeholder="t('projectManager.groupNamePlaceholder')"
               :disabled="saving"
@@ -199,19 +207,16 @@ async function handleSubmit(): Promise<void> {
         </Col>
         <Col :span="12">
           <FormItem :label="t('projectManager.groupColor')" name="color">
-            <div class="flex flex-wrap gap-2 pt-1">
-              <button
-                v-for="preset in WORKSPACE_COLOR_PRESETS"
-                :key="preset"
-                type="button"
-                class="size-6 rounded-full border-2"
-                :class="color === preset ? 'border-foreground' : 'border-transparent'"
-                :style="{ backgroundColor: preset }"
-                :aria-label="t('projectManager.groupColor')"
-                :disabled="saving"
-                @click="color = preset"
-              />
-            </div>
+            <ColorPicker
+              :value="color"
+              format="hex"
+              value-format="hex"
+              disabled-alpha
+              show-text
+              :presets="colorPresets"
+              :disabled="saving"
+              @update:value="handleColorChange"
+            />
           </FormItem>
         </Col>
         <Col v-if="error" :span="24">
@@ -225,9 +230,8 @@ async function handleSubmit(): Promise<void> {
         type="primary"
         :disabled="!name.trim() || saving"
         :loading="saving"
-        @click="void handleSubmit()"
+        @click="handleSubmit"
       >
-        <Icon v-if="saving" name="LoaderCircle" :size="14" class="mr-1 animate-spin" />
         {{ mode === "edit" ? t("projectManager.saveGroup") : t("projectManager.createGroup") }}
       </Button>
     </template>

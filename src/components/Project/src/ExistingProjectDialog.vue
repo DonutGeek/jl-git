@@ -40,7 +40,6 @@ function handleOk(): void {
     @ok="handleOk"
   >
     <div class="space-y-2 text-sm">
-      <p class="text-muted-foreground">{{ t("openRepo.existingDescription") }}</p>
       <div v-if="project" class="bg-muted/40 border-border rounded-md border px-3 py-2">
         <p class="font-medium">{{ project.name }}</p>
         <p class="text-muted-foreground mt-0.5 break-words text-xs">

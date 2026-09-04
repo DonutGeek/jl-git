@@ -1,4 +1,4 @@
-/** 主题色运算（与主题包数据解耦） */
+/** 颜色运算（分组色 / Monaco 回退） */
 
 export interface HsvColor {
   /** 0–359 */

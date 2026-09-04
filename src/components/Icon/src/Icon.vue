@@ -25,6 +25,7 @@ const pixelSize = computed(() =>
 
 <template>
   <MorphIcon
+    class="block shrink-0 leading-none"
     :icon="iconNode"
     :size="pixelSize"
     :stroke-width="strokeWidth"

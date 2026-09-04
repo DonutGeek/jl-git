@@ -1,12 +1,7 @@
 {
   "title": "Home",
-  "description": "Open a local Git repository, or continue from recent projects.",
   "openRepoAction": "Open repository",
   "recentTitle": "Recent projects",
-  "recentDescription": "Single-click to select, double-click to open",
-  "doubleClickToOpen": "Double-click to enter the repository workspace",
   "recentCount": "{{count}}",
-  "recentEmptyTitle": "No repositories yet",
-  "recentEmptyDescription": "Open a local Git repository and it will show up here for quick access.",
   "recentOpenedUnknown": "Unknown time"
 }

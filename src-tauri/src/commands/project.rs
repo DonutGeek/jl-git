@@ -1,7 +1,5 @@
 //! 项目与工作区 Command：读写 SQLite 登记表，打开目录前校验是否 Git 仓库。
 
-use std::path::Path;
-
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tauri::{AppHandle, State};
@@ -11,7 +9,6 @@ use crate::db::{self, ProjectRow, RecentProjectItem, WorkspaceRow};
 use crate::error::AppError;
 use crate::git::path::{normalize_existing_dir, require_git_toplevel};
 use crate::git::project_profile::{self, ProjectProfileSnapshot};
-use crate::git::remote::list_remotes;
 use crate::git::remote_identity::{canonicalize_remote_identity, require_remote_url};
 
 #[derive(Serialize)]
@@ -167,18 +164,14 @@ pub async fn project_check_uniqueness(
             let projects = db::list_projects(&pool, None).await?;
             let mut matches = Vec::new();
             for project in projects {
-                let remotes = match list_remotes(Path::new(&project.path)) {
-                    Ok(remotes) => remotes,
-                    Err(_) => continue,
-                };
-                let origin = remotes
-                    .iter()
-                    .find(|remote| remote.name == "origin")
-                    .or_else(|| remotes.first());
-                let Some(remote) = origin else {
+                let Some(url) = project
+                    .remote_url
+                    .as_deref()
+                    .filter(|item| !item.is_empty())
+                else {
                     continue;
                 };
-                let Some(identity) = canonicalize_remote_identity(&remote.fetch_url) else {
+                let Some(identity) = canonicalize_remote_identity(url) else {
                     continue;
                 };
                 if identity == target {

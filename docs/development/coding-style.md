@@ -64,7 +64,7 @@ const props = defineProps<ProjectCardProps>();
 
 | 种类 | 规则 | 示例 |
 |------|------|------|
-| 路由页目录 | camelCase | `views/projectManage/` |
+| 路由页目录 | camelCase | `views/dashboard/` |
 | 路由页文件 | `index.vue` | `views/repo/index.vue` |
 | 组件名 | PascalCase + `defineOptions` | `RepoPage` |
 | 可复用组件目录 | PascalCase | `components/Icon/` |
@@ -103,7 +103,6 @@ import { Button, Modal } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
-import { ProjectManager } from "@/components/Project";
 
 import { useTheme } from "@/hooks/setting/useTheme";
 import { useProjectList } from "@/views/dashboard/hooks/useProjectList";
@@ -143,15 +142,18 @@ import type { Project } from "@/types/project";
 ## 错误处理
 
 ```ts
+const message = useMessage();
+
 try {
-  await gitService.commit(path, message, { paths });
+  await gitService.commit(path, commitText, { paths });
 } catch (error) {
   console.error(error);
-  message.error(toUserMessage(error));
+  message.error(error);
 }
 ```
 
-- Service 可抛 `AppError` 或 Result；UI 统一 `toUserMessage`
+- Service 可抛 `AppError` 或 Result；应用内 toast 直接 `message.error(error)`
+- 内联字符串（表单 `error`、页面 `loadError`）仍可用 `toUserMessage`
 - 禁止 `.catch(() => {})`
 - 同类交互使用一致的 loading：列表用 `Spin`，单次操作用按钮 `loading`
 

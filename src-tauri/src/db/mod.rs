@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
 use crate::git::path::{normalize_existing_dir, require_git_toplevel};
-use crate::git::remote::list_remotes;
+use crate::git::remote::{list_remotes, pick_primary_remote_url};
 use crate::git::remote_identity::canonicalize_remote_identity;
 
 mod app_data;
@@ -26,6 +26,8 @@ pub struct ProjectRow {
     pub description: Option<String>,
     pub icon: String,
     pub path: String,
+    /// 主远端 URL；空串表示已探测但仓库没有远端；NULL 表示尚未写入
+    pub remote_url: Option<String>,
     pub last_opened_at: Option<String>,
     pub pinned: bool,
     pub sort_order: i64,
@@ -100,6 +102,7 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
           icon TEXT NOT NULL DEFAULT 'folder-git-2',
           color TEXT NOT NULL DEFAULT 'blue',
           path TEXT NOT NULL UNIQUE,
+          remote_url TEXT NULL,
           last_opened_at TEXT NULL,
           pinned INTEGER NOT NULL DEFAULT 0,
           sort_order INTEGER NOT NULL DEFAULT 0,
@@ -196,6 +199,23 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
     .await
     .map_err(to_db_error)?;
 
+    let project_columns = sqlx::query("PRAGMA table_info(projects)")
+        .fetch_all(pool)
+        .await
+        .map_err(to_db_error)?;
+    let has_remote_url = project_columns.iter().any(|column| {
+        column
+            .try_get::<String, _>("name")
+            .map(|name| name == "remote_url")
+            .unwrap_or(false)
+    });
+    if !has_remote_url {
+        sqlx::query("ALTER TABLE projects ADD COLUMN remote_url TEXT NULL")
+            .execute(pool)
+            .await
+            .map_err(to_db_error)?;
+    }
+
     let workspace_columns = sqlx::query("PRAGMA table_info(workspaces)")
         .fetch_all(pool)
         .await
@@ -267,6 +287,17 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
     .await
     .map_err(to_db_error)?;
 
+    sqlx::query(
+        r#"
+        INSERT OR IGNORE INTO schema_migrations (version, applied_at)
+        VALUES (8, ?1)
+        "#,
+    )
+    .bind(now())
+    .execute(pool)
+    .await
+    .map_err(to_db_error)?;
+
     Ok(())
 }
 
@@ -296,11 +327,13 @@ pub async fn add_project(
     let timestamp = now();
     let id = uuid::Uuid::new_v4().to_string();
     ensure_workspace_unlocked_for_move(pool, workspace_id.as_deref(), "移入").await?;
+    // 可读时写入 URL 或空串（标记已探测）；Git 失败则保持 NULL，列表加载时再补
+    let remote_url = primary_remote_url_for_storage(&path_key);
 
     let insert = sqlx::query(
         r#"
-        INSERT INTO projects (id, workspace_id, name, description, icon, path, pinned, sort_order, created_at, updated_at)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, COALESCE((SELECT MAX(sort_order) + 1 FROM projects WHERE workspace_id IS ?2), 0), ?7, ?7)
+        INSERT INTO projects (id, workspace_id, name, description, icon, path, remote_url, pinned, sort_order, created_at, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, COALESCE((SELECT MAX(sort_order) + 1 FROM projects WHERE workspace_id IS ?2), 0), ?8, ?8)
         "#,
     )
     .bind(&id)
@@ -309,6 +342,7 @@ pub async fn add_project(
     .bind(&description)
     .bind(&icon)
     .bind(&path_key)
+    .bind(&remote_url)
     .bind(&timestamp)
     .execute(&mut *tx)
     .await;
@@ -336,7 +370,7 @@ pub async fn list_projects(
     let rows = if let Some(workspace_id) = workspace_id {
         sqlx::query(
             r#"
-            SELECT id, workspace_id, name, description, icon, path, last_opened_at, pinned, sort_order, created_at, updated_at
+            SELECT id, workspace_id, name, description, icon, path, remote_url, last_opened_at, pinned, sort_order, created_at, updated_at
             FROM projects
             WHERE workspace_id = ?1
             ORDER BY pinned DESC, sort_order ASC, name COLLATE NOCASE ASC
@@ -349,7 +383,7 @@ pub async fn list_projects(
     } else {
         sqlx::query(
             r#"
-            SELECT id, workspace_id, name, description, icon, path, last_opened_at, pinned, sort_order, created_at, updated_at
+            SELECT id, workspace_id, name, description, icon, path, remote_url, last_opened_at, pinned, sort_order, created_at, updated_at
             FROM projects
             ORDER BY pinned DESC, sort_order ASC, name COLLATE NOCASE ASC
             "#,
@@ -359,7 +393,12 @@ pub async fn list_projects(
         .map_err(to_db_error)?
     };
 
-    rows.into_iter().map(row_to_project).collect()
+    let mut projects = rows
+        .into_iter()
+        .map(row_to_project)
+        .collect::<Result<Vec<_>, _>>()?;
+    backfill_missing_remote_urls(pool, &mut projects).await?;
+    Ok(projects)
 }
 
 pub async fn remove_project(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
@@ -428,6 +467,9 @@ pub async fn update_project(
     }
 
     let timestamp = now();
+    let next_remote_url = next_path
+        .as_ref()
+        .and_then(|path| primary_remote_url_for_storage(path));
     let result = sqlx::query(
         r#"
         UPDATE projects
@@ -436,8 +478,9 @@ pub async fn update_project(
             description = CASE WHEN ?4 THEN ?5 ELSE description END,
             icon = COALESCE(?6, icon),
             path = COALESCE(?7, path),
-            updated_at = ?8
-        WHERE id = ?9
+            remote_url = CASE WHEN ?8 THEN COALESCE(?9, remote_url) ELSE remote_url END,
+            updated_at = ?10
+        WHERE id = ?11
         "#,
     )
     .bind(&name)
@@ -447,6 +490,8 @@ pub async fn update_project(
     .bind(description.flatten())
     .bind(icon)
     .bind(&next_path)
+    .bind(next_path.is_some())
+    .bind(&next_remote_url)
     .bind(&timestamp)
     .bind(id)
     .execute(pool)
@@ -459,10 +504,7 @@ pub async fn update_project(
             }
         }
         Err(error) if is_unique_constraint_violation(&error) => {
-            return Err(AppError::new(
-                "ALREADY_EXISTS",
-                "该路径已登记为其他仓库",
-            ));
+            return Err(AppError::new("ALREADY_EXISTS", "该路径已登记为其他仓库"));
         }
         Err(error) => return Err(to_db_error(error)),
     }
@@ -477,7 +519,10 @@ async fn resolve_project_path_update(
     path: Option<String>,
     allow_remote_mismatch: bool,
 ) -> Result<Option<String>, AppError> {
-    let Some(path) = path.map(|value| value.trim().to_string()).filter(|v| !v.is_empty()) else {
+    let Some(path) = path
+        .map(|value| value.trim().to_string())
+        .filter(|v| !v.is_empty())
+    else {
         return Ok(None);
     };
 
@@ -490,10 +535,7 @@ async fn resolve_project_path_update(
 
     if let Some(other) = find_project_by_path(pool, &path_key).await? {
         if other.id != id {
-            return Err(AppError::new(
-                "ALREADY_EXISTS",
-                "该路径已登记为其他仓库",
-            ));
+            return Err(AppError::new("ALREADY_EXISTS", "该路径已登记为其他仓库"));
         }
     }
 
@@ -521,23 +563,39 @@ enum RemotePathCompare {
 
 fn primary_remote_identity(repo_path: &str) -> Result<Option<String>, AppError> {
     let remotes = list_remotes(Path::new(repo_path))?;
-    let preferred = remotes
-        .iter()
-        .find(|remote| remote.name == "origin")
-        .or_else(|| remotes.first());
-    let Some(remote) = preferred else {
+    let Some(url) = pick_primary_remote_url(&remotes) else {
         return Ok(None);
     };
-    let url = remote.fetch_url.trim();
-    let url = if url.is_empty() {
-        remote.push_url.trim()
-    } else {
-        url
-    };
-    if url.is_empty() {
-        return Ok(None);
+    Ok(canonicalize_remote_identity(&url))
+}
+
+/// 可读时返回 `Some(url)` 或 `Some("")`（无远端）；Git 失败返回 `None`（保持 NULL，下次再补）
+fn primary_remote_url_for_storage(repo_path: &str) -> Option<String> {
+    let remotes = list_remotes(Path::new(repo_path)).ok()?;
+    Some(pick_primary_remote_url(&remotes).unwrap_or_default())
+}
+
+/// 旧数据 `remote_url` 为 NULL 时，列表加载顺带回填，避免前端再按条探测
+async fn backfill_missing_remote_urls(
+    pool: &SqlitePool,
+    projects: &mut [ProjectRow],
+) -> Result<(), AppError> {
+    for project in projects.iter_mut() {
+        if project.remote_url.is_some() {
+            continue;
+        }
+        let Some(remote_url) = primary_remote_url_for_storage(&project.path) else {
+            continue;
+        };
+        sqlx::query("UPDATE projects SET remote_url = ?1 WHERE id = ?2")
+            .bind(&remote_url)
+            .bind(&project.id)
+            .execute(pool)
+            .await
+            .map_err(to_db_error)?;
+        project.remote_url = Some(remote_url);
     }
-    Ok(canonicalize_remote_identity(url))
+    Ok(())
 }
 
 fn compare_primary_remote_identity(old_path: &str, new_path: &str) -> RemotePathCompare {
@@ -917,15 +975,23 @@ pub async fn touch_opened(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
     }
 
     let timestamp = now();
+    let path: String = sqlx::query_scalar("SELECT path FROM projects WHERE id = ?1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .map_err(to_db_error)?
+        .ok_or_else(|| AppError::new("NOT_FOUND", "项目不存在"))?;
+    let remote_url = primary_remote_url_for_storage(&path);
     let mut tx = pool.begin().await.map_err(to_db_error)?;
     let result = sqlx::query(
         r#"
         UPDATE projects
-        SET last_opened_at = ?1, updated_at = ?1
-        WHERE id = ?2
+        SET last_opened_at = ?1, updated_at = ?1, remote_url = COALESCE(?2, remote_url)
+        WHERE id = ?3
         "#,
     )
     .bind(&timestamp)
+    .bind(&remote_url)
     .bind(id)
     .execute(&mut *tx)
     .await
@@ -1007,7 +1073,7 @@ where
 {
     let row = sqlx::query(
         r#"
-        SELECT id, workspace_id, name, description, icon, path, last_opened_at, pinned, sort_order, created_at, updated_at
+        SELECT id, workspace_id, name, description, icon, path, remote_url, last_opened_at, pinned, sort_order, created_at, updated_at
         FROM projects
         WHERE path = ?1
         "#,
@@ -1041,7 +1107,7 @@ fn is_unique_constraint_violation(error: &sqlx::Error) -> bool {
 async fn get_project_by_id(pool: &SqlitePool, id: &str) -> Result<ProjectRow, AppError> {
     let row = sqlx::query(
         r#"
-        SELECT id, workspace_id, name, description, icon, path, last_opened_at, pinned, sort_order, created_at, updated_at
+        SELECT id, workspace_id, name, description, icon, path, remote_url, last_opened_at, pinned, sort_order, created_at, updated_at
         FROM projects
         WHERE id = ?1
         "#,
@@ -1065,6 +1131,7 @@ fn row_to_project(row: sqlx::sqlite::SqliteRow) -> Result<ProjectRow, AppError> 
         description: row.try_get("description").map_err(to_db_error)?,
         icon: row.try_get("icon").map_err(to_db_error)?,
         path: row.try_get("path").map_err(to_db_error)?,
+        remote_url: row.try_get("remote_url").map_err(to_db_error)?,
         last_opened_at: row.try_get("last_opened_at").map_err(to_db_error)?,
         pinned: pinned != 0,
         sort_order: row.try_get("sort_order").map_err(to_db_error)?,
@@ -1241,6 +1308,10 @@ mod tests {
                 column_names.contains(&"icon".to_string()),
                 "项目表应支持图标"
             );
+            assert!(
+                column_names.contains(&"remote_url".to_string()),
+                "项目表应持久化主远端"
+            );
         });
     }
 
@@ -1322,6 +1393,7 @@ mod tests {
             assert!(!already_exists);
             assert_eq!(first.icon, "folder-git-2");
             assert_eq!(first.name, original_name);
+            assert_eq!(first.remote_url.as_deref(), Some(""));
 
             let (second, already_exists) = add_project(
                 &pool,
@@ -1339,6 +1411,74 @@ mod tests {
             assert_eq!(second.name, original_name);
             assert_eq!(second.icon, "folder-git-2");
             assert_eq!(second.path, repo.canonicalize().unwrap().to_string_lossy());
+        });
+    }
+
+    #[test]
+    fn add_project_persists_primary_remote_url() {
+        run_async(async {
+            let pool = test_pool().await;
+            migrate(&pool).await.expect("迁移应成功");
+            let repo = create_git_repo();
+            let remote_add = Command::new("git")
+                .current_dir(&repo)
+                .args(["remote", "add", "origin", "git@github.com:acme/app.git"])
+                .output()
+                .expect("git remote add 应可执行");
+            assert!(
+                remote_add.status.success(),
+                "git remote add 失败: {}",
+                String::from_utf8_lossy(&remote_add.stderr)
+            );
+
+            let (project, already_exists) = add_project(
+                &pool,
+                repo.to_string_lossy().into_owned(),
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .expect("Git 仓库应可登记");
+            assert!(!already_exists);
+            assert_eq!(
+                project.remote_url.as_deref(),
+                Some("git@github.com:acme/app.git")
+            );
+        });
+    }
+
+    #[test]
+    fn list_projects_backfills_null_remote_url() {
+        run_async(async {
+            let pool = test_pool().await;
+            migrate(&pool).await.expect("迁移应成功");
+            let repo = create_git_repo();
+            let remote_add = Command::new("git")
+                .current_dir(&repo)
+                .args(["remote", "add", "origin", "https://github.com/acme/app.git"])
+                .output()
+                .expect("git remote add 应可执行");
+            assert!(remote_add.status.success());
+
+            let timestamp = now();
+            sqlx::query(
+                "INSERT INTO projects (id, name, path, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?4)",
+            )
+            .bind("legacy-project")
+            .bind("legacy")
+            .bind(repo.to_string_lossy().into_owned())
+            .bind(&timestamp)
+            .execute(&pool)
+            .await
+            .expect("旧项目行应可插入");
+
+            let projects = list_projects(&pool, None).await.expect("查询应成功");
+            assert_eq!(
+                projects[0].remote_url.as_deref(),
+                Some("https://github.com/acme/app.git")
+            );
         });
     }
 

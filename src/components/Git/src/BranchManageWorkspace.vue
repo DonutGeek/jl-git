@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, h, ref, watch } from "vue";
 
-import { Button, Checkbox, Empty, Input, Modal, Tag, Tooltip, message } from "antdv-next";
+import { Button, Checkbox, Empty, Input, Tag, Tooltip } from "antdv-next";
 import dayjs from "dayjs";
 import { useI18n } from "vue-i18n";
 
@@ -9,6 +9,8 @@ import { AppLoadingScreen, HighlightText } from "@/components/Common";
 import { Icon } from "@/components/Icon";
 import AppWindowHeader from "@/layouts/page/AppWindowHeader.vue";
 import { ScrollArea } from "@/components/ScrollArea";
+import { useMessage } from "@/hooks/web/useMessage";
+import { useModal } from "@/hooks/web/useModal";
 import { cn } from "@/lib/utils";
 import { deleteBranch, listBranches } from "@/services/git";
 import { toUserMessage } from "@/types/error";
@@ -28,6 +30,8 @@ type ActivityFilter = "all" | "active" | "inactive";
 type SortDirection = "asc" | "desc";
 
 const { t } = useI18n();
+const message = useMessage();
+const modal = useModal();
 const branches = ref<GitBranch[]>([]);
 const loading = ref(true);
 const refreshing = ref(false);
@@ -36,9 +40,6 @@ const scope = ref<ScopeFilter>("local");
 const activity = ref<ActivityFilter>("all");
 const search = ref("");
 const sortDir = ref<SortDirection>("desc");
-const deleteTarget = ref<GitBranch | null>(null);
-const deleteRemoteAlso = ref(false);
-const deleteBusy = ref(false);
 
 const scopedBranches = computed(() =>
   branches.value.filter((branch) => (scope.value === "local" ? !branch.isRemote : branch.isRemote)),
@@ -75,20 +76,13 @@ const visibleBranches = computed(() => {
   return [...next].sort((left, right) => compareByTime(left, right, sortDir.value));
 });
 
-const deleteHasRemote = computed(() => {
-  if (!deleteTarget.value || deleteTarget.value.isRemote) {
+function branchHasRemote(branch: GitBranch): boolean {
+  if (branch.isRemote) {
     return false;
   }
-  const remoteName = `origin/${deleteTarget.value.name}`;
-  return branches.value.some((branch) => branch.isRemote && branch.name === remoteName);
-});
-
-const deleteQuestion = computed(() =>
-  t("repo.deleteBranchQuestion", { name: deleteTarget.value?.name ?? "" }).replace(
-    /<\/?name>/g,
-    "",
-  ),
-);
+  const remoteName = `origin/${branch.name}`;
+  return branches.value.some((item) => item.isRemote && item.name === remoteName);
+}
 
 const tableCols = computed(() =>
   scope.value === "local"
@@ -147,7 +141,7 @@ async function handleRefresh(): Promise<void> {
   try {
     await loadBranches();
   } catch (reason: unknown) {
-    message.error(toUserMessage(reason) || t("branchManage.refreshFailed"));
+    message.error(reason);
   } finally {
     refreshing.value = false;
   }
@@ -157,32 +151,47 @@ function openDelete(branch: GitBranch): void {
   if (branch.isRemote || branch.isCurrent) {
     return;
   }
-  deleteTarget.value = branch;
-  deleteRemoteAlso.value = false;
-}
-
-async function confirmDelete(): Promise<void> {
-  if (!deleteTarget.value || deleteBusy.value) {
-    return;
-  }
-  const targetName = deleteTarget.value.name;
-  const alsoRemote = deleteHasRemote.value && deleteRemoteAlso.value;
-  deleteBusy.value = true;
-  try {
-    await deleteBranch(props.project.path, targetName, {
-      force: true,
-      deleteRemote: alsoRemote,
-      remote: "origin",
-    });
-    deleteTarget.value = null;
-    deleteRemoteAlso.value = false;
-    await loadBranches();
-    message.success(t("repo.deleteBranchSuccess", { name: targetName }));
-  } catch (reason: unknown) {
-    message.error(toUserMessage(reason) || t("branchManage.deleteFailed"));
-  } finally {
-    deleteBusy.value = false;
-  }
+  const hasRemote = branchHasRemote(branch);
+  const alsoRemote = ref(false);
+  modal.confirm({
+    title: t("repo.deleteBranchTitle"),
+    icon: null,
+    okType: "danger",
+    okText: t("repo.deleteBranchAction"),
+    content: () =>
+      h("div", { class: "flex flex-col gap-3" }, [
+        h("p", t("repo.deleteBranchQuestion", { name: branch.name })),
+        hasRemote
+          ? h(
+              "label",
+              { class: "flex items-center gap-2 text-sm" },
+              [
+                h(Checkbox, {
+                  checked: alsoRemote.value,
+                  "onUpdate:checked": (checked: boolean) => {
+                    alsoRemote.value = checked;
+                  },
+                }),
+                t("repo.deleteBranchRemoteCheckbox"),
+              ],
+            )
+          : null,
+      ]),
+    async onOk() {
+      try {
+        await deleteBranch(props.project.path, branch.name, {
+          force: true,
+          deleteRemote: hasRemote && alsoRemote.value,
+          remote: "origin",
+        });
+        await loadBranches();
+        message.success(t("repo.deleteBranchSuccess", { name: branch.name }));
+      } catch (reason: unknown) {
+        message.error(reason);
+        throw reason;
+      }
+    },
+  });
 }
 
 function compareByTime(left: GitBranch, right: GitBranch, direction: SortDirection): number {
@@ -282,17 +291,17 @@ function deleteDisabledTitle(branch: GitBranch): string {
           size="small"
           class="w-52"
           :placeholder="t('branchManage.searchPlaceholder')"
-          :aria-label="t('branchManage.searchPlaceholder')"
         />
         <Tooltip :title="t('repo.refresh')">
           <Button
             size="small"
-            :aria-label="t('repo.refresh')"
             :disabled="loading || refreshing"
             :loading="refreshing"
-            @click="void handleRefresh()"
+            @click="handleRefresh"
           >
-            <Icon name="RefreshCw" :size="14" />
+            <template #icon>
+              <Icon name="RefreshCw" :size="14" />
+            </template>
           </Button>
         </Tooltip>
       </div>
@@ -329,9 +338,6 @@ function deleteDisabledTitle(branch: GitBranch): string {
         <button
           type="button"
           class="hover:text-foreground inline-flex items-center gap-0.5 text-left"
-          :aria-label="
-            sortDir === 'desc' ? t('branchManage.sortTimeDesc') : t('branchManage.sortTimeAsc')
-          "
           @click="sortDir = sortDir === 'desc' ? 'asc' : 'desc'"
         >
           {{ t("branchManage.columnTime") }}
@@ -372,32 +378,16 @@ function deleteDisabledTitle(branch: GitBranch): string {
               size="small"
               type="text"
               danger
-              :aria-label="t('repo.deleteBranchAction')"
               :disabled="branch.isRemote || branch.isCurrent"
               @click="openDelete(branch)"
             >
-              <Icon name="Trash2" :size="12" />
+              <template #icon>
+                <Icon name="Trash2" :size="12" />
+              </template>
             </Button>
           </Tooltip>
         </div>
       </ScrollArea>
     </div>
-
-    <Modal
-      :open="Boolean(deleteTarget)"
-      :title="t('repo.deleteBranchTitle')"
-      :ok-text="t('repo.deleteBranchAction')"
-      :cancel-text="t('common.cancel')"
-      ok-type="danger"
-      :confirm-loading="deleteBusy"
-      @update:open="(open: boolean) => !open && !deleteBusy && (deleteTarget = null)"
-      @ok="void confirmDelete()"
-    >
-      <p class="text-sm">{{ deleteQuestion }}</p>
-      <label v-if="deleteHasRemote" class="mt-3 flex items-center gap-2 text-sm">
-        <Checkbox v-model:checked="deleteRemoteAlso" :disabled="deleteBusy" />
-        {{ t("repo.deleteBranchRemoteCheckbox") }}
-      </label>
-    </Modal>
   </main>
 </template>

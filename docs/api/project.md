@@ -18,6 +18,7 @@ interface Project {
   description: string | null;
   icon: ProjectIcon;
   path: string;
+  remoteUrl: string | null;
   lastOpenedAt: string | null;
   pinned: boolean;
   createdAt: string;
@@ -103,21 +104,6 @@ interface RecentItem {
 ### `listRecent(limit?: number): Promise<RecentItem[]>`
 
 - **Command：** `recent_list`
-
----
-
-## `projectCatalogService`（`project.catalog.ts`）
-
-仓库登记清单导入 / 导出（JSON `jlgit.project-catalog` v1）。不碰 Git 工作区文件。
-
-| 方法 | 说明 |
-|------|------|
-| `exportCatalog({ allProjects, allWorkspaces, exportAll, filteredProjects, filterName })` | 组装 JSON → `exportTextFile`；取消另存为返回 `null` |
-| `pickAndParseCatalog(filterName)` | 打开文件 → `system_read_text_file` → schema 校验 |
-| `buildImportPreview(document, localWorkspaces)` | 路径探测 + 新增/更新/无效行 |
-| `executeImport({ document, rows })` | 先映射/创建分组，再 `project_add` / `project_update` |
-
-导入忽略 `pinned` / `sortOrder`。分组匹配：同父同名 → 全局唯一同名 → id 兜底 → 新建。
 
 ### `listFavorites(): Promise<string[]>`
 

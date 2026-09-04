@@ -1,6 +1,5 @@
 {
   "title": "Open repository",
-  "description": "Choose a local Git repository folder. Display name is optional.",
   "pathLabel": "Repository path",
   "pathPlaceholder": "Enter repository path",
   "pickButton": "Browse",
@@ -17,7 +16,6 @@
   "saveAndContinue": "Save & continue",
   "saveAndContinueSuccess": "Saved repository “{{name}}”",
   "existingTitle": "Project already exists",
-  "existingDescription": "This local repository is already registered. Existing name, description, and group will not be changed.",
   "existingOpen": "Open existing project",
   "existingView": "View existing project"
 }

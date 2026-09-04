@@ -102,16 +102,12 @@ src/
 ├── views/                   # 路由级页面：camelCase 目录 + index.vue
 │   ├── dashboard/
 │   │   ├── index.vue
-│   │   └── hooks/
-│   ├── repo/
-│   │   ├── index.vue
-│   │   ├── components/
-│   │   ├── hooks/
-│   │   └── utils/
-│   └── projectManage/
+│   │   └── components/      # 最近 / 打开 / 克隆 / 分组
+│   └── repo/
 │       ├── index.vue
 │       ├── components/
-│       └── hooks/
+│       ├── hooks/
+│       └── utils/
 ├── App.vue
 ├── main.ts
 └── vite-env.d.ts

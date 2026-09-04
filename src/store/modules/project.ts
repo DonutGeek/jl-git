@@ -5,7 +5,6 @@ import { store } from "@/store";
 
 import { projectService, workspaceService } from "@/services/project";
 import { useAgentChatStoreWithOut } from "@/store/modules/agentChat";
-import { toUserMessage } from "@/types/error";
 import type {
   AddProjectInput,
   Project,
@@ -23,8 +22,6 @@ interface ProjectStoreState {
   recent: RecentItem[];
   workspaces: Workspace[];
   current: Project | null;
-  loading: boolean;
-  error: string | null;
 }
 
 interface ProjectStoreActions {
@@ -85,6 +82,18 @@ function upsertProject(projects: Project[], project: Project): Project[] {
   return projects.map((item) => (item.id === project.id ? project : item));
 }
 
+/** 最近表只存 ID；展示字段一律从仓库列表按 ID 查出 */
+function projectsByRecentIds(projects: Project[], recent: RecentItem[]): Project[] {
+  const projectById = new Map(projects.map((project) => [project.id, project]));
+  return recent.flatMap((item) => {
+    const project = projectById.get(item.projectId);
+    if (!project) {
+      return [];
+    }
+    return [{ ...project, lastOpenedAt: item.openedAt || project.lastOpenedAt }];
+  });
+}
+
 type ProjectSet = (
   partial:
     | Partial<ProjectStoreState>
@@ -105,9 +114,12 @@ export const useProjectStore = defineStore("project", {
     recent: [],
     workspaces: [],
     current: null,
-    loading: false,
-    error: null,
   }),
+  getters: {
+    recentProjects(state): Project[] {
+      return projectsByRecentIds(state.projects, state.recent);
+    },
+  },
   actions: createProjectActions(projectSet, projectGet),
 });
 
@@ -118,31 +130,15 @@ export function useProjectStoreWithOut() {
 function createProjectActions(set: ProjectSet, get: () => ProjectStore): ProjectStoreActions {
   return {
     async loadProjects() {
-      set({ loading: true, error: null });
-
-      try {
-        const projects = await projectService.list();
-        set({ projects, loading: false });
-        return projects;
-      } catch (error) {
-        const message = toUserMessage(error);
-        set({ error: message, loading: false });
-        throw error;
-      }
+      const projects = await projectService.list();
+      set({ projects });
+      return projects;
     },
 
     async loadRecent() {
-      set({ loading: true, error: null });
-
-      try {
-        const recent = await projectService.listRecent();
-        set({ recent, loading: false });
-        return recent;
-      } catch (error) {
-        const message = toUserMessage(error);
-        set({ error: message, loading: false });
-        throw error;
-      }
+      const recent = await projectService.listRecent();
+      set({ recent });
+      return recent;
     },
 
     async loadWorkspaces() {
@@ -204,119 +200,76 @@ function createProjectActions(set: ProjectSet, get: () => ProjectStore): Project
     },
 
     async addAndOpen(input) {
-      set({ loading: true, error: null });
-
-      try {
-        const result = await projectService.add(input);
-        if (result.alreadyExists) {
-          set((state) => ({
-            projects: upsertProject(state.projects, result.project),
-            loading: false,
-          }));
-          return result;
-        }
-
-        await projectService.touchOpened(result.project.id);
-        const recent = await projectService.listRecent();
-
+      const result = await projectService.add(input);
+      if (result.alreadyExists) {
         set((state) => ({
           projects: upsertProject(state.projects, result.project),
-          recent,
-          current: result.project,
-          loading: false,
         }));
-
         return result;
-      } catch (error) {
-        const message = toUserMessage(error);
-        set({ error: message, loading: false });
-        throw error;
       }
+
+      await projectService.touchOpened(result.project.id);
+      const recent = await projectService.listRecent();
+
+      set((state) => ({
+        projects: upsertProject(state.projects, result.project),
+        recent,
+        current: result.project,
+      }));
+
+      return result;
     },
 
     async addProject(input) {
-      set({ error: null });
+      const result = await projectService.add(input);
 
-      try {
-        const result = await projectService.add(input);
+      set((state) => ({
+        projects: upsertProject(state.projects, result.project),
+      }));
 
-        set((state) => ({
-          projects: upsertProject(state.projects, result.project),
-        }));
-
-        return result;
-      } catch (error) {
-        const message = toUserMessage(error);
-        set({ error: message });
-        throw error;
-      }
+      return result;
     },
 
     async openExisting(id) {
-      set({ loading: true, error: null });
+      const project = get().findById(id);
 
-      try {
-        const project = get().findById(id);
-
-        if (!project) {
-          throw new Error("项目不存在");
-        }
-
-        await projectService.touchOpened(id);
-        const recent = await projectService.listRecent();
-
-        set({
-          recent,
-          current: project,
-          loading: false,
-        });
-
-        return project;
-      } catch (error) {
-        const message = toUserMessage(error);
-        set({ error: message, loading: false });
-        throw error;
+      if (!project) {
+        throw new Error("项目不存在");
       }
+
+      await projectService.touchOpened(id);
+      const recent = await projectService.listRecent();
+
+      set({
+        recent,
+        current: project,
+      });
+
+      return project;
     },
 
     async removeProject(id) {
-      set({ error: null });
+      await projectService.remove(id);
+      // SQLite 侧 chat_conversations ON DELETE CASCADE；同步清鲸灵内存
+      useAgentChatStoreWithOut().clearProject(id);
+      const recent = await projectService.listRecent();
 
-      try {
-        await projectService.remove(id);
-        // SQLite 侧 chat_conversations ON DELETE CASCADE；同步清鲸灵内存
-        useAgentChatStoreWithOut().clearProject(id);
-        const recent = await projectService.listRecent();
-
-        set((state) => ({
-          projects: state.projects.filter((project) => project.id !== id),
-          recent,
-          current: state.current?.id === id ? null : state.current,
-        }));
-      } catch (error) {
-        const message = toUserMessage(error);
-        set({ error: message });
-        throw error;
-      }
+      set((state) => ({
+        projects: state.projects.filter((project) => project.id !== id),
+        recent,
+        current: state.current?.id === id ? null : state.current,
+      }));
     },
 
     async updateAlias(id, name) {
-      set({ error: null });
+      const project = await projectService.update({ id, name });
 
-      try {
-        const project = await projectService.update({ id, name });
+      set((state) => ({
+        projects: upsertProject(state.projects, project),
+        current: state.current?.id === id ? project : state.current,
+      }));
 
-        set((state) => ({
-          projects: upsertProject(state.projects, project),
-          current: state.current?.id === id ? project : state.current,
-        }));
-
-        return project;
-      } catch (error) {
-        const message = toUserMessage(error);
-        set({ error: message });
-        throw error;
-      }
+      return project;
     },
 
     findById(id) {

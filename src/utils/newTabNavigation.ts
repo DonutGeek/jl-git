@@ -1,4 +1,4 @@
-/** 新标签页 ProjectManager 可被外部导航直接打开的视图 */
+/** 新标签页仪表盘可被外部导航直接打开的视图 */
 export type NewTabProjectManagerView = "open" | "clone";
 
 export interface NewTabLocationState {

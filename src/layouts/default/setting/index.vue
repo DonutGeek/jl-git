@@ -7,7 +7,6 @@ import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
 import { ScrollArea } from "@/components/ScrollArea";
-import { useZustand } from "@/hooks/core/useZustand";
 import { getAppInfo, type SystemAppInfo } from "@/services/system/system.info";
 import {
   useAppPrefsStore,
@@ -29,7 +28,8 @@ const localeStore = useLocaleStore();
 const { open, requestedCategory } = storeToRefs(settingsDrawerStore);
 const { mode: themeMode } = storeToRefs(themeStore);
 const { locale } = storeToRefs(localeStore);
-const startupTabsMode = useZustand(useAppPrefsStore, (state) => state.startupTabsMode);
+const appPrefsStore = useAppPrefsStore();
+const { startupTabsMode } = storeToRefs(appPrefsStore);
 const activeCategory = ref<SettingsDrawerCategory>("appearance");
 const appInfo = ref<SystemAppInfo | null>(null);
 

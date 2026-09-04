@@ -2,19 +2,18 @@
 import { computed, ref } from "vue";
 import { storeToRefs } from "pinia";
 
-import { Button, Checkbox, Input, Tooltip, message } from "antdv-next";
+import { Button, Checkbox, Input, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import GitIdentityAvatar from "./GitIdentityAvatar.vue";
 import { Icon } from "@/components/Icon";
 import { useHasAgentApiKey } from "@/hooks/core/useHasAgentApiKey";
 import { useShortcutAction } from "@/hooks/core/useShortcutAction";
-import { useZustand } from "@/hooks/core/useZustand";
+import { useMessage } from "@/hooks/web/useMessage";
 import { generateCommitMessage, toastAiFailure } from "@/services/ai";
 import { useLocaleStore } from "@/store/modules/locale";
 import { useRepoStore, useRepoStoreWithOut } from "@/store/modules/repo";
 import { useSettingsDrawerStore } from "@/store/modules/setting";
-import { isAppError, toUserMessage } from "@/types/error";
 import type { GitStatusEntry } from "@/types/git";
 import { isStagedChangeEntry } from "@/utils/gitConflict";
 import { hasConfiguredGitIdentity } from "@/utils/gitIdentity";
@@ -31,14 +30,13 @@ const props = withDefaults(
 
 const EMPTY_ENTRIES: GitStatusEntry[] = [];
 const { t } = useI18n();
+const message = useMessage();
 const hasApiKey = useHasAgentApiKey();
 const settingsDrawerStore = useSettingsDrawerStore();
 const { locale } = storeToRefs(useLocaleStore());
-const commitMessage = useZustand(useRepoStore, (state) => state.commitMessage);
-const identity = useZustand(useRepoStore, (state) => state.identity);
-const status = useZustand(useRepoStore, (state) => state.status);
-const repoPath = useZustand(useRepoStore, (state) => state.repoPath);
-const entries = useZustand(useRepoStore, (state) => state.status?.entries ?? EMPTY_ENTRIES);
+const repoStore = useRepoStore();
+const { commitMessage, identity, status, repoPath } = storeToRefs(repoStore);
+const entries = computed(() => status.value?.entries ?? EMPTY_ENTRIES);
 const pushAfterCommit = ref(false);
 const committing = ref(false);
 const generating = ref(false);
@@ -88,18 +86,13 @@ async function handleCommit(): Promise<void> {
                 : {}),
           });
         } catch (pushError) {
-          message.error(toUserMessage(pushError));
+          message.error(pushError);
         }
       }
     });
     message.success(t("repo.commitSuccess"));
   } catch (error) {
-    const text = toUserMessage(error);
-    if (isAppError(error) && error.details) {
-      message.error(`${text}\n${error.details}`);
-    } else {
-      message.error(text);
-    }
+    message.error(error);
   } finally {
     committing.value = false;
   }
@@ -128,7 +121,7 @@ async function handleGenerate(): Promise<void> {
     const next = await generateCommitMessage(repoPath.value, locale.value);
     useRepoStoreWithOut().setCommitMessage(next);
   } catch (error) {
-    toastAiFailure(error, t("ai.errors.requestFailed"));
+    toastAiFailure(message, error);
   } finally {
     generating.value = false;
   }
@@ -146,39 +139,30 @@ async function handleGenerate(): Promise<void> {
         <Button
           size="small"
           type="text"
-          :disabled="generating || !repoPath"
-          :aria-label="t('repo.generateCommitMessage')"
-          @click="void handleGenerate()"
+          :disabled="!repoPath"
+          :loading="generating"
+          @click="handleGenerate"
         >
-          <Icon
-            :name="generating ? 'LoaderCircle' : 'Sparkles'"
-            :size="14"
-            :class="generating && 'animate-spin'"
-          />
+          <template #icon>
+            <Icon name="Sparkles" :size="14" />
+          </template>
           {{ generating ? t("repo.aiGenerating") : t("repo.aiGenerate") }}
         </Button>
       </Tooltip>
     </div>
-    <div class="relative min-h-0 flex-1">
+    <div class="min-h-0 flex-1">
       <Input.TextArea
         :value="commitMessage"
         :disabled="working"
-        :aria-label="t('repo.commitMessage')"
+        :placeholder="t('repo.commitMessagePlaceholder')"
         class="h-full min-h-16 resize-none text-xs"
         @update:value="(next) => useRepoStoreWithOut().setCommitMessage(String(next ?? ''))"
       />
-      <span
-        v-if="!commitMessage.trim()"
-        class="text-muted-foreground pointer-events-none absolute top-1.5 left-2.5 text-xs"
-      >
-        {{ t("repo.commitMessagePlaceholder") }}
-      </span>
     </div>
     <div class="flex shrink-0 items-center justify-between gap-2">
       <button
         type="button"
         class="flex min-w-0 items-center gap-1.5"
-        :aria-label="identityLabel"
         @click="settingsDrawerStore.openDrawer('git')"
       >
         <GitIdentityAvatar
@@ -194,7 +178,7 @@ async function handleGenerate(): Promise<void> {
         size="small"
         :disabled="!canCommit"
         :loading="committing"
-        @click="void handleCommit()"
+        @click="handleCommit"
       >
         {{ t("repo.commit") }}
       </Button>

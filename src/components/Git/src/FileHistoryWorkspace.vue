@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 
-import { Button, Empty, Tooltip, message } from "antdv-next";
+import { Button, Empty, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import GitIdentityAvatar from "./GitIdentityAvatar.vue";
@@ -9,6 +9,7 @@ import { Icon } from "@/components/Icon";
 import AppWindowHeader from "@/layouts/page/AppWindowHeader.vue";
 import ResizableSplit from "@/layouts/default/components/ResizableSplit.vue";
 import { ScrollArea } from "@/components/ScrollArea";
+import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
 import { getCommitFileDiff, getLog } from "@/services/git";
 import { openCommitHistoryWindow } from "@/services/window/historyWindows";
@@ -27,6 +28,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const message = useMessage();
 const commits = ref<GitCommitSummary[]>([]);
 const selectedId = ref<string | null>(null);
 const diff = ref<GitDiffResult | null>(null);
@@ -126,7 +128,7 @@ function openCommit(commitId: string): void {
     projectId: props.project.id,
     commitId,
   }).catch((reason: unknown) => {
-    message.error(toUserMessage(reason) || t("fileHistory.openCommitHistoryFailed"));
+    message.error(reason);
   });
 }
 </script>
@@ -228,13 +230,10 @@ function openCommit(commitId: string): void {
                   {{ selected.shortId }}
                 </span>
                 <Tooltip :title="t('fileHistory.viewCommitHistory')">
-                  <Button
-                    size="small"
-                    type="text"
-                    :aria-label="t('fileHistory.viewCommitHistory')"
-                    @click="openCommit(selected.id)"
-                  >
-                    <Icon name="ExternalLink" :size="14" />
+                  <Button size="small" type="text" @click="openCommit(selected.id)">
+                    <template #icon>
+                      <Icon name="ExternalLink" :size="14" />
+                    </template>
                   </Button>
                 </Tooltip>
               </div>

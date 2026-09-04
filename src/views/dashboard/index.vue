@@ -1,16 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, h, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { storeToRefs } from "pinia";
 
-import { ProjectManager } from "@/components/Project";
-import { useZustand } from "@/hooks/core/useZustand";
+import { Menu, type MenuProps } from "antdv-next";
+import { useI18n } from "vue-i18n";
+
+import { Icon } from "@/components/Icon";
+
+import CloneRepoPanel from "./components/CloneRepoPanel.vue";
+import OpenRepoForm from "./components/OpenRepoForm.vue";
+import ProjectGroupsTree from "./components/ProjectGroupsTree.vue";
+import RecentProjectList from "./components/RecentProjectList.vue";
+
 import { useOpenTabsStore, useOpenTabsStoreWithOut } from "@/store/modules/multipleTab";
-import { useProjectStoreWithOut } from "@/store/modules/project";
-import { toUserMessage } from "@/types/error";
+
 import { parseNewTabLocationState } from "@/utils/newTabNavigation";
 import { isStartupTabsApplied, onStartupTabsApplied } from "@/utils/startupTabsBootstrap";
 
 defineOptions({ name: "DashboardPage" });
+
+type DashboardView = "recent" | "open" | "clone" | "groups";
 
 const props = withDefaults(
   defineProps<{
@@ -19,12 +29,29 @@ const props = withDefaults(
   { active: true },
 );
 
+const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
-const tabs = useZustand(useOpenTabsStore, (state) => state.tabs);
-const error = ref<string | null>(null);
+
+const openTabsStore = useOpenTabsStore();
+const { tabs } = storeToRefs(openTabsStore);
 const startupReady = ref(isStartupTabsApplied());
-const requestedView = ref(parseNewTabLocationState(history.state));
+const view = ref<DashboardView>("recent");
+
+const nav = computed(() => [
+  { id: "recent" as const, label: t("projectManager.recent"), icon: "History" },
+  { id: "open" as const, label: t("projectManager.open"), icon: "FolderOpen" },
+  { id: "clone" as const, label: t("projectManager.clone"), icon: "GitBranchPlus" },
+  { id: "groups" as const, label: t("projectManager.groups"), icon: "FolderTree" },
+]);
+
+const menuItems = computed<MenuProps["items"]>(() =>
+  nav.value.map((item) => ({
+    key: item.id,
+    label: item.label,
+    icon: () => h(Icon, { name: item.icon, size: 16 }),
+  })),
+);
 
 const routeNewTabId = computed(() => {
   const match = route.path.match(/^\/tab\/([^/]+)/);
@@ -46,35 +73,11 @@ onMounted(() => {
 watch(
   () => route.fullPath,
   () => {
-    requestedView.value = parseNewTabLocationState(history.state);
-  },
-);
-
-watch(
-  () => props.active,
-  (active, _previous, onCleanup) => {
-    if (!active) {
-      return;
+    const requested = parseNewTabLocationState(history.state);
+    if (requested === "open" || requested === "clone") {
+      view.value = requested;
+      router.replace({ path: route.path, query: route.query });
     }
-    let mounted = true;
-    void Promise.all([
-      useProjectStoreWithOut().loadProjects(),
-      useProjectStoreWithOut().loadRecent(),
-      useProjectStoreWithOut().loadWorkspaces(),
-    ])
-      .then(() => {
-        if (mounted) {
-          error.value = null;
-        }
-      })
-      .catch((loadError: unknown) => {
-        if (mounted) {
-          error.value = toUserMessage(loadError);
-        }
-      });
-    onCleanup(() => {
-      mounted = false;
-    });
   },
   { immediate: true },
 );
@@ -86,30 +89,38 @@ watch(
       return;
     }
     const nextTabId = useOpenTabsStoreWithOut().openNewTab();
-    void router.replace(`/tab/${nextTabId}`);
+    router.replace(`/tab/${nextTabId}`);
   },
 );
 
 function handleOpenProject(projectId: string): void {
   useOpenTabsStoreWithOut().openRepositoryTab(projectId);
-  void router.push(`/repo/${projectId}`);
+  router.push(`/repo/${projectId}`);
 }
 
-function clearRequestedView(): void {
-  requestedView.value = null;
-  void router.replace({ path: route.path, query: route.query });
-}
+const handleMenuClick: MenuProps["onClick"] = ({ key }) => {
+  view.value = String(key) as DashboardView;
+};
 </script>
 
 <template>
-  <div class="flex h-full flex-col overflow-hidden">
-    <main class="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-6 pt-6">
-      <p v-if="error" class="text-destructive mb-4 text-sm" role="alert">{{ error }}</p>
-      <ProjectManager
-        :requested-view="requestedView"
-        @open="handleOpenProject"
-        @requested-view-consumed="clearRequestedView"
-      />
-    </main>
+  <div class="flex h-full min-h-0">
+    <Menu
+      class="h-full w-48! shrink-0"
+      mode="inline"
+      :selected-keys="[view]"
+      :items="menuItems"
+      @click="handleMenuClick"
+    />
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col p-6">
+      <!-- 最近：最近打开的仓库列表 -->
+      <RecentProjectList v-if="view === 'recent'" @open="handleOpenProject" />
+      <!-- 打开：选择本地仓库路径并登记 -->
+      <OpenRepoForm v-else-if="view === 'open'" @open="handleOpenProject" />
+      <!-- 克隆：从远端 URL 克隆到本地 -->
+      <CloneRepoPanel v-else-if="view === 'clone'" @open="handleOpenProject" />
+      <!-- 仓库分组：分组树与组内仓库 -->
+      <ProjectGroupsTree v-else-if="view === 'groups'" @open="handleOpenProject" />
+    </div>
   </div>
 </template>

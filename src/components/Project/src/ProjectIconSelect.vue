@@ -12,9 +12,8 @@ const props = withDefaults(
   defineProps<{
     value: string;
     disabled?: boolean;
-    id?: string;
   }>(),
-  { disabled: false, id: undefined },
+  { disabled: false },
 );
 
 const emit = defineEmits<{
@@ -31,12 +30,10 @@ const options = computed(() =>
 
 <template>
   <Select
-    :id="id"
     class="w-full"
     :value="props.value"
     :options="options"
     :disabled="disabled"
-    :aria-label="id"
     @update:value="(next) => emit('update:value', String(next ?? ''))"
   />
 </template>

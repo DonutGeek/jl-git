@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { storeToRefs } from "pinia";
 
-import { Badge, Button, Spin, Tooltip, message } from "antdv-next";
+import { Badge, Button, Spin, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
@@ -11,7 +11,8 @@ import { MultiAgentWindowButton } from "@/components/Agent";
 import { GitIdentityAvatar } from "@/components/Git";
 import DiskSpaceTooltip from "./DiskSpaceTooltip.vue";
 import { useAppUpdateChecker } from "@/hooks/core/useAppUpdateChecker";
-import { useZustand } from "@/hooks/core/useZustand";
+import { useTheme } from "@/hooks/setting/useTheme";
+import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
 import { gitService } from "@/services/git";
 import {
@@ -33,7 +34,6 @@ import {
 import { useRepoStore } from "@/store/modules/repo";
 import { useSettingsDrawerStore } from "@/store/modules/setting";
 import { useThemeStore } from "@/store/modules/theme";
-import { toUserMessage } from "@/types/error";
 import { formatBytes } from "@/utils/formatBytes";
 
 import type { GitIdentity } from "@/types/git";
@@ -41,35 +41,30 @@ import type { GitIdentity } from "@/types/git";
 defineOptions({ name: "StatusBar" });
 
 const { t } = useI18n();
+const message = useMessage();
 const route = useRoute();
 const isNewTab = computed(() => route.path.startsWith("/tab/"));
 
 useAppUpdateChecker();
 
 const themeStore = useThemeStore();
+const { isDark: effectiveDark } = useTheme();
 const localeStore = useLocaleStore();
 const settingsDrawerStore = useSettingsDrawerStore();
 const appUpdateStore = useAppUpdateStore();
-const { mode } = storeToRefs(themeStore);
 const { locale } = storeToRefs(localeStore);
 const { open: settingsOpen } = storeToRefs(settingsDrawerStore);
 const { availableUpdate } = storeToRefs(appUpdateStore);
-const repoPath = useZustand(useRepoStore, (state) => state.repoPath);
-const repoIdentity = useZustand(useRepoStore, (state) => state.identity);
-const byRepo = useZustand(useOpLogStore, (state) => state.byRepo);
-const panelOpen = useZustand(useOpLogStore, (state) => state.panelOpen);
+const repoStore = useRepoStore();
+const { repoPath, identity: repoIdentity } = storeToRefs(repoStore);
+const opLogStore = useOpLogStore();
+const { byRepo, panelOpen } = storeToRefs(opLogStore);
 
 const appInfo = ref<SystemAppInfo | null>(null);
 const disk = ref<SystemDiskSpace | null>(null);
 const diskVolumes = ref<SystemDiskSpace[]>([]);
 const fallbackIdentity = ref<GitIdentity | null>(null);
 const updating = ref(false);
-
-const prefersDark =
-  typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
-const effectiveDark = computed(
-  () => mode.value === "dark" || (mode.value === "system" && prefersDark),
-);
 
 const latestOp = computed(() => selectLatestEntry(selectRepoEntries(byRepo.value, repoPath.value)));
 const identity = computed(() => repoIdentity.value ?? fallbackIdentity.value);
@@ -191,7 +186,7 @@ async function handleAppUpdate(): Promise<void> {
     hide();
   } catch (error) {
     hide();
-    message.error(toUserMessage(error) || t("statusBar.updateFailed"));
+    message.error(error);
   } finally {
     updating.value = false;
   }
@@ -225,17 +220,9 @@ async function handleAppUpdate(): Promise<void> {
         <button
           type="button"
           class="rounded-md focus-visible:ring-ring shrink-0 focus-visible:ring-1 focus-visible:outline-none disabled:opacity-60"
-          :aria-label="
-            updating
-              ? t('statusBar.updateInProgress')
-              : t('statusBar.updateAvailable', {
-                  version: availableUpdate.version,
-                  current: availableUpdate.currentVersion,
-                })
-          "
           :aria-busy="updating"
           :disabled="updating"
-          @click="void handleAppUpdate()"
+          @click="handleAppUpdate"
         >
           <Badge class="h-5 px-1.5 py-0 text-[10px] font-semibold">
             <Spin v-if="updating" size="small" />
@@ -251,7 +238,6 @@ async function handleAppUpdate(): Promise<void> {
           type="text"
           size="small"
           class="text-muted-foreground size-6 text-[10px] font-semibold tracking-tight"
-          :aria-label="locale === 'zh-CN' ? t('statusBar.switchToEn') : t('statusBar.switchToZh')"
           @click="localeStore.toggleZhEn"
         >
           {{ locale === "zh-CN" ? t("statusBar.localeEn") : t("statusBar.localeZh") }}
@@ -263,10 +249,11 @@ async function handleAppUpdate(): Promise<void> {
           type="text"
           size="small"
           class="text-muted-foreground size-6"
-          :aria-label="effectiveDark ? t('statusBar.switchToLight') : t('statusBar.switchToDark')"
           @click="themeStore.toggleDayNight"
         >
-          <Icon :name="effectiveDark ? 'Moon' : 'Sun'" :size="14" />
+          <template #icon>
+            <Icon :name="effectiveDark ? 'Moon' : 'Sun'" :size="14" />
+          </template>
         </Button>
       </Tooltip>
 
@@ -282,7 +269,6 @@ async function handleAppUpdate(): Promise<void> {
                 'hover:bg-accent hover:text-accent-foreground inline-flex h-6 items-center gap-1 rounded-md px-1.5',
               )
             "
-            :aria-label="t('statusBar.diskSpace')"
           >
             <Icon name="HardDrive" :size="14" />
             <span class="max-w-22 truncate">{{ diskLabel }}</span>
@@ -296,24 +282,25 @@ async function handleAppUpdate(): Promise<void> {
             :class="
               cn('size-6', panelOpen ? 'bg-accent text-accent-foreground' : 'text-muted-foreground')
             "
-            :aria-label="opLogAria"
             :aria-pressed="panelOpen"
+            :loading="latestOp?.status === 'running'"
             @click="useOpLogStoreWithOut().togglePanel"
           >
-            <Spin v-if="latestOp?.status === 'running'" size="small" />
-            <Icon
-              v-else-if="latestOp?.status === 'success'"
-              name="CheckCircle2"
-              :size="14"
-              class="text-primary"
-            />
-            <Icon
-              v-else-if="latestOp?.status === 'error'"
-              name="XCircle"
-              :size="14"
-              class="text-destructive"
-            />
-            <Icon v-else name="ScrollText" :size="14" />
+            <template #icon>
+              <Icon
+                v-if="latestOp?.status === 'success'"
+                name="CheckCircle2"
+                :size="14"
+                class="text-primary"
+              />
+              <Icon
+                v-else-if="latestOp?.status === 'error'"
+                name="XCircle"
+                :size="14"
+                class="text-destructive"
+              />
+              <Icon v-else name="ScrollText" :size="14" />
+            </template>
           </Button>
         </Tooltip>
 
@@ -341,11 +328,12 @@ async function handleAppUpdate(): Promise<void> {
               settingsOpen ? 'bg-accent text-accent-foreground' : 'text-muted-foreground',
             )
           "
-          :aria-label="t('statusBar.settings')"
           :aria-pressed="settingsOpen"
           @click="settingsDrawerStore.openDrawer()"
         >
-          <Icon name="Settings" :size="14" />
+          <template #icon>
+            <Icon name="Settings" :size="14" />
+          </template>
         </Button>
       </Tooltip>
     </div>

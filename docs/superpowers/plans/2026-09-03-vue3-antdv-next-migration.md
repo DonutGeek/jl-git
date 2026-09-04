@@ -89,7 +89,7 @@ Expected: 通过。`pnpm tauri dev` 能看到 Vue 壳（主题 token 背景 + �
 
 ### Task 3: M3 仪表盘 / 项目管理
 
-- [x] 仪表盘接入 `ProjectManager`（最近 / 打开 / 克隆 / 分组）
+- [x] 仪表盘页面（最近 / 打开 / 克隆 / 分组）
 - [x] `/project-manage` 子窗：筛选 + 表格 + 打开/编辑/删除
 - [ ] 分组拖拽排序、Lucide 全量图标选择、克隆后填详情、目录导入导出（S2，后补）
 

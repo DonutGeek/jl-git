@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { Dropdown, message, type MenuProps } from "antdv-next";
+import { Dropdown, Tooltip, type MenuProps } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
+import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
 import { openPrimaryRemoteInBrowser } from "@/services/git";
 import { openInEditor, openTerminal, revealInFileManager } from "@/services/system/system.open";
 import { detectAppOs } from "@/services/window/windowChrome";
-import { toUserMessage } from "@/types/error";
-
 import type { TabDisplayItem, RepoTabMenuLabels } from "./repoTabTypes";
 import type { Project } from "@/types/project";
 
@@ -38,6 +37,7 @@ const emit = defineEmits<{
 defineOptions({ name: "RepoTabItem" });
 
 const { t } = useI18n();
+const message = useMessage();
 
 const revealLabel = computed(() => {
   const os = detectAppOs();
@@ -127,7 +127,7 @@ async function handleOpen(kind: "folder" | "editor" | "terminal" | "browser"): P
       message.error(t("repo.openRemoteUnsupported"));
     }
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   }
 }
 
@@ -203,19 +203,20 @@ const handleMenuClick: MenuProps["onClick"] = ({ key }) => {
       >
         <span class="truncate">{{ tab.label }}</span>
       </button>
-      <button
-        type="button"
-        :class="
-          cn(
-            'hover:bg-muted mr-1 inline-flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm',
-            isActive ? 'opacity-70' : 'opacity-0 group-hover:opacity-70 focus-visible:opacity-70',
-          )
-        "
-        :aria-label="closeLabel"
-        @click.stop="emit('close', tab.id)"
-      >
-        <Icon name="X" :size="12" />
-      </button>
+      <Tooltip :title="closeLabel">
+        <button
+          type="button"
+          :class="
+            cn(
+              'hover:bg-muted mr-1 inline-flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm',
+              isActive ? 'opacity-70' : 'opacity-0 group-hover:opacity-70 focus-visible:opacity-70',
+            )
+          "
+          @click.stop="emit('close', tab.id)"
+        >
+          <Icon name="X" :size="12" />
+        </button>
+      </Tooltip>
     </div>
   </Dropdown>
 </template>

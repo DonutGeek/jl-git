@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { storeToRefs } from "pinia";
 
 import { Spin, Tag } from "antdv-next";
 import { useI18n } from "vue-i18n";
@@ -7,7 +8,6 @@ import { useI18n } from "vue-i18n";
 import GitIdentityAvatar from "./GitIdentityAvatar.vue";
 import MaterialFileIcon from "./MaterialFileIcon.vue";
 import { ScrollArea } from "@/components/ScrollArea";
-import { useZustand } from "@/hooks/core/useZustand";
 import { cn } from "@/lib/utils";
 import { useRepoStore } from "@/store/modules/repo";
 import { formatCommitDateTime } from "@/utils/formatCommitDateTime";
@@ -17,9 +17,8 @@ import { gitStatusLetterClass, normalizeGitStatusLetter } from "@/utils/gitStatu
 defineOptions({ name: "HistoryDetailPane" });
 
 const { t } = useI18n();
-const detail = useZustand(useRepoStore, (state) => state.selectedCommitDetail);
-const detailLoading = useZustand(useRepoStore, (state) => state.detailLoading);
-const selectedCommitId = useZustand(useRepoStore, (state) => state.selectedCommitId);
+const repoStore = useRepoStore();
+const { selectedCommitDetail: detail, detailLoading, selectedCommitId } = storeToRefs(repoStore);
 
 const files = computed(() => detail.value?.diffs[0]?.files ?? []);
 </script>

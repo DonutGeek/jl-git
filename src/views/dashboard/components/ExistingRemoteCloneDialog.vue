@@ -31,7 +31,6 @@ const { t } = useI18n();
     @ok="emit('continue')"
   >
     <div class="space-y-2 text-sm">
-      <p class="text-muted-foreground">{{ t("cloneRepo.existingRemoteDescription") }}</p>
       <ScrollArea class="border-border max-h-40 rounded-md border">
         <ul class="space-y-2 p-3">
           <li v-for="item in matches" :key="item.id">

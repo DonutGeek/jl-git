@@ -1,12 +1,12 @@
 import { AxiosError } from "axios";
-import { message } from "antdv-next";
 
+import type { AppMessage } from "@/hooks/web/useMessage";
 import i18n from "@/i18n";
 import { getDeepSeekApiKeysUrl, getDeepSeekTopUpUrl } from "@/services/ai/ai.balance";
 import { openExternalUrl } from "@/services/system/open-url";
 import { HttpRequestError } from "@/utils/http";
 
-import { isAppError, isRecord, toUserMessage, type AppError } from "@/types/error";
+import { isAppError, isRecord, type AppError } from "@/types/error";
 
 /** DeepSeek HTTP 错误码（与官方文档对齐） */
 export const AI_BAD_REQUEST_CODE = "AI_BAD_REQUEST";
@@ -89,11 +89,10 @@ export function isAiAuthFailedError(error: unknown): boolean {
 }
 
 /** Toast 展示 AI 失败；401/402 附带跳转操作。 */
-export function toastAiFailure(error: unknown, fallbackMessage: string): void {
-  const text = toUserMessage(error) || fallbackMessage;
+export function toastAiFailure(message: AppMessage, error: unknown): void {
+  message.error(error);
 
   if (isAiAuthFailedError(error)) {
-    message.error(text);
     void openExternalUrl(getDeepSeekApiKeysUrl()).catch(() => {
       message.error(i18n.t("settings.apiKeyOpenConsoleFailed"));
     });
@@ -101,14 +100,10 @@ export function toastAiFailure(error: unknown, fallbackMessage: string): void {
   }
 
   if (isAiBalanceExhaustedError(error)) {
-    message.error(text);
     void openExternalUrl(getDeepSeekTopUpUrl()).catch(() => {
       message.error(i18n.t("settings.balanceTopUpFailed"));
     });
-    return;
   }
-
-  message.error(text);
 }
 
 function resolveDeepSeekError(status: number, payload: unknown): DeepSeekMappedError | null {

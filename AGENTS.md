@@ -112,7 +112,7 @@ src/
 
 | 类别 | 约定 | 示例 |
 |------|------|------|
-| 路由页目录 | camelCase | `views/projectManage/` |
+| 路由页目录 | camelCase | `views/dashboard/` |
 | 路由页文件 | `index.vue` | `views/repo/index.vue` |
 | 组件名 | PascalCase + `defineOptions` | `defineOptions({ name: 'RepoPage' })` |
 | 可复用组件目录 | PascalCase，`index.ts` + `src/` | `components/Git/` |
@@ -295,7 +295,7 @@ Local State → Pinia → SQLite
 ## 18. Accessibility
 
 - 交互控件必须可键盘到达
-- 图标按钮提供 `aria-label`，**且**悬停提供 Tooltip（见 [ui-guidelines](docs/development/ui-guidelines.md)「用户体验硬规则」）
+- 纯图标按钮悬停提供 Tooltip（见 [ui-guidelines](docs/development/ui-guidelines.md)「用户体验硬规则」）
 - 焦点环可见；对比度满足常规阅读
 - 对话框遵循焦点陷阱与 Esc 关闭
 - 空状态、加载态、点击/悬停反馈为体验必选项，不是锦上添花

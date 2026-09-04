@@ -102,14 +102,16 @@ watch(
 <template>
   <ScrollArea ref="scrollArea" class="h-full min-h-0">
     <div v-if="messages.length === 0" class="flex h-full min-h-40 items-center justify-center px-4">
-      <Empty :description="null">
+      <Empty>
         <template #image>
           <Icon name="Sparkles" :size="28" class="text-muted-foreground" />
         </template>
-        <p class="text-sm font-medium">{{ emptyTitle ?? t("agent.emptyState") }}</p>
-        <p class="text-muted-foreground mt-1 max-w-xs text-center text-xs">
-          {{ emptyDescription ?? t("agent.emptyStateDescription") }}
-        </p>
+        <template #description>
+          <p class="text-sm font-medium">{{ emptyTitle ?? t("agent.emptyState") }}</p>
+          <p class="text-muted-foreground mt-1 max-w-xs text-center text-xs">
+            {{ emptyDescription ?? t("agent.emptyStateDescription") }}
+          </p>
+        </template>
       </Empty>
     </div>
     <div v-else class="flex min-w-0 flex-col gap-3 px-3 py-3">

@@ -1,38 +1,31 @@
 import { computed } from "vue";
 import { storeToRefs } from "pinia";
 
+import { usePreferredDark } from "@vueuse/core";
 import { theme as antdThemeToken } from "antdv-next";
 
 import { useThemeStore } from "@/store/modules/theme";
 import { resolveEffective, type ThemeMode } from "@/services/theme/theme.service";
 
 /**
- * 把现有 CSS Token 接到 antdv-next ConfigProvider。
- * 颜色仍走 `src/design/` 语义变量，算法随亮/暗切换。
+ * antdv-next 为样式主题源：默认/暗色算法 + CSS 变量。
+ * 业务 Tailwind 语义色对齐同一套 Ant Design Token。
  */
 export function useTheme() {
   const themeStore = useThemeStore();
   const { mode } = storeToRefs(themeStore);
+  const prefersDark = usePreferredDark();
 
-  const isDark = computed(() => {
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    return resolveEffective(mode.value, prefersDark) === "dark";
-  });
+  const isDark = computed(() => resolveEffective(mode.value, prefersDark.value) === "dark");
 
   const antdTheme = computed(() => ({
     algorithm: isDark.value ? antdThemeToken.darkAlgorithm : antdThemeToken.defaultAlgorithm,
+    cssVar: true as const,
+    // 运行时生成浅/深色，才能跟昼夜切换；零运行时只有一份静态 CSS
+    zeroRuntime: false,
     token: {
-      colorPrimary: "var(--primary)",
-      colorBgContainer: "var(--card)",
-      colorBgLayout: "var(--background)",
-      colorBgElevated: "var(--popover)",
-      colorText: "var(--foreground)",
-      colorTextSecondary: "var(--muted-foreground)",
-      colorBorder: "var(--border)",
-      colorBorderSecondary: "var(--border)",
-      borderRadius: 8,
-      fontFamily: "var(--app-font-family, inherit)",
-      fontFamilyCode: "var(--app-font-family, inherit)",
+      fontFamily: "var(--font-sans, inherit)",
+      fontFamilyCode: "var(--font-mono, inherit)",
     },
   }));
 

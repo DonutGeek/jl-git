@@ -68,6 +68,7 @@ erDiagram
 | `description` | TEXT NULL | 项目简介（可选；打开时可手填或 AI 生成） |
 | `icon` | TEXT NOT NULL DEFAULT `folder-git-2` | Lucide kebab-case 图标名；读写做格式校验 |
 | `path` | TEXT NOT NULL UNIQUE | 规范化绝对路径 |
+| `remote_url` | TEXT NULL | 主远端 URL（优先 origin）；空串表示已探测且无远端；NULL 表示尚未写入 |
 | `last_opened_at` | TEXT NULL | 上次打开 |
 | `pinned` | INTEGER NOT NULL DEFAULT 0 | 1=置顶 |
 | `sort_order` | INTEGER NOT NULL DEFAULT 0 | 分组内排序 |

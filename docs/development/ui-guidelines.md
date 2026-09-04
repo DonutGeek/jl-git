@@ -79,12 +79,14 @@ JLGit 以 [antdv-next](https://www.antdv-next.com/) 作为基础组件库（Vue 
 | 场景 | 做法 |
 |------|------|
 | 官方有等价组件 | **必须**局部导入 `antdv-next`（按钮、输入、选择、弹窗、抽屉、表格、标签、卡片、菜单、排版、开关、Tooltip、Spin） |
-| 常见对照 | 「胶囊状态」→ `Tag` / `Badge`；「开关」→ `Switch`；「抽屉」→ `Drawer`；「表格」→ `Table`；「确认」→ `Modal` / `Popconfirm` |
+| 常见对照 | 「胶囊状态」→ `Tag` / `Badge`；「开关」→ `Switch`；「抽屉」→ `Drawer`；「表格」→ `Table`；「二次确认」→ `useModal().confirm()` |
 | 禁止 | `app.use()` 全局注册；引入 `ant-design-vue`；原生 `<button>` / `<input>` 冒充基础控件 |
 | 官方没有、且属领域 UI | 放 `components/` 或 `views/*/components/`（Diff、提交图、文件树） |
 | 图标 | `<Icon name="..." />`；新映射加到 `src/components/Icon/data/icons.ts` |
 
 使用前查阅官方文档或已安装版本的类型声明，确认 props / events / slots / Design Token，不得靠记忆臆测。
+
+硬性偏好：`Button` 图标用 `#icon`；`Input` 前后缀用 `#prefix` / `#suffix`；`Empty` 图用 `#image`、文案用 `#description`；输入与按钮拼接用 `SpaceCompact`。
 
 ### 局部导入（硬性）
 
@@ -102,8 +104,9 @@ defineOptions({ name: "ExamplePanel" });
 
 ### Toast / 反馈
 
-- 统一走 antdv-next 的 `message` / `notification`（经 `hooks/web/useAntdApp` 一类封装）
-- 必须接入 JLGit 的 `light` / `dark` / `system` 主题
+- 统一走 antdv-next 的 `message` / `notification`：组件与 composable 用 `useMessage()` / `useNotification()`（内部 `App.useApp()`），禁止静态 `import { message }` / `import { notification }`
+- 必须接入 JLGit 的 `light` / `dark` / `system` 昼夜模式（样式以 antdv-next 为准）
+- Toast 错误直接 `message.error(error)`，不要再套 `toUserMessage`
 - 正文、操作按钮与可访问文本必须走 i18n，并同时维护 `zh-CN`、`en`
 
 ### 滚动区域（硬性）
@@ -176,8 +179,10 @@ defineOptions({ name: "ExamplePanel" });
 | Ghost | 工具条图标、密集区 |
 | Destructive | 删除、丢弃 |
 
-- 图标按钮必须有 `aria-label` 或 Tooltip
-- 加载态：禁用 + spinner，防止重复提交
+- 纯图标按钮悬停必须提供 Tooltip
+- 带图标的 `Button` **必须**用 `#icon` 插槽（官方也可用 `icon` prop）；禁止把 `Icon` 放进默认插槽冒充图标。加载用 `loading`，不要手搓 Spinner
+- 输入框前后缀用 Input 的 `#prefix` / `#suffix`；「输入 + 选择目录」用 `SpaceCompact`；并列操作按钮用 `Space`
+- 使用前查阅 [antdv-next 文档](https://www.antdv-next.com/) 与已安装版本类型声明（slot / props / events），优先组件自身能力，不要用外层 DOM 仿造
 
 ---
 
@@ -204,8 +209,9 @@ defineOptions({ name: "ExamplePanel" });
 - 焦点陷阱、Esc 关闭、主按钮明确
 - 完整应用设置用右侧 **Drawer**（保留当前仓库工作区），不要用 Modal 堆完整设置；也不强制跳转 `/settings` 路由页
 - 业务弹窗统一组合领域封装（基于 antdv-next `Modal`），禁止在各业务模块重复定义 `gap`、`padding`、标题字号与圆角
-- 普通编辑/创建使用 `Modal`；需要用户确认后才执行的操作使用 `Modal` 确认态或 `Popconfirm`
-- 二次确认的头部必须组合 `AppAlertDialogHeader`，保持“标题 + 必要确认对象”两层信息；不放装饰性警告图标或重复风险文案。危险性由 destructive 主按钮表达
+- 普通编辑/创建使用 `<Modal>`（表单、多字段）
+- 二次确认必须用 `App.useApp().modal.confirm()`（经 `@/hooks/web/useModal`），与 `useMessage` 一样吃 ConfigProvider 主题和 antd 语言包。禁止静态 `Modal.confirm`，也禁止再手搓一套确认 `<Modal>`
+- 取消按钮走 antd locale（中文「取消」/ 英文 Cancel），不必手写 `cancelText`；危险操作用 `okType: "danger"`，不要装饰性警告图标（`icon: null`）
 - 复选项只保留其动作标签；标签已明确影响范围时，不再追加重复说明。仅当前不可用或规则不直观时才显示 `FieldDescription`
 - 宽度按信息量选择 `sm` / `md` / `lg` / `xl` / `2xl`，默认 `md`；同类任务必须使用同一档位
 - 业务表单必须局部导入 antdv-next 的 `Form`、`FormItem`、`Row`、`Col`；禁止 `<form>` + `<label>` 手搓栅格。纵向表单用 `layout="vertical"`
@@ -270,7 +276,6 @@ defineOptions({ name: "ExamplePanel" });
 | 要求 | 说明 |
 |------|------|
 | Tooltip | 无文字的图标按钮悬停必须出现 Tooltip（antdv-next `Tooltip`），文案走 i18n |
-| aria-label | 与 Tooltip 文案一致，保证键盘与读屏 |
 | 延迟 | 默认约 300ms，避免鼠标划过刷屏 |
 | 位置 | 活动栏靠右；顶栏靠下；不遮挡关键内容 |
 
@@ -350,7 +355,7 @@ defineOptions({ name: "ExamplePanel" });
 | 文案 | 能共用 i18n key 就共用（如 `common.copy`、`repo.openInEditor`）；平台访达文案用 `revealInFileManagerLabel` |
 | 同构菜单 | 单仓/多仓会话等平行入口，结构与图标必须一致 |
 
-参考实现：`ProjectContextMenu`、`FileTreeContextMenu`、`ChangeFileContextMenu`、`RepoTabItem`。
+参考实现：`useProjectMenu`、`FileTreeContextMenu`、`ChangeFileContextMenu`、`RepoTabItem`。
 
 ### 3. 加载与异步
 
@@ -373,13 +378,13 @@ defineOptions({ name: "ExamplePanel" });
 
 ### 6. 文案与 i18n
 
-- 用户可见文案（含 Tooltip、空状态、toast、aria-label）一律走 i18n
+- 用户可见文案（含 Tooltip、空状态、toast）一律走 i18n
 - 品牌名 `JLGit` 可硬编码；路径、分支名、hash 等数据不翻译
 - 资源按语言分目录、按域分文件：`src/locales/lang/<lng>/<domain>.json`；新增域时同步补齐 `zh-CN` 与 `en`
 
 ### 7. 验收清单（功能合入前）
 
-- [ ] 所有纯图标按钮有 Tooltip + `aria-label`
+- [ ] 所有纯图标按钮有 Tooltip
 - [ ] 悬停 / 激活 / 禁用态可区分；**光标符合约定**（可点 pointer、分隔线 col/row-resize）
 - [ ] 空状态与加载态已覆盖主路径
 - [ ] 异步操作有防重复与错误提示

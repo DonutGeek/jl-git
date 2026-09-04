@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
+import { storeToRefs } from "pinia";
 
 import { cn } from "@/lib/utils";
-import { useZustand } from "@/hooks/core/useZustand";
 import { useOpenTabsStore } from "@/store/modules/multipleTab";
 import { resolveActiveOpenTab, shouldClearPendingActivation } from "@/utils/repoTabActivation";
 
@@ -13,12 +13,8 @@ import RepoPage from "@/views/repo/index.vue";
 defineOptions({ name: "WorkspaceHost" });
 
 const route = useRoute();
-const tabs = useZustand(useOpenTabsStore, (state) => state.tabs);
-const pendingActiveId = useZustand(useOpenTabsStore, (state) => state.pendingActiveId);
-const pendingOriginLocationKey = useZustand(
-  useOpenTabsStore,
-  (state) => state.pendingOriginLocationKey,
-);
+const openTabsStore = useOpenTabsStore();
+const { tabs, pendingActiveId, pendingOriginLocationKey } = storeToRefs(openTabsStore);
 
 const pendingActivationStale = computed(() =>
   shouldClearPendingActivation({

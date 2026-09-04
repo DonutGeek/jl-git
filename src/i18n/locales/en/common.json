@@ -1,6 +1,7 @@
 {
   "back": "Back",
   "loading": "Loading...",
+  "empty": "No data",
   "error": "Something went wrong",
   "cancel": "Cancel",
   "close": "Close",

@@ -90,3 +90,22 @@ html[data-sidebar-translucent="true"] [data-jlgit-sidebar] {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
+
+/* 下拉/右键菜单：带子菜单箭头时图标易被行高顶偏，强制与文案垂直居中 */
+.ant-dropdown-menu-item,
+.ant-dropdown-menu-submenu-title {
+  align-items: center;
+}
+
+.ant-dropdown-menu-item-icon,
+.ant-menu-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.ant-dropdown-menu-item-icon svg,
+.ant-menu-item-icon svg {
+  display: block;
+}

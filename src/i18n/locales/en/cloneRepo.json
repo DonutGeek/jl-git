@@ -12,13 +12,6 @@
   "cloned": "Cloned “{{name}}”",
   "urlRequired": "Enter a repository URL",
   "pathRequired": "Enter a local path",
-  "fillDetailAfterClone": "Fill in project details after cloning",
-  "detailDialogTitle": "Project details",
-  "detailDialogDescription": "Add a summary for “{{name}}”. You can generate one with AI from the repository.",
-  "detailConfirm": "Confirm",
-  "detailSkip": "Skip",
-  "detailSaved": "Project details saved",
   "existingRemoteTitle": "Remote already has local copies",
-  "existingRemoteDescription": "These registered projects point to the same remote. You can still clone into another directory.",
   "existingRemoteContinue": "Continue cloning"
 }

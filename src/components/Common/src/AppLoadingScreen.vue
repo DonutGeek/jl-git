@@ -11,7 +11,6 @@ const { t } = useI18n();
   <main
     class="bg-background text-muted-foreground flex h-screen items-center justify-center gap-2 text-xs"
     aria-busy="true"
-    :aria-label="t('common.loading')"
   >
     <Spin size="small" />
     <span>{{ t("common.loading") }}</span>

@@ -33,6 +33,8 @@ export interface Project {
   description: string | null;
   icon: ProjectIcon;
   path: string;
+  /** 主远端 URL；无远端或尚未写入时为 null */
+  remoteUrl: string | null;
   lastOpenedAt: string | null;
   pinned: boolean;
   sortOrder: number;

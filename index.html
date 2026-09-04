@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>JLGit</title>
     <script>
-      // 首屏前同步明暗 + 应用主题包快照，避免子窗/冷启动闪白或闪「原色」
+      // 首屏前同步昼夜，避免冷启动闪白
       (function () {
         var mode = "system";
         try {
@@ -27,41 +27,14 @@
         root.classList.toggle("dark", dark);
         root.dataset.theme = mode;
         root.style.colorScheme = dark ? "dark" : "light";
-
-        try {
-          var bootRaw = localStorage.getItem("jlgit-app-theme-boot");
-          if (!bootRaw) {
-            return;
-          }
-          var boot = JSON.parse(bootRaw);
-          if (!boot || boot.dark !== dark) {
-            return;
-          }
-          if (typeof boot.themeId === "string" && boot.themeId) {
-            root.dataset.appTheme = boot.themeId;
-          }
-          root.dataset.sidebarTranslucent = boot.sidebarTranslucent ? "true" : "false";
-          if (boot.contrast != null) {
-            root.dataset.appThemeContrast = String(boot.contrast);
-          }
-          if (boot.native || !boot.vars) {
-            return;
-          }
-          var vars = boot.vars;
-          for (var key in vars) {
-            if (Object.prototype.hasOwnProperty.call(vars, key) && vars[key]) {
-              root.style.setProperty(key, vars[key]);
-            }
-          }
-        } catch (e) {}
       })();
     </script>
     <style>
       /* 优先用 boot 写入的 Token；无快照时按明暗回退，与 tokens 默认昼夜接近 */
       html,
       body {
-        background: var(--background, hsl(0 0% 100%));
-        color: var(--foreground, hsl(0 0% 20%));
+        background: var(--background, #f5f5f5);
+        color: var(--foreground, rgba(0, 0, 0, 0.88));
         margin: 0;
         overflow: hidden;
         overscroll-behavior: none;
@@ -69,8 +42,8 @@
 
       html.dark,
       html.dark body {
-        background: var(--background, hsl(0 0% 7%));
-        color: var(--foreground, hsl(0 0% 90%));
+        background: var(--background, #000000);
+        color: var(--foreground, rgba(255, 255, 255, 0.85));
       }
     </style>
   </head>

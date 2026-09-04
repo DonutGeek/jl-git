@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { storeToRefs } from "pinia";
 
-import { Button, Input, Modal, Tooltip, message } from "antdv-next";
+import { Button, Input, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
 import MaterialFileIcon from "./MaterialFileIcon.vue";
 import { ScrollArea } from "@/components/ScrollArea";
-import { useZustand } from "@/hooks/core/useZustand";
+import { useMessage } from "@/hooks/web/useMessage";
+import { useModal } from "@/hooks/web/useModal";
 import { cn } from "@/lib/utils";
 import { useRepoStore, useRepoStoreWithOut } from "@/store/modules/repo";
-import { toUserMessage } from "@/types/error";
 import type { GitStatusEntry } from "@/types/git";
 import { getPathBasename } from "@/utils/getPathBasename";
 import { isConflictEntry, isStagedChangeEntry, isUnstagedChangeEntry } from "@/utils/gitConflict";
@@ -20,12 +21,12 @@ defineOptions({ name: "ChangesPanel" });
 
 const EMPTY_ENTRIES: GitStatusEntry[] = [];
 const { t } = useI18n();
-const entries = useZustand(useRepoStore, (state) => state.status?.entries ?? EMPTY_ENTRIES);
-const selectedChange = useZustand(useRepoStore, (state) => state.selectedChange);
-const loading = useZustand(useRepoStore, (state) => state.loading);
+const message = useMessage();
+const modal = useModal();
+const repoStore = useRepoStore();
+const { selectedChange, loading, status } = storeToRefs(repoStore);
+const entries = computed(() => status.value?.entries ?? EMPTY_ENTRIES);
 const filter = ref("");
-const discardTarget = ref<GitStatusEntry | null>(null);
-const discarding = ref(false);
 
 const query = computed(() => filter.value.trim().toLowerCase());
 
@@ -64,7 +65,7 @@ async function stagePaths(paths: string[]): Promise<void> {
   try {
     await useRepoStoreWithOut().stage(paths);
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   }
 }
 
@@ -72,23 +73,26 @@ async function unstagePaths(paths: string[]): Promise<void> {
   try {
     await useRepoStoreWithOut().unstage(paths);
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   }
 }
 
-async function handleDiscard(): Promise<void> {
-  if (!discardTarget.value) {
-    return;
-  }
-  discarding.value = true;
-  try {
-    await useRepoStoreWithOut().discard([discardTarget.value.path]);
-    discardTarget.value = null;
-  } catch (error) {
-    message.error(toUserMessage(error));
-  } finally {
-    discarding.value = false;
-  }
+function requestDiscard(entry: GitStatusEntry): void {
+  modal.confirm({
+    title: t("repo.discardChanges"),
+    content: t("repo.discardChangesQuestion", { path: entry.path }),
+    icon: null,
+    okType: "danger",
+    okText: t("repo.discardChanges"),
+    async onOk() {
+      try {
+        await useRepoStoreWithOut().discard([entry.path]);
+      } catch (error) {
+        message.error(error);
+        throw error;
+      }
+    },
+  });
 }
 
 function isSelected(entry: GitStatusEntry, side: "index" | "worktree"): boolean {
@@ -99,33 +103,29 @@ function isSelected(entry: GitStatusEntry, side: "index" | "worktree"): boolean 
 <template>
   <section class="flex h-full min-h-0 flex-col">
     <header class="flex shrink-0 items-center gap-2 border-b px-2 py-1.5">
-      <Input
-        v-model:value="filter"
-        size="small"
-        class="flex-1"
-        :placeholder="t('repo.filter')"
-        :aria-label="t('repo.filter')"
-      />
+      <Input v-model:value="filter" size="small" class="flex-1" :placeholder="t('repo.filter')" />
       <Tooltip :title="t('repo.stageAll')">
         <Button
           size="small"
           type="text"
-          :aria-label="t('repo.stageAll')"
           :disabled="unstaged.length === 0"
-          @click="void stagePaths(unstaged.map((item) => item.path))"
+          @click="stagePaths(unstaged.map((item) => item.path))"
         >
-          <Icon name="ArrowUp" :size="14" />
+          <template #icon>
+            <Icon name="ArrowUp" :size="14" />
+          </template>
         </Button>
       </Tooltip>
       <Tooltip :title="t('repo.unstageAll')">
         <Button
           size="small"
           type="text"
-          :aria-label="t('repo.unstageAll')"
           :disabled="staged.length === 0"
-          @click="void unstagePaths(staged.map((item) => item.path))"
+          @click="unstagePaths(staged.map((item) => item.path))"
         >
-          <Icon name="ArrowDown" :size="14" />
+          <template #icon>
+            <Icon name="ArrowDown" :size="14" />
+          </template>
         </Button>
       </Tooltip>
     </header>
@@ -163,13 +163,10 @@ function isSelected(entry: GitStatusEntry, side: "index" | "worktree"): boolean 
           </span>
           <MaterialFileIcon :name="entry.path" :is-dir="false" class-name="size-3.5" />
           <span class="min-w-0 flex-1 truncate">{{ getPathBasename(entry.path) }}</span>
-          <Button
-            size="small"
-            type="text"
-            :aria-label="t('repo.unstageFile', { path: entry.path })"
-            @click.stop="void unstagePaths([entry.path])"
-          >
-            <Icon name="ArrowDown" :size="12" />
+          <Button size="small" type="text" @click.stop="unstagePaths([entry.path])">
+            <template #icon>
+              <Icon name="ArrowDown" :size="12" />
+            </template>
           </Button>
         </button>
 
@@ -195,38 +192,18 @@ function isSelected(entry: GitStatusEntry, side: "index" | "worktree"): boolean 
           </span>
           <MaterialFileIcon :name="entry.path" :is-dir="false" class-name="size-3.5" />
           <span class="min-w-0 flex-1 truncate">{{ getPathBasename(entry.path) }}</span>
-          <Button
-            size="small"
-            type="text"
-            :aria-label="t('repo.stageFile', { path: entry.path })"
-            @click.stop="void stagePaths([entry.path])"
-          >
-            <Icon name="ArrowUp" :size="12" />
+          <Button size="small" type="text" @click.stop="stagePaths([entry.path])">
+            <template #icon>
+              <Icon name="ArrowUp" :size="12" />
+            </template>
           </Button>
-          <Button
-            size="small"
-            type="text"
-            danger
-            :aria-label="t('repo.discardChanges')"
-            @click.stop="discardTarget = entry"
-          >
-            <Icon name="RotateCcw" :size="12" />
+          <Button size="small" type="text" danger @click.stop="requestDiscard(entry)">
+            <template #icon>
+              <Icon name="RotateCcw" :size="12" />
+            </template>
           </Button>
         </button>
       </template>
     </ScrollArea>
-
-    <Modal
-      :open="Boolean(discardTarget)"
-      :title="t('repo.discardChanges')"
-      :ok-text="t('repo.discardChanges')"
-      :cancel-text="t('common.cancel')"
-      ok-type="danger"
-      :confirm-loading="discarding"
-      @update:open="(open: boolean) => !open && (discardTarget = null)"
-      @ok="void handleDiscard()"
-    >
-      <p class="text-sm">{{ discardTarget?.path }}</p>
-    </Modal>
   </section>
 </template>

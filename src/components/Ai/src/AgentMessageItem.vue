@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import dayjs from "dayjs";
-import { Button, Tooltip, message as antdMessage } from "antdv-next";
+import { Button, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import AgentReasoningBlock from "./AgentReasoningBlock.vue";
 import { Icon } from "@/components/Icon";
+import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
-import { toUserMessage } from "@/types/error";
 import type { AgentChatMessage } from "@/types/ai";
 import { copyToClipboard } from "@/utils/clipboard";
 
@@ -21,6 +21,7 @@ const props = withDefaults(
 );
 
 const { t } = useI18n();
+const appMessage = useMessage();
 const isUser = () => props.message.role === "user";
 
 function formatMessageTime(iso: string): string {
@@ -45,9 +46,9 @@ async function handleCopy(): Promise<void> {
   }
   try {
     await copyToClipboard(text);
-    antdMessage.success(t("agent.copySuccess"));
+    appMessage.success(t("agent.copySuccess"));
   } catch (error) {
-    antdMessage.error(toUserMessage(error) || t("agent.copyFailed"));
+    appMessage.error(error);
   }
 }
 </script>
@@ -99,10 +100,11 @@ async function handleCopy(): Promise<void> {
           size="small"
           class="h-6 w-6 min-w-6 p-0"
           :disabled="actionsDisabled"
-          :aria-label="t('agent.copy')"
-          @click="void handleCopy()"
+          @click="handleCopy"
         >
-          <Icon name="Copy" :size="12" />
+          <template #icon>
+            <Icon name="Copy" :size="12" />
+          </template>
         </Button>
       </Tooltip>
     </div>

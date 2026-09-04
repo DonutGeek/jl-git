@@ -339,6 +339,25 @@ pub fn list_remotes(repo_path: &Path) -> Result<Vec<GitRemote>, AppError> {
     Ok(parse_remote_verbose(&output.stdout))
 }
 
+/// 优先 origin 的 fetch URL，否则第一个远端（与前端 `pickPrimaryRemoteUrl` 对齐）
+pub fn pick_primary_remote_url(remotes: &[GitRemote]) -> Option<String> {
+    let preferred = remotes
+        .iter()
+        .find(|remote| remote.name == "origin")
+        .or_else(|| remotes.first())?;
+    let url = preferred.fetch_url.trim();
+    let url = if url.is_empty() {
+        preferred.push_url.trim()
+    } else {
+        url
+    };
+    if url.is_empty() {
+        None
+    } else {
+        Some(url.to_string())
+    }
+}
+
 fn parse_remote_verbose(stdout: &str) -> Vec<GitRemote> {
     use std::collections::BTreeMap;
 
@@ -397,7 +416,7 @@ fn parse_remote_verbose(stdout: &str) -> Vec<GitRemote> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_remote_verbose, validate_clone_url};
+    use super::{parse_remote_verbose, pick_primary_remote_url, validate_clone_url};
 
     #[test]
     fn parses_remote_verbose_output() {
@@ -413,6 +432,10 @@ upstream\thttps://github.com/upstream/app.git (push)
         assert_eq!(remotes[0].fetch_url, "git@github.com:acme/app.git");
         assert_eq!(remotes[1].name, "upstream");
         assert_eq!(remotes[1].push_url, "https://github.com/upstream/app.git");
+        assert_eq!(
+            pick_primary_remote_url(&remotes).as_deref(),
+            Some("git@github.com:acme/app.git")
+        );
     }
 
     #[test]

@@ -1,5 +1,4 @@
-import { message } from "antdv-next";
-
+import type { AppMessage } from "@/hooks/web/useMessage";
 import i18n from "@/i18n";
 import { isAppError, toUserMessage } from "@/types/error";
 
@@ -45,12 +44,16 @@ interface ToastPushErrorOptions {
   onUpdate?: () => void;
 }
 
-/** 推送失败提示：拒绝推送时友好文案，其它错误走原文 */
-export function toastPushError(error: unknown, options: ToastPushErrorOptions = {}): void {
+/** 推送失败提示：拒绝推送时友好文案，其它错误直接写入 toast */
+export function toastPushError(
+  message: AppMessage,
+  error: unknown,
+  options: ToastPushErrorOptions = {},
+): void {
   if (isPushRejectedError(error) && options.onUpdate) {
     message.error(i18n.t("repo.pushRejected"));
     return;
   }
 
-  message.error(toUserMessage(error));
+  message.error(error);
 }

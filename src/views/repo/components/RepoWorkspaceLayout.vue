@@ -15,9 +15,8 @@ withDefaults(
     mainView: RepoMainView;
     toolbarLoading?: boolean;
     ariaBusy?: boolean;
-    ariaLabel?: string;
   }>(),
-  { toolbarLoading: false, ariaBusy: undefined, ariaLabel: undefined },
+  { toolbarLoading: false, ariaBusy: undefined },
 );
 
 const emit = defineEmits<{
@@ -31,7 +30,6 @@ const emit = defineEmits<{
     class="flex h-full min-h-0 flex-col overflow-hidden"
     data-repo-workspace-layout="true"
     :aria-busy="ariaBusy"
-    :aria-label="ariaLabel"
   >
     <RepoToolbar
       :key="project.path"

@@ -12,9 +12,9 @@
 |------|------|
 | `light` | 固定浅色 |
 | `dark` | 固定深色 |
-| `system` | 跟随 OS |
+| `system` | 跟随 OS 昼夜 |
 
-实现：在 `<html>`（或根节点）切换 `.dark` / `data-theme`，与 Tailwind 约定一致。
+实现：在 `<html>` 切换 `.dark` / `data-theme`，并同步 `colorScheme`。`system` 监听 `prefers-color-scheme`。
 
 ---
 
@@ -61,7 +61,7 @@ Git 状态色：
 | `--git-untracked` | 未跟踪 |
 | `--git-conflict` | 冲突 |
 
-具体 OKLCH 值在 [`src/design/tokens.css`](../../src/design/tokens.css) 中定义；Tailwind 映射见 `theme-map.css`；本文锁定**名称与用途**，改值不改名。
+具体色值在 [`src/design/tokens.css`](../../src/design/tokens.css) 中定义（浅/深对齐 antdv-next 默认 Token）；Tailwind 映射见 `theme-map.css`；本文锁定**名称与用途**，改值不改名。
 
 入口：`src/index.css` → `@import "./design/index.css"`。
 
@@ -110,8 +110,12 @@ Git 状态色：
 
 ## 与 antdv-next
 
-项目语义 Token（`--background`、`--primary` 等）经 ConfigProvider / Design Token 接到 antdv-next。  
-新增 Token 先改 `src/design/`，再映射到 antdv-next 主题。  
+**样式主题以 antdv-next 为源**：`ConfigProvider` 使用 `defaultAlgorithm` / `darkAlgorithm` + `cssVar`，组件走 Ant Design Token（主色 `#1677ff` 等）。
+
+业务 Tailwind 语义色（`--background`、`--primary` 等）在 `tokens.css` 对齐同一套默认浅/深色；`.ant-app` 内进一步映射 `--ant-*`，避免再把 CSS 变量反向灌进 ConfigProvider。
+
+Git / Diff / 语法高亮为领域色，antd 没有等价 Token，仍定义在 `tokens.css`。
+
 组件用法见 [ui-guidelines · antdv-next](ui-guidelines.md#antdv-next)。
 
 ---
@@ -119,30 +123,12 @@ Git 状态色：
 ## 运行时切换
 
 ```
-settings theme.mode
-  → useSettingsStore / ThemeService
-    → 应用 class
-      → 可选写入 settings 表
+settings 昼夜模式
+  → useThemeStore / ThemeService
+    → html.dark + ConfigProvider algorithm
 ```
 
-见 [api/settings](../api/settings.md)（Theme 也可作为 Settings 的一部分，不强制独立 Command）。
-
-### 应用主题（整站 + Monaco）
-
-| 项 | 说明 |
-|----|------|
-| 入口 | 设置 → 外观 →「应用主题」 |
-| 主题包 | **鲸灵 Git**（默认 tokens 原色，可微调）/ GitHub / ChatGPT / Claude / Codex / VS Code |
-| 作用 | 非 native 包完整写入背景、卡片、弹层、次要区、侧栏、选中态、图表、仓库分组、Git/Diff Tokens，并同步关键字、字符串、注释、数字、类型、函数等 Monaco 语法色；鲸灵 Git 始终保留 `tokens.css` 与原生 Monaco 风格，只增量覆盖用户实际修改项 |
-| 昼夜 | 仍跟 `html.dark`；切换主题包会重置自定义色 |
-| 偏好 | `appThemeId` + `themeChromeLight` / `themeChromeDark` |
-| 自定义 | 强调、背景、前景、卡片/弹层、次要背景/文字、边框、侧栏、选中态、危险操作、Diff 与 Git 状态色；应用内 Popover 提供 HSV 连续色域、色相、主题建议色与任意 HEX，浅/深模式分别实时预览并自动保存 |
-| 代码 | 模块化目录 `src/design/themes/`（见 [应用主题模块](../superpowers/specs/2026-07-22-app-themes-modular-design.md)） |
-| 首屏 | `applyAppThemeToDocument` 写入 `localStorage` 键 `jlgit-app-theme-boot`；`index.html` 内联脚本在 paint 前同步 `data-app-theme` / Token 快照，避免冷启动闪「原色」 |
-| 启动壳 | `#app-loading` 仅同色底 + 小转圈（无文案）；`background`/`color`/`--primary` 跟 boot Token，无快照时按 `.dark` 回退 |
-| `colorScheme` | 与 `.dark` 同步设置 `html.style.colorScheme`，使原生控件（滚动条等）跟昼夜 |
-
-新增主题：新建 `packs/<name>.ts` → 挂到 `packs/index.ts` → 扩 `AppThemeId` → i18n。**禁止**把色板堆进 `apply-*` 或设置组件。色板来源见 `src/design/themes/packs/SOURCES.md`。
+见 [api/settings](../api/settings.md)。`colorScheme` 与 `.dark` 同步，使原生控件（滚动条等）跟昼夜。
 
 ### 控件与主题
 

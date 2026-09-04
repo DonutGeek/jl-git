@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 
-import { Button, Modal, Tooltip } from "antdv-next";
+import { Button, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
 import { ScrollArea } from "@/components/ScrollArea";
+import { useModal } from "@/hooks/web/useModal";
 import { cn } from "@/lib/utils";
 import type { AgentConversation } from "@/types/ai";
 
@@ -26,7 +27,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const pendingDelete = ref<AgentConversation | null>(null);
+const modal = useModal();
 const canDelete = computed(() => props.conversations.length > 1);
 
 function conversationLabel(conversation: AgentConversation): string {
@@ -37,39 +38,37 @@ function requestDelete(conversation: AgentConversation): void {
   if (!canDelete.value) {
     return;
   }
-  pendingDelete.value = conversation;
-}
-
-function confirmDelete(): void {
-  const target = pendingDelete.value;
-  if (!target) {
-    return;
-  }
-  emit("delete", target.id);
-  pendingDelete.value = null;
+  modal.confirm({
+    title: t("multiAgent.deleteConversationTitle"),
+    content: t("multiAgent.deleteConversationConfirm", { name: conversationLabel(conversation) }),
+    icon: null,
+    okType: "danger",
+    okText: t("multiAgent.deleteConversation"),
+    onOk() {
+      emit("delete", conversation.id);
+    },
+  });
 }
 </script>
 
 <template>
-  <aside
-    class="border-border bg-muted/20 flex w-48 shrink-0 flex-col border-r"
-    :aria-label="t('multiAgent.sidebarAria')"
-  >
+  <aside class="border-border bg-muted/20 flex w-48 shrink-0 flex-col border-r">
     <div class="shrink-0 p-2">
       <Tooltip :title="t('multiAgent.createConversation')" placement="right">
         <Button
           size="small"
           class="h-8 w-full justify-start gap-1.5 text-xs"
-          :aria-label="t('multiAgent.createConversation')"
           @click="emit('create')"
         >
-          <Icon name="SquarePen" :size="14" />
+          <template #icon>
+            <Icon name="SquarePen" :size="14" />
+          </template>
           {{ t("multiAgent.createConversation") }}
         </Button>
       </Tooltip>
     </div>
     <ScrollArea class="min-h-0 flex-1">
-      <div class="flex flex-col gap-0.5 px-2 pb-2" :aria-label="t('multiAgent.conversationsAria')">
+      <div class="flex flex-col gap-0.5 px-2 pb-2">
         <div
           v-for="conversation in conversations"
           :key="conversation.id"
@@ -106,7 +105,6 @@ function confirmDelete(): void {
                     : 'opacity-0 group-hover:opacity-70 focus-visible:opacity-70',
                 )
               "
-              :aria-label="t('multiAgent.deleteConversation')"
               :disabled="!canDelete"
               @click.stop="requestDelete(conversation)"
             >
@@ -116,22 +114,5 @@ function confirmDelete(): void {
         </div>
       </div>
     </ScrollArea>
-    <Modal
-      :open="Boolean(pendingDelete)"
-      :title="t('multiAgent.deleteConversationTitle')"
-      :ok-text="t('multiAgent.deleteConversation')"
-      :cancel-text="t('common.cancel')"
-      ok-type="danger"
-      @update:open="(open: boolean) => !open && (pendingDelete = null)"
-      @ok="confirmDelete"
-    >
-      <p class="text-sm">
-        {{
-          t("multiAgent.deleteConversationConfirm", {
-            name: pendingDelete ? conversationLabel(pendingDelete) : "",
-          })
-        }}
-      </p>
-    </Modal>
   </aside>
 </template>

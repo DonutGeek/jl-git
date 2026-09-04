@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { storeToRefs } from "pinia";
 
-import { Button, Input, Tooltip, message } from "antdv-next";
+import { Button, Input, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
 import { ScrollArea } from "@/components/ScrollArea";
-import { useZustand } from "@/hooks/core/useZustand";
+import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
 import { openBranchManageWindow } from "@/services/window/branchManageWindow";
 import { useRepoStore, useRepoStoreWithOut } from "@/store/modules/repo";
-import { toUserMessage } from "@/types/error";
 import type { GitBranch } from "@/types/git";
 import { filterAndSortBranches, readBranchListPrefs } from "@/utils/branchListPrefs";
 import { resolveRepoProjectId } from "@/utils/resolveRepoProjectId";
@@ -18,9 +18,9 @@ import { resolveRepoProjectId } from "@/utils/resolveRepoProjectId";
 defineOptions({ name: "BranchList" });
 
 const { t } = useI18n();
-const branches = useZustand(useRepoStore, (state) => state.branches);
-const status = useZustand(useRepoStore, (state) => state.status);
-const loading = useZustand(useRepoStore, (state) => state.loading);
+const message = useMessage();
+const repoStore = useRepoStore();
+const { branches, status, loading } = storeToRefs(repoStore);
 const filter = ref("");
 const checkingOut = ref<string | null>(null);
 const selectedName = ref<string | null>(null);
@@ -39,7 +39,7 @@ async function handleCheckout(branch: GitBranch): Promise<void> {
     await useRepoStoreWithOut().checkout(branch.name);
     selectedName.value = branch.name;
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   } finally {
     checkingOut.value = null;
   }
@@ -52,7 +52,7 @@ function openManage(): void {
     return;
   }
   void openBranchManageWindow({ projectId }).catch((error: unknown) => {
-    message.error(toUserMessage(error) || t("branchManage.loadFailed"));
+    message.error(error);
   });
 }
 </script>
@@ -60,16 +60,12 @@ function openManage(): void {
 <template>
   <section class="flex h-full min-h-0 flex-col">
     <header class="flex shrink-0 items-center gap-2 border-b px-2 py-1.5">
-      <Input
-        v-model:value="filter"
-        size="small"
-        class="flex-1"
-        :placeholder="t('repo.filter')"
-        :aria-label="t('repo.filter')"
-      />
+      <Input v-model:value="filter" size="small" class="flex-1" :placeholder="t('repo.filter')" />
       <Tooltip :title="t('repo.branchSettings')">
-        <Button size="small" type="text" :aria-label="t('repo.branchSettings')" @click="openManage">
-          <Icon name="Settings" :size="14" />
+        <Button size="small" type="text" @click="openManage">
+          <template #icon>
+            <Icon name="Settings" :size="14" />
+          </template>
         </Button>
       </Tooltip>
     </header>
@@ -92,7 +88,7 @@ function openManage(): void {
             )
           "
           @click="selectedName = branch.name"
-          @dblclick="void handleCheckout(branch)"
+          @dblclick="handleCheckout(branch)"
         >
           <Icon name="GitBranch" :size="14" class="text-muted-foreground shrink-0" />
           <span class="min-w-0 flex-1 truncate">{{ branch.name }}</span>

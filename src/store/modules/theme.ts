@@ -1,13 +1,12 @@
 import { defineStore } from "pinia";
 
-import { applyThemeToDocument, type ThemeMode } from "@/services/theme/theme.service";
-import { store } from "@/store";
-import { refreshAppThemeForColorMode } from "@/store/modules/app";
 import {
-  deserializeZustandPersist,
-  readZustandPersistVersion,
-  serializeZustandPersist,
-} from "@/store/plugin/zustandPersist";
+  applyThemeToDocument,
+  resolveEffective,
+  type ThemeMode,
+} from "@/services/theme/theme.service";
+import { store } from "@/store";
+import { deserializeZustandPersist, serializeZustandPersist } from "@/store/plugin/zustandPersist";
 import {
   listenGlobalPreferenceChange,
   notifyGlobalPreferenceChange,
@@ -15,24 +14,22 @@ import {
 
 /** 与旧 Zustand persist 同一把钥匙 */
 const THEME_STORAGE_KEY = "jlgit-theme";
-/** 与旧版 migrate 对齐：v3 起默认跟随系统 */
-const THEME_PERSIST_VERSION = 3;
+/** v5：浅色 / 深色 / 跟随系统 */
+const THEME_PERSIST_VERSION = 5;
 
 interface ThemeState {
-  /** light / dark / system（跟随 OS） */
   mode: ThemeMode;
 }
 
-function normalizeThemeState(raw: ThemeState | undefined, version: number): ThemeState {
-  const mode = raw?.mode;
-  // v0/v1/v2 → 跟随系统，避免旧安装停在浅色
-  if (version < THEME_PERSIST_VERSION) {
-    return { mode: "system" };
+function normalizeMode(raw: string | undefined): ThemeMode {
+  if (raw === "light" || raw === "dark" || raw === "system") {
+    return raw;
   }
-  if (mode !== "light" && mode !== "dark" && mode !== "system") {
-    return { mode: "system" };
-  }
-  return { mode };
+  return "system";
+}
+
+function normalizeThemeState(raw: ThemeState | undefined): ThemeState {
+  return { mode: normalizeMode(raw?.mode) };
 }
 
 export const useThemeStore = defineStore("theme", {
@@ -41,26 +38,23 @@ export const useThemeStore = defineStore("theme", {
   }),
   actions: {
     setMode(mode: ThemeMode): void {
-      applyThemeToDocument(mode);
-      refreshAppThemeForColorMode();
-      this.mode = mode;
+      const next = normalizeMode(mode);
+      applyThemeToDocument(next);
+      this.mode = next;
       notifyGlobalPreferenceChange("theme");
     },
-    /** 昼夜切换：浅色 ↔ 深色（不经过 system，状态栏一键切换） */
     toggleDayNight(): void {
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const effective = this.mode === "system" ? (prefersDark ? "dark" : "light") : this.mode;
-      const next: ThemeMode = effective === "dark" ? "light" : "dark";
-      this.setMode(next);
+      const effective = resolveEffective(this.mode, prefersDark);
+      this.setMode(effective === "dark" ? "light" : "dark");
     },
   },
   persist: {
     key: THEME_STORAGE_KEY,
     serializer: {
       deserialize(value: string): ThemeState {
-        const version = readZustandPersistVersion(value);
         const state = deserializeZustandPersist<ThemeState>(value);
-        return normalizeThemeState(state, version);
+        return normalizeThemeState(state);
       },
       serialize: (value) => serializeZustandPersist(value, THEME_PERSIST_VERSION),
     },
@@ -72,34 +66,34 @@ export function useThemeStoreWithOut() {
   return useThemeStore(store);
 }
 
-/** 启动时立即应用（避免闪白），并监听系统主题与跨窗口变更 */
+function syncDocumentTheme(): void {
+  applyThemeToDocument(useThemeStoreWithOut().mode);
+}
+
+/** 启动时立即应用（避免闪白） */
 export function initTheme(): void {
   const themeStore = useThemeStoreWithOut();
   applyThemeToDocument(themeStore.mode);
-  refreshAppThemeForColorMode();
 
   const media = window.matchMedia("(prefers-color-scheme: dark)");
-  const onChange = (): void => {
-    if (themeStore.mode === "system") {
+  const onSystemChange = (): void => {
+    if (useThemeStoreWithOut().mode === "system") {
       applyThemeToDocument("system");
-      refreshAppThemeForColorMode();
     }
   };
-  media.addEventListener("change", onChange);
+  media.addEventListener("change", onSystemChange);
 
   window.addEventListener("storage", (event) => {
     if (event.key === THEME_STORAGE_KEY) {
       themeStore.$hydrate();
-      applyThemeToDocument(themeStore.mode);
-      refreshAppThemeForColorMode();
+      syncDocumentTheme();
     }
   });
 
   void listenGlobalPreferenceChange((kind) => {
     if (kind === "theme") {
       themeStore.$hydrate();
-      applyThemeToDocument(themeStore.mode);
-      refreshAppThemeForColorMode();
+      syncDocumentTheme();
     }
   }).catch((error: unknown) => {
     console.error("Failed to listen for theme changes", error);

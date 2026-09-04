@@ -24,7 +24,10 @@ fn validate_http_url(raw: &str) -> Result<String, AppError> {
     if trimmed.is_empty() {
         return Err(AppError::new("VALIDATION", "地址不能为空"));
     }
-    if trimmed.chars().any(|c| c.is_control() || c == '"' || c == '\'') {
+    if trimmed
+        .chars()
+        .any(|c| c.is_control() || c == '"' || c == '\'')
+    {
         return Err(AppError::new("VALIDATION", "地址含非法字符"));
     }
     let lower = trimmed.to_ascii_lowercase();
@@ -101,7 +104,8 @@ fn open_with_custom(custom: &str, url: &str) -> Result<(), AppError> {
                 .args(["-a", custom, url])
                 .status()
                 .map_err(|error| {
-                    AppError::new("INTERNAL", "无法打开自定义浏览器").with_details(error.to_string())
+                    AppError::new("INTERNAL", "无法打开自定义浏览器")
+                        .with_details(error.to_string())
                 })?;
             if status.success() {
                 return Ok(());
@@ -146,9 +150,12 @@ fn open_with_default(url: &str) -> Result<(), AppError> {
 
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        let status = Command::new("xdg-open").arg(url).status().map_err(|error| {
-            AppError::new("INTERNAL", "无法打开默认浏览器").with_details(error.to_string())
-        })?;
+        let status = Command::new("xdg-open")
+            .arg(url)
+            .status()
+            .map_err(|error| {
+                AppError::new("INTERNAL", "无法打开默认浏览器").with_details(error.to_string())
+            })?;
         if !status.success() {
             return Err(AppError::new("INTERNAL", "打开默认浏览器失败"));
         }
@@ -190,7 +197,9 @@ fn macos_app_exists(bundle: &str) -> bool {
     let roots = [
         PathBuf::from("/Applications"),
         PathBuf::from("/System/Applications"),
-        dirs_home().map(|h| h.join("Applications")).unwrap_or_default(),
+        dirs_home()
+            .map(|h| h.join("Applications"))
+            .unwrap_or_default(),
     ];
     roots.iter().any(|root| {
         if root.as_os_str().is_empty() {
@@ -211,7 +220,9 @@ fn open_with_id_macos(id: &str, url: &str) -> Result<(), AppError> {
         "arc" => "Arc",
         "opera" => "Opera",
         _ => {
-            return Err(AppError::new("VALIDATION", "未知的浏览器偏好").with_details(id.to_string()));
+            return Err(
+                AppError::new("VALIDATION", "未知的浏览器偏好").with_details(id.to_string())
+            );
         }
     };
     let status = Command::new("open")
@@ -306,7 +317,9 @@ fn open_with_id_windows(id: &str, url: &str) -> Result<(), AppError> {
             r"C:\Program Files (x86)\Opera\opera.exe",
         ],
         _ => {
-            return Err(AppError::new("VALIDATION", "未知的浏览器偏好").with_details(id.to_string()));
+            return Err(
+                AppError::new("VALIDATION", "未知的浏览器偏好").with_details(id.to_string())
+            );
         }
     };
     for path in paths {
@@ -325,10 +338,18 @@ fn open_with_id_windows(id: &str, url: &str) -> Result<(), AppError> {
 #[cfg(all(unix, not(target_os = "macos")))]
 fn list_browsers_linux() -> Vec<SystemBrowser> {
     const CANDIDATES: &[(&str, &str, &[&str])] = &[
-        ("chrome", "Google Chrome", &["google-chrome-stable", "google-chrome"]),
+        (
+            "chrome",
+            "Google Chrome",
+            &["google-chrome-stable", "google-chrome"],
+        ),
         ("chromium", "Chromium", &["chromium-browser", "chromium"]),
         ("firefox", "Firefox", &["firefox"]),
-        ("edge", "Microsoft Edge", &["microsoft-edge", "microsoft-edge-stable"]),
+        (
+            "edge",
+            "Microsoft Edge",
+            &["microsoft-edge", "microsoft-edge-stable"],
+        ),
         ("brave", "Brave", &["brave-browser", "brave"]),
         ("opera", "Opera", &["opera"]),
     ];
@@ -363,7 +384,9 @@ fn open_with_id_linux(id: &str, url: &str) -> Result<(), AppError> {
         "brave" => &["brave-browser", "brave"],
         "opera" => &["opera"],
         _ => {
-            return Err(AppError::new("VALIDATION", "未知的浏览器偏好").with_details(id.to_string()));
+            return Err(
+                AppError::new("VALIDATION", "未知的浏览器偏好").with_details(id.to_string())
+            );
         }
     };
     for bin in bins {

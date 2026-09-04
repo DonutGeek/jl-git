@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { storeToRefs } from "pinia";
 
-import { Button, Input, Spin, Tooltip, message } from "antdv-next";
+import { Button, Input, Spin, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import GitIdentityAvatar from "./GitIdentityAvatar.vue";
 import { HighlightText } from "@/components/Common";
 import { Icon } from "@/components/Icon";
 import { ScrollArea } from "@/components/ScrollArea";
-import { useZustand } from "@/hooks/core/useZustand";
+import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
 import { openBranchHistoryWindow } from "@/services/window/historyWindows";
 import { useRepoStore, useRepoStoreWithOut } from "@/store/modules/repo";
-import { toUserMessage } from "@/types/error";
 import { formatCommitDateTime } from "@/utils/formatCommitDateTime";
 import { resolveRepoProjectId } from "@/utils/resolveRepoProjectId";
 
@@ -26,11 +26,9 @@ withDefaults(
 );
 
 const { t } = useI18n();
-const commits = useZustand(useRepoStore, (state) => state.commits);
-const selectedCommitId = useZustand(useRepoStore, (state) => state.selectedCommitId);
-const hasMore = useZustand(useRepoStore, (state) => state.hasMore);
-const loading = useZustand(useRepoStore, (state) => state.loading);
-const logRef = useZustand(useRepoStore, (state) => state.logRef);
+const message = useMessage();
+const repoStore = useRepoStore();
+const { commits, selectedCommitId, hasMore, loading, logRef } = storeToRefs(repoStore);
 const filter = ref("");
 const loadingMore = ref(false);
 
@@ -51,7 +49,7 @@ async function selectCommit(id: string): Promise<void> {
   try {
     await useRepoStoreWithOut().selectCommit(id);
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   }
 }
 
@@ -63,7 +61,7 @@ async function loadMore(): Promise<void> {
   try {
     await useRepoStoreWithOut().loadMoreLog();
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   } finally {
     loadingMore.value = false;
   }
@@ -79,7 +77,7 @@ function openInNewWindow(): void {
     projectId,
     ref: logRef.value,
   }).catch((error: unknown) => {
-    message.error(toUserMessage(error) || t("repo.historyOpenInNewWindowFailed"));
+    message.error(error);
   });
 }
 </script>
@@ -87,21 +85,12 @@ function openInNewWindow(): void {
 <template>
   <section class="flex h-full min-h-0 flex-col">
     <header class="flex shrink-0 items-center gap-2 border-b px-2 py-1.5">
-      <Input
-        v-model:value="filter"
-        size="small"
-        class="flex-1"
-        :placeholder="t('repo.filter')"
-        :aria-label="t('repo.filter')"
-      />
+      <Input v-model:value="filter" size="small" class="flex-1" :placeholder="t('repo.filter')" />
       <Tooltip v-if="allowOpenInNewWindow" :title="t('repo.historyOpenInNewWindow')">
-        <Button
-          size="small"
-          type="text"
-          :aria-label="t('repo.historyOpenInNewWindow')"
-          @click="openInNewWindow"
-        >
-          <Icon name="ExternalLink" :size="14" />
+        <Button size="small" type="text" @click="openInNewWindow">
+          <template #icon>
+            <Icon name="ExternalLink" :size="14" />
+          </template>
         </Button>
       </Tooltip>
     </header>
@@ -127,7 +116,7 @@ function openInNewWindow(): void {
               selectedCommitId === commit.id ? 'bg-accent' : 'hover:bg-accent/60',
             )
           "
-          @click="void selectCommit(commit.id)"
+          @click="selectCommit(commit.id)"
         >
           <GitIdentityAvatar
             :name="commit.authorName"
@@ -149,8 +138,10 @@ function openInNewWindow(): void {
           </span>
         </button>
         <div v-if="hasMore" class="p-2">
-          <Button block size="small" :loading="loadingMore" @click="void loadMore()">
-            <Icon name="ChevronDown" :size="14" />
+          <Button block size="small" :loading="loadingMore" @click="loadMore">
+            <template #icon>
+              <Icon name="ChevronDown" :size="14" />
+            </template>
             {{ t("repo.loadMore") }}
           </Button>
         </div>

@@ -5,7 +5,7 @@ export const REPO_LOADING_LABEL_KEY = "common.loading";
 export const REPO_TAB_SCROLL_AREA_CLASSNAME =
   // 横向滚动条叠在底边；外层容器另留 pb-px 给分隔线，避免分组壳压线
   // Viewport 内层覆盖为 block：抵消 Radix 默认 table 导致的高度异常
-  "h-full w-full min-w-0 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!h-full [&_[data-slot=scroll-area-viewport]>div]:!w-max [&_[data-slot=scroll-area-viewport]>div]:!min-w-full [&>[data-slot=scroll-area-scrollbar][data-orientation=vertical]]:hidden [&>[data-slot=scroll-area-scrollbar][data-orientation=horizontal]]:h-1.5";
+  "h-full w-full min-w-0 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!h-full [&_[data-slot=scroll-area-viewport]>div]:!w-max [&_[data-slot=scroll-area-viewport]>div]:!min-w-full";
 // 左侧间隔由打开按钮 mr-2 承担（在滚动区外，始终可见）；pr-1.5：末组不被裁切
 export const REPO_TAB_CONTENT_CLASSNAME = "flex h-full w-max items-center gap-1.5 pr-1.5";
 

@@ -1,24 +1,26 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
-import { Button, Col, Form, FormItem, Input, Row, message } from "antdv-next";
+import { Button, Card, Col, Form, FormItem, Input, Row, Space, SpaceCompact } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
+import { ProjectIconSelect, WorkspaceSelectMenu } from "@/components/Project";
+
+import { useMessage } from "@/hooks/web/useMessage";
+
 import ExistingRemoteCloneDialog from "./ExistingRemoteCloneDialog.vue";
-import ProjectIconSelect from "./ProjectIconSelect.vue";
-import WorkspaceSelectMenu from "./WorkspaceSelectMenu.vue";
-import { ScrollArea } from "@/components/ScrollArea";
+
+import { useProjectStoreWithOut } from "@/store/modules/project";
+
 import { cloneRepository } from "@/services/git/git.clone";
 import { projectService } from "@/services/project";
-import { useProjectStoreWithOut } from "@/store/modules/project";
-import { toUserMessage } from "@/types/error";
+import { joinCloneDestPath, repoNameFromCloneUrl } from "@/utils/gitClonePath";
 import {
   DEFAULT_PROJECT_ICON,
   type ProjectIcon as ProjectIconName,
   type ProjectRemoteMatch,
 } from "@/types/project";
-import { joinCloneDestPath, repoNameFromCloneUrl } from "@/utils/gitClonePath";
 
 defineOptions({ name: "CloneRepoPanel" });
 
@@ -34,6 +36,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const message = useMessage();
 const url = ref("");
 const path = ref("");
 const suggestedRepoName = ref("");
@@ -72,6 +75,19 @@ function handleUrlChange(nextUrl: string): void {
   }
 }
 
+function handleAliasChange(next: string): void {
+  aliasEdited.value = true;
+  alias.value = next;
+}
+
+function handleRemoteDialogOpen(open: boolean): void {
+  if (open) {
+    return;
+  }
+  pendingCloneOpenAfter.value = null;
+  remoteMatches.value = [];
+}
+
 async function pickParentDirectory(): Promise<void> {
   if (busy.value) {
     return;
@@ -90,7 +106,7 @@ async function pickParentDirectory(): Promise<void> {
       alias.value = name;
     }
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   } finally {
     picking.value = false;
   }
@@ -150,7 +166,7 @@ async function runClone(openAfter: boolean, skipRemoteWarn = false): Promise<voi
       emit("open", result.project.id);
     }
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   } finally {
     cloning.value = false;
   }
@@ -160,113 +176,88 @@ function continueClone(): void {
   const openAfter = pendingCloneOpenAfter.value ?? true;
   pendingCloneOpenAfter.value = null;
   remoteMatches.value = [];
-  void runClone(openAfter, true);
+  runClone(openAfter, true);
 }
 </script>
 
 <template>
-  <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-    <ScrollArea class="min-h-0 min-w-0 flex-1">
-      <Form
-        class="max-w-2xl min-w-0 py-1 pr-2 pl-2 pb-2"
-        layout="vertical"
-        @finish="void runClone(true)"
-      >
-        <Row :gutter="16">
-          <Col :span="24">
-            <FormItem :label="t('cloneRepo.urlLabel')" name="url">
+  <Card>
+    <template #title>{{ t("projectManager.clone") }}</template>
+
+    <Form layout="vertical" @finish="runClone(true)">
+      <Row :gutter="16">
+        <Col :span="24">
+          <FormItem :label="t('cloneRepo.urlLabel')" name="url">
+            <Input
+              :value="url"
+              :placeholder="t('cloneRepo.urlPlaceholder')"
+              autocomplete="off"
+              spellcheck="false"
+              :disabled="busy"
+              @update:value="handleUrlChange"
+            />
+          </FormItem>
+        </Col>
+        <Col :span="24">
+          <FormItem :label="t('cloneRepo.pathLabel')" name="path">
+            <SpaceCompact block>
               <Input
-                id="clone-repo-url"
-                :value="url"
-                :placeholder="t('cloneRepo.urlPlaceholder')"
+                v-model:value="path"
+                :placeholder="t('cloneRepo.pathPlaceholder')"
                 autocomplete="off"
                 spellcheck="false"
                 :disabled="busy"
-                @update:value="handleUrlChange"
               />
-            </FormItem>
-          </Col>
-          <Col :span="24">
-            <FormItem :label="t('cloneRepo.pathLabel')" name="path">
-              <div class="flex gap-2">
-                <Input
-                  id="clone-repo-path"
-                  v-model:value="path"
-                  :placeholder="t('cloneRepo.pathPlaceholder')"
-                  autocomplete="off"
-                  spellcheck="false"
-                  :disabled="busy"
-                />
-                <Button :disabled="busy" @click="void pickParentDirectory()">
+              <Button :disabled="busy" @click="pickParentDirectory">
+                <template #icon>
                   <Icon name="FolderOpen" :size="16" />
-                  {{ t("cloneRepo.pickButton") }}
-                </Button>
-              </div>
-            </FormItem>
-          </Col>
-          <Col :span="24">
-            <FormItem :label="t('openRepo.aliasLabel')" name="alias">
-              <Input
-                id="clone-repo-alias"
-                :value="alias"
-                :placeholder="t('openRepo.aliasPlaceholder')"
-                autocomplete="off"
-                :disabled="busy"
-                @update:value="
-                  (next: string) => {
-                    aliasEdited = true;
-                    alias = next;
-                  }
-                "
-              />
-            </FormItem>
-          </Col>
-          <Col :xs="24" :sm="12">
-            <FormItem :label="t('projectManager.projectIcon')" name="icon">
-              <ProjectIconSelect
-                id="clone-repo-icon"
-                :value="projectIcon"
-                :disabled="busy"
-                @update:value="(next: string) => (projectIcon = next)"
-              />
-            </FormItem>
-          </Col>
-          <Col :xs="24" :sm="12">
-            <FormItem :label="t('projectManager.workspaceLabel')" name="workspace">
-              <WorkspaceSelectMenu
-                :value="workspaceId"
-                :select-label="t('projectManager.workspaceLabel')"
-                :disabled="busy"
-                @update:value="(next: string) => (workspaceId = next)"
-              />
-            </FormItem>
-          </Col>
-          <Col :span="24">
-            <FormItem>
+                </template>
+                {{ t("cloneRepo.pickButton") }}
+              </Button>
+            </SpaceCompact>
+          </FormItem>
+        </Col>
+        <Col :span="24">
+          <FormItem :label="t('openRepo.aliasLabel')" name="alias">
+            <Input
+              :value="alias"
+              :placeholder="t('openRepo.aliasPlaceholder')"
+              autocomplete="off"
+              :disabled="busy"
+              @update:value="handleAliasChange"
+            />
+          </FormItem>
+        </Col>
+        <Col :xs="24" :sm="12">
+          <FormItem :label="t('projectManager.projectIcon')" name="icon">
+            <ProjectIconSelect v-model:value="projectIcon" :disabled="busy" />
+          </FormItem>
+        </Col>
+        <Col :xs="24" :sm="12">
+          <FormItem :label="t('projectManager.workspaceLabel')" name="workspace">
+            <WorkspaceSelectMenu v-model:value="workspaceId" :disabled="busy" />
+          </FormItem>
+        </Col>
+        <Col :span="24">
+          <FormItem>
+            <Space>
               <Button type="primary" html-type="submit" :disabled="!canSubmit" :loading="cloning">
                 {{ t("cloneRepo.submitButton") }}
               </Button>
-              <Button class="ml-2" :disabled="!canSubmit" @click="void runClone(false)">
+              <Button :disabled="!canSubmit" @click="runClone(false)">
                 {{ t("cloneRepo.cloneAndContinue") }}
               </Button>
-            </FormItem>
-          </Col>
-        </Row>
-      </Form>
-    </ScrollArea>
+            </Space>
+          </FormItem>
+        </Col>
+      </Row>
+    </Form>
+  </Card>
 
-    <ExistingRemoteCloneDialog
-      :open="pendingCloneOpenAfter !== null"
-      :matches="remoteMatches"
-      @update:open="
-        (next: boolean) => {
-          if (!next) {
-            pendingCloneOpenAfter = null;
-            remoteMatches = [];
-          }
-        }
-      "
-      @continue="continueClone"
-    />
-  </div>
+  <ExistingRemoteCloneDialog
+    :open="pendingCloneOpenAfter !== null"
+    :matches="remoteMatches"
+    @update:open="handleRemoteDialogOpen"
+    @continue="continueClone"
+  />
 </template>

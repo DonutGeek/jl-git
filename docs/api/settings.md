@@ -42,36 +42,20 @@ useSettingsStore.getState().patch({ locale: "zh-CN" });
 
 ## ThemeService
 
-主题是设置的一等公民，单独门面便于 UI 调用。
-
-### 方法
+昼夜模式由 Pinia `useThemeStore` 持久化（`jlgit-theme`），`src/services/theme/theme.service.ts` 负责写 `html.dark`。
 
 | 方法 | 行为 |
 |------|------|
-| `getMode(): Promise<ThemeMode>` | 读 `theme.mode`，默认 `system` |
-| `setMode(mode: ThemeMode): Promise<void>` | 持久化 + 应用 DOM class |
-| `applyToDocument(mode: ThemeMode): void` | 仅应用，供启动/跟随系统 |
-| `resolveEffective(mode, systemPrefersDark): "light" \| "dark"` | 纯函数 |
+| `applyThemeToDocument(mode)` | 切换 `.dark` / `data-theme` / `colorScheme`；`system` 跟 OS |
+| `resolveEffective(mode, prefersDark)` | 解析为 `light` \| `dark` |
 
 ```ts
 type ThemeMode = "light" | "dark" | "system";
 ```
 
-`setMode` 内部调用 `settingsService.set("theme.mode", mode)`，避免双写两套存储。
+设置抽屉提供浅色 / 深色 / 跟随系统。状态栏一键切换会落到明确的浅色或深色。
 
-### 应用主题偏好
-
-应用主题由 `useAppPrefsStore` 持久化，`src/design/themes/` 负责纯色板与 DOM/Monaco 应用，避免把主题包数据塞进 Service：
-
-| 方法 | 行为 |
-|------|------|
-| `setAppThemeId(themeId)` | 切换主题包，并重套该主题浅/深两套默认参数 |
-| `patchThemeChrome(patch)` | 修改当前有效明暗模式的语义色、侧栏透明度或对比度，并由 Pinia persist 自动保存 |
-| `applyAppThemeToDocument(themeId, chrome)` | 把当前主题映射到整站语义 Tokens |
-
-内置主题保持鲸灵 Git、GitHub、ChatGPT、Claude、Codex、VS Code 六套。每套主题显式提供背景、卡片/弹层、次要区、侧栏、选中态、边框、危险色、Diff 与 Git 文件状态色，并同步映射图表、仓库分组与 Monaco。自定义色使用应用内 Popover + HEX 输入，明暗配置分别保存在 `themeChromeLight` / `themeChromeDark`。切换应用主题会重新应用该主题的浅/深完整默认配色。
-
-Tokens 定义见 [theme](../development/theme.md)。
+组件样式以 antdv-next 默认/暗色算法为源，见 [theme](../development/theme.md)。
 
 ### 应用偏好中的外部工具 / Git PATH
 

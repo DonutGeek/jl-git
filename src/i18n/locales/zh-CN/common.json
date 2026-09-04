@@ -1,6 +1,7 @@
 {
   "back": "返回",
   "loading": "加载中...",
+  "empty": "暂无数据",
   "error": "出错了",
   "cancel": "取消",
   "close": "关闭",

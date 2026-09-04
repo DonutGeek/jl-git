@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { Button, Tooltip, message } from "antdv-next";
+import { Button, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
 import { useHasAgentApiKey } from "@/hooks/core/useHasAgentApiKey";
+import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
 import { openMultiAgentWindow } from "@/services/window/multiAgentWindow";
-import { toUserMessage } from "@/types/error";
 
 defineOptions({ name: "MultiAgentWindowButton" });
 
@@ -23,6 +23,7 @@ const props = withDefaults(
 );
 
 const { t } = useI18n();
+const message = useMessage();
 const hasApiKey = useHasAgentApiKey();
 const accessibleLabel = computed(() =>
   hasApiKey.value ? props.label : t("common.aiApiKeyRequired"),
@@ -35,7 +36,7 @@ async function handleOpen(): Promise<void> {
   try {
     await openMultiAgentWindow();
   } catch (error) {
-    message.error(toUserMessage(error) || t("multiAgent.openFailed"));
+    message.error(error);
   }
 }
 </script>
@@ -46,11 +47,12 @@ async function handleOpen(): Promise<void> {
       type="text"
       size="small"
       :class="cn('text-muted-foreground', className)"
-      :aria-label="accessibleLabel"
       :disabled="!hasApiKey"
-      @click="void handleOpen()"
+      @click="handleOpen"
     >
-      <Icon name="Sparkles" :class="iconClassName" :size="14" />
+      <template #icon>
+        <Icon name="Sparkles" :class="iconClassName" :size="14" />
+      </template>
     </Button>
   </Tooltip>
 </template>

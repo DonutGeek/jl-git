@@ -135,7 +135,7 @@ Command::new("git")
 
 窗口按钮由系统装饰提供；前端不再自绘三键。Windows / Linux 在 `setup` 中清空应用级菜单，因此主窗及之后创建的所有子窗均不显示「文件 / 编辑 / 显示 / 窗口」菜单行；输入框的复制、粘贴、剪切、全选与撤销仍由 WebView 处理。若业务仍需程序化改窗口状态，再按需声明对应 capabilities。
 
-**子窗 capability：** 每个 `WebviewWindow` label（或通配）必须有对应 capability，且含 `core:window:allow-start-dragging`（mac Overlay 自绘顶栏依赖）。示例：`project-manage.json` → `project-manage`。
+**子窗 capability：** 每个 `WebviewWindow` label（或通配）必须有对应 capability，且含 `core:window:allow-start-dragging`（mac Overlay 自绘顶栏依赖）。示例：`branch-compare.json` → `branch-compare`。
 
 设计：[windows-window-chrome](../superpowers/specs/2026-07-22-windows-window-chrome-design.md) · [official-three-platform](../superpowers/specs/2026-07-22-official-three-platform-design.md)
 

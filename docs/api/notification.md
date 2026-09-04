@@ -4,7 +4,7 @@
 
 系统通知与应用内反馈的门面。实现：`src/services/notification/`。
 
-应用内 Toast（sonner）可与本 Service 并列：Toast 用于前台即时反馈；系统通知用于后台长任务完成且窗口可能失焦。
+应用内 Toast 走 `useMessage()`（antdv-next `App.useApp()`）；系统通知用于后台长任务完成且窗口可能失焦。
 
 ---
 
@@ -34,10 +34,11 @@
 - 无权限时：降级为 Toast，或静默跳过（由设置 `notification.enabled` 控制）
 - 有权限：系统通知
 
-### `toastSuccess(message: string): void` / `toastError(message: string): void` / `toastInfo(message: string): void`
+### 应用内 Toast
 
-- 对 sonner 的薄封装，统一文案与时长
-- 纯前端，无 Command
+- 组件 / composable：`const message = useMessage()`，错误直接 `message.error(error)`
+- 通知条：`const notification = useNotification()`
+- 禁止静态 `import { message }` / `import { notification }` from `antdv-next`
 
 ### `notifyTaskFinished(input: { title: string; body?: string; forceToast?: boolean }): Promise<void>`
 
@@ -60,6 +61,8 @@
 ## 使用示例
 
 ```ts
+const message = useMessage();
+
 try {
   await gitService.push(repoPath);
   await notificationService.notifyTaskFinished({
@@ -67,7 +70,7 @@ try {
     body: projectName,
   });
 } catch (error) {
-  notificationService.toastError(toUserMessage(error));
+  message.error(error);
 }
 ```
 

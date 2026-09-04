@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { storeToRefs } from "pinia";
 
 import {
   Button,
@@ -8,10 +9,9 @@ import {
   Form,
   FormItem,
   Input,
-  Modal,
   Row,
+  SpaceCompact,
   Tooltip,
-  message,
 } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
@@ -19,10 +19,11 @@ import { Icon } from "@/components/Icon";
 import ProjectIconSelect from "./ProjectIconSelect.vue";
 import WorkspaceSelectMenu from "./WorkspaceSelectMenu.vue";
 import { ScrollArea } from "@/components/ScrollArea";
-import { useZustand } from "@/hooks/core/useZustand";
+import { useMessage } from "@/hooks/web/useMessage";
+import { useModal } from "@/hooks/web/useModal";
 import { projectService } from "@/services/project";
 import { useProjectStore, useProjectStoreWithOut } from "@/store/modules/project";
-import { isAppError, toUserMessage } from "@/types/error";
+import { isAppError } from "@/types/error";
 import type { Project, ProjectIcon } from "@/types/project";
 
 defineOptions({ name: "ProjectSettingsDialog" });
@@ -45,7 +46,10 @@ interface PendingSave {
 }
 
 const { t } = useI18n();
-const workspaces = useZustand(useProjectStore, (state) => state.workspaces);
+const message = useMessage();
+const modal = useModal();
+const projectStore = useProjectStore();
+const { workspaces } = storeToRefs(projectStore);
 const name = ref(props.project.name);
 const path = ref(props.project.path);
 const icon = ref<ProjectIcon>(props.project.icon);
@@ -53,8 +57,6 @@ const workspaceId = ref(props.project.workspaceId ?? "");
 const description = ref(props.project.description ?? "");
 const saving = ref(false);
 const picking = ref(false);
-const remoteMismatchOpen = ref(false);
-const pendingSave = ref<PendingSave | null>(null);
 
 const sourceLocked = computed(() =>
   Boolean(
@@ -74,8 +76,6 @@ watch(
     icon.value = props.project.icon;
     workspaceId.value = props.project.workspaceId ?? "";
     description.value = props.project.description ?? "";
-    remoteMismatchOpen.value = false;
-    pendingSave.value = null;
   },
 );
 
@@ -97,7 +97,7 @@ async function handlePickDirectory(): Promise<void> {
       path.value = selectedPath;
     }
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   } finally {
     picking.value = false;
   }
@@ -116,8 +116,6 @@ async function persist(input: PendingSave, allowRemoteMismatch: boolean): Promis
       allowRemoteMismatch: allowRemoteMismatch || undefined,
     });
     message.success(t("projectManager.projectSettingsSuccess"));
-    remoteMismatchOpen.value = false;
-    pendingSave.value = null;
     emit("update:open", false);
   } catch (error) {
     if (
@@ -126,11 +124,19 @@ async function persist(input: PendingSave, allowRemoteMismatch: boolean): Promis
       isAppError(error) &&
       error.code === "REMOTE_MISMATCH"
     ) {
-      pendingSave.value = input;
-      remoteMismatchOpen.value = true;
+      saving.value = false;
+      const confirmed = await modal.confirm({
+        title: t("projectManager.projectPathRemoteMismatchTitle"),
+        content: t("projectManager.projectPathRemoteMismatchDescription"),
+        icon: null,
+        okText: t("projectManager.projectPathRemoteMismatchConfirm"),
+      });
+      if (confirmed) {
+        await persist(input, true);
+      }
       return;
     }
-    message.error(toUserMessage(error));
+    message.error(error);
   } finally {
     saving.value = false;
   }
@@ -182,43 +188,31 @@ async function handleSubmit(): Promise<void> {
         <Row :gutter="16">
           <Col :span="24">
             <FormItem :label="t('openRepo.pathLabel')" name="path">
-              <div class="flex gap-2">
+              <SpaceCompact block>
                 <Input
-                  id="project-settings-path"
                   v-model:value="path"
                   :placeholder="t('openRepo.pathPlaceholder')"
                   autocomplete="off"
                   :disabled="saving"
                 />
                 <Tooltip :title="t('openRepo.pickButton')">
-                  <Button
-                    :aria-label="t('openRepo.pickButton')"
-                    :disabled="saving || picking"
-                    @click="void handlePickDirectory()"
-                  >
-                    <Icon name="FolderOpen" :size="16" />
+                  <Button :disabled="saving || picking" @click="handlePickDirectory">
+                    <template #icon>
+                      <Icon name="FolderOpen" :size="16" />
+                    </template>
                   </Button>
                 </Tooltip>
-              </div>
-              <p class="text-muted-foreground mt-1 text-xs">
-                {{ t("projectManager.projectPathEditHint") }}
-              </p>
+              </SpaceCompact>
             </FormItem>
           </Col>
           <Col :span="24">
             <FormItem :label="t('openRepo.aliasLabel')" name="name">
-              <Input
-                id="project-settings-name"
-                v-model:value="name"
-                autocomplete="off"
-                :disabled="saving"
-              />
+              <Input v-model:value="name" autocomplete="off" :disabled="saving" />
             </FormItem>
           </Col>
           <Col :span="12">
             <FormItem :label="t('projectManager.projectIcon')" name="icon">
               <ProjectIconSelect
-                id="project-settings-icon"
                 :value="icon"
                 :disabled="saving"
                 @update:value="(next: string) => (icon = next)"
@@ -229,7 +223,6 @@ async function handleSubmit(): Promise<void> {
             <FormItem :label="t('projectManager.workspaceLabel')" name="workspace">
               <WorkspaceSelectMenu
                 :value="workspaceId"
-                :select-label="t('projectManager.workspaceLabel')"
                 :disabled="saving || sourceLocked"
                 @update:value="(next: string) => (workspaceId = next)"
               />
@@ -238,7 +231,6 @@ async function handleSubmit(): Promise<void> {
           <Col :span="24">
             <FormItem :label="t('openRepo.detailLabel')" name="description">
               <Input.TextArea
-                id="project-settings-description"
                 v-model:value="description"
                 :rows="4"
                 :placeholder="t('openRepo.detailPlaceholder')"
@@ -255,38 +247,10 @@ async function handleSubmit(): Promise<void> {
         type="primary"
         :disabled="!name.trim() || !path.trim() || saving"
         :loading="saving"
-        @click="void handleSubmit()"
+        @click="handleSubmit"
       >
         {{ t("projectManager.saveProjectSettings") }}
       </Button>
     </template>
   </Drawer>
-
-  <Modal
-    :open="remoteMismatchOpen"
-    :title="t('projectManager.projectPathRemoteMismatchTitle')"
-    :ok-text="t('projectManager.projectPathRemoteMismatchConfirm')"
-    :cancel-text="t('common.cancel')"
-    :confirm-loading="saving"
-    :ok-button-props="{ disabled: saving || !pendingSave }"
-    @update:open="
-      (next: boolean) => {
-        if (!saving) {
-          remoteMismatchOpen = next;
-          if (!next) {
-            pendingSave = null;
-          }
-        }
-      }
-    "
-    @ok="
-      () => {
-        if (pendingSave) {
-          void persist(pendingSave, true);
-        }
-      }
-    "
-  >
-    <p class="text-sm">{{ t("projectManager.projectPathRemoteMismatchDescription") }}</p>
-  </Modal>
 </template>

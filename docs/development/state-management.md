@@ -15,7 +15,7 @@ Local State → Pinia → SQLite
 | 层级 | 何时用 | 示例 |
 |------|--------|------|
 | Local | 仅单组件关心 | 输入框、popover 开关 |
-| Pinia | 跨组件会话状态 | 当前项目、选中文件、status 缓存 |
+| Pinia | 跨组件会话状态 | 当前项目、选中文件、status 缓存；不含请求 loading / error |
 | SQLite | 跨启动、需查询 | 项目列表、设置、AI 历史 |
 
 不要用 provide/inject 做全局业务状态。不要引入第二套全局库。不要创建 `src/stores/`。
@@ -56,10 +56,16 @@ export const useRepoStore = defineStore("repo", {
 
 1. Store **不**直接 `invoke`；由 Service / Hook 写入
 2. 仓库状态按规范化路径隔离；切换时还原目标仓会话，冷开仓才重置展示数据
-3. 组件里按需取字段，避免整树无脑订阅：
+3. 组件里按 Vben 2 方式取状态：`useXxxStore()` + `storeToRefs` 解构 state/getter；action 留在 store 实例上。派生字段再用 `computed`，禁止自造 `useStoreSelector`：
 
 ```ts
-const branch = computed(() => repoStore.status?.branch);
+import { storeToRefs } from "pinia";
+
+const repoStore = useRepoStore();
+const { status, selectedChange } = storeToRefs(repoStore);
+const branch = computed(() => status.value?.branch);
+
+repoStore.setStatus(next);
 ```
 
 4. 派生数据优先在 getter 或 utils 计算，不在每个组件复制逻辑

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 
-import { Button, Modal, Tooltip } from "antdv-next";
+import { Button, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
 import { ScrollArea } from "@/components/ScrollArea";
+import { useModal } from "@/hooks/web/useModal";
 import { cn } from "@/lib/utils";
 import type { AgentConversation } from "@/types/ai";
 
@@ -36,7 +37,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const pendingDelete = ref<AgentConversation | null>(null);
+const modal = useModal();
 const canDelete = computed(() => props.conversations.length > 1);
 const resolvedUntitled = computed(() => props.untitledLabel ?? t("agent.newConversation"));
 const resolvedNewLabel = computed(() => props.newLabel ?? t("agent.createConversation"));
@@ -49,16 +50,16 @@ function requestDelete(conversation: AgentConversation): void {
   if (!canDelete.value) {
     return;
   }
-  pendingDelete.value = conversation;
-}
-
-function confirmDelete(): void {
-  const target = pendingDelete.value;
-  if (!target) {
-    return;
-  }
-  emit("delete", target.id);
-  pendingDelete.value = null;
+  modal.confirm({
+    title: props.deleteTitle ?? t("agent.deleteConversationTitle"),
+    content: t(props.confirmKey, { name: conversationLabel(conversation) }),
+    icon: null,
+    okType: "danger",
+    okText: t("agent.deleteConversation"),
+    onOk() {
+      emit("delete", conversation.id);
+    },
+  });
 }
 </script>
 
@@ -102,7 +103,6 @@ function confirmDelete(): void {
                     : 'opacity-0 group-hover:opacity-70 focus-visible:opacity-70',
                 )
               "
-              :aria-label="t('agent.deleteConversation')"
               :disabled="!canDelete"
               @click.stop="requestDelete(conversation)"
             >
@@ -113,32 +113,11 @@ function confirmDelete(): void {
       </div>
     </ScrollArea>
     <Tooltip :title="resolvedNewLabel">
-      <Button
-        type="text"
-        size="small"
-        class="h-7 w-7 min-w-7 p-0"
-        :aria-label="resolvedNewLabel"
-        @click="emit('create')"
-      >
-        <Icon name="Plus" :size="14" />
+      <Button type="text" size="small" class="h-7 w-7 min-w-7 p-0" @click="emit('create')">
+        <template #icon>
+          <Icon name="Plus" :size="14" />
+        </template>
       </Button>
     </Tooltip>
-    <Modal
-      :open="Boolean(pendingDelete)"
-      :title="deleteTitle ?? t('agent.deleteConversationTitle')"
-      :ok-text="t('agent.deleteConversation')"
-      :cancel-text="t('common.cancel')"
-      ok-type="danger"
-      @update:open="(open: boolean) => !open && (pendingDelete = null)"
-      @ok="confirmDelete"
-    >
-      <p class="text-sm">
-        {{
-          t(confirmKey, {
-            name: pendingDelete ? conversationLabel(pendingDelete) : "",
-          })
-        }}
-      </p>
-    </Modal>
   </div>
 </template>

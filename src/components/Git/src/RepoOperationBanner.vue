@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { storeToRefs } from "pinia";
 
-import { Alert, Button, message } from "antdv-next";
+import { Alert, Button } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
-import { useZustand } from "@/hooks/core/useZustand";
+import { useMessage } from "@/hooks/web/useMessage";
 import { useRepoStore, useRepoStoreWithOut } from "@/store/modules/repo";
-import { toUserMessage } from "@/types/error";
 
 defineOptions({ name: "RepoOperationBanner" });
 
 const { t } = useI18n();
-const repoState = useZustand(useRepoStore, (state) => state.repoState);
+const message = useMessage();
+const repoStore = useRepoStore();
+const { repoState } = storeToRefs(repoStore);
 const aborting = ref(false);
 
 const visible = computed(() => Boolean(repoState.value?.merging));
@@ -33,7 +35,7 @@ async function handleAbort(): Promise<void> {
     await useRepoStoreWithOut().abortOperation();
     message.success(t("repo.abortOperationSuccess"));
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   } finally {
     aborting.value = false;
   }
@@ -61,7 +63,7 @@ async function handleAbort(): Promise<void> {
       }}
     </span>
     <template #action>
-      <Button type="link" size="small" :loading="aborting" @click="void handleAbort()">
+      <Button type="link" size="small" :loading="aborting" @click="handleAbort">
         {{ t("repo.abortOperation") }}
       </Button>
     </template>

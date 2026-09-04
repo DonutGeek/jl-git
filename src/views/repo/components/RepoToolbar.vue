@@ -1,21 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import { storeToRefs } from "pinia";
 
-import { Button, Dropdown, Tooltip, message, type MenuProps } from "antdv-next";
+import { Button, Dropdown, Tooltip, type MenuProps } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
-import { ProjectIcon } from "@/components/Project";
 import type { RepoMainView } from "../utils/repoWorkspaceTypes";
 import { useWindowChromeLayout } from "@/hooks/core/useWindowChromeLayout";
-import { useZustand } from "@/hooks/core/useZustand";
+import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
 import { openBranchCompareWindow } from "@/services/window/branchCompareWindow";
 import { useAppPrefsStoreWithOut } from "@/store/modules/app";
 import { useOpenTabsStoreWithOut } from "@/store/modules/multipleTab";
 import { useRepoStore, useRepoStoreWithOut } from "@/store/modules/repo";
-import { toUserMessage } from "@/types/error";
 import type { GitBranch } from "@/types/git";
 import type { Project } from "@/types/project";
 import { resolveDefaultCompareTarget } from "@/utils/branchCompareTarget";
@@ -40,11 +39,15 @@ const emit = defineEmits<{
 const EMPTY_BRANCHES: GitBranch[] = [];
 
 const { t } = useI18n();
+const message = useMessage();
 const router = useRouter();
 const { isMacOverlay } = useWindowChromeLayout();
-const storeStatus = useZustand(useRepoStore, (state) => state.status);
-const storeBranches = useZustand(useRepoStore, (state) => state.branches);
-const storeLoading = useZustand(useRepoStore, (state) => state.loading);
+const repoStore = useRepoStore();
+const {
+  status: storeStatus,
+  branches: storeBranches,
+  loading: storeLoading,
+} = storeToRefs(repoStore);
 const status = computed(() => (props.loadingShell ? null : storeStatus.value));
 const branches = computed(() => (props.loadingShell ? EMPTY_BRANCHES : storeBranches.value));
 const loading = computed(() => props.loadingShell || storeLoading.value);
@@ -105,7 +108,7 @@ async function handleCheckout(branchName: string): Promise<void> {
   try {
     await useRepoStoreWithOut().checkout(branchName);
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   } finally {
     checkingOut.value = false;
   }
@@ -119,7 +122,7 @@ async function handleFetch(): Promise<void> {
   try {
     await useRepoStoreWithOut().fetch();
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   } finally {
     fetching.value = false;
   }
@@ -137,7 +140,7 @@ async function handlePull(): Promise<void> {
       message.error(t("repo.pullConflict"));
     }
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   } finally {
     pulling.value = false;
   }
@@ -159,7 +162,7 @@ async function handlePush(): Promise<void> {
           : {}),
     });
   } catch (error) {
-    toastPushError(error, {
+    toastPushError(message, error, {
       onUpdate: () => {
         void handlePull();
       },
@@ -178,7 +181,7 @@ async function handleRefresh(): Promise<void> {
   try {
     await useRepoStoreWithOut().refreshStatus();
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   }
 }
 
@@ -200,7 +203,7 @@ function handleOpenBranchCompare(): void {
     base: currentBranch,
     target: resolveDefaultCompareTarget(branches.value, currentBranch),
   }).catch((error: unknown) => {
-    message.error(toUserMessage(error) || t("agent.compareBranchesFailed"));
+    message.error(error);
   });
 }
 </script>
@@ -213,10 +216,9 @@ function handleOpenBranchCompare(): void {
     <button
       type="button"
       class="hover:bg-accent/60 flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1"
-      :aria-label="t('dashboard.title')"
       @click="goDashboard"
     >
-      <ProjectIcon :name="project.icon" class-name="size-4 shrink-0" />
+      <Icon :name="project.icon" :size="16" class="shrink-0" />
       <span class="truncate text-sm font-medium">{{ project.name }}</span>
     </button>
 
@@ -257,20 +259,19 @@ function handleOpenBranchCompare(): void {
       }"
     >
       <Button size="small" :disabled="branchSwitchLocked || loadingShell" :loading="checkingOut">
-        <Icon name="GitBranch" :size="14" />
+        <template #icon>
+          <Icon name="GitBranch" :size="14" />
+        </template>
         <span class="max-w-40 truncate">{{ branchLabel }}</span>
         <Icon name="ChevronDown" :size="12" />
       </Button>
     </Dropdown>
 
     <Tooltip :title="t('repo.openBranchCompare')">
-      <Button
-        size="small"
-        :aria-label="t('repo.openBranchCompare')"
-        :disabled="loadingShell"
-        @click="handleOpenBranchCompare"
-      >
-        <Icon name="GitCompareArrows" :size="14" />
+      <Button size="small" :disabled="loadingShell" @click="handleOpenBranchCompare">
+        <template #icon>
+          <Icon name="GitCompareArrows" :size="14" />
+        </template>
       </Button>
     </Tooltip>
 
@@ -282,44 +283,44 @@ function handleOpenBranchCompare(): void {
     <Tooltip :title="t('repo.checkUpdate')">
       <Button
         size="small"
-        :aria-label="t('repo.checkUpdate')"
         :disabled="syncBusy || loadingShell"
         :loading="fetching"
-        @click="void handleFetch()"
+        @click="handleFetch"
       >
-        <Icon name="CloudUpload" :size="14" />
+        <template #icon>
+          <Icon name="CloudUpload" :size="14" />
+        </template>
       </Button>
     </Tooltip>
     <Tooltip :title="t('repo.pull')">
       <Button
         size="small"
-        :aria-label="t('repo.pull')"
         :disabled="syncBusy || loadingShell"
         :loading="pulling"
-        @click="void handlePull()"
+        @click="handlePull"
       >
-        <Icon name="ArrowDownToLine" :size="14" />
+        <template #icon>
+          <Icon name="ArrowDownToLine" :size="14" />
+        </template>
       </Button>
     </Tooltip>
     <Tooltip :title="needsPublish ? t('repo.publishBranch') : t('repo.push')">
       <Button
         size="small"
-        :aria-label="needsPublish ? t('repo.publishBranch') : t('repo.push')"
         :disabled="syncBusy || loadingShell"
         :loading="pushing"
-        @click="void handlePush()"
+        @click="handlePush"
       >
-        <Icon name="ArrowUpFromLine" :size="14" />
+        <template #icon>
+          <Icon name="ArrowUpFromLine" :size="14" />
+        </template>
       </Button>
     </Tooltip>
     <Tooltip :title="t('repo.refresh')">
-      <Button
-        size="small"
-        :aria-label="t('repo.refresh')"
-        :disabled="loadingShell"
-        @click="void handleRefresh()"
-      >
-        <Icon name="RotateCw" :size="14" />
+      <Button size="small" :disabled="loadingShell" @click="handleRefresh">
+        <template #icon>
+          <Icon name="RotateCw" :size="14" />
+        </template>
       </Button>
     </Tooltip>
   </div>

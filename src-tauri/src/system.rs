@@ -691,10 +691,9 @@ pub fn read_text_file(path: &str, max_bytes: Option<u64>) -> Result<ReadTextFile
         AppError::new("INVALID_PATH", "无法读取文件").with_details(error.to_string())
     })?;
     if meta.len() > limit {
-        return Err(AppError::new("VALIDATION", "文件过大").with_details(format!(
-            "上限 {} 字节",
-            limit
-        )));
+        return Err(
+            AppError::new("VALIDATION", "文件过大").with_details(format!("上限 {} 字节", limit))
+        );
     }
     let contents = fs::read_to_string(&target).map_err(|error| {
         AppError::new("INTERNAL", "读取文件失败").with_details(error.to_string())

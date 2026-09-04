@@ -66,12 +66,12 @@ function withAlpha(hex: string, alpha: number): string {
 export function applyJlGitMonacoTheme(monaco: MonacoThemeHost): string {
   const dark = isDocumentDark();
   const themeName = getJlGitMonacoThemeName(dark);
-  const background = resolveCssColor("--background", dark ? "#252525" : "#ffffff");
-  const foreground = resolveCssColor("--foreground", dark ? "#fafafa" : "#252525");
-  const muted = resolveCssColor("--muted", dark ? "#444444" : "#f5f5f5");
-  const mutedFg = resolveCssColor("--muted-foreground", dark ? "#a3a3a3" : "#737373");
-  const border = resolveCssColor("--border", dark ? "#404040" : "#e5e5e5");
-  const accent = resolveCssColor("--accent", dark ? "#404040" : "#f5f5f5");
+  const background = resolveCssColor("--background", dark ? "#000000" : "#f5f5f5");
+  const foreground = resolveCssColor("--foreground", dark ? "#d9d9d9" : "#1f1f1f");
+  const muted = resolveCssColor("--muted", dark ? "#1f1f1f" : "#f5f5f5");
+  const mutedFg = resolveCssColor("--muted-foreground", dark ? "#8c8c8c" : "#737373");
+  const border = resolveCssColor("--border", dark ? "#424242" : "#d9d9d9");
+  const accent = resolveCssColor("--accent", dark ? "#1f1f1f" : "#f5f5f5");
   const diffAdd = resolveCssColor("--diff-add", dark ? "#1a3d2a" : "#e6f4ea");
   const diffDel = resolveCssColor("--diff-del", dark ? "#4a2020" : "#fce8e6");
   const diffHunk = resolveCssColor("--diff-hunk", dark ? "#1e2a3a" : "#eef2f7");
@@ -95,9 +95,6 @@ export function applyJlGitMonacoTheme(monaco: MonacoThemeHost): string {
       "editorBracketMatch.border": border,
       "editorIndentGuide.background1": withAlpha(border, 0.6),
       "editorIndentGuide.activeBackground1": mutedFg,
-      "scrollbarSlider.background": withAlpha(mutedFg, 0.25),
-      "scrollbarSlider.hoverBackground": withAlpha(mutedFg, 0.4),
-      "scrollbarSlider.activeBackground": withAlpha(mutedFg, 0.55),
       "diffEditor.insertedTextBackground": withAlpha(diffAdd, 0.55),
       "diffEditor.removedTextBackground": withAlpha(diffDel, 0.55),
       "diffEditor.insertedLineBackground": withAlpha(diffAdd, 0.75),

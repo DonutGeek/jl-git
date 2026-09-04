@@ -2,7 +2,6 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { storeToRefs } from "pinia";
 
-import { message } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { AgentComposer, AgentMessageList } from "@/components/Ai";
@@ -11,7 +10,7 @@ import { Icon } from "@/components/Icon";
 import AppWindowHeader from "@/layouts/page/AppWindowHeader.vue";
 import { useAgentModel } from "@/hooks/core/useAgentModel";
 import { useHasAgentApiKey } from "@/hooks/core/useHasAgentApiKey";
-import { useZustand } from "@/hooks/core/useZustand";
+import { useMessage } from "@/hooks/web/useMessage";
 import {
   deleteChatConversation,
   formatDeepSeekModelShortLabel,
@@ -38,6 +37,7 @@ defineOptions({ name: "MultiAgentWorkspace" });
 
 const EMPTY_MESSAGES: readonly AgentChatMessage[] = [];
 const { t } = useI18n();
+const message = useMessage();
 const hasApiKey = useHasAgentApiKey();
 const { models, modelId, setModelId, loading: modelsLoading } = useAgentModel();
 const thinkingEnabled = ref(true);
@@ -47,11 +47,9 @@ const messageSequence = ref(0);
 
 let replySession: { conversationId: string; controller: AbortController } | null = null;
 
-const conversations = useZustand(useMultiAgentStore, (state) => state.conversations);
-const activeConversationId = useZustand(useMultiAgentStore, (state) => state.activeConversationId);
-const profiles = useZustand(useMultiAgentStore, (state) => state.profiles);
-const profilesLoading = useZustand(useMultiAgentStore, (state) => state.profilesLoading);
-const profilesError = useZustand(useMultiAgentStore, (state) => state.profilesError);
+const multiAgentStore = useMultiAgentStore();
+const { conversations, activeConversationId, profiles, profilesLoading, profilesError } =
+  storeToRefs(multiAgentStore);
 const { locale } = storeToRefs(useLocaleStore());
 const settingsDrawerStore = useSettingsDrawerStore();
 
@@ -98,7 +96,7 @@ async function persistConversation(conversation: AgentConversation): Promise<voi
     });
   } catch (error) {
     console.error(error);
-    message.error(toUserMessage(error) || t("multiAgent.replyFailed"));
+    message.error(error);
   }
 }
 
@@ -135,7 +133,7 @@ async function handleDeleteConversation(conversationId: string): Promise<void> {
     await deleteChatConversation(conversationId);
   } catch (error) {
     console.error(error);
-    message.error(toUserMessage(error) || t("multiAgent.replyFailed"));
+    message.error(error);
   }
 }
 
@@ -208,7 +206,7 @@ async function streamAssistantForHistory(
       }
     } else {
       store.removeMessage(conversationId, assistantId);
-      message.error(toUserMessage(error) || t("multiAgent.replyFailed"));
+      message.error(error);
     }
   } finally {
     if (replySession?.controller === controller) {
@@ -268,7 +266,7 @@ onMounted(() => {
       }
       console.error(error);
       useMultiAgentStoreWithOut().ensureDefaultConversation();
-      message.error(toUserMessage(error) || t("multiAgent.replyFailed"));
+      message.error(error);
     }
   })();
 
@@ -346,7 +344,7 @@ onMounted(() => {
           @update:draft="(value) => (draft = value)"
           @update:thinking-enabled="(value) => (thinkingEnabled = value)"
           @update:model-id="setModelId"
-          @submit="void handleSubmit()"
+          @submit="handleSubmit"
           @stop="abortReplySession"
         />
       </div>

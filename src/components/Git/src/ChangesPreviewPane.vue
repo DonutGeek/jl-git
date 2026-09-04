@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { storeToRefs } from "pinia";
 
-import { Button, Spin, Tooltip, message } from "antdv-next";
+import { Button, Spin, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
 import MaterialFileIcon from "./MaterialFileIcon.vue";
 import { ScrollArea } from "@/components/ScrollArea";
-import { useZustand } from "@/hooks/core/useZustand";
+import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
 import { gitService } from "@/services/git";
 import { openFileHistoryWindow } from "@/services/window/historyWindows";
@@ -23,9 +24,10 @@ defineOptions({ name: "ChangesPreviewPane" });
 
 const EMPTY_ENTRIES: GitStatusEntry[] = [];
 const { t } = useI18n();
-const repoPath = useZustand(useRepoStore, (state) => state.repoPath);
-const selectedChange = useZustand(useRepoStore, (state) => state.selectedChange);
-const entries = useZustand(useRepoStore, (state) => state.status?.entries ?? EMPTY_ENTRIES);
+const message = useMessage();
+const repoStore = useRepoStore();
+const { repoPath, selectedChange, status } = storeToRefs(repoStore);
+const entries = computed(() => status.value?.entries ?? EMPTY_ENTRIES);
 const encoding = ref(DEFAULT_TEXT_ENCODING);
 const diffHidden = ref(false);
 const diff = ref<GitDiffResult | null>(null);
@@ -115,7 +117,7 @@ function openFileHistory(): void {
     projectId,
     filePath: selectedChange.value.path,
   }).catch((reason: unknown) => {
-    message.error(toUserMessage(reason) || t("repo.diffOpenFileHistoryFailed"));
+    message.error(reason);
   });
 }
 </script>
@@ -132,13 +134,10 @@ function openFileHistory(): void {
   <div v-else class="bg-background flex h-full min-h-0 flex-col overflow-hidden">
     <div class="border-border flex h-8 shrink-0 items-center gap-1.5 border-b px-2">
       <Tooltip :title="diffHidden ? t('repo.diffShow') : t('repo.diffHide')">
-        <Button
-          size="small"
-          type="text"
-          :aria-label="diffHidden ? t('repo.diffShow') : t('repo.diffHide')"
-          @click="diffHidden = !diffHidden"
-        >
-          <Icon :name="diffHidden ? 'EyeOff' : 'Eye'" :size="14" />
+        <Button size="small" type="text" @click="diffHidden = !diffHidden">
+          <template #icon>
+            <Icon :name="diffHidden ? 'EyeOff' : 'Eye'" :size="14" />
+          </template>
         </Button>
       </Tooltip>
       <span
@@ -158,13 +157,10 @@ function openFileHistory(): void {
         {{ selectedChange.path }}
       </span>
       <Tooltip :title="t('repo.viewFileHistory')">
-        <Button
-          size="small"
-          type="text"
-          :aria-label="t('repo.viewFileHistory')"
-          @click="openFileHistory"
-        >
-          <Icon name="History" :size="14" />
+        <Button size="small" type="text" @click="openFileHistory">
+          <template #icon>
+            <Icon name="History" :size="14" />
+          </template>
         </Button>
       </Tooltip>
     </div>

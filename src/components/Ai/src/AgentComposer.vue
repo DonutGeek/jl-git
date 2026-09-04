@@ -104,7 +104,6 @@ function handleCompositionEnd(): void {
         <Input.TextArea
           :value="draft"
           :disabled="inputLocked"
-          :aria-label="inputPlaceholder"
           :placeholder="inputPlaceholder"
           :auto-size="{ minRows: 3, maxRows: 6 }"
           class="resize-none border-0 bg-transparent text-xs shadow-none"
@@ -128,12 +127,13 @@ function handleCompositionEnd(): void {
                 )
               "
               :aria-pressed="thinkingEnabled"
-              :aria-label="t('agent.deepThinkingToggle')"
               :disabled="inputLocked"
               html-type="button"
               @click="emit('update:thinkingEnabled', !thinkingEnabled)"
             >
-              <Icon name="Atom" :size="14" />
+              <template #icon>
+                <Icon name="Atom" :size="14" />
+              </template>
               {{ t("agent.deepThinkingToggle") }}
             </Button>
           </Tooltip>
@@ -144,7 +144,6 @@ function handleCompositionEnd(): void {
             :value="modelId"
             :options="[...modelOptions]"
             :disabled="inputLocked || modelLoading"
-            :aria-label="t('agent.modelPickerAria')"
             @update:value="(next) => emit('update:modelId', String(next ?? ''))"
           />
         </div>
@@ -163,7 +162,6 @@ function handleCompositionEnd(): void {
               type="primary"
               size="small"
               shape="circle"
-              :aria-label="t('agent.stopReply')"  
               html-type="button"
               @click="emit('stop')"
             >
@@ -174,11 +172,12 @@ function handleCompositionEnd(): void {
               type="primary"
               size="small"
               shape="circle"
-              :aria-label="inputLocked ? t('common.aiApiKeyRequired') : t('agent.sendMessage')"
               :disabled="sendDisabled"
               html-type="submit"
             >
-              <Icon name="ArrowUp" :size="14" />
+              <template #icon>
+                <Icon name="ArrowUp" :size="14" />
+              </template>
             </Button>
           </span>
         </Tooltip>

@@ -1,12 +1,7 @@
 {
   "title": "工作台",
-  "description": "打开本地 Git 仓库，或从最近项目继续工作。",
   "openRepoAction": "打开仓库",
   "recentTitle": "最近项目",
-  "recentDescription": "单击选中，双击进入仓库工作区",
-  "doubleClickToOpen": "双击进入仓库工作区",
   "recentCount": "{{count}} 个",
-  "recentEmptyTitle": "还没有仓库",
-  "recentEmptyDescription": "打开一个本地 Git 仓库后，会显示在这里，方便下次快速进入。",
   "recentOpenedUnknown": "未知时间"
 }

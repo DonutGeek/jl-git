@@ -42,7 +42,6 @@ function handleClick(id: SidebarView): void {
 <template>
   <nav
     class="border-border bg-muted/30 flex w-11 shrink-0 flex-col items-center gap-1 border-r py-2"
-    :aria-label="t('repo.activityBar')"
   >
     <Tooltip v-for="item in items" :key="item.id" :title="item.label" placement="right">
       <Button
@@ -50,24 +49,21 @@ function handleClick(id: SidebarView): void {
         class="size-8"
         :type="props.active === item.id ? 'primary' : 'text'"
         :ghost="props.active === item.id"
-        :aria-label="item.label"
         :aria-pressed="props.active === item.id"
         :disabled="item.id === 'agent' && !hasApiKey"
         @click="handleClick(item.id)"
       >
-        <Icon :name="item.icon" :size="16" />
+        <template #icon>
+          <Icon :name="item.icon" :size="16" />
+        </template>
       </Button>
     </Tooltip>
     <div class="flex-1" />
     <Tooltip :title="t('repo.settings')" placement="right">
-      <Button
-        type="text"
-        size="small"
-        class="size-8"
-        :aria-label="t('repo.settings')"
-        @click="settingsDrawerStore.openDrawer()"
-      >
-        <Icon name="Settings" :size="16" />
+      <Button type="text" size="small" class="size-8" @click="settingsDrawerStore.openDrawer()">
+        <template #icon>
+          <Icon name="Settings" :size="16" />
+        </template>
       </Button>
     </Tooltip>
   </nav>

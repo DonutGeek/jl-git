@@ -2,15 +2,12 @@
 import { computed, onUnmounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 
-import { message } from "antdv-next";
-import { useI18n } from "vue-i18n";
-
 import AgentComposer from "./AgentComposer.vue";
 import AgentConversationTabs from "./AgentConversationTabs.vue";
 import AgentMessageList from "./AgentMessageList.vue";
 import { useAgentModel } from "@/hooks/core/useAgentModel";
 import { useHasAgentApiKey } from "@/hooks/core/useHasAgentApiKey";
-import { useZustand } from "@/hooks/core/useZustand";
+import { useMessage } from "@/hooks/web/useMessage";
 import {
   deleteChatConversation,
   formatDeepSeekModelShortLabel,
@@ -28,7 +25,6 @@ import {
 import { useLocaleStore } from "@/store/modules/locale";
 import { useProjectStore } from "@/store/modules/project";
 import { useSettingsDrawerStore } from "@/store/modules/setting";
-import { toUserMessage } from "@/types/error";
 import type { AgentChatMessage, AgentConversation } from "@/types/ai";
 import { createAgentStreamBuffer } from "@/utils/agentStreamBuffer";
 
@@ -40,7 +36,7 @@ const props = defineProps<{
 }>();
 
 const EMPTY_MESSAGES: readonly AgentChatMessage[] = [];
-const { t } = useI18n();
+const message = useMessage();
 const hasApiKey = useHasAgentApiKey();
 const { models, modelId, setModelId, loading: modelsLoading } = useAgentModel();
 const thinkingEnabled = ref(true);
@@ -51,16 +47,10 @@ const conversationSequence = ref(0);
 
 let replySession: { conversationId: string; controller: AbortController } | null = null;
 
-const conversationsByProjectId = useZustand(
-  useAgentChatStore,
-  (state) => state.conversationsByProjectId,
-);
-const activeConversationIdByProjectId = useZustand(
-  useAgentChatStore,
-  (state) => state.activeConversationIdByProjectId,
-);
-const projects = useZustand(useProjectStore, (state) => state.projects);
-const workspaces = useZustand(useProjectStore, (state) => state.workspaces);
+const agentChatStore = useAgentChatStore();
+const { conversationsByProjectId, activeConversationIdByProjectId } = storeToRefs(agentChatStore);
+const projectStore = useProjectStore();
+const { projects, workspaces } = storeToRefs(projectStore);
 const { locale } = storeToRefs(useLocaleStore());
 const settingsDrawerStore = useSettingsDrawerStore();
 
@@ -117,7 +107,7 @@ async function persistConversation(conversation: AgentConversation): Promise<voi
     });
   } catch (error) {
     console.error(error);
-    message.error(toUserMessage(error) || t("agent.replyFailed"));
+    message.error(error);
   }
 }
 
@@ -163,7 +153,7 @@ async function handleDeleteConversation(conversationId: string): Promise<void> {
     await deleteChatConversation(conversationId);
   } catch (error) {
     console.error(error);
-    message.error(toUserMessage(error) || t("agent.replyFailed"));
+    message.error(error);
   }
 }
 
@@ -234,7 +224,7 @@ async function streamAssistantForHistory(
       await persistActiveConversation(conversationId);
     }
     if (!controller.signal.aborted) {
-      message.error(toUserMessage(error) || t("agent.replyFailed"));
+      message.error(error);
     }
   } finally {
     if (replySession?.controller === controller) {
@@ -298,7 +288,7 @@ watch(
         }
         console.error(error);
         useAgentChatStoreWithOut().ensureDefaultConversation(projectId);
-        message.error(toUserMessage(error) || t("agent.replyFailed"));
+        message.error(error);
       }
     })();
     onCleanup(() => {
@@ -314,10 +304,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section
-    class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
-    :aria-label="t('agent.title')"
-  >
+  <section class="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
     <AgentConversationTabs
       :conversations="conversations"
       :active-conversation-id="activeConversation?.id"
@@ -348,7 +335,7 @@ onUnmounted(() => {
       @update:draft="(value) => (draft = value)"
       @update:thinking-enabled="(value) => (thinkingEnabled = value)"
       @update:model-id="setModelId"
-      @submit="void handleSubmit()"
+      @submit="handleSubmit"
       @stop="abortReplySession"
     />
   </section>

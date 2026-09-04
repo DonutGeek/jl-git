@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { storeToRefs } from "pinia";
 
-import { Button, Input, Modal, Tooltip, message } from "antdv-next";
+import { Button, Input, Modal, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
@@ -17,13 +18,12 @@ import {
   scrollHorizontallyIntoView,
 } from "./repoLoadingLayout";
 import { useWindowChromeLayout } from "@/hooks/core/useWindowChromeLayout";
-import { useZustand } from "@/hooks/core/useZustand";
+import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
 import { gitService } from "@/services/git";
 import { pickPrimaryRemoteUrl } from "@/services/git/git.remote";
 import { useOpenTabsStore, useOpenTabsStoreWithOut } from "@/store/modules/multipleTab";
 import { useProjectStore, useProjectStoreWithOut } from "@/store/modules/project";
-import { toUserMessage } from "@/types/error";
 import type { Project } from "@/types/project";
 import { copyToClipboard } from "@/utils/clipboard";
 import {
@@ -39,18 +39,15 @@ import type { TabDisplayItem } from "./repoTabTypes";
 defineOptions({ name: "RepoTabBar" });
 
 const { t } = useI18n();
+const message = useMessage();
 const router = useRouter();
 const route = useRoute();
 const { headerPaddingClass, isMacOverlay } = useWindowChromeLayout();
 
-const tabEntries = useZustand(useOpenTabsStore, (state) => state.tabs);
-const pendingActiveId = useZustand(useOpenTabsStore, (state) => state.pendingActiveId);
-const pendingOriginLocationKey = useZustand(
-  useOpenTabsStore,
-  (state) => state.pendingOriginLocationKey,
-);
-const projects = useZustand(useProjectStore, (state) => state.projects);
-const workspaces = useZustand(useProjectStore, (state) => state.workspaces);
+const openTabsStore = useOpenTabsStore();
+const { tabs: tabEntries, pendingActiveId, pendingOriginLocationKey } = storeToRefs(openTabsStore);
+const projectStore = useProjectStore();
+const { projects, workspaces } = storeToRefs(projectStore);
 
 const optimisticActiveId = ref<string | null>(null);
 const canScrollTabsLeft = ref(false);
@@ -345,7 +342,7 @@ async function handleRemove(project: Project): Promise<void> {
     syncRouteAfterTabsChange();
     message.success(t("repo.tabRemoveSuccess", { name: project.name }));
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   }
 }
 
@@ -363,7 +360,7 @@ async function submitAlias(): Promise<void> {
     message.success(t("repo.tabAliasSuccess", { name: next }));
     aliasTarget.value = null;
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   } finally {
     aliasBusy.value = false;
   }
@@ -379,7 +376,7 @@ async function handleCopyRemote(project: Project): Promise<void> {
     await copyToClipboard(url);
     message.success(t("repo.tabCopyRemoteSuccess"));
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   }
 }
 
@@ -388,7 +385,7 @@ async function handleCopyPath(project: Project): Promise<void> {
     await copyToClipboard(project.path);
     message.success(t("repo.tabCopyPathSuccess"));
   } catch (error) {
-    message.error(toUserMessage(error));
+    message.error(error);
   }
 }
 
@@ -415,10 +412,11 @@ function handleAddTab(): void {
           type="text"
           size="small"
           class="text-muted-foreground hover:text-foreground size-7 shrink-0"
-          :aria-label="t('repo.addTab')"
           @click="handleAddTab"
         >
-          <Icon name="Plus" :size="14" />
+          <template #icon>
+            <Icon name="Plus" :size="14" />
+          </template>
         </Button>
       </Tooltip>
     </div>
@@ -523,7 +521,7 @@ function handleAddTab(): void {
     :ok-button-props="{
       disabled: !aliasValue.trim() || aliasValue.trim() === aliasTarget?.name,
     }"
-    @ok="void submitAlias()"
+    @ok="submitAlias"
     @cancel="
       () => {
         if (!aliasBusy) aliasTarget = null;
@@ -535,7 +533,7 @@ function handleAddTab(): void {
       v-model:value="aliasValue"
       :placeholder="t('openRepo.aliasPlaceholder')"
       :disabled="aliasBusy"
-      @press-enter="void submitAlias()"
+      @press-enter="submitAlias"
     />
   </Modal>
 </template>

@@ -3,18 +3,13 @@ import { useRoute, useRouter } from "vue-router";
 
 import { useKeyboardShortcuts } from "@/hooks/core/useKeyboardShortcuts";
 import { useShortcutAction } from "@/hooks/core/useShortcutAction";
-import {
-  listenOpenProjectInMain,
-  listenProjectsChanged,
-} from "@/services/window/projectManageBridge";
 import { useOpenTabsStoreWithOut } from "@/store/modules/multipleTab";
-import { useProjectStoreWithOut } from "@/store/modules/project";
 import { useSettingsDrawerStore } from "@/store/modules/setting";
 import { applyLocalMachineBootstrap } from "@/utils/localMachineBootstrap";
 import { applyStartupTabsBootstrap } from "@/utils/startupTabsBootstrap";
 
 /**
- * 主窗生命周期：冷启动标签、项目管理子窗桥、全局快捷键。
+ * 主窗生命周期：冷启动标签、全局快捷键。
  * 不在这里拉 Git，避免壳层被仓库 IO 堵住。
  */
 export function useAppLayout(): void {
@@ -54,44 +49,6 @@ export function useAppLayout(): void {
 
     onUnmounted(() => {
       cancelled = true;
-    });
-  });
-
-  onMounted(() => {
-    let disposed = false;
-    const cleanups: Array<() => void> = [];
-
-    void listenOpenProjectInMain((projectId) => {
-      useOpenTabsStoreWithOut().openRepositoryTab(projectId);
-      void router.push(`/repo/${projectId}`);
-    }).then((unlisten) => {
-      if (disposed) {
-        unlisten();
-        return;
-      }
-      cleanups.push(unlisten);
-    });
-
-    void listenProjectsChanged(() => {
-      const projectStore = useProjectStoreWithOut();
-      void Promise.all([
-        projectStore.loadProjects(),
-        projectStore.loadRecent(),
-        projectStore.loadWorkspaces(),
-      ]);
-    }).then((unlisten) => {
-      if (disposed) {
-        unlisten();
-        return;
-      }
-      cleanups.push(unlisten);
-    });
-
-    onUnmounted(() => {
-      disposed = true;
-      for (const cleanup of cleanups) {
-        cleanup();
-      }
     });
   });
 }

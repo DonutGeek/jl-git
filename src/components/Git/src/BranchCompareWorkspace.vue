@@ -253,29 +253,19 @@ function summarizeFiles(list: readonly GitChangedFile[]) {
     </AppWindowHeader>
     <section class="border-border flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
       <Icon name="GitCompareArrows" :size="18" class="shrink-0" />
-      <Select
-        :value="mode"
-        class="w-44"
-        :options="modeOptions"
-        :aria-label="t('branchCompare.title')"
-        @update:value="setMode"
-      />
+      <Select :value="mode" class="w-44" :options="modeOptions" @update:value="setMode" />
       <span class="shrink-0 text-sm font-medium">{{ t("branchCompare.source") }}</span>
       <Select
         :value="base"
         class="min-w-40 flex-1"
         :options="sourceOptions"
-        :aria-label="t('branchCompare.source')"
         @update:value="handleSourceChange"
       />
       <Tooltip :title="t('branchCompare.swap')">
-        <Button
-          size="small"
-          :aria-label="t('branchCompare.swap')"
-          :disabled="mode === 'localUpstream'"
-          @click="swapRefs"
-        >
-          <Icon name="ArrowLeftRight" :size="14" />
+        <Button size="small" :disabled="mode === 'localUpstream'" @click="swapRefs">
+          <template #icon>
+            <Icon name="ArrowLeftRight" :size="14" />
+          </template>
         </Button>
       </Tooltip>
       <span class="shrink-0 text-sm font-medium">{{ t("branchCompare.target") }}</span>
@@ -284,7 +274,6 @@ function summarizeFiles(list: readonly GitChangedFile[]) {
         class="min-w-40 flex-1"
         :options="targetOptions"
         :disabled="mode === 'localUpstream'"
-        :aria-label="t('branchCompare.target')"
         @update:value="(next) => (target = String(next ?? ''))"
       />
       <div class="border-border flex rounded-md border p-0.5" role="tablist">
@@ -330,7 +319,6 @@ function summarizeFiles(list: readonly GitChangedFile[]) {
               v-model:value="fileFilter"
               size="small"
               :placeholder="t('branchCompare.filterFiles')"
-              :aria-label="t('branchCompare.filterFiles')"
             />
           </div>
           <ScrollArea class="min-h-0 flex-1">
@@ -415,7 +403,7 @@ function summarizeFiles(list: readonly GitChangedFile[]) {
             :key="commit.id"
             type="button"
             class="hover:bg-accent/60 block w-full border-b px-3 py-2 text-left text-xs"
-            @click="void selectCommit(commit)"
+            @click="selectCommit(commit)"
           >
             <p class="text-muted-foreground font-mono">{{ commit.shortId }}</p>
             <p class="truncate">{{ commit.subject }}</p>
@@ -435,7 +423,7 @@ function summarizeFiles(list: readonly GitChangedFile[]) {
             :key="commit.id"
             type="button"
             class="hover:bg-accent/60 block w-full border-b px-3 py-2 text-left text-xs"
-            @click="void selectCommit(commit)"
+            @click="selectCommit(commit)"
           >
             <p class="text-muted-foreground font-mono">{{ commit.shortId }}</p>
             <p class="truncate">{{ commit.subject }}</p>
