@@ -54,6 +54,7 @@ const props = defineProps<ProjectCardProps>();
 
 - Props：同文件或就近 `interface XxxProps`，经 `defineProps`
 - 事件：`defineEmits`；处理函数命名 `handleSubmit`，对外事件 `on*` / `update:*`
+- 可复用弹窗：`defineExpose({ open })`，`open(payload?)` 内重置再打开；父组件不要绑 `:open` / `:mode`
 - 不要为「可能优化」默认包多余 `computed` / `watch`
 - 条件渲染保持可读；复杂条件提取变量或子组件
 - 通用副作用优先 `@vueuse/core`；深拷贝 / 路径 / 集合操作优先 `lodash-es`
@@ -109,7 +110,7 @@ import { useProjectList } from "@/views/dashboard/hooks/useProjectList";
 
 import { useProjectStore } from "@/store/modules/project";
 
-import { projectService } from "@/services/project";
+import { listProjects } from "@/api/project";
 import { formatRelative } from "@/utils/formatDate";
 
 import type { Project } from "@/types/project";

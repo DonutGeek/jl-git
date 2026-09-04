@@ -27,6 +27,7 @@
   "tabRemoveSuccess": "已移除 {{name}}",
   "tabAliasTitle": "设置别名",
   "tabAliasSave": "保存",
+  "tabAliasRequired": "请填写仓库别名",
   "tabAliasSuccess": "别名已更新为 {{name}}",
   "noProjects": "暂无已登记仓库",
   "branches": "分支",

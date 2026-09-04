@@ -68,9 +68,10 @@ src/
 │       ├── en.ts
 │       ├── zh-CN/           # 按域拆分：common.json、repo.json…
 │       └── en/
-├── api/                     # 外部 HTTP（Axios）；按域拆分，复用 requestClient
-│   ├── ai.ts
-│   └── hosting.ts
+├── api/                     # 后端接口：本地 Command + 外部 HTTP；按域拆分
+│   ├── project.ts
+│   ├── git.ts               # 目标：Git Command 与 project 同一写法
+│   └── deepseek.ts
 ├── router/
 │   ├── index.ts             # setupRouter / 路由实例
 │   ├── guard/
@@ -80,18 +81,6 @@ src/
 │       ├── index.ts         # glob 合并 modules + 404
 │       ├── basic.ts         # 未匹配兜底
 │       └── modules/         # 按域拆：dashboard / git / project / agent
-├── services/                # Tauri invoke / 持久化（Git / FS / SQLite）
-│   ├── invoke.ts
-│   ├── project/
-│   ├── git/
-│   │   ├── index.ts
-│   │   ├── git.status.ts
-│   │   ├── git.branch.ts
-│   │   └── ...
-│   ├── settings/
-│   ├── notification/
-│   ├── theme/
-│   └── ai/
 ├── store/
 │   ├── index.ts             # createPinia + setupStore(app)，不 barrel 各 module
 │   ├── plugin/              # persist 等
@@ -154,7 +143,7 @@ src/
 
 | work-center-web | JLGit | 原因 |
 |-----------------|-------|------|
-| `src/api/` + Axios | **同样采用**；另保留 `src/services/` 走 Tauri | HTTP（AI、托管平台）与本地 Git/FS 分轨 |
+| `src/api/` | **本地 Command + 外部 HTTP** | 接口函数按域拆分，经 `requestClient`（小驼峰地址或 https URL） |
 | `VxeTable` | antdv-next `Table` + 虚拟列表 | Git 客户端以树/Diff/历史为主，YAGNI |
 | `v-permission` | 不引入 | 无前端 RBAC |
 | `build/vite` 插件集合 | 根目录 `vite.config.ts` | 单仓桌面应用，保持简单 |
@@ -179,7 +168,7 @@ src/
 | `docs/architecture` | 系统如何工作、为何如此 |
 | `docs/development` | 日常如何写代码 |
 | `docs/product` | 做什么、做到哪 |
-| `docs/api` | 前端 Service 契约 |
+| `docs/api` | 前端 API 契约 |
 
 禁止在多个文件复制同一段规范；交叉引用。
 

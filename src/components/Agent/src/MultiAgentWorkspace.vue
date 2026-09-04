@@ -11,6 +11,7 @@ import AppWindowHeader from "@/layouts/page/AppWindowHeader.vue";
 import { useAgentModel } from "@/hooks/core/useAgentModel";
 import { useHasAgentApiKey } from "@/hooks/core/useHasAgentApiKey";
 import { useMessage } from "@/hooks/web/useMessage";
+import { listProjects, listWorkspaces } from "@/api/project";
 import {
   deleteChatConversation,
   formatDeepSeekModelShortLabel,
@@ -20,7 +21,6 @@ import {
   upsertChatConversation,
 } from "@/services/ai";
 import { buildAgentProfiles, prepareProfilesForAgentContext } from "@/services/agent/agent.profile";
-import { projectService, workspaceService } from "@/services/project";
 import { useLocaleStore } from "@/store/modules/locale";
 import {
   getActiveMultiAgentConversation,
@@ -271,7 +271,7 @@ onMounted(() => {
   })();
 
   useMultiAgentStoreWithOut().setProfilesLoading(true);
-  void Promise.all([projectService.list(), workspaceService.list()])
+  Promise.all([listProjects(), listWorkspaces()])
     .then(([projectList, workspaceList]) => buildAgentProfiles(projectList, [], workspaceList))
     .then((next) => {
       if (profilesActive) {

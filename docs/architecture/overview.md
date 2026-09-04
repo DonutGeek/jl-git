@@ -23,8 +23,7 @@
 Vue UI
   → Router / View
     → Feature / Component
-      ├─ Service（TS）→ Tauri Command → Rust → Git CLI / FS / SQLite
-      └─ api（TS）→ Axios requestClient → 外部 HTTP
+      ├─ api（TS）→ Axios requestClient → Tauri Command / 外部 HTTP
 ```
 
 ```mermaid
@@ -32,14 +31,11 @@ flowchart LR
   subgraph frontend [Frontend]
     P[Views]
     C[Components]
-    S[Services]
-    A[api / Axios]
+    A[api]
     Z[Pinia]
     P --> C
-    C --> S
     C --> A
     C --> Z
-    S --> Z
     A --> Z
   end
   subgraph bridge [Bridge]
@@ -53,7 +49,7 @@ flowchart LR
   subgraph http [External HTTP]
     NET[AI / Hosting]
   end
-  S --> CMD --> G
+  A --> CMD --> G
   CMD --> FS
   CMD --> DB
   G --> CLI[git]
@@ -67,11 +63,10 @@ flowchart LR
 | 层 | 职责 | 不负责 |
 |----|------|--------|
 | **View** | 路由级布局、组合 Feature、页面级数据加载入口 | 解析 `git status` 文本 |
-| **Feature / Component** | 展示与交互；调用 hooks / store / service / api | 直接 `invoke`、直接 `axios`、直接读盘 |
+| **Feature / Component** | 展示与交互；调用 hooks / store / api | 直接 `invoke`、直接 `axios`、直接读盘 |
 | **Hook** | 封装订阅与副作用（刷新 status、监听焦点） | 隐藏业务规则到「魔法」副作用 |
 | **Store (Pinia)** | 会话级全局状态（当前仓库、UI 面板） | 永久真相（应落库的数据） |
-| **Service** | 本地 IO 出口（Tauri `invoke`）；类型化请求/响应；错误归一 | UI 样式、外部 HTTP |
-| **api** | 外部 HTTP 出口；复用 `requestClient` | Tauri IPC、拼 shell |
+| **api** | 全部后端 IO：`requestClient`（小驼峰 Command 或 https URL） | 页面内直接 `invoke` / `axios`；Agent 循环 / 改 DOM |
 | **Tauri Command** | 稳定 IPC 契约；参数校验；调用 Rust 域逻辑 | 复杂 UI 决策 |
 | **Rust 域模块** | Git 执行、路径安全、SQL、系统 API | Vue 状态形状 |
 | **Git CLI** | 版本控制真相源 | 应用配置、窗口状态 |
@@ -103,13 +98,14 @@ Git 执行模型：[git.md](git.md)
 | **备选** | 仅 JSON / Store：简单，但查询与迁移弱 |
 | **详见** | [database.md](database.md) |
 
-### ADR-3：双门面 IO（Service + api）
+### ADR-3：后端 IO 只走 api
 
 | | |
 |--|--|
-| **选择** | 本地能力经 `src/services/*` → Tauri `invoke`；外部 HTTP 经 `src/api/*` → Axios `requestClient`（`src/utils/http/`） |
-| **原因** | 统一错误、日志、类型；页面不散落 `invoke` / `axios.create`；对齐 work-center-web |
-| **代价** | 多一层薄封装（可接受） |
+| **选择** | 本地 Command 与外部 HTTP 都只在 `src/api/` 用 `requestClient` 声明（小驼峰地址或 https URL） |
+| **原因** | 对齐 Vben2 / work-center-web；调用方式与普通接口一致；页面不散落 `invoke` / `axios.create`，也不再包一层 1:1 `services` |
+| **不放 api 的** | 写 `document`、开子窗、Agent 工具环等非接口逻辑 → `hooks/` / `utils/` |
+| **代价** | `src/services/` 里旧的 1:1 Git 封装需迁入 `api/` |
 
 ### ADR-4：Pinia 唯一全局状态方案
 
@@ -133,19 +129,19 @@ Git 执行模型：[git.md](git.md)
 ```mermaid
 sequenceDiagram
   participant U as UI
-  participant S as GitService
+  participant A as api/git
   participant C as git_status
   participant R as Git Runner
   participant G as git
-  U->>S: getStatus(repoPath)
-  S->>C: invoke
+  U->>A: getStatus(repoPath)
+  A->>C: requestClient（gitStatus）
   C->>C: validate path
   C->>R: status(repo)
   R->>G: git status --porcelain=v2 -b
   G-->>R: stdout
   R-->>C: typed DTO
-  C-->>S: GitStatusResult
-  S-->>U: 更新 Store / 渲染
+  C-->>A: GitStatusResult
+  A-->>U: 更新 Store / 渲染
 ```
 
 错误在任一环失败时：Rust 返回 `{ code, message }` → Service 转为领域错误 → UI toast / 内联提示。  
@@ -194,8 +190,7 @@ Git 工作区内容**不以** SQLite 为真相源；每次以 Git 查询为准�
 |--------|------|
 | Views / Layouts | `src/views`、`src/layouts` |
 | Components | `src/components/**` |
-| Services | `src/services/**` |
-| HTTP api | `src/api/**`、`src/utils/http/**` |
+| HTTP / Command api | `src/api/**`、`src/utils/http/**` |
 | Store | `src/store/**` |
 | Commands | `src-tauri/src/commands/**` |
 | Git Runner | `src-tauri/src/git/**` |

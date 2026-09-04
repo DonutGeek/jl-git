@@ -4,6 +4,7 @@ use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
     Row, SqlitePool,
 };
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
@@ -69,6 +70,36 @@ pub struct WorkspaceRow {
     pub updated_at: String,
 }
 
+/// 分组树节点（上级选择 / TreeSelect）
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceTreeNode {
+    pub id: String,
+    pub name: String,
+    pub icon: String,
+    pub color: String,
+    pub locked: bool,
+    pub children: Vec<WorkspaceTreeNode>,
+}
+
+/// 仪表盘目录树：分组与仓库混排
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogTreeNode {
+    pub key: String,
+    pub kind: String,
+    pub id: String,
+    pub parent_id: Option<String>,
+    pub name: String,
+    pub icon: String,
+    pub color: String,
+    pub locked: bool,
+    pub path: Option<String>,
+    pub selectable: bool,
+    pub is_leaf: bool,
+    pub children: Vec<CatalogTreeNode>,
+}
+
 // Rust 命令直接管理 sqlx 连接池，插件仍注册给未来前端 SQL 能力使用。
 pub async fn connect(db_path: &Path) -> Result<SqlitePool, AppError> {
     let options = SqliteConnectOptions::new()
@@ -99,7 +130,7 @@ pub async fn migrate(pool: &SqlitePool) -> Result<(), AppError> {
           workspace_id TEXT NULL,
           name TEXT NOT NULL,
           description TEXT NULL,
-          icon TEXT NOT NULL DEFAULT 'folder-git-2',
+          icon TEXT NOT NULL DEFAULT '',
           color TEXT NOT NULL DEFAULT 'blue',
           path TEXT NOT NULL UNIQUE,
           remote_url TEXT NULL,
@@ -651,10 +682,203 @@ pub async fn list_workspaces(pool: &SqlitePool) -> Result<Vec<WorkspaceRow>, App
     .collect()
 }
 
-const DEFAULT_WORKSPACE_COLOR: &str = "#5F75C1";
+/// 编辑上级时排除自身及子孙，避免成环
+pub fn collect_workspace_subtree_ids(
+    workspaces: &[WorkspaceRow],
+    root_id: &str,
+) -> HashSet<String> {
+    let mut ids = HashSet::from([root_id.to_string()]);
+    let mut grew = true;
+    while grew {
+        grew = false;
+        for workspace in workspaces {
+            if let Some(parent_id) = workspace.parent_id.as_deref() {
+                if ids.contains(parent_id) && ids.insert(workspace.id.clone()) {
+                    grew = true;
+                }
+            }
+        }
+    }
+    ids
+}
+
+fn workspace_to_tree_node(
+    workspaces: &[WorkspaceRow],
+    workspace: &WorkspaceRow,
+    exclude: &HashSet<String>,
+) -> WorkspaceTreeNode {
+    WorkspaceTreeNode {
+        id: workspace.id.clone(),
+        name: workspace.name.clone(),
+        icon: workspace.icon.clone(),
+        color: workspace.color.clone(),
+        locked: workspace.locked,
+        children: workspaces
+            .iter()
+            .filter(|child| {
+                child.parent_id.as_deref() == Some(workspace.id.as_str())
+                    && !exclude.contains(&child.id)
+            })
+            .map(|child| workspace_to_tree_node(workspaces, child, exclude))
+            .collect(),
+    }
+}
+
+/// 把扁平分组收成树；`exclude_id` 会去掉该节点及其子孙
+pub fn build_workspace_tree(
+    workspaces: &[WorkspaceRow],
+    exclude_id: Option<&str>,
+) -> Vec<WorkspaceTreeNode> {
+    let exclude = exclude_id
+        .map(|id| collect_workspace_subtree_ids(workspaces, id))
+        .unwrap_or_default();
+    let id_set: HashSet<&str> = workspaces.iter().map(|item| item.id.as_str()).collect();
+    workspaces
+        .iter()
+        .filter(|workspace| {
+            !exclude.contains(&workspace.id)
+                && match workspace.parent_id.as_deref() {
+                    None => true,
+                    Some(parent_id) => !id_set.contains(parent_id),
+                }
+        })
+        .map(|workspace| workspace_to_tree_node(workspaces, workspace, &exclude))
+        .collect()
+}
+
+fn project_matches_catalog_query(project: &ProjectRow, query: &str) -> bool {
+    if query.is_empty() {
+        return true;
+    }
+    project.name.to_lowercase().contains(query) || project.path.to_lowercase().contains(query)
+}
+
+fn catalog_project_node(project: &ProjectRow) -> CatalogTreeNode {
+    CatalogTreeNode {
+        key: format!("project:{}", project.id),
+        kind: "project".into(),
+        id: project.id.clone(),
+        parent_id: project.workspace_id.clone(),
+        name: project.name.clone(),
+        icon: project.icon.clone(),
+        color: String::new(),
+        locked: false,
+        path: Some(project.path.clone()),
+        selectable: true,
+        is_leaf: true,
+        children: vec![],
+    }
+}
+
+fn catalog_workspace_node(
+    workspaces: &[WorkspaceRow],
+    projects: &[ProjectRow],
+    workspace: &WorkspaceRow,
+    query: &str,
+) -> CatalogTreeNode {
+    CatalogTreeNode {
+        key: format!("workspace:{}", workspace.id),
+        kind: "workspace".into(),
+        id: workspace.id.clone(),
+        parent_id: workspace.parent_id.clone(),
+        name: workspace.name.clone(),
+        icon: workspace.icon.clone(),
+        color: workspace.color.clone(),
+        locked: workspace.locked,
+        path: None,
+        selectable: false,
+        is_leaf: false,
+        children: catalog_children(workspaces, projects, Some(workspace.id.as_str()), query),
+    }
+}
+
+struct MixedCatalogItem<'a> {
+    sort_order: i64,
+    is_project: bool,
+    name: &'a str,
+    workspace: Option<&'a WorkspaceRow>,
+    project: Option<&'a ProjectRow>,
+}
+
+fn catalog_children(
+    workspaces: &[WorkspaceRow],
+    projects: &[ProjectRow],
+    parent_id: Option<&str>,
+    query: &str,
+) -> Vec<CatalogTreeNode> {
+    let id_set: HashSet<&str> = workspaces.iter().map(|item| item.id.as_str()).collect();
+    let mut items: Vec<MixedCatalogItem<'_>> = Vec::new();
+
+    for workspace in workspaces {
+        let in_parent = match parent_id {
+            None => {
+                workspace.parent_id.is_none()
+                    || !id_set.contains(workspace.parent_id.as_deref().unwrap_or(""))
+            }
+            Some(id) => workspace.parent_id.as_deref() == Some(id),
+        };
+        if in_parent {
+            items.push(MixedCatalogItem {
+                sort_order: workspace.sort_order,
+                is_project: false,
+                name: workspace.name.as_str(),
+                workspace: Some(workspace),
+                project: None,
+            });
+        }
+    }
+
+    for project in projects {
+        let in_parent = match parent_id {
+            None => project.workspace_id.is_none(),
+            Some(id) => project.workspace_id.as_deref() == Some(id),
+        };
+        if in_parent && project_matches_catalog_query(project, query) {
+            items.push(MixedCatalogItem {
+                sort_order: project.sort_order,
+                is_project: true,
+                name: project.name.as_str(),
+                workspace: None,
+                project: Some(project),
+            });
+        }
+    }
+
+    items.sort_by(|left, right| {
+        left.sort_order
+            .cmp(&right.sort_order)
+            .then_with(|| right.is_project.cmp(&left.is_project))
+            .then_with(|| left.name.to_lowercase().cmp(&right.name.to_lowercase()))
+    });
+
+    items
+        .into_iter()
+        .filter_map(|item| {
+            if let Some(project) = item.project {
+                return Some(catalog_project_node(project));
+            }
+            item.workspace
+                .map(|workspace| catalog_workspace_node(workspaces, projects, workspace, query))
+        })
+        .collect()
+}
+
+/// 分组 + 仓库混排目录树；`query` 只过滤仓库名称/路径
+pub fn build_catalog_tree(
+    workspaces: &[WorkspaceRow],
+    projects: &[ProjectRow],
+    query: Option<&str>,
+) -> Vec<CatalogTreeNode> {
+    let query = query.unwrap_or("").trim().to_lowercase();
+    catalog_children(workspaces, projects, None, &query)
+}
 
 fn normalize_workspace_color(value: &str) -> Result<String, AppError> {
     let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(String::new());
+    }
+    // 早期库把颜色存成 blue/green 等名字，读出时转成 HEX
     let legacy = match trimmed.to_ascii_lowercase().as_str() {
         "blue" => Some("#5F75C1"),
         "green" => Some("#4E925E"),
@@ -688,7 +912,7 @@ pub async fn create_workspace(
     }
     let parent_id = parent_id.filter(|value| !value.trim().is_empty());
     let icon = normalize_workspace_icon(icon)?;
-    let color = normalize_workspace_color(color.as_deref().unwrap_or(DEFAULT_WORKSPACE_COLOR))?;
+    let color = normalize_workspace_color(color.as_deref().unwrap_or(""))?;
     if let Some(parent_id) = parent_id.as_deref() {
         let exists = sqlx::query_scalar::<_, i64>("SELECT COUNT(1) FROM workspaces WHERE id = ?1")
             .bind(parent_id)
@@ -960,8 +1184,7 @@ fn row_to_workspace(row: sqlx::sqlite::SqliteRow) -> Result<WorkspaceRow, AppErr
         parent_id: row.try_get("parent_id").map_err(to_db_error)?,
         name: row.try_get("name").map_err(to_db_error)?,
         icon: row.try_get("icon").map_err(to_db_error)?,
-        color: normalize_workspace_color(&stored_color)
-            .unwrap_or_else(|_| DEFAULT_WORKSPACE_COLOR.to_string()),
+        color: normalize_workspace_color(&stored_color).unwrap_or_default(),
         locked: locked != 0,
         sort_order: row.try_get("sort_order").map_err(to_db_error)?,
         created_at: row.try_get("created_at").map_err(to_db_error)?,
@@ -1032,6 +1255,20 @@ pub async fn touch_opened(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
     .map_err(to_db_error)?;
 
     tx.commit().await.map_err(to_db_error)?;
+
+    Ok(())
+}
+
+pub async fn remove_recent(pool: &SqlitePool, id: &str) -> Result<(), AppError> {
+    if id.trim().is_empty() {
+        return Err(AppError::new("VALIDATION", "项目 ID 不能为空"));
+    }
+
+    sqlx::query("DELETE FROM recent_projects WHERE project_id = ?1")
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(to_db_error)?;
 
     Ok(())
 }
@@ -1169,11 +1406,23 @@ fn normalize_lucide_icon_name(value: Option<String>, default: &str) -> Result<St
 }
 
 fn normalize_project_icon(value: Option<String>) -> Result<String, AppError> {
-    normalize_lucide_icon_name(value, "folder-git-2")
+    let icon = value
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty());
+    match icon {
+        None => Ok(String::new()),
+        Some(icon) => normalize_lucide_icon_name(Some(icon), ""),
+    }
 }
 
 fn normalize_workspace_icon(value: Option<String>) -> Result<String, AppError> {
-    normalize_lucide_icon_name(value, "code")
+    let icon = value
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty());
+    match icon {
+        None => Ok(String::new()),
+        Some(icon) => normalize_lucide_icon_name(Some(icon), ""),
+    }
 }
 
 fn resolve_repo_path(path: &str) -> Result<PathBuf, AppError> {
@@ -1368,6 +1617,101 @@ mod tests {
         });
     }
 
+    fn sample_workspace(
+        id: &str,
+        parent_id: Option<&str>,
+        name: &str,
+        sort_order: i64,
+    ) -> WorkspaceRow {
+        WorkspaceRow {
+            id: id.to_string(),
+            parent_id: parent_id.map(str::to_string),
+            name: name.to_string(),
+            icon: String::new(),
+            color: String::new(),
+            locked: false,
+            sort_order,
+            created_at: String::new(),
+            updated_at: String::new(),
+        }
+    }
+
+    fn sample_project(
+        id: &str,
+        workspace_id: Option<&str>,
+        name: &str,
+        path: &str,
+        sort_order: i64,
+    ) -> ProjectRow {
+        ProjectRow {
+            id: id.to_string(),
+            workspace_id: workspace_id.map(str::to_string),
+            name: name.to_string(),
+            description: None,
+            icon: String::new(),
+            path: path.to_string(),
+            remote_url: None,
+            last_opened_at: None,
+            pinned: false,
+            sort_order,
+            created_at: String::new(),
+            updated_at: String::new(),
+        }
+    }
+
+    #[test]
+    fn build_workspace_tree_nests_children_and_excludes_subtree() {
+        let root = sample_workspace("root", None, "业务", 0);
+        let child = sample_workspace("child", Some("root"), "小程序", 0);
+        let other = sample_workspace("other", None, "独立", 1);
+        let workspaces = vec![root.clone(), child.clone(), other.clone()];
+
+        let tree = build_workspace_tree(&workspaces, None);
+        assert_eq!(tree.len(), 2);
+        assert_eq!(tree[0].id, "root");
+        assert_eq!(tree[0].children.len(), 1);
+        assert_eq!(tree[0].children[0].id, "child");
+        assert_eq!(tree[1].id, "other");
+
+        let excluded = build_workspace_tree(&workspaces, Some("root"));
+        assert_eq!(excluded.len(), 1);
+        assert_eq!(excluded[0].id, "other");
+    }
+
+    #[test]
+    fn build_catalog_tree_orders_projects_before_groups_and_filters_query() {
+        let workspace = sample_workspace("w1", None, "组", 0);
+        let inside = sample_project("p-in", Some("w1"), "内部仓", "/tmp/in", 0);
+        let root_project = sample_project("p-root", None, "根仓", "/tmp/root", 0);
+        let other = sample_project("p-other", None, "其它", "/tmp/other", 0);
+
+        let tree = build_catalog_tree(&[workspace.clone()], &[inside, root_project, other], None);
+        assert_eq!(
+            tree.iter()
+                .map(|node| node.kind.as_str())
+                .collect::<Vec<_>>(),
+            ["project", "project", "workspace"]
+        );
+        assert_eq!(tree[2].id, "w1");
+        assert_eq!(tree[2].children[0].id, "p-in");
+
+        let filtered = build_catalog_tree(
+            &[workspace],
+            &[
+                sample_project("p-root", None, "根仓", "/tmp/root", 0),
+                sample_project("p-other", None, "其它", "/tmp/other", 0),
+            ],
+            Some("root"),
+        );
+        let project_ids: Vec<&str> = filtered
+            .iter()
+            .filter(|node| node.kind == "project")
+            .map(|node| node.id.as_str())
+            .collect();
+        assert_eq!(project_ids, ["p-root"]);
+        assert!(filtered.iter().any(|node| node.kind == "workspace"));
+    }
+
     #[test]
     fn add_project_normalizes_git_repo_and_rejects_overwrite_on_existing_path() {
         run_async(async {
@@ -1391,7 +1735,7 @@ mod tests {
             .await
             .expect("Git 仓库应可登记");
             assert!(!already_exists);
-            assert_eq!(first.icon, "folder-git-2");
+            assert_eq!(first.icon, "");
             assert_eq!(first.name, original_name);
             assert_eq!(first.remote_url.as_deref(), Some(""));
 
@@ -1409,7 +1753,7 @@ mod tests {
             assert!(already_exists);
             assert_eq!(first.id, second.id);
             assert_eq!(second.name, original_name);
-            assert_eq!(second.icon, "folder-git-2");
+            assert_eq!(second.icon, "");
             assert_eq!(second.path, repo.canonicalize().unwrap().to_string_lossy());
         });
     }
@@ -1512,6 +1856,49 @@ mod tests {
                 .expect("最近项目应可查询");
 
             assert_eq!(recent.len(), 20);
+        });
+    }
+
+    #[test]
+    fn remove_recent_deletes_history_but_keeps_project() {
+        run_async(async {
+            let pool = test_pool().await;
+            migrate(&pool).await.expect("迁移应成功");
+            let repo = create_git_repo();
+            let (project, _) = add_project(
+                &pool,
+                repo.to_string_lossy().into_owned(),
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .expect("Git 仓库应可登记");
+            touch_opened(&pool, &project.id)
+                .await
+                .expect("打开记录应成功");
+            assert_eq!(
+                list_recent(&pool, None)
+                    .await
+                    .expect("最近项目应可查询")
+                    .len(),
+                1
+            );
+
+            remove_recent(&pool, &project.id)
+                .await
+                .expect("移除最近记录应成功");
+
+            assert!(list_recent(&pool, None)
+                .await
+                .expect("最近项目应可查询")
+                .is_empty());
+            assert!(list_projects(&pool, None)
+                .await
+                .expect("项目列表应可查询")
+                .iter()
+                .any(|item| item.id == project.id));
         });
     }
 

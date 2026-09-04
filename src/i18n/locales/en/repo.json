@@ -27,6 +27,7 @@
   "tabRemoveSuccess": "Removed {{name}}",
   "tabAliasTitle": "Set alias",
   "tabAliasSave": "Save",
+  "tabAliasRequired": "Enter a repository alias",
   "tabAliasSuccess": "Alias updated to {{name}}",
   "noProjects": "No registered repositories",
   "branches": "Branches",

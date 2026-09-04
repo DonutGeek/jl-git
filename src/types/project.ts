@@ -1,37 +1,11 @@
-export const PROJECT_ICON_VALUES = [
-  "folder-git-2",
-  "folder",
-  "code-2",
-  "terminal",
-  "braces",
-  "box",
-  "package",
-  "layers-3",
-  "database",
-  "server",
-  "globe-2",
-  "cloud",
-  "cpu",
-  "app-window",
-  "smartphone",
-  "gamepad-2",
-  "bot",
-  "sparkles",
-  "briefcase-business",
-  "book-open",
-] as const;
-
-/** Lucide kebab-case 图标名；边界处做运行时校验 */
-export type ProjectIcon = string;
-export const DEFAULT_PROJECT_ICON: ProjectIcon = "folder-git-2";
-
 export interface Project {
   id: string;
   workspaceId: string | null;
   name: string;
   /** 项目简介，可空 */
   description: string | null;
-  icon: ProjectIcon;
+  /** Lucide 图标名；空则不展示 */
+  icon: string;
   path: string;
   /** 主远端 URL；无远端或尚未写入时为 null */
   remoteUrl: string | null;
@@ -51,20 +25,68 @@ export interface Workspace {
   id: string;
   parentId: string | null;
   name: string;
-  icon: WorkspaceIcon;
-  color: WorkspaceColor;
+  /** Lucide 图标名；空则不展示 */
+  icon: string;
+  /** #RRGGBB；空则不着色 */
+  color: string;
   locked: boolean;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }
-/** Lucide kebab-case；历史值 folder/briefcase/code/layers/box 仍有效 */
-export type WorkspaceIcon = string;
-/** 规范化的大写 #RRGGBB 颜色 */
-export type WorkspaceColor = `#${string}`;
+
+/** 分组树（上级选择 / TreeSelect） */
+export interface WorkspaceTreeNode {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  locked: boolean;
+  children: WorkspaceTreeNode[];
+}
+
+export type CatalogTreeNodeKind = "workspace" | "project";
+
+/** 仪表盘分组 + 仓库混排树 */
+export interface CatalogTreeNode {
+  key: string;
+  kind: CatalogTreeNodeKind;
+  id: string;
+  parentId: string | null;
+  name: string;
+  icon: string;
+  color: string;
+  locked: boolean;
+  path: string | null;
+  selectable: boolean;
+  isLeaf: boolean;
+  children: CatalogTreeNode[];
+}
+
+/** 分组弹窗：有 id 为编辑，无 id 为新建 */
+export interface WorkspaceGroupOpenPayload {
+  id?: string;
+  parentId?: string | null;
+  name?: string;
+  icon?: string;
+  color?: string;
+  locked?: boolean;
+}
+
+/** 「仓库已存在」弹窗 */
+export interface ExistingProjectOpenPayload {
+  project: Project;
+  action?: "open" | "view";
+}
 
 export interface WorkspaceListResult {
   workspaces: Workspace[];
+}
+export interface WorkspaceTreeResult {
+  tree: WorkspaceTreeNode[];
+}
+export interface ProjectCatalogTreeResult {
+  tree: CatalogTreeNode[];
 }
 export interface WorkspaceResult {
   workspace: Workspace;
@@ -119,5 +141,5 @@ export interface AddProjectInput {
   name?: string;
   workspaceId?: string;
   description?: string;
-  icon?: ProjectIcon;
+  icon?: string;
 }

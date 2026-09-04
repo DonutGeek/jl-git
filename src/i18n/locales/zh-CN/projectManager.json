@@ -7,8 +7,9 @@
   "groupsCount": "{{count}} 个",
   "groupName": "仓库分组名称",
   "groupNamePlaceholder": "请输入仓库分组名称",
+  "groupNameRequired": "请填写仓库分组名称",
   "parentGroup": "上级仓库分组",
-  "rootGroup": "仓库分组",
+  "parentGroupRequired": "请选择上级仓库分组",
   "groupIcon": "图标",
   "groupColor": "颜色",
   "groupColorPresets": "预设颜色",
@@ -41,7 +42,6 @@
   "lockedGroupDragBlocked": "锁定的分组不能拖动",
   "lockedGroupMoveBlocked": "锁定的分组不能移入或移出仓库",
   "lockedGroupDeleteBlocked": "锁定的分组不能删除，请先解锁",
-  "ungrouped": "未分组",
   "workspaceLabel": "仓库分组",
   "quickAddGroup": "添加分组",
   "quickAddGroupTitle": "添加仓库分组",
@@ -91,5 +91,9 @@
   "deleteProject": "删除",
   "deleteProjectTitle": "删除仓库记录",
   "deleteProjectQuestion": "从鲸灵Git中删除「{{name}}」？",
-  "deleteProjectSuccess": "已删除仓库记录 {{name}}"
+  "deleteProjectSuccess": "已删除仓库记录 {{name}}",
+  "removeFromRecent": "从最近移除",
+  "removeFromRecentTitle": "从最近移除",
+  "removeFromRecentQuestion": "从最近列表去掉「{{name}}」？仓库记录仍保留。",
+  "removeFromRecentSuccess": "已从最近移除 {{name}}"
 }

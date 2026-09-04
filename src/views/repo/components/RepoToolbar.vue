@@ -218,7 +218,7 @@ function handleOpenBranchCompare(): void {
       class="hover:bg-accent/60 flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1"
       @click="goDashboard"
     >
-      <Icon :name="project.icon" :size="16" class="shrink-0" />
+      <Icon v-if="project.icon" :name="project.icon" :size="16" class="shrink-0" />
       <span class="truncate text-sm font-medium">{{ project.name }}</span>
     </button>
 

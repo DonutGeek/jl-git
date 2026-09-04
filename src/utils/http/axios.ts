@@ -1,8 +1,11 @@
 import axios, { AxiosHeaders, create } from "axios";
 import type { AxiosInstance, AxiosResponse } from "axios";
 
+import { isAppError } from "@/types/error";
+
 import { AxiosCanceler } from "./axios-cancel";
 import { normalizeHttpError } from "./check-status";
+import { appAxiosAdapter, isRemoteHttpRequest } from "./tauri-adapter";
 import type { RequestClientOptions, RequestConfig, RequestOptions } from "./types";
 
 export class RequestClient {
@@ -15,6 +18,7 @@ export class RequestClient {
     this.axios = create({
       baseURL: options.baseURL,
       timeout: options.timeout ?? 10_000,
+      adapter: options.adapter ?? appAxiosAdapter,
     });
 
     this.setupInterceptors();
@@ -52,8 +56,16 @@ export class RequestClient {
         this.canceler.add(config);
       }
 
+      if (!isRemoteHttpRequest(config)) {
+        // 本地 Command：不要 JSON 序列化 body，也不要套 HTTP 默认超时
+        config.transformRequest = [];
+        config.timeout = 0;
+      }
+
+      const skipAuth =
+        requestOptions.skipAuth ?? this.options.defaultSkipAuth ?? !isRemoteHttpRequest(config);
       const token = this.options.getAccessToken?.();
-      if (token && !requestOptions.skipAuth) {
+      if (token && !skipAuth) {
         const headers = AxiosHeaders.from(config.headers);
         headers.set("Authorization", `Bearer ${token}`);
         config.headers = headers;
@@ -70,6 +82,10 @@ export class RequestClient {
         return response;
       },
       async (error: unknown) => {
+        if (isAppError(error)) {
+          return Promise.reject(error);
+        }
+
         const config = axios.isAxiosError(error) ? error.config : undefined;
         if (config && (config as typeof config & RequestOptions).cancelDuplicate) {
           this.canceler.remove(config);

@@ -1,28 +1,59 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
+import { storeToRefs } from "pinia";
 
-import { Button, Card, Col, Form, FormItem, Input, Row, Space, SpaceCompact } from "antdv-next";
+import {
+  Button,
+  Card,
+  Col,
+  Flex,
+  Form,
+  FormItem,
+  Input,
+  Row,
+  Space,
+  SpaceCompact,
+  Tooltip,
+  TreeSelect,
+} from "antdv-next";
 import { useI18n } from "vue-i18n";
 
-import { Icon } from "@/components/Icon";
-import {
-  ExistingProjectDialog,
-  ProjectIconSelect,
-  WorkspaceSelectMenu,
-} from "@/components/Project";
+import { Icon, IconPicker } from "@/components/Icon";
+import { ExistingProjectDialog, WorkspaceGroupDialog } from "@/components/Project";
 
+import { useForm } from "@/hooks/web/useForm";
 import { useMessage } from "@/hooks/web/useMessage";
 
-import { useProjectStoreWithOut } from "@/store/modules/project";
+import { useProjectStore } from "@/store/modules/project";
 
-import { projectService } from "@/services/project";
-import {
-  DEFAULT_PROJECT_ICON,
-  type Project,
-  type ProjectIcon as ProjectIconName,
+import { pickProjectDirectory } from "@/api/project";
+
+import type {
+  ExistingProjectOpenPayload,
+  Project,
+  Workspace,
+  WorkspaceGroupOpenPayload,
 } from "@/types/project";
 
 defineOptions({ name: "OpenRepoForm" });
+
+interface OpenRepoFormState {
+  path: string;
+  alias: string;
+  icon: string;
+  workspaceId: string;
+  description: string;
+}
+
+function createOpenForm(): OpenRepoFormState {
+  return {
+    path: "",
+    alias: "",
+    icon: "",
+    workspaceId: "",
+    description: "",
+  };
+}
 
 const emit = defineEmits<{
   open: [projectId: string];
@@ -30,45 +61,61 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const message = useMessage();
-const path = ref("");
-const alias = ref("");
-const aliasEdited = ref(false);
-const description = ref("");
-const projectIcon = ref<ProjectIconName>(DEFAULT_PROJECT_ICON);
-const workspaceId = ref("");
+const projectStore = useProjectStore();
+const { workspaceTree } = storeToRefs(projectStore);
+const { form, formInst, rules, resetForm, validate } = useForm(createOpenForm, () => ({
+  path: [{ required: true, whitespace: true, message: () => t("openRepo.pathRequired") }],
+}));
+const groupDialogRef = ref<{ open: (payload?: WorkspaceGroupOpenPayload) => void } | null>(null);
+const existingDialogRef = ref<{ open: (payload: ExistingProjectOpenPayload) => void } | null>(null);
 const opening = ref(false);
 const picking = ref(false);
-const existingProject = ref<Project | null>(null);
 
-function getProjectName(nextPath: string): string {
-  const normalizedPath = nextPath.trim().replace(/[\\/]+$/, "");
-  const parts = normalizedPath.split(/[\\/]/);
-  return parts[parts.length - 1] ?? "";
+let mounted = true;
+onMounted(() => {
+  loadWorkspaces();
+});
+onUnmounted(() => {
+  mounted = false;
+});
+
+/** 拉分组树，供仓库分组 TreeSelect 使用 */
+async function loadWorkspaces() {
+  try {
+    await projectStore.loadWorkspaces();
+  } catch (error) {
+    if (mounted) {
+      message.error(error);
+    }
+  }
 }
 
+/** 空字符串不能当 TreeSelect 选中值，未选分组时不传 value */
+function handleWorkspaceChange(next: string | number | null | undefined): void {
+  form.workspaceId = next == null ? "" : String(next);
+}
+
+/** 新建分组成功后选中该分组 */
+function handleCreatedGroup(workspace: Workspace): void {
+  form.workspaceId = workspace.id;
+}
+
+/** 打开新建分组弹窗 */
+function openCreateGroup(): void {
+  groupDialogRef.value?.open();
+}
+
+/** 改路径，不回填别名 */
 function handlePathChange(value: string): void {
-  path.value = value;
-  if (!aliasEdited.value) {
-    alias.value = getProjectName(value);
-  }
+  form.path = value;
 }
 
-function handleAliasChange(next: string): void {
-  aliasEdited.value = true;
-  alias.value = next;
-}
-
-function handleExistingDialogOpen(open: boolean): void {
-  if (!open) {
-    existingProject.value = null;
-  }
-}
-
+/** 系统选目录；进行中再点直接拦截，避免叠两个原生框 */
 async function pickPath(): Promise<void> {
-  if (picking.value || opening.value) {
+  if (picking.value) {
     return;
   }
-  const pickPromise = projectService.pickDirectory();
+  const pickPromise = pickProjectDirectory();
   picking.value = true;
   try {
     const selected = await pickPromise;
@@ -82,31 +129,31 @@ async function pickPath(): Promise<void> {
   }
 }
 
+/** 登记成功后清空表单 */
 function resetOpenForm(): void {
-  path.value = "";
-  alias.value = "";
-  aliasEdited.value = false;
-  description.value = "";
-  projectIcon.value = DEFAULT_PROJECT_ICON;
-  workspaceId.value = "";
+  resetForm();
 }
 
+function openPayload() {
+  return {
+    path: form.path.trim(),
+    name: form.alias.trim() || undefined,
+    workspaceId: form.workspaceId || undefined,
+    description: form.description.trim() || undefined,
+    icon: form.icon || undefined,
+  };
+}
+
+/** 登记并打开；校验由 Form rules 负责，重复提交在方法内拦截 */
 async function submitOpen(): Promise<void> {
-  const repositoryPath = path.value.trim();
-  if (!repositoryPath || opening.value) {
+  if (opening.value) {
     return;
   }
   opening.value = true;
   try {
-    const result = await useProjectStoreWithOut().addAndOpen({
-      path: repositoryPath,
-      name: alias.value.trim() || undefined,
-      workspaceId: workspaceId.value || undefined,
-      description: description.value.trim() || undefined,
-      icon: projectIcon.value,
-    });
+    const result = await projectStore.addAndOpen(openPayload());
     if (result.alreadyExists) {
-      existingProject.value = result.project;
+      existingDialogRef.value?.open({ project: result.project });
       return;
     }
     resetOpenForm();
@@ -118,26 +165,23 @@ async function submitOpen(): Promise<void> {
   }
 }
 
+/** 只登记不打开，方便连续导入 */
 async function saveAndContinue(): Promise<void> {
-  const repositoryPath = path.value.trim();
-  if (!repositoryPath || opening.value) {
+  if (!(await validate())) {
+    return;
+  }
+  if (opening.value) {
     return;
   }
   opening.value = true;
   try {
-    const result = await useProjectStoreWithOut().addProject({
-      path: repositoryPath,
-      name: alias.value.trim() || undefined,
-      workspaceId: workspaceId.value || undefined,
-      description: description.value.trim() || undefined,
-      icon: projectIcon.value,
-    });
+    const result = await projectStore.addProject(openPayload());
     if (result.alreadyExists) {
-      existingProject.value = result.project;
+      existingDialogRef.value?.open({ project: result.project });
       return;
     }
     resetOpenForm();
-    message.success(t("openRepo.saveAndContinueSuccess", { name: result.project.name }));
+    message.success(t("openRepo.success", { name: result.project.name }));
   } catch (error) {
     message.error(error);
   } finally {
@@ -145,11 +189,11 @@ async function saveAndContinue(): Promise<void> {
   }
 }
 
+/** 路径已登记过，打开已有项目 */
 async function confirmExistingProject(project: Project): Promise<void> {
-  existingProject.value = null;
   resetOpenForm();
   try {
-    await useProjectStoreWithOut().openExisting(project.id);
+    await projectStore.openExisting(project.id);
     emit("open", project.id);
   } catch (error) {
     message.error(error);
@@ -160,19 +204,18 @@ async function confirmExistingProject(project: Project): Promise<void> {
 <template>
   <Card>
     <template #title>{{ t("openRepo.title") }}</template>
-    <Form layout="vertical" @finish="submitOpen">
+    <Form :ref="formInst" :model="form" :rules="rules" layout="vertical" @finish="submitOpen">
       <Row :gutter="16">
         <Col :span="24">
-          <FormItem :label="t('openRepo.pathLabel')" name="path">
+          <FormItem :label="t('openRepo.pathLabel')" name="path" required>
             <SpaceCompact block>
               <Input
-                :value="path"
+                :value="form.path"
                 :placeholder="t('openRepo.pathPlaceholder')"
                 autocomplete="off"
-                :disabled="opening"
                 @update:value="handlePathChange"
               />
-              <Button :disabled="picking || opening" @click="pickPath">
+              <Button @click="pickPath">
                 <template #icon>
                   <Icon name="FolderOpen" :size="16" />
                 </template>
@@ -184,46 +227,56 @@ async function confirmExistingProject(project: Project): Promise<void> {
         <Col :span="24">
           <FormItem :label="t('openRepo.aliasLabel')" name="alias">
             <Input
-              :value="alias"
+              v-model:value="form.alias"
               :placeholder="t('openRepo.aliasPlaceholder')"
               autocomplete="off"
-              :disabled="opening"
-              @update:value="handleAliasChange"
             />
           </FormItem>
         </Col>
         <Col :xs="24" :sm="12">
           <FormItem :label="t('projectManager.projectIcon')" name="icon">
-            <ProjectIconSelect v-model:value="projectIcon" :disabled="opening" />
+            <IconPicker v-model:value="form.icon" />
           </FormItem>
         </Col>
         <Col :xs="24" :sm="12">
-          <FormItem :label="t('projectManager.workspaceLabel')" name="workspace">
-            <WorkspaceSelectMenu v-model:value="workspaceId" :disabled="opening" />
+          <FormItem :label="t('projectManager.workspaceLabel')" name="workspaceId">
+            <Flex class="w-full" align="center" gap="small">
+              <TreeSelect
+                class="min-w-0 flex-1"
+                :value="form.workspaceId || undefined"
+                :tree-data="workspaceTree"
+                :field-names="{ label: 'name', value: 'id', children: 'children' }"
+                :placeholder="t('common.pleaseSelect')"
+                allow-clear
+                tree-default-expand-all
+                @update:value="handleWorkspaceChange"
+              />
+              <Tooltip :title="t('projectManager.createGroup')">
+                <Button @click="openCreateGroup">
+                  <template #icon>
+                    <Icon name="Plus" :size="16" />
+                  </template>
+                </Button>
+              </Tooltip>
+            </Flex>
           </FormItem>
         </Col>
         <Col :span="24">
           <FormItem :label="t('openRepo.detailLabel')" name="description">
             <Input.TextArea
-              v-model:value="description"
+              v-model:value="form.description"
               :rows="4"
               :placeholder="t('openRepo.detailPlaceholder')"
-              :disabled="opening"
             />
           </FormItem>
         </Col>
         <Col :span="24">
           <FormItem>
             <Space>
-              <Button
-                type="primary"
-                html-type="submit"
-                :disabled="!path.trim() || opening"
-                :loading="opening"
-              >
+              <Button type="primary" html-type="submit" :loading="opening">
                 {{ t("openRepo.submitButton") }}
               </Button>
-              <Button :disabled="!path.trim() || opening" @click="saveAndContinue">
+              <Button :loading="opening" @click="saveAndContinue">
                 {{ t("openRepo.saveAndContinue") }}
               </Button>
             </Space>
@@ -233,11 +286,7 @@ async function confirmExistingProject(project: Project): Promise<void> {
     </Form>
   </Card>
 
-  <ExistingProjectDialog
-    :open="existingProject !== null"
-    :project="existingProject"
-    action="open"
-    @update:open="handleExistingDialogOpen"
-    @confirm="confirmExistingProject"
-  />
+  <WorkspaceGroupDialog ref="groupDialogRef" @created="handleCreatedGroup" />
+
+  <ExistingProjectDialog ref="existingDialogRef" @confirm="confirmExistingProject" />
 </template>

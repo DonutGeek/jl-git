@@ -1,8 +1,6 @@
-import type { WorkspaceIcon } from "@/types/project";
-
 /** 历史默认 / 常用分组图标（展示名覆盖用） */
 export const WORKSPACE_ICON_OPTIONS: ReadonlyArray<{
-  value: WorkspaceIcon;
+  value: string;
   labelKey:
     | "projectManager.iconCode"
     | "projectManager.iconFolder"
@@ -16,8 +14,6 @@ export const WORKSPACE_ICON_OPTIONS: ReadonlyArray<{
   { value: "layers", labelKey: "projectManager.iconLayers" },
   { value: "box", labelKey: "projectManager.iconBox" },
 ];
-
-export const DEFAULT_WORKSPACE_ICON: WorkspaceIcon = "code";
 
 export function resolveWorkspaceIconLabelKey(
   icon: string,

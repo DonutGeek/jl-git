@@ -1,4 +1,4 @@
-import { computed, h, ref, toValue, type MaybeRefOrGetter } from "vue";
+import { computed, h, toValue, type MaybeRefOrGetter } from "vue";
 
 import type { MenuProps } from "antdv-next";
 import { useI18n } from "vue-i18n";
@@ -26,12 +26,12 @@ function menuIcon(name: string) {
 export function useProjectMenu(options: {
   disabled?: MaybeRefOrGetter<boolean>;
   onOpen?: (projectId: string) => void;
+  /** recent：只从最近列表移除；project：取消登记仓库 */
+  deleteMode?: MaybeRefOrGetter<"project" | "recent">;
 }) {
   const { t } = useI18n();
   const message = useMessage();
   const modal = useModal();
-  const settingsProject = ref<Project | null>(null);
-
   const revealLabel = computed(() => {
     const os = detectAppOs();
     if (os === "windows") {
@@ -43,6 +43,8 @@ export function useProjectMenu(options: {
     return t("repo.openInFinder");
   });
 
+  const deleteMode = computed(() => toValue(options.deleteMode) ?? "project");
+
   const menuItems = computed<MenuProps["items"]>(() => {
     const disabled = toValue(options.disabled) ?? false;
     return [
@@ -50,12 +52,6 @@ export function useProjectMenu(options: {
         key: "open",
         label: t("projectManager.openProject"),
         icon: menuIcon("FolderOpen"),
-        disabled,
-      },
-      {
-        key: "edit",
-        label: t("projectManager.manageEditAction"),
-        icon: menuIcon("Pencil"),
         disabled,
       },
       { type: "divider" },
@@ -108,7 +104,10 @@ export function useProjectMenu(options: {
       { type: "divider" },
       {
         key: "delete",
-        label: t("projectManager.deleteProject"),
+        label:
+          deleteMode.value === "recent"
+            ? t("projectManager.removeFromRecent")
+            : t("projectManager.deleteProject"),
         icon: menuIcon("Trash2"),
         danger: true,
         disabled,
@@ -163,14 +162,26 @@ export function useProjectMenu(options: {
   }
 
   function requestDelete(project: Project): void {
+    const removeRecentOnly = deleteMode.value === "recent";
     modal.confirm({
-      title: t("projectManager.deleteProjectTitle"),
-      content: t("projectManager.deleteProjectQuestion", { name: project.name }),
+      title: removeRecentOnly
+        ? t("projectManager.removeFromRecentTitle")
+        : t("projectManager.deleteProjectTitle"),
+      content: removeRecentOnly
+        ? t("projectManager.removeFromRecentQuestion", { name: project.name })
+        : t("projectManager.deleteProjectQuestion", { name: project.name }),
       icon: null,
       okType: "danger",
-      okText: t("projectManager.deleteProject"),
+      okText: removeRecentOnly
+        ? t("projectManager.removeFromRecent")
+        : t("projectManager.deleteProject"),
       async onOk() {
         try {
+          if (removeRecentOnly) {
+            await useProjectStoreWithOut().removeRecent(project.id);
+            message.success(t("projectManager.removeFromRecentSuccess", { name: project.name }));
+            return;
+          }
           await useProjectStoreWithOut().removeProject(project.id);
           message.success(t("projectManager.deleteProjectSuccess", { name: project.name }));
         } catch (error) {
@@ -185,10 +196,6 @@ export function useProjectMenu(options: {
     return ({ key }) => {
       if (key === "open") {
         options.onOpen?.(project.id);
-        return;
-      }
-      if (key === "edit") {
-        settingsProject.value = project;
         return;
       }
       if (key === "copy-remote") {
@@ -223,7 +230,6 @@ export function useProjectMenu(options: {
 
   return {
     menuItems,
-    settingsProject,
     handleMenuClick,
   };
 }

@@ -2,6 +2,7 @@
   "title": "Open repository",
   "pathLabel": "Repository path",
   "pathPlaceholder": "Enter repository path",
+  "pathRequired": "Enter a repository path",
   "pickButton": "Browse",
   "aliasLabel": "Repository alias",
   "aliasPlaceholder": "Enter repository alias",
@@ -14,7 +15,7 @@
   "descriptionNeedPath": "Enter a repository path first",
   "submitButton": "Open",
   "saveAndContinue": "Save & continue",
-  "saveAndContinueSuccess": "Saved repository “{{name}}”",
+  "success": "Saved repository “{{name}}”",
   "existingTitle": "Project already exists",
   "existingOpen": "Open existing project",
   "existingView": "View existing project"

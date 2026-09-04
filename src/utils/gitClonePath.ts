@@ -1,4 +1,4 @@
-/** 从 clone URL 推断默认仓库目录名（不含 .git） */
+/** 从 clone URL 推断仓库目录名（不含 .git）；解析不出则空串 */
 export function repoNameFromCloneUrl(url: string): string {
   const trimmed = url.trim().replace(/\/+$/, "");
   if (!trimmed) {
@@ -8,7 +8,7 @@ export function repoNameFromCloneUrl(url: string): string {
   const segments = withoutGit.split(/[/\\:]/).filter(Boolean);
   const last = segments[segments.length - 1] ?? "";
   const safe = last.replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "");
-  return safe || "repository";
+  return safe;
 }
 
 /** 拼接父目录与仓库名（保留原路径分隔风格） */

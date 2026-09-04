@@ -1,9 +1,22 @@
 import { defineStore } from "pinia";
 
+import {
+  addProject as addProjectRecord,
+  createWorkspace as createWorkspaceRecord,
+  getWorkspaceTree,
+  listProjects,
+  listRecentProjects,
+  listWorkspaces,
+  removeProject as removeProjectRecord,
+  removeRecentProject,
+  removeWorkspace as removeWorkspaceRecord,
+  reorderWorkspaces,
+  touchProjectOpened,
+  updateProject as updateProjectRecord,
+  updateWorkspace as updateWorkspaceRecord,
+} from "@/api/project";
 import { applyStorePatch } from "@/store/applyStorePatch";
 import { store } from "@/store";
-
-import { projectService, workspaceService } from "@/services/project";
 import { useAgentChatStoreWithOut } from "@/store/modules/agentChat";
 import type {
   AddProjectInput,
@@ -12,15 +25,15 @@ import type {
   ProjectOrderItem,
   RecentItem,
   Workspace,
-  WorkspaceColor,
-  WorkspaceIcon,
   WorkspaceOrderItem,
+  WorkspaceTreeNode,
 } from "@/types/project";
 
 interface ProjectStoreState {
   projects: Project[];
   recent: RecentItem[];
   workspaces: Workspace[];
+  workspaceTree: WorkspaceTreeNode[];
   current: Project | null;
 }
 
@@ -31,15 +44,15 @@ interface ProjectStoreActions {
   createWorkspace: (
     name: string,
     parentId?: string,
-    icon?: WorkspaceIcon,
-    color?: WorkspaceColor,
+    icon?: string,
+    color?: string,
   ) => Promise<Workspace>;
   updateWorkspace: (input: {
     id: string;
     name?: string;
     parentId?: string | null;
-    icon?: WorkspaceIcon;
-    color?: WorkspaceColor;
+    icon?: string;
+    color?: string;
     locked?: boolean;
   }) => Promise<Workspace>;
   removeWorkspace: (id: string) => Promise<void>;
@@ -66,6 +79,7 @@ interface ProjectStoreActions {
   ) => Promise<ProjectAddResult>;
   openExisting: (id: string) => Promise<Project>;
   removeProject: (id: string) => Promise<void>;
+  removeRecent: (id: string) => Promise<void>;
   updateAlias: (id: string, name: string) => Promise<Project>;
   findById: (id: string) => Project | undefined;
 }
@@ -113,6 +127,7 @@ export const useProjectStore = defineStore("project", {
     projects: [],
     recent: [],
     workspaces: [],
+    workspaceTree: [],
     current: null,
   }),
   getters: {
@@ -128,49 +143,49 @@ export function useProjectStoreWithOut() {
 }
 
 function createProjectActions(set: ProjectSet, get: () => ProjectStore): ProjectStoreActions {
+  async function refreshWorkspaces(): Promise<Workspace[]> {
+    const [workspaces, workspaceTree] = await Promise.all([listWorkspaces(), getWorkspaceTree()]);
+    set({ workspaces, workspaceTree });
+    return workspaces;
+  }
+
   return {
     async loadProjects() {
-      const projects = await projectService.list();
+      const projects = await listProjects();
       set({ projects });
       return projects;
     },
 
     async loadRecent() {
-      const recent = await projectService.listRecent();
+      const recent = await listRecentProjects();
       set({ recent });
       return recent;
     },
 
     async loadWorkspaces() {
-      const workspaces = await workspaceService.list();
-      set({ workspaces });
-      return workspaces;
+      return refreshWorkspaces();
     },
     async createWorkspace(name, parentId, icon, color) {
-      const workspace = await workspaceService.create(name, parentId, icon, color);
-      set((state) => ({ workspaces: [...state.workspaces, workspace] }));
+      const workspace = await createWorkspaceRecord(name, parentId, icon, color);
+      await refreshWorkspaces();
       return workspace;
     },
     async updateWorkspace(input) {
-      const workspace = await workspaceService.update(input);
-      set((state) => ({
-        workspaces: state.workspaces.map((item) => (item.id === workspace.id ? workspace : item)),
-      }));
+      const workspace = await updateWorkspaceRecord(input);
+      await refreshWorkspaces();
       return workspace;
     },
     async removeWorkspace(id) {
-      await workspaceService.remove(id);
-      set((state) => ({
-        workspaces: state.workspaces
-          .filter((item) => item.id !== id)
-          .map((item) => (item.parentId === id ? { ...item, parentId: null } : item)),
-        projects: state.projects.map((project) =>
-          project.workspaceId === id ? { ...project, workspaceId: null } : project,
-        ),
-      }));
+      await removeWorkspaceRecord(id);
+      const [workspaces, workspaceTree, projects] = await Promise.all([
+        listWorkspaces(),
+        getWorkspaceTree(),
+        listProjects(),
+      ]);
+      set({ workspaces, workspaceTree, projects });
     },
     async updateProject(input) {
-      const project = await projectService.update(input);
+      const project = await updateProjectRecord(input);
       set((state) => ({
         projects: upsertProject(state.projects, project),
         current: state.current?.id === project.id ? project : state.current,
@@ -178,21 +193,13 @@ function createProjectActions(set: ProjectSet, get: () => ProjectStore): Project
       return project;
     },
     async reorderGroupedItems(input) {
-      await workspaceService.reorder(input);
-      const workspaceOrder = new Map(input.workspaces.map((item) => [item.id, item.sortOrder]));
-      const projectOrder = new Map(input.projects.map((item) => [item.id, item]));
-      set((state) => ({
-        workspaces: state.workspaces.map((workspace) => ({
-          ...workspace,
-          sortOrder: workspaceOrder.get(workspace.id) ?? workspace.sortOrder,
-        })),
-        projects: state.projects.map((project) => {
-          const order = projectOrder.get(project.id);
-          return order
-            ? { ...project, workspaceId: order.workspaceId, sortOrder: order.sortOrder }
-            : project;
-        }),
-      }));
+      await reorderWorkspaces(input);
+      const [workspaces, workspaceTree, projects] = await Promise.all([
+        listWorkspaces(),
+        getWorkspaceTree(),
+        listProjects(),
+      ]);
+      set({ workspaces, workspaceTree, projects });
     },
 
     setCurrent(project) {
@@ -200,7 +207,7 @@ function createProjectActions(set: ProjectSet, get: () => ProjectStore): Project
     },
 
     async addAndOpen(input) {
-      const result = await projectService.add(input);
+      const result = await addProjectRecord(input);
       if (result.alreadyExists) {
         set((state) => ({
           projects: upsertProject(state.projects, result.project),
@@ -208,8 +215,8 @@ function createProjectActions(set: ProjectSet, get: () => ProjectStore): Project
         return result;
       }
 
-      await projectService.touchOpened(result.project.id);
-      const recent = await projectService.listRecent();
+      await touchProjectOpened(result.project.id);
+      const recent = await listRecentProjects();
 
       set((state) => ({
         projects: upsertProject(state.projects, result.project),
@@ -221,7 +228,7 @@ function createProjectActions(set: ProjectSet, get: () => ProjectStore): Project
     },
 
     async addProject(input) {
-      const result = await projectService.add(input);
+      const result = await addProjectRecord(input);
 
       set((state) => ({
         projects: upsertProject(state.projects, result.project),
@@ -237,8 +244,8 @@ function createProjectActions(set: ProjectSet, get: () => ProjectStore): Project
         throw new Error("项目不存在");
       }
 
-      await projectService.touchOpened(id);
-      const recent = await projectService.listRecent();
+      await touchProjectOpened(id);
+      const recent = await listRecentProjects();
 
       set({
         recent,
@@ -248,11 +255,17 @@ function createProjectActions(set: ProjectSet, get: () => ProjectStore): Project
       return project;
     },
 
+    async removeRecent(id) {
+      await removeRecentProject(id);
+      const recent = await listRecentProjects();
+      set({ recent });
+    },
+
     async removeProject(id) {
-      await projectService.remove(id);
+      await removeProjectRecord(id);
       // SQLite 侧 chat_conversations ON DELETE CASCADE；同步清鲸灵内存
       useAgentChatStoreWithOut().clearProject(id);
-      const recent = await projectService.listRecent();
+      const recent = await listRecentProjects();
 
       set((state) => ({
         projects: state.projects.filter((project) => project.id !== id),
@@ -262,7 +275,7 @@ function createProjectActions(set: ProjectSet, get: () => ProjectStore): Project
     },
 
     async updateAlias(id, name) {
-      const project = await projectService.update({ id, name });
+      const project = await updateProjectRecord({ id, name });
 
       set((state) => ({
         projects: upsertProject(state.projects, project),

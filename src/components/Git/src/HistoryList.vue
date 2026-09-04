@@ -6,7 +6,6 @@ import { Button, Input, Spin, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import GitIdentityAvatar from "./GitIdentityAvatar.vue";
-import { HighlightText } from "@/components/Common";
 import { Icon } from "@/components/Icon";
 import { ScrollArea } from "@/components/ScrollArea";
 import { useMessage } from "@/hooks/web/useMessage";
@@ -125,11 +124,7 @@ function openInNewWindow(): void {
             compact
           />
           <span class="min-w-0 flex-1">
-            <HighlightText
-              :text="commit.subject"
-              :query="filter"
-              class-name="block truncate text-xs font-medium"
-            />
+            <span class="block truncate text-xs font-medium">{{ commit.subject }}</span>
             <span class="text-muted-foreground mt-0.5 flex items-center gap-2 text-[11px]">
               <span class="font-mono">{{ commit.shortId }}</span>
               <span>{{ commit.authorName }}</span>

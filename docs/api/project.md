@@ -1,166 +1,81 @@
-# ProjectService API
+# 项目 / 分组 API
 
 > **相关文档：** [command](../architecture/command.md) · [database](../architecture/database.md) · [state-management](../development/state-management.md)
 
-前端项目域门面。UI / Hook 只依赖本 Service，不直接 `invoke`。
+本地后端接口与 HTTP 同一写法：在 `src/api/project.ts` 用 `requestClient.get/post/put/delete`，地址小驼峰。Axios adapter 转到 Tauri Command。UI / Store 只调这些函数。
 
-实现位置（目标）：`src/services/project/`。
+Rust 查库后整理 DTO 再返回；前端绑定展示，不再把扁平列表改写成树。
 
 ---
 
 ## 类型
 
-```ts
-interface Project {
-  id: string;
-  workspaceId: string | null;
-  name: string;
-  description: string | null;
-  icon: ProjectIcon;
-  path: string;
-  remoteUrl: string | null;
-  lastOpenedAt: string | null;
-  pinned: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-type ProjectIcon = string; // Lucide kebab-case；运行时校验
-
-interface Workspace {
-  id: string;
-  parentId: string | null;
-  name: string;
-  icon: WorkspaceIcon;
-  color: WorkspaceColor;
-  /** 锁定后禁止拖动、移入/移出、删除与调整父级 */
-  locked: boolean;
-  sortOrder: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-type WorkspaceIcon = string; // Lucide kebab-case；历史 folder/code/… 仍有效
-
-interface RecentItem {
-  projectId: string;
-  openedAt: string;
-}
-```
-
-字段与 [database](../architecture/database.md) / Command 输出一致（camelCase）。
+字段与 [database](../architecture/database.md) / Command 输出一致（camelCase）。树节点见 `WorkspaceTreeNode` / `CatalogTreeNode`（`src/types/project.ts`）。
 
 ---
 
-## `projectService`
+## 项目
 
-### `list(workspaceId?: string): Promise<Project[]>`
+| 函数 | 地址 | Command |
+|------|------|---------|
+| `listProjects(workspaceId?)` | `projectList` | `project_list` |
+| `addProject(input)` | `projectAdd` | `project_add` |
+| `checkProjectUniqueness(input)` | `projectCheckUniqueness` | `project_check_uniqueness` |
+| `removeProject(id)` | `projectRemove` | `project_remove` |
+| `updateProject(input)` | `projectUpdate` | `project_update` |
+| `touchProjectOpened(id)` | `projectTouchOpened` | `project_touch_opened` |
+| `pickProjectDirectory()` | `projectPickDirectory` | `project_pick_directory` |
+| `getProjectProfileSnapshot(path)` | `projectProfileSnapshot` | `project_profile_snapshot` |
+| `listRecentProjects(limit?)` | `recentList` | `recent_list` |
+| `removeRecentProject(id)` | `recentRemove` | `recent_remove` |
 
-- **Command：** `project_list`
-- **错误：** `DB_ERROR` → 抛出/返回领域错误
-
-### `add(input: { path: string; workspaceId?: string; name?: string; description?: string; icon?: ProjectIcon }): Promise<ProjectAddResult>`
-
-- **Command：** `project_add`
-- **前置：** 路径存在且为 Git 仓库
-- **语义：** 路径已登记时返回 `{ project, alreadyExists: true }`，不覆盖名称/简介/图标/分组
-- **错误：** `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `DB_ERROR`
-
-### `checkUniqueness(input: { path?: string; remoteUrl?: string }): Promise<ProjectUniquenessResult>`
-
-- **Command：** `project_check_uniqueness`
-- **语义：** `new` / `existingPath`（含已有项目）/ `existingRemote`（含本地副本列表，不含远程 URL）
-- **错误：** `INVALID_PATH` `NOT_A_REPO` `VALIDATION` `DB_ERROR`
-
-### `remove(id: string): Promise<void>`
-
-- **Command：** `project_remove`
-- **语义：** 仅取消登记，不删除磁盘文件
-
-### `update(input: { id: string; name?: string; workspaceId?: string | null; description?: string | null; icon?: ProjectIcon; path?: string; allowRemoteMismatch?: boolean }): Promise<Project>`
-
-- **Command：** `project_update`
-- **语义：** `description: null` 清空简介；省略则不改
-- **路径：** 可选改绑；须存在且为 Git 顶层；不可占用其他登记路径。比对旧/新路径主远端身份；不一致返回 `REMOTE_MISMATCH`，前端确认后传 `allowRemoteMismatch: true`。旧路径不可读时跳过远端比对（视为搬迁）。
-- **图标：** Lucide kebab-case 名称（格式校验）；默认 `folder-git-2`；未知旧值前端回退默认图标显示
-- **错误：** `INVALID_PATH` `NOT_A_REPO` `ALREADY_EXISTS` `REMOTE_MISMATCH` `VALIDATION` `DB_ERROR`
-
-### `touchOpened(id: string): Promise<void>`
-
-- **Command：** `project_touch_opened`
-- **时机：** 进入 `/repo/:id` 时由 RepoLayout 调用
-
-### `pickDirectory(): Promise<string | null>`
-
-- **Command：** `project_pick_directory`
-- **语义：** 只选路径；入库需再调 `add`
-
-### `getProjectProfileSnapshot(path: string): Promise<ProjectProfileSnapshot>`
-
-- **Command：** `project_profile_snapshot`
-- **语义：** 收集 README / 清单文本，供 `generateProjectDescription` 使用
-- **错误：** `INVALID_PATH` `NOT_A_REPO` `IO_ERROR`
-
-### `listRecent(limit?: number): Promise<RecentItem[]>`
-
-- **Command：** `recent_list`
-
-### `listFavorites(): Promise<string[]>`
-
-- **Command：** `favorite_list`
-- **返回：** projectId 数组
-
-### `setFavorite(projectId: string, favorite: boolean): Promise<void>`
-
-- **Command：** `favorite_set`
+路径已登记时 `addProject` 返回 `{ project, alreadyExists: true }`，不覆盖名称/简介/图标/分组。
 
 ---
 
-## Workspace API（可同模块导出 `workspaceService`）
+## 分组
 
-| 方法 | Command |
-|------|---------|
-| `list()` | `workspace_list` |
-| `create(name, parentId?, icon?, color?)` | `workspace_create` |
-| `update({ id, name?, parentId?, icon?, color?, locked? })` | `workspace_update` |
-| `remove(id)` | `workspace_delete` |
-| `reorder({ workspaces, projects })` | `workspace_reorder` |
+| 函数 | 地址 | Command |
+|------|------|---------|
+| `listWorkspaces()` | `workspaceList` | `workspace_list` |
+| `getWorkspaceTree(excludeId?)` | `workspaceTree` | `workspace_tree` |
+| `getProjectCatalogTree(query?)` | `projectCatalogTree` | `project_catalog_tree` |
+| `createWorkspace(...)` | `workspaceCreate` | `workspace_create` |
+| `updateWorkspace(input)` | `workspaceUpdate` | `workspace_update` |
+| `removeWorkspace(id)` | `workspaceDelete` | `workspace_delete` |
+| `reorderWorkspaces(input)` | `workspaceReorder` | `workspace_reorder` |
 
----
+`getWorkspaceTree`：上级 TreeSelect 用。编辑时传 `excludeId`，后端排除该节点及子孙。
 
-## 与 Store 协作
+`getProjectCatalogTree`：仪表盘混合树。`query` 只过滤仓库名称/路径，分组仍保留。
 
-```ts
-const projects = await projectService.list();
-useProjectStore.getState().setProjects(projects);
-```
-
-写成功后再改 Store；失败不更新。
+颜色在 Rust 读出时已收成 `#RRGGBB` 或空串。
 
 ---
 
 ## 使用示例
 
 ```ts
-const path = await projectService.pickDirectory();
+import { pickProjectDirectory, addProject, getWorkspaceTree } from "@/api/project";
+
+const path = await pickProjectDirectory();
 if (!path) return;
 
-try {
-  const { project, alreadyExists } = await projectService.add({ path });
-  if (alreadyExists) {
-    // 展示已有项目提示，勿覆盖字段
-    return;
-  }
-  navigate(`/repo/${project.id}`);
-} catch (error) {
-  toast.error(toUserMessage(error));
-}
+const { project, alreadyExists } = await addProject({ path });
+const tree = await getWorkspaceTree();
+```
+
+底层等价于：
+
+```ts
+requestClient.get("projectList", { params: { workspaceId } });
+requestClient.post("projectAdd", { path });
 ```
 
 ---
 
 ## 非职责
 
-- 不执行 Git 查询（交给 GitService）
+- 不执行 Git 查询（交给 Git services）
 - 不渲染 UI
-- 不解析 porcelain
+- 不在前端把 DTO 改写成另一种领域模型

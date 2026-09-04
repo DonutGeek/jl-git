@@ -1,3 +1,21 @@
-export * from "./project.service";
-export * from "./project.profile";
-export * from "./workspace.service";
+export {
+  addProject,
+  checkProjectUniqueness,
+  createWorkspace,
+  getProjectCatalogTree,
+  getProjectProfileSnapshot,
+  getWorkspaceTree,
+  listProjects,
+  listRecentProjects,
+  listWorkspaces,
+  pickProjectDirectory,
+  removeProject,
+  removeRecentProject,
+  removeWorkspace,
+  reorderWorkspaces,
+  touchProjectOpened,
+  updateProject,
+  updateWorkspace,
+  type ProjectProfileFile,
+  type ProjectProfileSnapshot,
+} from "@/api/project";

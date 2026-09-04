@@ -4,7 +4,7 @@
 >
 > 语言：中文。架构立场：目标架构（非仅描述当前脚手架）。
 >
-> 前端工程化（目录、命名、组合式分层、antdv-next 局部导入、Axios HTTP）对齐 **work-center-web** 的约定；桌面 Git / FS / SQLite 仍走 Tauri Command / `services/`。
+> 前端工程化（目录、命名、组合式分层、antdv-next 局部导入、Axios HTTP）对齐 **work-center-web** 的约定；桌面 Git / FS / SQLite 仍走 Tauri Command，前端一律经 `src/api/` + `requestClient`。
 
 ---
 
@@ -46,9 +46,9 @@ JLGit 是基于 **Tauri 2 + Vue 3 + TypeScript** 的现代 Git 桌面客户端�
 | 图标 | `@/components/Icon`（内部 `morphicons` + `lucide` 数据）+ `material-icon-theme` | UI 图标只能通过 `@/components/Icon`；页面/布局不得直接导入 Lucide / morphicons。工作区文件类型图标用 `material-icon-theme`，禁止用 Lucide 冒充文件类型 |
 | 状态 | Pinia（+ 可选 persist 插件） | 唯一全局状态方案；目录名固定为单数 `src/store` |
 | 路由 | Vue Router | 见 routing 文档 |
-| 表单 | antdv-next Form + Zod | 校验与提交 |
+| 表单 | antdv-next Form + rules | 校验与提交 |
 | 组合式 | `@vueuse/core`；通用工具优先 `lodash-es` | 禁止手写已有库函数的弱化版 |
-| HTTP | Axios | 封装在 `src/utils/http/`；接口函数放 `src/api/`，复用 `requestClient`；页面不得临时 `axios.create` |
+| HTTP | Axios | 封装在 `src/utils/http/`（Vben2 `RequestClient`）；本地 Command 与外部 HTTP 都走 `requestClient`；接口函数放 `src/api/`；页面不得临时 `axios.create` |
 | 持久化 | SQLite（业务）+ Tauri Store（轻量偏好） | 见 database 文档 |
 | i18n | vue-i18n | 文案不写死在组件里（产品文案）；资源在 `src/locales/` |
 
@@ -60,14 +60,15 @@ JLGit 是基于 **Tauri 2 + Vue 3 + TypeScript** 的现代 Git 桌面客户端�
 
 ```
 Vue → Router → View → Feature/Component
-  ├─ Service → Tauri Command → Rust → Git CLI / FS / SQLite
-  └─ api → Axios（requestClient）→ 外部 HTTP
+  ├─ api → Axios requestClient（小驼峰地址）→ Tauri Command → Rust
+  └─ api → Axios requestClient（https URL）→ 外部 HTTP
 ```
 
 - **UI 永不直接执行 Git**，永不直接拼 shell
-- **Tauri IPC 只经 `src/services/`**；**外部 HTTP 只经 `src/api/` + `src/utils/http/`**
+- **本地 Command 与外部 HTTP 都只在 `src/api/` 用 `requestClient` 声明**；禁止再包一层 1:1 的 `services` / `invokeCommand`
 - Command 是 Rust 唯一入口；页面不得直接 `invoke`，也不得临时创建 Axios 实例
 - **SQLite 存应用数据**；Git 对象仍由 Git 管理
+- 非接口的东西（写 `document`、开子窗、Agent 循环）放 `hooks/` / `utils/`，不要塞进 `api/` 冒充接口
 
 分层职责：[docs/architecture/overview.md](docs/architecture/overview.md)
 
@@ -99,9 +100,8 @@ src/
 ├── hooks/        # 应用级组合式；按 setting / web / core / event / component 分层
 ├── layouts/      # default（header/footer/content/sider/setting/feature）+ page + iframe
 ├── locales/      # vue-i18n 初始化与 JSON 文案
-├── api/          # 外部 HTTP 接口（Axios / requestClient）
+├── api/          # 后端接口：本地 Command + 外部 HTTP，均走 requestClient
 ├── router/       # 实例、routes/modules、guard、helper、types
-├── services/     # Tauri / 持久化门面（Git / FS / SQLite）
 ├── store/        # Pinia 实例、plugin/、modules/；目录名固定单数
 ├── types/
 ├── utils/
@@ -122,7 +122,7 @@ src/
 | Store 文件 | 域名词，禁止 `use` 前缀 | `store/modules/locale.ts` |
 | Store 导出 | `useXxxStore`；setup 外用 `useXxxStoreWithOut()` | `useLocaleStore` |
 | Service 文件 | domain 分段 | `git.status.ts` |
-| API 文件 | 域名词 | `src/api/ai.ts` |
+| API 文件 | 域名词 | `src/api/project.ts`、`src/api/deepseek.ts` |
 | Utils | camelCase 动词短语 | `formatDate` |
 | 类型 | PascalCase | `GitStatusResult` |
 | 路由 name | lowerCamelCase | `repoStatus` |
@@ -154,6 +154,7 @@ src/
 - 列表大数据必须考虑虚拟滚动（见 performance）
 - Props 必须用 `defineProps` + 类型（`interface` / type）
 - 通用副作用优先 `@vueuse/core`；数组/对象/深拷贝优先 `lodash-es`
+- **弹窗表单自己管开合**：`defineExpose({ open })`，父组件 `ref.open(payload)`；禁止外绑 `:open` / `mode`。二次确认走 `useModal().confirm()`。细则见 [ui-guidelines](docs/development/ui-guidelines.md)
 
 ---
 
@@ -169,17 +170,18 @@ src/
 
 ---
 
-## 9. Git Service 架构
+## 9. Git API
 
 ```
-UI / Hook → src/services/git/* → invoke(command) → Rust git_* → git CLI
+UI / Hook / Store → src/api/git.ts → requestClient（小驼峰）→ Tauri Command → git CLI
 ```
 
-- 前端 Git 逻辑只存在于 `src/services/git`
-- 每个能力一个文件：`git.status.ts`、`git.branch.ts`、`git.commit.ts`…
+- 前端 Git **接口**只存在于 `src/api/`（与 project / DeepSeek 同一写法）
 - Command 清单与契约：[docs/architecture/command.md](docs/architecture/command.md)
 - 执行模型与解析策略：[docs/architecture/git.md](docs/architecture/git.md)
-- 前端 Service API：[docs/api/git.md](docs/api/git.md)
+- 前端 API：[docs/api/git.md](docs/api/git.md)
+
+`src/services/git/` 是迁入 `api/` 之前的过渡，禁止再新增 1:1 `invokeCommand` 封装。
 
 ---
 
@@ -209,7 +211,7 @@ Local State → Pinia → SQLite
 3. Components
 4. Hooks
 5. Store
-6. Services / Utils
+6. Api / Utils
 7. Types
 8. Styles
 ```
@@ -365,7 +367,7 @@ AI 修改代码时必须：
 
 - [ ] **`pnpm check` 通过**（lint + format + typecheck）
 - [ ] 无新增 `any` / 空 catch / 硬编码色值
-- [ ] UI 走 Service，不直连 `invoke`（除非文档允许的薄封装层）
+- [ ] UI 走 `src/api/`，不直连 `invoke`
 - [ ] 错误可被用户感知或已记录
 - [ ] 必要文档已更新（命令/API/功能状态）
 - [ ] Commit message 符合约定
@@ -384,7 +386,7 @@ AI 修改代码时必须：
 3. 把 Git 凭据写入日志、文档或示例
 4. 提交密钥、`.env`、私钥、updater 私钥
 5. 引入第二套全局状态库
-6. 在组件内直接 `invoke` 散落调用（应经 Service）
+6. 在组件内直接 `invoke` 散落调用（应经 `src/api/`）
 7. 硬编码颜色 / 绕过 Design Tokens
 8. 使用 `any` 掩盖类型问题
 9. 为未排期功能大规模预埋抽象

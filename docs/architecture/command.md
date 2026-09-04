@@ -2,7 +2,7 @@
 
 > **相关文档：** [tauri](tauri.md) · [git](git.md) · [database](database.md) · [api/git](../api/git.md) · [api/project](../api/project.md)
 
-本文是 **Command 契约的唯一真相源**。前端 Service 必须与此对齐；字段变更需同步 API 文档与 CHANGELOG。
+本文是 **Command 契约的唯一真相源**。前端 `src/api/` 用小驼峰地址（如 `projectList`），Axios adapter 转为本文的 snake_case 名；字段变更需同步 API 文档与 CHANGELOG。
 
 通用错误形状：
 
@@ -94,7 +94,7 @@ interface AppError {
 | | |
 |--|--|
 | **目的** | 登记本地仓库路径 |
-| **输入** | `{ path: string; workspaceId?: string; name?: string; description?: string; icon?: ProjectIcon }` |
+| **输入** | `{ path: string; workspaceId?: string; name?: string; description?: string; icon?: string }` |
 | **输出** | `{ project: ProjectRow; alreadyExists: boolean }`（路径已存在时返回已有项目且不覆盖字段） |
 | **错误** | `INVALID_PATH` `NOT_A_REPO` `DB_ERROR` `VALIDATION` |
 
@@ -153,12 +153,14 @@ interface AppError {
 | **输出** | `{ folderName: string; structure: string[]; files: { name: string; content: string; truncated: boolean }[] }` |
 | **错误** | `INVALID_PATH` `NOT_A_REPO` `IO_ERROR` |
 
-### `workspace_list` / `workspace_create` / `workspace_update` / `workspace_delete`
+### `workspace_list` / `workspace_tree` / `project_catalog_tree` / `workspace_create` / `workspace_update` / `workspace_delete`
 
 | 命令 | 目的 | 输入 | 输出 | 错误 |
 |------|------|------|------|------|
-| `workspace_list` | 列出工作区 | `{}` | `{ workspaces: WorkspaceRow[] }` | `DB_ERROR` |
-| `workspace_create` | 创建 | `{ name: string }` | `{ workspace: WorkspaceRow }` | `VALIDATION` `DB_ERROR` |
+| `workspace_list` | 列出工作区（扁平） | `{}` | `{ workspaces: WorkspaceRow[] }` | `DB_ERROR` |
+| `workspace_tree` | 分组树 | `{ excludeId?: string }` | `{ tree: WorkspaceTreeNode[] }` | `DB_ERROR` |
+| `project_catalog_tree` | 分组+仓库混排树 | `{ query?: string }` | `{ tree: CatalogTreeNode[] }` | `DB_ERROR` |
+| `workspace_create` | 创建 | `{ name: string; parentId?; icon?; color? }` | `{ workspace: WorkspaceRow }` | `VALIDATION` `DB_ERROR` |
 | `workspace_update` | 改名/上级/图标/颜色/锁定 | `{ id; name?; parentId?; icon?; color?; locked? }` | `{ workspace }` | `NOT_FOUND` `VALIDATION` `DB_ERROR` |
 | `workspace_delete` | 删除（项目 workspace_id 置空） | `{ id }` | `{ ok: true }` | `NOT_FOUND` `DB_ERROR` |
 
@@ -177,7 +179,19 @@ interface AppError {
 | **输入** | `{ limit?: number }` 默认 20 |
 | **输出** | `{ items: { projectId: string; openedAt: string }[] }` |
 
+### `recent_remove`
+
+| | |
+|--|--|
+| **目的** | 从最近打开列表移除一条，不取消登记仓库 |
+| **输入** | `{ id: string }` |
+| **输出** | `{ ok: true }` |
+| **错误** | `VALIDATION` `DB_ERROR` |
+
 `ProjectRow` / `WorkspaceRow` 字段与 [database.md](database.md) 一致（camelCase 序列化）。
+
+`WorkspaceTreeNode`：`{ id, name, icon, color, locked, children }`。  
+`CatalogTreeNode`：`{ key, kind, id, parentId, name, icon, color, locked, path, selectable, isLeaf, children }`；`key` 为 `workspace:{id}` / `project:{id}`。
 
 ---
 

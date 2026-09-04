@@ -13,14 +13,12 @@ import {
   Tooltip,
   Tree,
   type MenuProps,
-  type TreeDataNode,
 } from "antdv-next";
 import { useElementSize } from "@vueuse/core";
 import { useI18n } from "vue-i18n";
 
-import { HighlightText } from "@/components/Common";
 import { Icon } from "@/components/Icon";
-import { ProjectSettingsDialog, WorkspaceGroupDialog } from "@/components/Project";
+import { WorkspaceGroupDialog } from "@/components/Project";
 
 import { useMessage } from "@/hooks/web/useMessage";
 import { useModal } from "@/hooks/web/useModal";
@@ -28,43 +26,15 @@ import { useProjectMenu } from "@/hooks/web/useProjectMenu";
 
 import { useProjectStore, useProjectStoreWithOut } from "@/store/modules/project";
 
-import type { Project, Workspace } from "@/types/project";
+import { getProjectCatalogTree } from "@/api/project";
+
+import type { CatalogTreeNode, Project, WorkspaceGroupOpenPayload } from "@/types/project";
 
 defineOptions({ name: "ProjectGroupsTree" });
-
-const ROOT_KEY = "root";
-
-const props = withDefaults(
-  defineProps<{
-    disabled?: boolean;
-  }>(),
-  { disabled: false },
-);
 
 const emit = defineEmits<{
   open: [projectId: string];
 }>();
-
-type MixedTreeItem =
-  | { kind: "workspace"; sortOrder: number; name: string; workspace: Workspace }
-  | { kind: "project"; sortOrder: number; name: string; project: Project };
-
-interface GroupTreeNode extends TreeDataNode {
-  kind: "root" | "workspace" | "project";
-  workspace?: Workspace;
-  project?: Project;
-  children?: GroupTreeNode[];
-}
-
-function compareMixedTreeItems(a: MixedTreeItem, b: MixedTreeItem): number {
-  if (a.sortOrder !== b.sortOrder) {
-    return a.sortOrder - b.sortOrder;
-  }
-  if (a.kind !== b.kind) {
-    return a.kind === "project" ? -1 : 1;
-  }
-  return a.name.localeCompare(b.name);
-}
 
 const { t } = useI18n();
 const message = useMessage();
@@ -73,15 +43,13 @@ const projectStore = useProjectStore();
 const { projects, workspaces } = storeToRefs(projectStore);
 const filter = ref("");
 const loading = ref(false);
-const expandedKeys = ref<Array<string | number>>([ROOT_KEY]);
+const catalogTree = ref<CatalogTreeNode[]>([]);
+const expandedKeys = ref<Array<string | number>>([]);
 const selectedProjectId = ref<string | null>(null);
-const groupDialog = ref<
-  { mode: "create"; parentId: string | null } | { mode: "edit"; workspace: Workspace } | null
->(null);
+const groupDialogRef = ref<{ open: (payload?: WorkspaceGroupOpenPayload) => void } | null>(null);
 const treeHostRef = ref<HTMLElement | null>(null);
 const { height: treeHostHeight } = useElementSize(treeHostRef);
-const { menuItems, settingsProject, handleMenuClick } = useProjectMenu({
-  disabled: () => props.disabled,
+const { menuItems, handleMenuClick } = useProjectMenu({
   onOpen: (projectId) => openGroupProject(projectId),
 });
 
@@ -93,7 +61,14 @@ onUnmounted(() => {
   mounted = false;
 });
 
-async function loadGroupCatalog() {
+const query = computed(() => filter.value.trim());
+const treeHeight = computed(() => Math.max(0, Math.floor(treeHostHeight.value)));
+const selectedKeys = computed(() =>
+  selectedProjectId.value ? [`project:${selectedProjectId.value}`] : [],
+);
+
+/** 拉扁平仓库/分组列表；目录树由下方 watch 绑定后端 DTO */
+async function loadGroupCatalog(): Promise<void> {
   loading.value = true;
   try {
     await Promise.all([projectStore.loadProjects(), projectStore.loadWorkspaces()]);
@@ -108,93 +83,25 @@ async function loadGroupCatalog() {
   }
 }
 
-const query = computed(() => filter.value.trim().toLowerCase());
-const visibleProjects = computed(() =>
-  query.value
-    ? projects.value.filter(
-        (item) =>
-          item.name.toLowerCase().includes(query.value) ||
-          item.path.toLowerCase().includes(query.value),
-      )
-    : projects.value,
-);
-
-const treeHeight = computed(() => Math.max(0, Math.floor(treeHostHeight.value)));
-const selectedKeys = computed(() =>
-  selectedProjectId.value ? [`project:${selectedProjectId.value}`] : [],
-);
-
-function workspaceNodeKey(id: string): string {
-  return `workspace:${id}`;
-}
-
-function buildMixedItems(parentId: string | null): MixedTreeItem[] {
-  const workspaceIds = new Set(workspaces.value.map((item) => item.id));
-  const childWorkspaces = workspaces.value.filter((item) =>
-    parentId === null
-      ? item.parentId === null || !workspaceIds.has(item.parentId)
-      : item.parentId === parentId,
-  );
-  const childProjects = visibleProjects.value.filter((project) =>
-    parentId === null ? project.workspaceId === null : project.workspaceId === parentId,
-  );
-  return [
-    ...childWorkspaces.map((workspace) => ({
-      kind: "workspace" as const,
-      sortOrder: workspace.sortOrder,
-      name: workspace.name,
-      workspace,
-    })),
-    ...childProjects.map((project) => ({
-      kind: "project" as const,
-      sortOrder: project.sortOrder,
-      name: project.name,
-      project,
-    })),
-  ].sort(compareMixedTreeItems);
-}
-
-function buildChildNodes(parentId: string | null): GroupTreeNode[] {
-  const nodes: GroupTreeNode[] = [];
-  for (const item of buildMixedItems(parentId)) {
-    if (item.kind === "workspace") {
-      nodes.push({
-        key: workspaceNodeKey(item.workspace.id),
-        title: item.workspace.name,
-        kind: "workspace",
-        workspace: item.workspace,
-        isLeaf: false,
-        selectable: false,
-        children: buildChildNodes(item.workspace.id),
-      });
-      continue;
+async function loadCatalogTree(): Promise<void> {
+  try {
+    catalogTree.value = await getProjectCatalogTree(query.value);
+  } catch (error) {
+    if (mounted) {
+      message.error(error);
     }
-    nodes.push({
-      key: `project:${item.project.id}`,
-      title: item.project.name,
-      kind: "project",
-      project: item.project,
-      isLeaf: true,
-    });
   }
-  return nodes;
 }
 
-const treeData = computed<GroupTreeNode[]>(() => [
-  {
-    key: ROOT_KEY,
-    title: t("projectManager.rootGroup"),
-    kind: "root",
-    isLeaf: false,
-    selectable: false,
-    children: buildChildNodes(null),
-  },
-]);
+watch([projects, workspaces, query], () => {
+  loadCatalogTree();
+});
 
-function collectExpandableKeys(nodes: GroupTreeNode[]): Array<string | number> {
+/** 收集所有可展开节点，结构变化时整树展开 */
+function collectExpandableKeys(nodes: CatalogTreeNode[]): Array<string | number> {
   const keys: Array<string | number> = [];
   for (const node of nodes) {
-    if (node.children) {
+    if (node.children.length > 0) {
       keys.push(node.key);
       keys.push(...collectExpandableKeys(node.children));
     }
@@ -203,7 +110,7 @@ function collectExpandableKeys(nodes: GroupTreeNode[]): Array<string | number> {
 }
 
 watch(
-  treeData,
+  catalogTree,
   (nodes, previous) => {
     const nextSignature = collectExpandableKeys(nodes).join("|");
     const previousSignature = previous ? collectExpandableKeys(previous).join("|") : "";
@@ -214,48 +121,64 @@ watch(
   { immediate: true },
 );
 
-function resolveGroupNode(payload: unknown): GroupTreeNode | null {
+/** titleRender / 双击拿到的可能是节点或包了一层 data */
+function resolveGroupNode(payload: unknown): CatalogTreeNode | null {
   if (!payload || typeof payload !== "object") {
     return null;
   }
   const record = payload as Record<string, unknown>;
-  if (record.kind === "root" || record.kind === "workspace" || record.kind === "project") {
-    return payload as GroupTreeNode;
+  if (record.kind === "workspace" || record.kind === "project") {
+    return payload as CatalogTreeNode;
   }
   const nested = record.data;
   if (nested && typeof nested === "object" && "kind" in nested) {
-    return nested as GroupTreeNode;
+    return nested as CatalogTreeNode;
   }
   return null;
 }
 
+function toGroupPayload(node: CatalogTreeNode): WorkspaceGroupOpenPayload {
+  return {
+    id: node.id,
+    parentId: node.parentId,
+    name: node.name,
+    icon: node.icon,
+    color: node.color,
+    locked: node.locked,
+  };
+}
+
+/** 在根下新建分组 */
 function openCreateRootGroup(): void {
-  groupDialog.value = { mode: "create", parentId: null };
+  groupDialogRef.value?.open();
 }
 
-function openCreateChildGroup(workspace: Workspace): void {
-  groupDialog.value = { mode: "create", parentId: workspace.id };
+/** 在指定分组下新建子分组 */
+function openCreateChildGroup(node: CatalogTreeNode): void {
+  groupDialogRef.value?.open({ parentId: node.id });
 }
 
-function openEditGroup(workspace: Workspace): void {
-  groupDialog.value = { mode: "edit", workspace };
+/** 打开编辑分组弹窗 */
+function openEditGroup(node: CatalogTreeNode): void {
+  groupDialogRef.value?.open(toGroupPayload(node));
 }
 
-function askDeleteGroup(workspace: Workspace): void {
-  if (workspace.locked) {
+/** 锁定分组直接提示；否则二次确认后删除 */
+function askDeleteGroup(node: CatalogTreeNode): void {
+  if (node.locked) {
     message.error(t("projectManager.lockedGroupDeleteBlocked"));
     return;
   }
   modal.confirm({
     title: t("projectManager.deleteGroupTitle"),
-    content: t("projectManager.deleteGroupQuestion", { name: workspace.name }),
+    content: t("projectManager.deleteGroupQuestion", { name: node.name }),
     icon: null,
     okType: "danger",
     okText: t("projectManager.deleteGroupAction"),
     async onOk() {
       try {
-        await useProjectStoreWithOut().removeWorkspace(workspace.id);
-        message.success(t("projectManager.deleteGroupSuccess", { name: workspace.name }));
+        await useProjectStoreWithOut().removeWorkspace(node.id);
+        message.success(t("projectManager.deleteGroupSuccess", { name: node.name }));
       } catch (error) {
         message.error(error);
         throw error;
@@ -264,22 +187,12 @@ function askDeleteGroup(workspace: Workspace): void {
   });
 }
 
-function handleGroupDialogOpen(open: boolean): void {
-  if (!open) {
-    groupDialog.value = null;
-  }
-}
-
-function handleSettingsOpen(open: boolean): void {
-  if (!open) {
-    settingsProject.value = null;
-  }
-}
-
+/** 同步 Tree 展开状态 */
 function handleExpandedKeysChange(keys: Array<string | number>): void {
   expandedKeys.value = keys;
 }
 
+/** 只把仓库节点记为选中，分组/根不选 */
 function handleSelectedKeysChange(keys: Array<string | number>): void {
   const key = keys[0];
   if (typeof key === "string" && key.startsWith("project:")) {
@@ -289,85 +202,79 @@ function handleSelectedKeysChange(keys: Array<string | number>): void {
   selectedProjectId.value = null;
 }
 
-function handleProjectMenuOpen(project: Project | undefined, open: boolean): void {
-  if (open && project) {
-    selectedProjectId.value = project.id;
+/** 右键打开仓库菜单时同步选中该行 */
+function handleProjectMenuOpen(projectId: string, open: boolean): void {
+  if (open) {
+    selectedProjectId.value = projectId;
   }
 }
 
-function handleWorkspaceMenuClick(workspace: Workspace): NonNullable<MenuProps["onClick"]> {
+/** 分组右键：新建子分组 / 编辑 / 删除 */
+function handleWorkspaceMenuClick(node: CatalogTreeNode): NonNullable<MenuProps["onClick"]> {
   return ({ key }) => {
     if (key === "create-child") {
-      openCreateChildGroup(workspace);
+      openCreateChildGroup(node);
       return;
     }
     if (key === "edit") {
-      openEditGroup(workspace);
+      openEditGroup(node);
       return;
     }
     if (key === "delete") {
-      askDeleteGroup(workspace);
+      askDeleteGroup(node);
     }
   };
 }
 
-function workspaceMenuItems(workspace: Workspace): MenuProps["items"] {
+/** 分组右键菜单项 */
+function workspaceMenuItems(node: CatalogTreeNode): MenuProps["items"] {
   return [
     {
       key: "create-child",
-      label: t("projectManager.createChildGroup", { name: workspace.name }),
-      disabled: props.disabled,
+      label: t("projectManager.createChildGroup", { name: node.name }),
     },
     {
       key: "edit",
       label: t("projectManager.editGroup"),
-      disabled: props.disabled,
     },
     { type: "divider" },
     {
       key: "delete",
-      label: workspace.locked
+      label: node.locked
         ? t("projectManager.lockedGroupDeleteBlocked")
         : t("projectManager.deleteGroup"),
       danger: true,
-      disabled: props.disabled || workspace.locked,
     },
   ];
 }
 
-function rootMenuItems(): MenuProps["items"] {
-  return [
-    {
-      key: "create",
-      label: t("projectManager.createGroup"),
-      disabled: props.disabled,
-    },
-  ];
+function projectById(id: string): Project | undefined {
+  return projectStore.findById(id);
 }
 
-function handleRootMenuClick(): NonNullable<MenuProps["onClick"]> {
-  return ({ key }) => {
-    if (key === "create") {
-      openCreateRootGroup();
+function handleProjectNodeMenuClick(projectId: string): NonNullable<MenuProps["onClick"]> {
+  return (info) => {
+    const project = projectById(projectId);
+    if (!project) {
+      return;
     }
+    handleMenuClick(project)(info);
   };
 }
 
+/** 从分组树打开仓库 */
 function openGroupProject(projectId: string): void {
-  if (props.disabled) {
-    return;
-  }
   selectedProjectId.value = projectId;
   emit("open", projectId);
 }
 
+/** 双击仓库节点打开 */
 function handleTreeDblClick(_event: MouseEvent, node: unknown): void {
   const groupNode = resolveGroupNode(node);
-  if (groupNode?.kind === "project" && groupNode.project) {
-    openGroupProject(groupNode.project.id);
+  if (groupNode?.kind === "project") {
+    openGroupProject(groupNode.id);
   }
 }
-
 </script>
 
 <template>
@@ -380,18 +287,13 @@ function handleTreeDblClick(_event: MouseEvent, node: unknown): void {
     </template>
     <template #extra>
       <Space>
-        <Input
-          v-model:value="filter"
-          :placeholder="t('repo.filter')"
-          :disabled="disabled"
-          allow-clear
-        >
+        <Input v-model:value="filter" :placeholder="t('repo.filter')" allow-clear>
           <template #prefix>
             <Icon name="Search" :size="14" />
           </template>
         </Input>
         <Tooltip :title="t('projectManager.createGroup')">
-          <Button :disabled="disabled" @click="openCreateRootGroup">
+          <Button @click="openCreateRootGroup">
             <template #icon>
               <Icon name="Plus" :size="16" />
             </template>
@@ -403,11 +305,11 @@ function handleTreeDblClick(_event: MouseEvent, node: unknown): void {
     <Spin :spinning="loading">
       <div ref="treeHostRef" class="h-[min(560px,calc(100vh-240px))] min-h-80">
         <Tree
-          :tree-data="treeData"
+          :tree-data="catalogTree"
+          :field-names="{ title: 'name', key: 'key', children: 'children' }"
           :height="treeHeight || undefined"
           :virtual="treeHeight > 0"
           block-node
-          :disabled="disabled"
           :expanded-keys="expandedKeys"
           :selected-keys="selectedKeys"
           @update:expanded-keys="handleExpandedKeysChange"
@@ -417,46 +319,28 @@ function handleTreeDblClick(_event: MouseEvent, node: unknown): void {
           <template #titleRender="payload">
             <template v-for="node in [resolveGroupNode(payload)]" :key="String(node?.key ?? '')">
               <Dropdown
-                v-if="node?.kind === 'root'"
+                v-if="node?.kind === 'workspace'"
                 :trigger="['contextmenu']"
-                :disabled="disabled"
-                :menu="{ items: rootMenuItems(), onClick: handleRootMenuClick() }"
-              >
-                <Space>
-                  <Icon name="Folder" :size="16" />
-                  <span>{{ t("projectManager.rootGroup") }}</span>
-                </Space>
-              </Dropdown>
-              <Dropdown
-                v-else-if="node?.workspace"
-                :trigger="['contextmenu']"
-                :disabled="disabled"
                 :menu="{
-                  items: workspaceMenuItems(node.workspace),
-                  onClick: handleWorkspaceMenuClick(node.workspace),
+                  items: workspaceMenuItems(node),
+                  onClick: handleWorkspaceMenuClick(node),
                 }"
               >
                 <div class="group/row flex w-full min-w-0 items-center">
                   <Space class="min-w-0 flex-1">
                     <Icon name="Folder" :size="16" />
-                    <span class="min-w-0 truncate font-medium">{{ node.workspace.name }}</span>
+                    <span class="min-w-0 truncate font-medium">{{ node.name }}</span>
                   </Space>
-                  <Space v-if="!disabled" class="opacity-0 group-hover/row:opacity-100" :size="0">
-                    <Tooltip
-                      :title="t('projectManager.createChildGroup', { name: node.workspace.name })"
-                    >
-                      <Button
-                        type="text"
-                        size="small"
-                        @click.stop="openCreateChildGroup(node.workspace)"
-                      >
+                  <Space class="opacity-0 group-hover/row:opacity-100" :size="0">
+                    <Tooltip :title="t('projectManager.createChildGroup', { name: node.name })">
+                      <Button type="text" size="small" @click.stop="openCreateChildGroup(node)">
                         <template #icon>
                           <Icon name="Plus" :size="14" />
                         </template>
                       </Button>
                     </Tooltip>
                     <Tooltip :title="t('projectManager.editGroup')">
-                      <Button type="text" size="small" @click.stop="openEditGroup(node.workspace)">
+                      <Button type="text" size="small" @click.stop="openEditGroup(node)">
                         <template #icon>
                           <Icon name="Pencil" :size="14" />
                         </template>
@@ -464,18 +348,12 @@ function handleTreeDblClick(_event: MouseEvent, node: unknown): void {
                     </Tooltip>
                     <Tooltip
                       :title="
-                        node.workspace.locked
+                        node.locked
                           ? t('projectManager.lockedGroupDeleteBlocked')
                           : t('projectManager.deleteGroup')
                       "
                     >
-                      <Button
-                        type="text"
-                        size="small"
-                        danger
-                        :disabled="node.workspace.locked"
-                        @click.stop="askDeleteGroup(node.workspace)"
-                      >
+                      <Button type="text" size="small" danger @click.stop="askDeleteGroup(node)">
                         <template #icon>
                           <Icon name="Trash2" :size="14" />
                         </template>
@@ -485,19 +363,14 @@ function handleTreeDblClick(_event: MouseEvent, node: unknown): void {
                 </div>
               </Dropdown>
               <Dropdown
-                v-else-if="node?.project"
+                v-else-if="node?.kind === 'project'"
                 :trigger="['contextmenu']"
-                :disabled="disabled"
-                :menu="{ items: menuItems, onClick: handleMenuClick(node.project) }"
-                @open-change="(open: boolean) => handleProjectMenuOpen(node.project, open)"
+                :menu="{ items: menuItems, onClick: handleProjectNodeMenuClick(node.id) }"
+                @open-change="(open: boolean) => handleProjectMenuOpen(node.id, open)"
               >
                 <Space>
-                  <Icon :name="node.project.icon" :size="14" />
-                  <HighlightText
-                    :text="node.project.name"
-                    :query="filter"
-                    class-name="min-w-0 truncate text-sm font-medium"
-                  />
+                  <Icon v-if="node.icon" :name="node.icon" :size="14" />
+                  <span class="min-w-0 truncate text-sm font-medium">{{ node.name }}</span>
                 </Space>
               </Dropdown>
             </template>
@@ -507,25 +380,5 @@ function handleTreeDblClick(_event: MouseEvent, node: unknown): void {
     </Spin>
   </Card>
 
-  <WorkspaceGroupDialog
-    v-if="groupDialog?.mode === 'create'"
-    :open="true"
-    mode="create"
-    :initial-parent-id="groupDialog.parentId"
-    @update:open="handleGroupDialogOpen"
-  />
-  <WorkspaceGroupDialog
-    v-if="groupDialog?.mode === 'edit'"
-    :open="true"
-    mode="edit"
-    :workspace="groupDialog.workspace"
-    @update:open="handleGroupDialogOpen"
-  />
-
-  <ProjectSettingsDialog
-    v-if="settingsProject"
-    :project="settingsProject"
-    :open="true"
-    @update:open="handleSettingsOpen"
-  />
+  <WorkspaceGroupDialog ref="groupDialogRef" />
 </template>

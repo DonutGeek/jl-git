@@ -258,6 +258,51 @@ pub async fn workspace_list(pool: State<'_, SqlitePool>) -> Result<WorkspaceList
         workspaces: db::list_workspaces(&pool).await?,
     })
 }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceTreeResult {
+    tree: Vec<db::WorkspaceTreeNode>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectCatalogTreeResult {
+    tree: Vec<db::CatalogTreeNode>,
+}
+
+/// 分组树；编辑上级时传 `excludeId` 排除自身及子孙
+#[tauri::command]
+pub async fn workspace_tree(
+    pool: State<'_, SqlitePool>,
+    exclude_id: Option<String>,
+) -> Result<WorkspaceTreeResult, AppError> {
+    let workspaces = db::list_workspaces(&pool).await?;
+    let exclude_id = exclude_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    Ok(WorkspaceTreeResult {
+        tree: db::build_workspace_tree(&workspaces, exclude_id),
+    })
+}
+
+/// 仪表盘分组/仓库混排树；`query` 只过滤仓库
+#[tauri::command]
+pub async fn project_catalog_tree(
+    pool: State<'_, SqlitePool>,
+    query: Option<String>,
+) -> Result<ProjectCatalogTreeResult, AppError> {
+    let workspaces = db::list_workspaces(&pool).await?;
+    let projects = db::list_projects(&pool, None).await?;
+    let query = query
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    Ok(ProjectCatalogTreeResult {
+        tree: db::build_catalog_tree(&workspaces, &projects, query),
+    })
+}
 #[tauri::command]
 pub async fn workspace_create(
     pool: State<'_, SqlitePool>,
@@ -346,6 +391,13 @@ pub async fn project_pick_directory(app: AppHandle) -> Result<PickDirectoryResul
         .transpose()?;
 
     Ok(PickDirectoryResult { path })
+}
+
+#[tauri::command]
+pub async fn recent_remove(pool: State<'_, SqlitePool>, id: String) -> Result<OkResult, AppError> {
+    db::remove_recent(&pool, &id).await?;
+
+    Ok(OkResult { ok: true })
 }
 
 #[tauri::command]

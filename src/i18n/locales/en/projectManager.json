@@ -7,8 +7,9 @@
   "groupsCount": "{{count}}",
   "groupName": "Repository group name",
   "groupNamePlaceholder": "Enter repository group name",
+  "groupNameRequired": "Enter a repository group name",
   "parentGroup": "Parent repository group",
-  "rootGroup": "Repository groups",
+  "parentGroupRequired": "Select a parent repository group",
   "groupIcon": "Icon",
   "groupColor": "Color",
   "groupColorPresets": "Preset colors",
@@ -41,7 +42,6 @@
   "lockedGroupDragBlocked": "Locked groups cannot be dragged",
   "lockedGroupMoveBlocked": "Cannot move repositories into or out of a locked group",
   "lockedGroupDeleteBlocked": "Unlock the group before deleting it",
-  "ungrouped": "Ungrouped",
   "workspaceLabel": "Repository group",
   "quickAddGroup": "Add group",
   "quickAddGroupTitle": "Add repository group",
@@ -91,5 +91,9 @@
   "deleteProject": "Delete",
   "deleteProjectTitle": "Delete repository record",
   "deleteProjectQuestion": "Remove “{{name}}” from JL Git?",
-  "deleteProjectSuccess": "Removed repository {{name}}"
+  "deleteProjectSuccess": "Removed repository {{name}}",
+  "removeFromRecent": "Remove from Recent",
+  "removeFromRecentTitle": "Remove from Recent",
+  "removeFromRecentQuestion": "Remove “{{name}}” from Recent? The repository stays registered.",
+  "removeFromRecentSuccess": "Removed {{name}} from Recent"
 }

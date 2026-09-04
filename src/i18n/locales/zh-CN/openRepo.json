@@ -2,6 +2,7 @@
   "title": "打开仓库",
   "pathLabel": "仓库路径",
   "pathPlaceholder": "请输入仓库路径",
+  "pathRequired": "请填写仓库路径",
   "pickButton": "选择",
   "aliasLabel": "仓库别名",
   "aliasPlaceholder": "请输入仓库别名",
@@ -14,7 +15,7 @@
   "descriptionNeedPath": "请先填写仓库路径",
   "submitButton": "打开",
   "saveAndContinue": "保存并继续",
-  "saveAndContinueSuccess": "已保存仓库「{{name}}」",
+  "success": "已保存仓库「{{name}}」",
   "existingTitle": "项目已存在",
   "existingOpen": "打开已有项目",
   "existingView": "查看已有项目"

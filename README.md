@@ -156,7 +156,7 @@ pnpm tauri build
 | Frontend | Vue 3、TypeScript、Vite |
 | UI | Tailwind CSS 4、antdv-next、`@/components/Icon`（morphicons + lucide） |
 | 状态与路由 | Pinia、Vue Router |
-| 表单与校验 | antdv-next Form、Zod |
+| 表单与校验 | antdv-next Form + rules |
 | HTTP | Axios（`src/api/` + `src/utils/http`） |
 | 数据 | SQLite、Tauri Store |
 | 编辑与列表 | Monaco Editor、TanStack Virtual（Vue） |

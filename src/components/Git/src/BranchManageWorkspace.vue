@@ -5,7 +5,7 @@ import { Button, Checkbox, Empty, Input, Tag, Tooltip } from "antdv-next";
 import dayjs from "dayjs";
 import { useI18n } from "vue-i18n";
 
-import { AppLoadingScreen, HighlightText } from "@/components/Common";
+import { AppLoadingScreen } from "@/components/Common";
 import { Icon } from "@/components/Icon";
 import AppWindowHeader from "@/layouts/page/AppWindowHeader.vue";
 import { ScrollArea } from "@/components/ScrollArea";
@@ -162,19 +162,15 @@ function openDelete(branch: GitBranch): void {
       h("div", { class: "flex flex-col gap-3" }, [
         h("p", t("repo.deleteBranchQuestion", { name: branch.name })),
         hasRemote
-          ? h(
-              "label",
-              { class: "flex items-center gap-2 text-sm" },
-              [
-                h(Checkbox, {
-                  checked: alsoRemote.value,
-                  "onUpdate:checked": (checked: boolean) => {
-                    alsoRemote.value = checked;
-                  },
-                }),
-                t("repo.deleteBranchRemoteCheckbox"),
-              ],
-            )
+          ? h("label", { class: "flex items-center gap-2 text-sm" }, [
+              h(Checkbox, {
+                checked: alsoRemote.value,
+                "onUpdate:checked": (checked: boolean) => {
+                  alsoRemote.value = checked;
+                },
+              }),
+              t("repo.deleteBranchRemoteCheckbox"),
+            ])
           : null,
       ]),
     async onOk() {
@@ -354,7 +350,7 @@ function deleteDisabledTitle(branch: GitBranch): string {
           :class="cn('grid items-center gap-2 px-3 py-1.5 text-xs', tableCols)"
         >
           <span class="flex min-w-0 items-center gap-1">
-            <HighlightText :text="branch.name" :query="search" class-name="truncate font-mono" />
+            <span class="truncate font-mono">{{ branch.name }}</span>
             <Tag v-if="branch.isCurrent" class="shrink-0 text-[10px]">
               {{ t("branchManage.currentBranch") }}
             </Tag>

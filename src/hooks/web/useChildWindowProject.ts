@@ -2,7 +2,7 @@ import { ref, watch } from "vue";
 
 import { useI18n } from "vue-i18n";
 
-import { projectService } from "@/services/project";
+import { listProjects } from "@/api/project";
 import { useProjectStoreWithOut } from "@/store/modules/project";
 import { toUserMessage } from "@/types/error";
 import type { Project } from "@/types/project";
@@ -41,8 +41,7 @@ export function useChildWindowProject(
       let active = true;
       loading.value = true;
       error.value = null;
-      void projectService
-        .list()
+      listProjects()
         .then((projects) => {
           const next = projects.find((item) => item.id === id);
           if (!next) {

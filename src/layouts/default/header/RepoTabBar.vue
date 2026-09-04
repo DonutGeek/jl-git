@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 
-import { Button, Input, Modal, Tooltip } from "antdv-next";
+import { Button, Form, FormItem, Input, Modal, Tooltip } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
@@ -18,6 +18,7 @@ import {
   scrollHorizontallyIntoView,
 } from "./repoLoadingLayout";
 import { useWindowChromeLayout } from "@/hooks/core/useWindowChromeLayout";
+import { useForm } from "@/hooks/web/useForm";
 import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
 import { gitService } from "@/services/git";
@@ -53,8 +54,19 @@ const optimisticActiveId = ref<string | null>(null);
 const canScrollTabsLeft = ref(false);
 const canScrollTabsRight = ref(false);
 const aliasTarget = ref<Project | null>(null);
-const aliasValue = ref("");
 const aliasBusy = ref(false);
+const {
+  form: aliasForm,
+  formInst: aliasFormInst,
+  rules: aliasRules,
+  resetForm: resetAliasForm,
+  validate: validateAlias,
+} = useForm(
+  () => ({ name: "" }),
+  () => ({
+    name: [{ required: true, whitespace: true, message: () => t("repo.tabAliasRequired") }],
+  }),
+);
 const scrollArea = ref<{ viewport: HTMLElement | null } | null>(null);
 
 const noDragStyle = { WebkitAppRegion: "no-drag" } as Record<string, string>;
@@ -350,8 +362,12 @@ async function submitAlias(): Promise<void> {
   if (!aliasTarget.value) {
     return;
   }
-  const next = aliasValue.value.trim();
-  if (!next || next === aliasTarget.value.name) {
+  if (!(await validateAlias())) {
+    return Promise.reject();
+  }
+  const next = aliasForm.name.trim();
+  if (next === aliasTarget.value.name) {
+    aliasTarget.value = null;
     return;
   }
   aliasBusy.value = true;
@@ -363,6 +379,17 @@ async function submitAlias(): Promise<void> {
     message.error(error);
   } finally {
     aliasBusy.value = false;
+  }
+}
+
+function openAliasDialog(project: Project): void {
+  aliasTarget.value = project;
+  resetAliasForm({ name: project.name });
+}
+
+function closeAliasDialog(): void {
+  if (!aliasBusy.value) {
+    aliasTarget.value = null;
   }
 }
 
@@ -469,12 +496,7 @@ function handleAddTab(): void {
                   }
                 "
                 @remove="(project) => void handleRemove(project)"
-                @set-alias="
-                  (project) => {
-                    aliasTarget = project;
-                    aliasValue = project.name;
-                  }
-                "
+                @set-alias="openAliasDialog"
                 @copy-remote="(project) => void handleCopyRemote(project)"
                 @copy-path="(project) => void handleCopyPath(project)"
               />
@@ -518,22 +540,18 @@ function handleAddTab(): void {
     :confirm-loading="aliasBusy"
     :ok-text="t('repo.tabAliasSave')"
     :cancel-text="t('common.cancel')"
-    :ok-button-props="{
-      disabled: !aliasValue.trim() || aliasValue.trim() === aliasTarget?.name,
-    }"
     @ok="submitAlias"
-    @cancel="
-      () => {
-        if (!aliasBusy) aliasTarget = null;
-      }
-    "
+    @cancel="closeAliasDialog"
   >
-    <Input
-      id="repository-tab-alias"
-      v-model:value="aliasValue"
-      :placeholder="t('openRepo.aliasPlaceholder')"
-      :disabled="aliasBusy"
-      @press-enter="submitAlias"
-    />
+    <Form :ref="aliasFormInst" :model="aliasForm" :rules="aliasRules" layout="vertical">
+      <FormItem name="name" required>
+        <Input
+          v-model:value="aliasForm.name"
+          :placeholder="t('openRepo.aliasPlaceholder')"
+          :disabled="aliasBusy"
+          @press-enter="submitAlias"
+        />
+      </FormItem>
+    </Form>
   </Modal>
 </template>

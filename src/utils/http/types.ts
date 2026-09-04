@@ -1,4 +1,4 @@
-import type { AxiosRequestConfig, AxiosResponse } from "axios";
+import type { AxiosAdapter, AxiosRequestConfig, AxiosResponse } from "axios";
 
 export type ResponseReturnMode = "body" | "raw";
 
@@ -21,6 +21,10 @@ export interface HttpAuthAccessor {
 export interface RequestClientOptions {
   baseURL: string;
   timeout?: number;
+  /** 自定义 Axios adapter；桌面端默认分流 HTTP / Tauri */
+  adapter?: AxiosAdapter;
+  /** 默认不带 Authorization（本地 Command） */
+  defaultSkipAuth?: boolean;
   getAccessToken?: () => string | undefined;
   onUnauthorized?: () => void | Promise<void>;
   onError?: (error: HttpRequestError) => void;

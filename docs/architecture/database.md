@@ -49,8 +49,8 @@ erDiagram
 | `id` | TEXT PK | UUID |
 | `parent_id` | TEXT NULL | 父分组 ID；NULL 表示根分组 |
 | `name` | TEXT NOT NULL | 显示名 |
-| `icon` | TEXT NOT NULL | Lucide kebab-case 图标名 |
-| `color` | TEXT NOT NULL | 分组强调色 `#RRGGBB` |
+| `icon` | TEXT NOT NULL DEFAULT `''` | Lucide kebab-case 图标名，可空；非空时做格式校验 |
+| `color` | TEXT NOT NULL DEFAULT `''` | 分组强调色 `#RRGGBB`，可空 |
 | `locked` | INTEGER NOT NULL DEFAULT 0 | 1=锁定：禁止拖动、移入/移出仓库、删除与调整父级 |
 | `sort_order` | INTEGER NOT NULL DEFAULT 0 | 排序 |
 | `created_at` | TEXT NOT NULL | ISO-8601 |
@@ -66,7 +66,7 @@ erDiagram
 | `workspace_id` | TEXT NULL | FK → workspaces.id |
 | `name` | TEXT NOT NULL | 默认取文件夹名，可改 |
 | `description` | TEXT NULL | 项目简介（可选；打开时可手填或 AI 生成） |
-| `icon` | TEXT NOT NULL DEFAULT `folder-git-2` | Lucide kebab-case 图标名；读写做格式校验 |
+| `icon` | TEXT NOT NULL DEFAULT `''` | Lucide kebab-case 图标名，可空；非空时做格式校验 |
 | `path` | TEXT NOT NULL UNIQUE | 规范化绝对路径 |
 | `remote_url` | TEXT NULL | 主远端 URL（优先 origin）；空串表示已探测且无远端；NULL 表示尚未写入 |
 | `last_opened_at` | TEXT NULL | 上次打开 |

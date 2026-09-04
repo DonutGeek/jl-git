@@ -17,7 +17,7 @@ import {
   useRepoStoreWithOut,
 } from "@/store/modules/repo";
 import { toUserMessage } from "@/types/error";
-import { DEFAULT_PROJECT_ICON, type Project } from "@/types/project";
+import type { Project } from "@/types/project";
 import type { RepoMainView } from "@/views/repo/utils/repoWorkspaceTypes";
 import type { SidebarView } from "@/utils/activityBarOrder";
 import { resolveRepoBootstrapMode, shouldShowRepoLoadingShell } from "@/utils/repoPageBootstrap";
@@ -42,7 +42,7 @@ export function createRepoBootstrapStub(projectId: string): Project {
     workspaceId: null,
     name: "",
     description: null,
-    icon: DEFAULT_PROJECT_ICON,
+    icon: "",
     path: projectId,
     remoteUrl: null,
     lastOpenedAt: null,

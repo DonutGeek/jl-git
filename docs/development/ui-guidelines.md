@@ -210,13 +210,38 @@ defineOptions({ name: "ExamplePanel" });
 - 完整应用设置用右侧 **Drawer**（保留当前仓库工作区），不要用 Modal 堆完整设置；也不强制跳转 `/settings` 路由页
 - 业务弹窗统一组合领域封装（基于 antdv-next `Modal`），禁止在各业务模块重复定义 `gap`、`padding`、标题字号与圆角
 - 普通编辑/创建使用 `<Modal>`（表单、多字段）
+- **可复用弹窗自己管开合**：内部 `visible` + `defineExpose({ open })`。`open(payload?)` 负责重置表单、写入入参、再打开。父组件只挂 `<XxxDialog ref="xxxDialogRef" @created="..." />`，调用 `xxxDialogRef.value?.open(payload)`。禁止外绑 `:open` / `v-model:open` / `:mode` / 整份业务对象来驱动弹窗
 - 二次确认必须用 `App.useApp().modal.confirm()`（经 `@/hooks/web/useModal`），与 `useMessage` 一样吃 ConfigProvider 主题和 antd 语言包。禁止静态 `Modal.confirm`，也禁止再手搓一套确认 `<Modal>`
 - 取消按钮走 antd locale（中文「取消」/ 英文 Cancel），不必手写 `cancelText`；危险操作用 `okType: "danger"`，不要装饰性警告图标（`icon: null`）
 - 复选项只保留其动作标签；标签已明确影响范围时，不再追加重复说明。仅当前不可用或规则不直观时才显示 `FieldDescription`
 - 宽度按信息量选择 `sm` / `md` / `lg` / `xl` / `2xl`，默认 `md`；同类任务必须使用同一档位
 - 业务表单必须局部导入 antdv-next 的 `Form`、`FormItem`、`Row`、`Col`；禁止 `<form>` + `<label>` 手搓栅格。纵向表单用 `layout="vertical"`
+- 提交表单：`useForm` 一个 `form` 对象 + antdv-next `rules`；`Form` 绑 `:ref="formInst"`、`:model="form"`、`:rules="rules"`。禁止每个字段一个 `ref`，禁止用 toast 代替字段校验
 - 表单字段纵向间距交给 `FormItem`；按钮区取消在前、主操作在后
 - 危险操作的主按钮必须使用 `destructive`，并在描述中明确影响范围与是否可恢复
+
+### 弹窗开合（硬性）
+
+```vue
+<!-- 父组件：不绑 open / mode -->
+<WorkspaceGroupDialog ref="groupDialogRef" @created="handleCreatedGroup" />
+```
+
+```ts
+groupDialogRef.value?.open(); // 新建
+groupDialogRef.value?.open({ id, name, parentId, icon, color, locked }); // 编辑
+```
+
+| 做 | 不做 |
+|----|------|
+| 弹窗内 `visible` + `defineExpose({ open })` | 父组件 `v-if` 两套弹窗（create / edit） |
+| `open(payload?)` 里 `resetForm` 再 `visible = true` | 外绑 `:open`、`:mode`、`:workspace` |
+| 结果用事件回传（`created` / `updated` / `confirm`） | 父组件同时持有一份与弹窗重复的表单草稿 |
+| 危险删除走 `useModal().confirm()` | 再做一个只为确认存在的 `<Modal>` |
+
+同文件内的一次性 Modal（如标签栏改别名）可用本地 `visible`，也应收成 `openXxx(payload)`，不要用「payload 是否为 null」兼开合开关。设置 Drawer 等壳层开合仍可走 Pinia。
+
+示例：`WorkspaceGroupDialog`、`ExistingProjectDialog`、打开仓库 / 克隆页的分组与「已存在」弹窗。
 
 ### 弹窗尺寸与用途
 

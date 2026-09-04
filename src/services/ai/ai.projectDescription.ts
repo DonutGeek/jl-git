@@ -1,10 +1,10 @@
 import { postDeepSeekChat } from "@/api/deepseek";
+import { getProjectProfileSnapshot } from "@/api/project";
 import { buildProjectDescriptionSystemPrompt } from "@/prompts/git";
 import { mapDeepSeekApiError } from "@/services/ai/ai.httpError";
 import { DEFAULT_UTILITY_MODEL } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getAgentKey } from "@/services/ai/ai.settings";
-import { getProjectProfileSnapshot } from "@/services/project/project.profile";
 
 import i18n from "@/i18n";
 import type { AppError } from "@/types/error";

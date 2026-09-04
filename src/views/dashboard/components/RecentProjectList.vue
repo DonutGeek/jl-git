@@ -2,22 +2,11 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { storeToRefs } from "pinia";
 
-import {
-  Card,
-  Dropdown,
-  Empty,
-  Input,
-  Listy,
-  Spin,
-  Tag,
-  Tooltip,
-  Typography,
-} from "antdv-next";
+import { Card, Dropdown, Empty, Input, Listy, Spin, Tag, Tooltip, Typography } from "antdv-next";
 import { useClipboard } from "@vueuse/core";
 import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
-import { ProjectSettingsDialog } from "@/components/Project";
 
 import { useMessage } from "@/hooks/web/useMessage";
 import { useProjectMenu } from "@/hooks/web/useProjectMenu";
@@ -46,11 +35,12 @@ const projectStore = useProjectStore();
 const { recentProjects: rows } = storeToRefs(projectStore);
 const filter = ref("");
 const loading = ref(false);
-const { menuItems, settingsProject, handleMenuClick } =
-  useProjectMenu({
-    onOpen: (projectId) => emit("open", projectId),
-  });
+const { menuItems, handleMenuClick } = useProjectMenu({
+  onOpen: (projectId) => emit("open", projectId),
+  deleteMode: "recent",
+});
 
+/** 解析主远端，列表右侧展示可复制的仓库名 */
 function remoteOf(project: Project) {
   const remoteUrl = project.remoteUrl?.trim();
   return remoteUrl ? parseRemoteRepository(remoteUrl) : null;
@@ -70,6 +60,7 @@ const filteredRows = computed(() => {
   }));
 });
 
+/** Listy 行键：项目 id */
 function getRowKey(item: RecentListRow): string {
   return item.project.id;
 }
@@ -82,6 +73,7 @@ onUnmounted(() => {
   mounted = false;
 });
 
+/** 同时拉登记仓库和最近打开记录 */
 async function loadRecentCatalog() {
   loading.value = true;
   try {
@@ -97,10 +89,12 @@ async function loadRecentCatalog() {
   }
 }
 
+/** 打开最近列表里的仓库 */
 function handleOpenProject(id: string): void {
   emit("open", id);
 }
 
+/** 复制远端 URL */
 async function copyRemoteUrl(url: string): Promise<void> {
   try {
     await copy(url);
@@ -142,6 +136,7 @@ async function copyRemoteUrl(url: string): Promise<void> {
               @click="handleOpenProject(project.id)"
             >
               <span
+                v-if="project.icon"
                 class="bg-muted text-muted-foreground group-hover:bg-muted-foreground/10 flex size-9 shrink-0 items-center justify-center rounded-md transition-colors"
               >
                 <Icon :name="project.icon" />
@@ -172,11 +167,4 @@ async function copyRemoteUrl(url: string): Promise<void> {
       </Listy>
     </Spin>
   </Card>
-
-  <ProjectSettingsDialog
-    v-if="settingsProject"
-    :project="settingsProject"
-    :open="true"
-    @update:open="(open: boolean) => !open && (settingsProject = null)"
-  />
 </template>

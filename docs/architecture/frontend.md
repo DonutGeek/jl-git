@@ -2,7 +2,7 @@
 
 > **相关文档：** [overview](overview.md) · [project-structure](../development/project-structure.md) · [state-management](../development/state-management.md) · [routing](../development/routing.md) · [coding-style](../development/coding-style.md)
 >
-> 工程结构与命名对齐 **work-center-web**；本地能力走 `services/` + Tauri，外部 HTTP 走 `api/` + Axios。
+> 工程结构与命名对齐 **work-center-web**；本地 Command 与外部 HTTP **只**走 `src/api/`。
 
 ---
 
@@ -11,7 +11,7 @@
 在 100+ 组件规模下仍保持：
 
 - 页面可组合、Feature 可替换
-- IO 集中在 Service
+- 后端 IO 集中在 `src/api/`
 - 样式与主题通过 Tokens，组件不关心色值来源
 - 路由页就近分层：camelCase 目录 + `index.vue` + `components/` + `hooks/` + `utils/`
 
@@ -25,8 +25,7 @@ src/layouts/*        壳布局（vben 2 目录）：default / page / iframe
 src/components/*     跨页面可复用 UI（PascalCase 封装目录或领域目录）
 src/hooks/*          应用级组合式（setting / web / core / event / component）
 src/store/*          Pinia（index.ts + plugin/ + modules/）
-src/services/*       Tauri / 持久化门面（Git / FS / SQLite）
-src/api/*            外部 HTTP（Axios / requestClient）
+src/api/*            后端接口：本地 Command 与外部 HTTP，均走 requestClient
 src/types/*          跨模块 DTO 与领域类型
 src/utils/*          纯函数工具；HTTP 封装在 utils/http/
 src/locales/*        vue-i18n
@@ -60,45 +59,44 @@ flowchart TB
   views --> components
   components --> hooks
   components --> store
-  hooks --> services
   hooks --> store
-  views --> services
   views --> api
   hooks --> api
-  services --> types
   api --> types
   components --> types
 ```
 
 禁止：
 
-- `services` / `api` 导入 `components` / `views`
+- `api` 导入 `components` / `views`
 - `utils` 导入 Vue 组件
 - 可复用 `components/*` 导入某个 `views/*` 的私有实现
 - View / 组件内直接 `axios.create` 或 `invoke`
 
 ---
 
-## 与 Service 的边界
+## 与 api 的边界
 
 ```ts
-// 允许：View / Hook — 本地 Git
-await gitService.getStatus(repoPath)
-
-// 允许：View / Hook — 外部 HTTP
-await fetchAiModels()
+// 允许：View / Hook / Store
+await listProjects()
+await getWorkspaceTree()
+await getStatus(repoPath)
+await getDeepSeekModels(...)
 
 // 禁止：Component 内直接
 await invoke("git_status", { repoPath })
 await axios.get("/v1/models")
 ```
 
-例外：`services/invoke.ts` 与 `utils/http` 可统一处理日志与错误。页面只调用 `services/*` 或 `api/*`。
+例外：`utils/http` 统一 Axios（含 Tauri adapter）。页面只调用 `src/api/`。
 
-- AI、托管平台、余额等网络请求放 `src/api/`，复用 `requestClient`
-- Git / FS / SQLite / 窗口仍放 `src/services/`
+- 本地 Command：`src/api/` + 小驼峰地址，如 `requestClient.get("projectList")`、`requestClient.post("gitStatus", { path })`
+- 外部 HTTP：同一套 `requestClient`，完整 `https://` URL
+- 禁止为同一个 Command 再写 `services` 1:1 包装
+- 非接口逻辑（主题写 DOM、开子窗、Agent 循环）放 `hooks/` / `utils/`
 
-Service 契约见 [api/](../api/git.md)。
+接口契约见 [api/](../api/git.md)。
 
 ---
 
@@ -109,7 +107,7 @@ Service 契约见 [api/](../api/git.md)。
 | 输入框草稿 | Local state（`ref`） |
 | 当前选中文件路径 | Pinia（仓库会话） |
 | 主题偏好 | Store + persist / Tauri Store |
-| 已保存项目列表 | SQLite → 经 ProjectService 加载到 Store |
+| 已保存项目列表 | SQLite → 经 `src/api/project` 加载到 Store |
 | `git status` 结果 | Pinia 缓存，以 Git 为准可刷新 |
 
 详见 [state-management](../development/state-management.md)。
@@ -129,9 +127,12 @@ Service 契约见 [api/](../api/git.md)。
 
 ## 表单与校验
 
-- antdv-next `Form` 管理表单状态与校验展示
-- Zod 定义 schema，与 TypeScript 类型同源（`z.infer`）
+- 业务提交表单用 `useForm`：一个 reactive `form` 对象放字段，校验用 antdv-next `rules`
+- `Form` 必须绑 `:model` + `:rules`（无 `model` 时 `@finish` 不会触发）；主提交走 `@finish`，次按钮先 `validate()`
+- 瞬时状态（loading / picking）可留独立 `ref`，不要每个字段一个 `ref`
+- 字段错误展示在 `FormItem` 上，禁止用 `message.error` 代替必填校验
 - 提交时在 Service 前完成客户端校验；服务端（Rust）仍做路径与权限校验
+- **弹窗表单**：弹窗组件 `defineExpose({ open })`，父组件 `ref.open(payload)`；禁止外绑 `:open` / `mode`。二次确认走 `useModal().confirm()`。细则见 [ui-guidelines · 弹窗开合](../development/ui-guidelines.md#弹窗开合硬性)
 
 ---
 
@@ -153,7 +154,7 @@ Service throw / Result
 | 层 | 测什么 |
 |----|--------|
 | utils | 纯函数 |
-| services | mock `invoke` |
+| api | mock `requestClient` |
 | components | 交互与可访问性（后续） |
 | views | 轻量集成 |
 
@@ -163,7 +164,7 @@ Service throw / Result
 
 ## 扩展：AI 与托管平台
 
-- AI 面板作为 Feature，网络请求经 `api/ai`，本地会话持久化仍可走 `services/`
-- GitHub 等集成经 `api/hosting`，UI 只消费「PR / Issue」视图模型
+- AI 面板作为 Feature，网络请求经 `api/`，会话持久化走对应 Command 接口
+- GitHub 等集成经 `api/`，UI 只消费「PR / Issue」视图模型
 
 产品说明：[ai](../product/ai.md)

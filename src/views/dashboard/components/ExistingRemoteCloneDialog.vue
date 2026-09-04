@@ -1,34 +1,56 @@
 <script setup lang="ts">
+import { ref } from "vue";
+
 import { Modal } from "antdv-next";
 import { useI18n } from "vue-i18n";
 
 import { ScrollArea } from "@/components/ScrollArea";
+
 import type { ProjectRemoteMatch } from "@/types/project";
 import { withSoftWrapOpportunities } from "@/utils/softWrapText";
 
 defineOptions({ name: "ExistingRemoteCloneDialog" });
 
-defineProps<{
-  open: boolean;
-  matches: ProjectRemoteMatch[];
-}>();
-
 const emit = defineEmits<{
-  "update:open": [open: boolean];
-  continue: [];
+  continue: [openAfter: boolean];
 }>();
 
 const { t } = useI18n();
+const visible = ref(false);
+const matches = ref<ProjectRemoteMatch[]>([]);
+const pendingOpenAfter = ref(true);
+
+function open(nextMatches: ProjectRemoteMatch[], openAfter = true): void {
+  matches.value = nextMatches;
+  pendingOpenAfter.value = openAfter;
+  visible.value = true;
+}
+
+function handleOpenChange(next: boolean): void {
+  visible.value = next;
+  if (!next) {
+    matches.value = [];
+  }
+}
+
+function handleOk(): void {
+  const openAfter = pendingOpenAfter.value;
+  visible.value = false;
+  matches.value = [];
+  emit("continue", openAfter);
+}
+
+defineExpose({ open });
 </script>
 
 <template>
   <Modal
-    :open="open"
+    :open="visible"
     :title="t('cloneRepo.existingRemoteTitle')"
     :ok-text="t('cloneRepo.existingRemoteContinue')"
     :cancel-text="t('common.cancel')"
-    @update:open="(next: boolean) => emit('update:open', next)"
-    @ok="emit('continue')"
+    @update:open="handleOpenChange"
+    @ok="handleOk"
   >
     <div class="space-y-2 text-sm">
       <ScrollArea class="border-border max-h-40 rounded-md border">
