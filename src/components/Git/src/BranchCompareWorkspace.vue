@@ -10,7 +10,7 @@ import AppWindowHeader from "@/layouts/page/AppWindowHeader.vue";
 import ResizableSplit from "@/layouts/default/components/ResizableSplit.vue";
 import { ScrollArea } from "@/components/ScrollArea";
 import { cn } from "@/lib/utils";
-import { getBranchCompare, getBranchFileDiff, getCommit, getLog } from "@/services/git";
+import { getBranchCompare, getBranchFileDiff, getCommit, getLog } from "@/api/git";
 import { toUserMessage } from "@/types/error";
 import type {
   BranchCompareMode,

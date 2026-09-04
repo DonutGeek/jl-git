@@ -4,7 +4,7 @@ import { mapDeepSeekApiError } from "@/services/ai/ai.httpError";
 import { readCommitModelId } from "@/services/ai/ai.models";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getAgentKey, getAiInstructions } from "@/services/ai/ai.settings";
-import { getCommitPatchDiff, getStagedDiff } from "@/services/git/git.diff";
+import { getCommitPatchDiff, getStagedDiff } from "@/api/git/diff";
 
 import i18n from "@/i18n";
 import type { AppError } from "@/types/error";

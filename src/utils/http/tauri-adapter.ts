@@ -20,9 +20,18 @@ export function toTauriCommand(url: string): string {
   });
 }
 
-/** 只有绝对 http(s) URL 走真实 HTTP；小驼峰地址即使实例有 baseURL 也走 Tauri */
+/**
+ * 绝对 http(s) URL 与 `/api/` 前缀走真实 HTTP（内嵌 Axum 服务）；
+ * 小驼峰地址即使实例有 baseURL 也走 Tauri Command，使两种通道在增量迁移期共存。
+ */
 export function isRemoteHttpRequest(config: { url?: string }): boolean {
-  return /^https?:\/\//i.test(config.url ?? "");
+  const url = config.url ?? "";
+  return /^https?:\/\//i.test(url) || url.startsWith("/api/");
+}
+
+/** 是否为内嵌服务的 REST 请求（响应体带统一信封） */
+export function isEnvelopeRequest(config: { url?: string }): boolean {
+  return (config.url ?? "").startsWith("/api/");
 }
 
 function omitUndefined(value: Record<string, unknown>): Record<string, unknown> {

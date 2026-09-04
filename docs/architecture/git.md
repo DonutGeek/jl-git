@@ -15,8 +15,8 @@
 ## 执行链路
 
 ```
-GitService.* 
-  → invoke("git_*")
+src/api/git
+  → requestClient.post("gitStatus", { path })
     → commands/git.rs
       → git/runner.rs（拼装 args、执行、超时）
         → git/<op>.rs（解析 stdout → DTO）

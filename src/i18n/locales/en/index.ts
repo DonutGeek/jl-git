@@ -15,6 +15,7 @@ import projectManager from "./projectManager.json";
 import repo from "./repo.json";
 import multiAgent from "./multiAgent.json";
 import settings from "./settings.json";
+import setup from "./setup.json";
 import statusBar from "./statusBar.json";
 
 /** 按域拆分的英文文案，合并为 translation 资源树 */
@@ -23,6 +24,7 @@ const en = {
   statusBar,
   opLog,
   settings,
+  setup,
   dashboard,
   projectManager,
   openRepo,

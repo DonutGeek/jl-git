@@ -7,7 +7,7 @@ import { useI18n } from "vue-i18n";
 
 import { Icon } from "@/components/Icon";
 import { ScrollArea } from "@/components/ScrollArea";
-import { getAppInfo, type SystemAppInfo } from "@/services/system/system.info";
+import { getAppInfo, type SystemAppInfo } from "@/api/system/system.info";
 import {
   useAppPrefsStore,
   useAppPrefsStoreWithOut,

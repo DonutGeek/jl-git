@@ -11,6 +11,7 @@ import { initLocale } from "@/store/modules/locale";
 import { startOpLogListener } from "@/store/modules/opLog";
 import { initTheme } from "@/store/modules/theme";
 import { disableNativeContextMenu } from "@/utils/disableNativeContextMenu";
+import { bootstrapLocalServer } from "@/utils/localServerBootstrap";
 
 import "./index.css";
 
@@ -21,6 +22,9 @@ disableNativeContextMenu();
 void startOpLogListener();
 
 async function bootstrap(): Promise<void> {
+  // 先接通本地服务并探明数据库就绪状态，路由守卫才能正确决定首屏
+  await bootstrapLocalServer();
+
   const app = createApp(App);
 
   setupStore(app);

@@ -4,7 +4,28 @@
 
 本文是 **Command 契约的唯一真相源**。前端 `src/api/` 用小驼峰地址（如 `projectList`），Axios adapter 转为本文的 snake_case 名；字段变更需同步 API 文档与 CHANGELOG。
 
-通用错误形状：
+## 与内嵌 HTTP 服务的分工
+
+本地后端有两条通道，前端都在 `src/api/` 以 `requestClient` 声明，按地址分流（见 [ADR-3](overview.md#adr-3本地后端用内嵌-axum-http-服务而非只用-tauri-command)）：
+
+| 地址形态 | 通道 | 用途 | 契约文档 |
+|----------|------|------|----------|
+| `/api/*` | 内嵌 Axum HTTP | 数据类接口（分层 Handler → Service → Repository） | 按域的 api 文档，如 [api/setup](../api/setup.md) |
+| 小驼峰（`gitStatus`） | Tauri Command | Git / FS / 系统能力，以及尚未迁移的数据接口 | **本文** |
+| `https://…` | 外部 HTTP | AI / 托管平台 | 各自 api 文档 |
+
+**迁移状态**：
+
+| 域 | 现状 |
+|----|------|
+| `setup`（数据库配置向导） | 已在 HTTP：`/api/setup/*`，无对应 Command |
+| `health` | 已在 HTTP：`/api/health` |
+| `project` / `workspace` / `chat` / `app_data` | **仍在 Command**；Rust 内部已按 Handler-less 的 Service / Repository 分层重写，Command 只是薄壳，迁 HTTP 时只需加 Handler + 路由 |
+| `git` / `system` / `ssh` | 留在 Command（进程与文件系统能力，不适合 REST 化） |
+
+新增**数据类**接口应直接落在 `/api/*`，不要再加 Command。
+
+## 通用错误形状
 
 ```ts
 interface AppError {
@@ -16,16 +37,18 @@ interface AppError {
     | "GIT_TIMEOUT"
     | "GIT_AUTH"
     | "DB_ERROR"
+    | "DB_NOT_CONFIGURED"
     | "NOT_FOUND"
     | "VALIDATION"
     | "CANCELLED"
+    | "NOT_SUPPORTED"
     | "INTERNAL";
   message: string;
   details?: string;
 }
 ```
 
-未额外说明时，失败均返回 `AppError`。
+未额外说明时，失败均返回 `AppError`。Command 通道直接抛出该结构；HTTP 通道由 `requestClient` 从响应信封里解出同一结构，因此前端的 `catch` 写法两边一致。
 
 ---
 
@@ -73,8 +96,18 @@ interface AppError {
 |--|--|
 | **目的** | 返回应用数据目录等标准路径 |
 | **输入** | `{}` |
-| **输出** | `{ appData: string; dbUrl: string }` |
+| **输出** | `{ appData: string; dbUrl: string }`（`dbUrl` 为 PostgreSQL 连接描述，不含口令） |
 | **错误** | `INTERNAL` |
+
+### `server_info`
+
+| | |
+|--|--|
+| **目的** | 下发内嵌 Axum 服务的端口与本次启动的一次性令牌；前端引导阶段据此设置 `requestClient` 的 baseURL 与 Bearer |
+| **输入** | `{}` |
+| **输出** | `{ port: number; token: string; baseUrl: string }` |
+| **错误** | `INTERNAL`（服务未启动） |
+| **约束** | 令牌仅存于进程内存，每次启动重新生成；**不得**写日志或落盘 |
 
 ---
 
@@ -730,7 +763,7 @@ interface GitBranch {
 
 ## SSH 密钥
 
-前端经 `src/services/ssh/ssh.keys.ts`；登记元数据进 Tauri Store（`ssh-keys.json`），**不**存私钥内容与口令。主窗启动（`applyLocalMachineBootstrap`）与设置 → SSH 均会调用 `ssh_key_scan_local` 自动补登记尚未在列表中的本地密钥。
+前端经 `src/api/ssh.ts`；登记元数据进 Tauri Store（`ssh-keys.json`），**不**存私钥内容与口令。主窗启动（`applyLocalMachineBootstrap`）与设置 → SSH 均会调用 `ssh_key_scan_local` 自动补登记尚未在列表中的本地密钥。
 
 ### `ssh_key_generate`
 
@@ -785,25 +818,31 @@ interface GitBranch {
 
 ## 应用数据
 
-### `app_data_paths` / `app_data_reveal` / `app_data_clear` / `app_data_export` / `app_data_import`
+### `app_data_paths` / `app_data_reveal` / `app_data_clear`
 
-设置「数据」分类：路径、清理、完整备份。前端经 `src/services/data/data.service.ts`。
+设置「数据」分类：路径与清理。前端经 `src/api/data.ts`。
 
 | 命令 | 输入 | 输出 |
 |------|------|------|
 | `app_data_paths` | `{}` | `{ appDataDir, databasePath }` |
 | `app_data_reveal` | `{ input: { target: "dir" \| "database" } }` | `{ ok: true }` |
 | `app_data_clear` | `{ input: { module } }` | `{ ok: true }` |
-| `app_data_export` | `{ input: { destPath, localStorage } }` | `{ ok: true }` |
-| `app_data_import` | `{ input: { sourcePath } }` | `{ ok, localStorage, requiresRestart }` |
 
-`module`：`agent_chats` · `multi_agent_chats` · `ai_secrets` · `git_accounts` · `multi_agent_identity` · `ui_prefs` · `open_tabs` · `all_app_data`（不含 projects/workspaces）· `factory_reset`（出厂重置：含清空已登记仓库/工作区、API Key、Git 账号、SSH 登记列表、插件偏好；不含磁盘仓库与 `~/.ssh`）。清理 Store 时**删除**对应 json，并由前端先清空 LazyStore 再丢弃单例，避免内存缓存写回。导入 DB 写入 `jlgit.db.pending`，下次启动替换。
+`databasePath` 在 PostgreSQL 下返回连接描述（`host:port/database`）而非文件路径；`app_data_reveal` 的 `target: "database"` 因此只能定位应用数据目录。
+
+`module`：`agent_chats` · `multi_agent_chats` · `ai_secrets` · `git_accounts` · `multi_agent_identity` · `ui_prefs` · `open_tabs` · `all_app_data`（不含 projects/workspaces）· `factory_reset`（出厂重置：含清空已登记仓库/工作区、API Key、Git 账号、SSH 登记列表、插件偏好；不含磁盘仓库与 `~/.ssh`）。清理 Store 时**删除**对应 json，并由前端先清空 LazyStore 再丢弃单例，避免内存缓存写回。
+
+### `app_data_export` / `app_data_import`（已下线）
+
+整库备份依赖 SQLite 单文件快照（`VACUUM INTO`）与启动时替换库文件，切到 PostgreSQL 后两者都不再成立。两个 Command 保留但**恒定返回 `NOT_SUPPORTED`**，供旧调用方拿到明确报错而非「命令不存在」；前端已移除对应封装与入口。
+
+整库备份改用 `pg_dump` / `pg_restore`，见 [database](database.md#备份与隐私)。
 
 ## AI
 
 ### `chat_list_conversations` / `chat_upsert_conversation` / `chat_delete_conversation` / `chat_reorder_conversations`
 
-多轮对话（单仓 / 多仓鲸灵）持久化。前端经 `src/services/ai/ai.chatPersist.ts` 调用。
+多轮对话（单仓 / 多仓鲸灵）持久化。前端经 `src/api/chat.ts` 调用。
 
 | 命令 | 输入 | 输出 |
 |------|------|------|
@@ -822,7 +861,7 @@ interface GitBranch {
 | `ai_history_add` | `{ projectId?; kind; inputSummary; output; model? }` | `{ item }` |
 | `ai_history_clear` | `{ projectId? }` | `{ ok: true }` |
 
-模型推理可在前端 SDK 或后续 `ai_complete` Command 中代理；密钥不落 SQLite。见 [ai](../product/ai.md)。
+模型推理可在前端 SDK 或后续 `ai_complete` Command 中代理；密钥不落数据库。见 [ai](../product/ai.md)。
 
 ---
 

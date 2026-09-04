@@ -22,7 +22,7 @@
 | File | Role |
 |------|------|
 | `src-tauri/src/git/grep.rs` + command | `git_grep` 受限搜索 |
-| `src/services/git/git.grep.ts` | 前端 Service |
+| `src/api/git/grep.ts` | 前端 Git 搜索接口 |
 | `src/services/agent/agent.codePolicy.ts` | Deny / 限长 / 路径策略 |
 | `src/services/ai/ai.tools.ts` | Tool schema + execute |
 | `src/services/ai/ai.toolLoop.ts` | 非流式工具环 + 最终流式 |

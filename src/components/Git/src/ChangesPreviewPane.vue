@@ -10,7 +10,7 @@ import MaterialFileIcon from "./MaterialFileIcon.vue";
 import { ScrollArea } from "@/components/ScrollArea";
 import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
-import { gitService } from "@/services/git";
+import { gitService } from "@/api/git";
 import { openFileHistoryWindow } from "@/services/window/historyWindows";
 import { useRepoStore } from "@/store/modules/repo";
 import { toUserMessage } from "@/types/error";

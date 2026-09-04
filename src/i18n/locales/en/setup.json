@@ -1,0 +1,58 @@
+{
+  "title": "Setup",
+  "heading": "Configure the database",
+  "steps": {
+    "detect": "Environment",
+    "connect": "Connection",
+    "init": "Initialize",
+    "done": "Done"
+  },
+  "actions": {
+    "back": "Back",
+    "next": "Next",
+    "recheck": "Check again",
+    "test": "Test connection",
+    "init": "Start initialization",
+    "retry": "Retry",
+    "enter": "Open JLGit",
+    "download": "Download PostgreSQL"
+  },
+  "detect": {
+    "title": "Detect local PostgreSQL",
+    "success": "Detection complete",
+    "port": "Default port ({host}:{port})",
+    "portReachable": "Reachable",
+    "portUnreachable": "Unreachable",
+    "psql": "psql CLI",
+    "psqlMissing": "Not found in PATH"
+  },
+  "form": {
+    "host": "Host",
+    "port": "Port",
+    "user": "User",
+    "password": "Password",
+    "database": "Database",
+    "passwordPlaceholder": "Leave empty if there is no password",
+    "required": {
+      "host": "Host is required",
+      "port": "Port is required",
+      "user": "User is required",
+      "database": "Database name is required"
+    },
+    "databasePattern": "Only letters, digits and underscore; cannot start with a digit"
+  },
+  "test": {
+    "success": "Connected"
+  },
+  "init": {
+    "title": "Create the database and apply the schema",
+    "running": "Initializing…",
+    "success": "Initialization complete"
+  },
+  "done": {
+    "title": "Setup complete",
+    "subtitle": "The database is connected. You can start using JLGit now.",
+    "saveFailed": "Failed to save the configuration"
+  },
+  "backupRemoved": "Backup and import are unavailable after switching to PostgreSQL. Use pg_dump / pg_restore instead."
+}

@@ -1,4 +1,4 @@
-import { getCommit, getCommitFileDiff, getLog, listTree, readWorktreeFile } from "@/services/git";
+import { getCommit, getCommitFileDiff, getLog, listTree, readWorktreeFile } from "@/api/git";
 import {
   extractTechFromPackageJson,
   filterTechByAuthorUsage,

@@ -1,19 +1,29 @@
-//! JLGit 桌面端入口：挂载插件、SQLite、菜单，并注册前端经 `src/services` 调用的 Command。
-//! 不要在这里堆业务；Git / 项目 / 系统能力分别在 `git/`、`commands/`、`db/`。
+//! JLGit 桌面端入口：挂载插件、启动内嵌 Axum 服务、注册 Command。
+//! 不要在这里堆业务；分层是 server → handlers → services → repositories。
 
 mod commands;
-mod db;
 mod error;
 mod git;
+mod handlers;
 #[cfg(target_os = "macos")]
 mod menu;
+mod models;
 mod process_cmd;
+mod repositories;
+mod server;
+mod services;
+mod state;
 mod system;
 mod system_browsers;
 #[cfg(windows)]
 mod system_windows;
 
-use tauri::Manager;
+use serde::Serialize;
+use tauri::{Manager, RunEvent};
+
+use crate::error::AppError;
+use crate::server::ServerHandle;
+use crate::state::AppState;
 
 /// 脚手架遗留，前端未调用；保留以免旧 capability 清单对不上。
 #[tauri::command]
@@ -21,11 +31,28 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerInfo {
+    pub port: u16,
+    pub token: String,
+    pub base_url: String,
+}
+
+/// 前端引导阶段唯一需要的 Command：拿到本地服务地址与一次性凭据。
+#[tauri::command]
+fn server_info(handle: tauri::State<'_, ServerHandle>) -> Result<ServerInfo, AppError> {
+    Ok(ServerInfo {
+        port: handle.port,
+        token: handle.token.clone(),
+        base_url: format!("http://127.0.0.1:{}", handle.port),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -46,28 +73,19 @@ pub fn run() {
 
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
-            // 导入备份后的待替换库：须在建立连接前应用
-            let pending_database_swap = db::apply_pending_database(&app_data_dir)
-                .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)?;
-            let db_path = app_data_dir.join("jlgit.db");
-            let pool = match tauri::async_runtime::block_on(db::connect(&db_path)) {
-                Ok(pool) => {
-                    if let Some(swap) = pending_database_swap {
-                        // 清理失败只会保留一份可恢复旧库，不应阻断已验证的新库启动。
-                        let _ = swap.complete();
-                    }
-                    pool
-                }
-                Err(error) => {
-                    if let Some(swap) = pending_database_swap {
-                        swap.rollback()
-                            .map_err(|rollback| Box::new(rollback) as Box<dyn std::error::Error>)?;
-                    }
-                    return Err(Box::new(error) as Box<dyn std::error::Error>);
-                }
-            };
 
-            app.manage(pool);
+            let state = AppState::new(app_data_dir, server::generate_token());
+            // 已配通过数据库时静默恢复连接池；未配通则由向导接管
+            let restore_state = state.clone();
+            tauri::async_runtime::spawn(async move {
+                services::setup::restore_saved_pool(&restore_state).await;
+            });
+
+            // bind 是同步的，失败会在此变成启动错误而非后台静默失败
+            let handle = server::start(state.clone())
+                .map_err(|error| Box::new(error) as Box<dyn std::error::Error>)?;
+            app.manage(handle);
+            app.manage(state);
 
             // macOS 保留系统应用菜单；Windows / Linux 不挂应用菜单，
             // 仅保留原生标题栏与系统窗口按钮。
@@ -80,6 +98,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             greet,
+            server_info,
             commands::project::project_list,
             commands::project::project_add,
             commands::project::project_check_uniqueness,
@@ -190,6 +209,23 @@ pub fn run() {
             commands::ssh_keys::ssh_key_scan_local,
             commands::ssh_keys::ssh_key_read_public
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app, event| match event {
+        // 退出请求阶段发关闭信号，让 Axum 停止接收新连接
+        RunEvent::ExitRequested { .. } => {
+            if let Some(handle) = app.try_state::<ServerHandle>() {
+                handle.shutdown();
+            }
+        }
+        // 真正退出前带超时等待收尾，避免端口残留
+        RunEvent::Exit => {
+            if let Some(handle) = app.try_state::<ServerHandle>() {
+                handle.shutdown();
+                handle.wait_for_exit();
+            }
+        }
+        _ => {}
+    });
 }

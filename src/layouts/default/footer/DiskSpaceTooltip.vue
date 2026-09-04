@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { formatBytes } from "@/utils/formatBytes";
 import { withSoftWrapOpportunities } from "@/utils/softWrapText";
 
-import type { SystemDiskSpace } from "@/services/system/system.info";
+import type { SystemDiskSpace } from "@/api/system/system.info";
 
 defineOptions({ name: "DiskSpaceTooltip" });
 

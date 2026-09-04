@@ -11,7 +11,7 @@ import ResizableSplit from "@/layouts/default/components/ResizableSplit.vue";
 import { ScrollArea } from "@/components/ScrollArea";
 import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
-import { getCommitFileDiff, getLog } from "@/services/git";
+import { getCommitFileDiff, getLog } from "@/api/git";
 import { openCommitHistoryWindow } from "@/services/window/historyWindows";
 import { toUserMessage } from "@/types/error";
 import type { GitCommitSummary, GitDiffResult } from "@/types/git";

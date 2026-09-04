@@ -1,6 +1,6 @@
 import i18n from "@/i18n";
 import type { AgentAuthorFilter } from "@/services/agent/agent.profile";
-import { getGlobalIdentity, getIdentity } from "@/services/git/git.identity";
+import { getGlobalIdentity, getIdentity } from "@/api/git/identity";
 import type { AgentChatMessage } from "@/types/ai";
 import type { GitIdentity } from "@/types/git";
 

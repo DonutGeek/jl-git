@@ -107,6 +107,8 @@ defineOptions({ name: "ExamplePanel" });
 - 统一走 antdv-next 的 `message` / `notification`：组件与 composable 用 `useMessage()` / `useNotification()`（内部 `App.useApp()`），禁止静态 `import { message }` / `import { notification }`
 - 必须接入 JLGit 的 `light` / `dark` / `system` 昼夜模式（样式以 antdv-next 为准）
 - Toast 错误直接 `message.error(error)`，不要再套 `toUserMessage`
+- **一个操作只有一条固定文案（硬性）**：禁止按返回结果分支出多种 toast，也禁止把动态结果（版本号、条数、是否已存在、是否新建）拼进文案。toast 只回答「成功了没有」，可变信息放界面本体（表格、Tag、Result 页、详情区）
+- 不同操作各自一条固定文案不算分支：新建 / 编辑、删除 / 移出最近本就是两个动作，可以各有各的成功提示
 - 正文、操作按钮与可访问文本必须走 i18n，并同时维护 `zh-CN`、`en`
 
 ### 滚动区域（硬性）
@@ -413,6 +415,7 @@ groupDialogRef.value?.open({ id, name, parentId, icon, color, locked }); // 编�
 - [ ] 悬停 / 激活 / 禁用态可区分；**光标符合约定**（可点 pointer、分隔线 col/row-resize）
 - [ ] 空状态与加载态已覆盖主路径
 - [ ] 异步操作有防重复与错误提示
+- [ ] 同一操作的成功 toast 只有一条固定文案（无按结果分支、无拼接动态值）
 - [ ] 分隔线悬停有视觉反馈且**不挤动布局**
 - [ ] 面板主滚动使用统一滚动封装（无裸 `overflow-*-auto` 交付）
 - [ ] antdv-next 均为局部导入（无 `app.use()`，无 `ant-design-vue`）
@@ -432,3 +435,4 @@ groupDialogRef.value?.open({ id, name, parentId, icon, color, locked }); // 编�
 - 悬停加粗导致内容左右抖动
 - 为「炫技」加入与任务无关的长动画
 - 右键菜单同类动作顺序/图标不一致（违反 §2.3）
+- 同一操作的 toast 按返回结果拼出多种文案（版本号、是否已存在、条数等）

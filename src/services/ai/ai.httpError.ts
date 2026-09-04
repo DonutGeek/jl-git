@@ -3,7 +3,7 @@ import { AxiosError } from "axios";
 import type { AppMessage } from "@/hooks/web/useMessage";
 import i18n from "@/i18n";
 import { getDeepSeekApiKeysUrl, getDeepSeekTopUpUrl } from "@/services/ai/ai.balance";
-import { openExternalUrl } from "@/services/system/open-url";
+import { openExternalUrl } from "@/api/system/open-url";
 import { HttpRequestError } from "@/utils/http";
 
 import { isAppError, isRecord, type AppError } from "@/types/error";

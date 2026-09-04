@@ -2,7 +2,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
-import { getAppInfo } from "@/services/system/system.info";
+import { getAppInfo } from "@/api/system/system.info";
 import {
   detectAppOs,
   resolveWindowHeaderPaddingClass,

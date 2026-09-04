@@ -1,15 +1,17 @@
-//! 项目与工作区 Command：读写 SQLite 登记表，打开目录前校验是否 Git 仓库。
+//! 项目与工作区 Command：薄壳，参数整形后交给 `services`，业务规则不在这里。
 
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 
-use crate::db::{self, ProjectRow, RecentProjectItem, WorkspaceRow};
 use crate::error::AppError;
 use crate::git::path::{normalize_existing_dir, require_git_toplevel};
 use crate::git::project_profile::{self, ProjectProfileSnapshot};
 use crate::git::remote_identity::{canonicalize_remote_identity, require_remote_url};
+use crate::models::project::{ProjectPatch, ProjectRow, RecentProjectItem};
+use crate::models::workspace::{CatalogTreeNode, WorkspaceRow, WorkspaceTreeNode};
+use crate::services;
+use crate::state::AppState;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -64,15 +66,29 @@ pub struct PickDirectoryResult {
 pub struct RecentListResult {
     items: Vec<RecentProjectItem>,
 }
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceListResult {
     workspaces: Vec<WorkspaceRow>,
 }
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceResult {
     workspace: WorkspaceRow,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceTreeResult {
+    tree: Vec<WorkspaceTreeNode>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectCatalogTreeResult {
+    tree: Vec<CatalogTreeNode>,
 }
 
 #[derive(Deserialize)]
@@ -92,25 +108,27 @@ pub struct ProjectOrderItem {
 
 #[tauri::command]
 pub async fn project_list(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     workspace_id: Option<String>,
 ) -> Result<ProjectListResult, AppError> {
-    let projects = db::list_projects(&pool, workspace_id.as_deref()).await?;
+    let pool = state.pool().await?;
+    let projects = services::project::list(&pool, workspace_id.as_deref()).await?;
 
     Ok(ProjectListResult { projects })
 }
 
 #[tauri::command]
 pub async fn project_add(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     path: String,
     name: Option<String>,
     workspace_id: Option<String>,
     description: Option<String>,
     icon: Option<String>,
 ) -> Result<ProjectAddResult, AppError> {
+    let pool = state.pool().await?;
     let (project, already_exists) =
-        db::add_project(&pool, path, name, workspace_id, description, icon).await?;
+        services::project::add(&pool, path, name, workspace_id, description, icon).await?;
 
     Ok(ProjectAddResult {
         project,
@@ -121,22 +139,23 @@ pub async fn project_add(
 /// 本地路径或远程 URL 唯一性检查（远程命中只警告，不阻断）。
 #[tauri::command]
 pub async fn project_check_uniqueness(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     path: Option<String>,
     remote_url: Option<String>,
 ) -> Result<ProjectUniquenessResult, AppError> {
+    let pool = state.pool().await?;
     let path = path
         .map(|value| value.trim().to_string())
-        .filter(|v| !v.is_empty());
+        .filter(|value| !value.is_empty());
     let remote_url = remote_url
         .map(|value| value.trim().to_string())
-        .filter(|v| !v.is_empty());
+        .filter(|value| !value.is_empty());
 
     match (path, remote_url) {
         (Some(path), None) => {
             let repo_path = require_git_toplevel(&normalize_existing_dir(&path)?)?;
             let path_key = repo_path.to_string_lossy().into_owned();
-            let projects = db::list_projects(&pool, None).await?;
+            let projects = services::project::list(&pool, None).await?;
             if let Some(project) = projects.into_iter().find(|item| item.path == path_key) {
                 return Ok(ProjectUniquenessResult {
                     kind: "existingPath".into(),
@@ -161,7 +180,7 @@ pub async fn project_check_uniqueness(
                 });
             };
 
-            let projects = db::list_projects(&pool, None).await?;
+            let projects = services::project::list(&pool, None).await?;
             let mut matches = Vec::new();
             for project in projects {
                 let Some(url) = project
@@ -206,24 +225,29 @@ pub async fn project_check_uniqueness(
 
 #[tauri::command]
 pub async fn project_touch_opened(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     id: String,
 ) -> Result<OkResult, AppError> {
-    db::touch_opened(&pool, &id).await?;
+    let pool = state.pool().await?;
+    services::project::touch_opened(&pool, &id).await?;
 
     Ok(OkResult { ok: true })
 }
 
 #[tauri::command]
-pub async fn project_remove(pool: State<'_, SqlitePool>, id: String) -> Result<OkResult, AppError> {
-    db::remove_project(&pool, &id).await?;
+pub async fn project_remove(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<OkResult, AppError> {
+    let pool = state.pool().await?;
+    services::project::remove(&pool, &id).await?;
 
     Ok(OkResult { ok: true })
 }
 
 #[tauri::command]
 pub async fn project_update(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     id: String,
     name: Option<String>,
     workspace_id: Option<Option<String>>,
@@ -232,15 +256,18 @@ pub async fn project_update(
     path: Option<String>,
     allow_remote_mismatch: Option<bool>,
 ) -> Result<ProjectResult, AppError> {
-    let project = db::update_project(
+    let pool = state.pool().await?;
+    let project = services::project::update(
         &pool,
         &id,
-        name,
-        workspace_id,
-        description,
-        icon,
-        path,
-        allow_remote_mismatch.unwrap_or(false),
+        ProjectPatch {
+            name,
+            workspace_id,
+            description,
+            icon,
+            path,
+            allow_remote_mismatch: allow_remote_mismatch.unwrap_or(false),
+        },
     )
     .await?;
 
@@ -252,72 +279,69 @@ pub async fn project_update(
 pub fn project_profile_snapshot(path: String) -> Result<ProjectProfileSnapshot, AppError> {
     project_profile::collect_snapshot(&path)
 }
+
 #[tauri::command]
-pub async fn workspace_list(pool: State<'_, SqlitePool>) -> Result<WorkspaceListResult, AppError> {
+pub async fn workspace_list(
+    state: State<'_, AppState>,
+) -> Result<WorkspaceListResult, AppError> {
+    let pool = state.pool().await?;
     Ok(WorkspaceListResult {
-        workspaces: db::list_workspaces(&pool).await?,
+        workspaces: services::workspace::list(&pool).await?,
     })
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkspaceTreeResult {
-    tree: Vec<db::WorkspaceTreeNode>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectCatalogTreeResult {
-    tree: Vec<db::CatalogTreeNode>,
 }
 
 /// 分组树；编辑上级时传 `excludeId` 排除自身及子孙
 #[tauri::command]
 pub async fn workspace_tree(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     exclude_id: Option<String>,
 ) -> Result<WorkspaceTreeResult, AppError> {
-    let workspaces = db::list_workspaces(&pool).await?;
+    let pool = state.pool().await?;
+    let workspaces = services::workspace::list(&pool).await?;
     let exclude_id = exclude_id
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
     Ok(WorkspaceTreeResult {
-        tree: db::build_workspace_tree(&workspaces, exclude_id),
+        tree: services::workspace::build_tree(&workspaces, exclude_id),
     })
 }
 
 /// 仪表盘分组/仓库混排树；`query` 只过滤仓库
 #[tauri::command]
 pub async fn project_catalog_tree(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     query: Option<String>,
 ) -> Result<ProjectCatalogTreeResult, AppError> {
-    let workspaces = db::list_workspaces(&pool).await?;
-    let projects = db::list_projects(&pool, None).await?;
+    let pool = state.pool().await?;
+    let workspaces = services::workspace::list(&pool).await?;
+    let projects = services::project::list(&pool, None).await?;
     let query = query
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
     Ok(ProjectCatalogTreeResult {
-        tree: db::build_catalog_tree(&workspaces, &projects, query),
+        tree: services::workspace::build_catalog_tree(&workspaces, &projects, query),
     })
 }
+
 #[tauri::command]
 pub async fn workspace_create(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     name: String,
     parent_id: Option<String>,
     icon: Option<String>,
     color: Option<String>,
 ) -> Result<WorkspaceResult, AppError> {
+    let pool = state.pool().await?;
     Ok(WorkspaceResult {
-        workspace: db::create_workspace(&pool, name, parent_id, icon, color).await?,
+        workspace: services::workspace::create(&pool, name, parent_id, icon, color).await?,
     })
 }
+
 #[tauri::command]
 pub async fn workspace_update(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     id: String,
     name: Option<String>,
     parent_id: Option<Option<String>>,
@@ -325,36 +349,52 @@ pub async fn workspace_update(
     color: Option<String>,
     locked: Option<bool>,
 ) -> Result<WorkspaceResult, AppError> {
+    let pool = state.pool().await?;
     Ok(WorkspaceResult {
-        workspace: db::update_workspace(&pool, &id, name, parent_id, icon, color, locked).await?,
+        workspace: services::workspace::update(
+            &pool,
+            &id,
+            crate::models::workspace::WorkspacePatch {
+                name,
+                parent_id,
+                icon,
+                color,
+                locked,
+            },
+        )
+        .await?,
     })
 }
+
 #[tauri::command]
 pub async fn workspace_delete(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     id: String,
 ) -> Result<OkResult, AppError> {
-    db::delete_workspace(&pool, &id).await?;
+    let pool = state.pool().await?;
+    services::workspace::delete(&pool, &id).await?;
     Ok(OkResult { ok: true })
 }
+
 #[tauri::command]
 pub async fn workspace_reorder(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     workspaces: Vec<WorkspaceOrderItem>,
     projects: Vec<ProjectOrderItem>,
 ) -> Result<OkResult, AppError> {
-    db::reorder_projects_and_workspaces(
+    let pool = state.pool().await?;
+    services::project::reorder(
         &pool,
         workspaces
             .into_iter()
-            .map(|item| db::WorkspaceOrderItem {
+            .map(|item| crate::models::project::WorkspaceOrderItem {
                 id: item.id,
                 sort_order: item.sort_order,
             })
             .collect(),
         projects
             .into_iter()
-            .map(|item| db::ProjectOrderItem {
+            .map(|item| crate::models::project::ProjectOrderItem {
                 id: item.id,
                 workspace_id: item.workspace_id,
                 sort_order: item.sort_order,
@@ -394,18 +434,23 @@ pub async fn project_pick_directory(app: AppHandle) -> Result<PickDirectoryResul
 }
 
 #[tauri::command]
-pub async fn recent_remove(pool: State<'_, SqlitePool>, id: String) -> Result<OkResult, AppError> {
-    db::remove_recent(&pool, &id).await?;
+pub async fn recent_remove(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<OkResult, AppError> {
+    let pool = state.pool().await?;
+    services::project::remove_recent(&pool, &id).await?;
 
     Ok(OkResult { ok: true })
 }
 
 #[tauri::command]
 pub async fn recent_list(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     limit: Option<u32>,
 ) -> Result<RecentListResult, AppError> {
-    let items = db::list_recent(&pool, limit).await?;
+    let pool = state.pool().await?;
+    let items = services::project::list_recent(&pool, limit).await?;
 
     Ok(RecentListResult { items })
 }

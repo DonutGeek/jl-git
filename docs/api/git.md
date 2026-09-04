@@ -1,8 +1,8 @@
-# GitService API
+# Git API
 
 > **相关文档：** [command](../architecture/command.md) · [git](../architecture/git.md) · [architecture/overview](../architecture/overview.md)
 
-Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`、`git.commit.ts`、`git.diff.ts`、`git.remote.ts`、`git.stash.ts`、`git.tag.ts`、`git.worktree.ts`，由 `services/git/index.ts` 聚合导出。
+Git 域前端接口。文件按能力拆分：`status.ts`、`branch.ts`、`commit.ts`、`diff.ts`、`remote.ts`、`stash.ts`、`tag.ts`，由 `src/api/git/index.ts` 聚合导出。
 
 ---
 
@@ -231,7 +231,7 @@ Git 域前端门面。文件按能力拆分：`git.status.ts`、`git.branch.ts`�
 ## 聚合导出示例
 
 ```ts
-// src/services/git/index.ts
+// src/api/git/index.ts
 export const gitService = {
   getStatus,
   stage,
@@ -252,5 +252,5 @@ export const gitService = {
 ## 非职责
 
 - 不写 SQLite 项目表
-- 不弹系统对话框（选目录属 ProjectService）
+- 不弹系统对话框（选目录属 `src/api/project`）
 - 不直接改 DOM / Store（由 Hook 编排）

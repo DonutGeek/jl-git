@@ -14,6 +14,7 @@
 - 优先 `interface` 描述对象形状；联合/工具类型用 `type`
 - 避免无必要的 `as`；需要时注释原因（中文，一行）
 - 枚举：优先 `as const` 对象 + 派生类型，少用 TypeScript `enum`
+- **异步统一 `async` / `await`（硬性）**：禁止 `.then()` 链。`src/api/` 的接口函数一律声明 `async`（同步工具函数除外），需要剥壳时先 `await` 再取字段，只为副作用调用时直接 `await` 不接收返回值
 
 ```ts
 export const ThemeMode = {
@@ -23,6 +24,21 @@ export const ThemeMode = {
 } as const;
 
 export type ThemeMode = (typeof ThemeMode)[keyof typeof ThemeMode];
+```
+
+```ts
+// 剥壳：先 await 拿到结果再取字段
+export async function listProjects(workspaceId?: string): Promise<Project[]> {
+  const result = await requestClient.get<ProjectListResult>("projectList", {
+    params: { workspaceId },
+  });
+  return result.projects;
+}
+
+// 只为副作用：await 后不接收返回值，别用 .then(() => undefined) 抹掉类型
+export async function removeProject(id: string): Promise<void> {
+  await requestClient.delete<OkResult>("projectRemove", { params: { id } });
+}
 ```
 
 ---
@@ -71,7 +87,7 @@ const props = defineProps<ProjectCardProps>();
 | 可复用组件目录 | PascalCase | `components/Icon/` |
 | 页面私有组件文件 | PascalCase `.vue` | `TaskFormModal.vue` |
 | 工具文件 | camelCase 或 kebab 主题名 | `formatDate.ts` |
-| Service | `domain.action.ts` | `git.status.ts` |
+| API 文件 | 域名词或按能力拆分 | `src/api/git/status.ts` |
 | Store 文件 | 域名词 `locale.ts`，禁止 `useLocaleStore.ts` | `store/modules/locale.ts` |
 | Store 导出 | `useXxxStore`；组件外 `useXxxStoreWithOut()` | `useLocaleStore` |
 | 路由 name | lowerCamelCase | `repoStatus` |

@@ -61,11 +61,6 @@
     }
   },
   "plugins": {
-    "sql": {
-      "preload": [
-        "sqlite:jlgit.db"
-      ]
-    },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU1RjZBNkVFRDc2NTQ3RDYKUldUV1IyWFg3cWIyVlEycGpWbHA3REJJZE9lOCt0L2RSVFgwMFErNStadjZOWGNkRkFLVlhMcnUK",
       "endpoints": [

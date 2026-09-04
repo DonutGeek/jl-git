@@ -12,13 +12,11 @@ import { useAgentModel } from "@/hooks/core/useAgentModel";
 import { useHasAgentApiKey } from "@/hooks/core/useHasAgentApiKey";
 import { useMessage } from "@/hooks/web/useMessage";
 import { listProjects, listWorkspaces } from "@/api/project";
+import { deleteChatConversation, listChatConversations, upsertChatConversation } from "@/api/chat";
 import {
-  deleteChatConversation,
   formatDeepSeekModelShortLabel,
-  listChatConversations,
   modelSupportsThinking,
   streamJinglingReply,
-  upsertChatConversation,
 } from "@/services/ai";
 import { buildAgentProfiles, prepareProfilesForAgentContext } from "@/services/agent/agent.profile";
 import { useLocaleStore } from "@/store/modules/locale";

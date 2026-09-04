@@ -1,5 +1,5 @@
 import { redactSecrets } from "@/services/ai/ai.sanitize";
-import { extractPdfText } from "@/services/document/document.pdf";
+import { extractPdfText } from "@/api/document";
 
 import i18n from "@/i18n";
 import { isAppError } from "@/types/error";

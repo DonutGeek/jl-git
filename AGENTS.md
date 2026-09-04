@@ -38,7 +38,8 @@ JLGit 是基于 **Tauri 2 + Vue 3 + TypeScript** 的现代 Git 桌面客户端�
 
 | 层 | 选型 | 说明 |
 |----|------|------|
-| Desktop | Tauri 2 | 系统能力、Git CLI、FS、SQLite |
+| Desktop | Tauri 2 | 系统能力、Git CLI、FS |
+| 本地服务 | Axum（内嵌） | 随 Tauri 启停，只监听 `127.0.0.1` 临时端口；数据类接口走 `/api/*` REST。Rust 侧严格分层 `Router → Handler → Service → Repository` |
 | UI | Vue 3（`<script setup>`）+ TypeScript（strict） | 组合式 API；`defineOptions` 声明组件名 |
 | 构建 | Vite + `@vitejs/plugin-vue` | 前端打包 |
 | 样式 | Tailwind CSS 4 + CSS Variables | 禁止硬编码颜色；全局样式与组件库覆盖在 `src/design/` |
@@ -48,8 +49,8 @@ JLGit 是基于 **Tauri 2 + Vue 3 + TypeScript** 的现代 Git 桌面客户端�
 | 路由 | Vue Router | 见 routing 文档 |
 | 表单 | antdv-next Form + rules | 校验与提交 |
 | 组合式 | `@vueuse/core`；通用工具优先 `lodash-es` | 禁止手写已有库函数的弱化版 |
-| HTTP | Axios | 封装在 `src/utils/http/`（Vben2 `RequestClient`）；本地 Command 与外部 HTTP 都走 `requestClient`；接口函数放 `src/api/`；页面不得临时 `axios.create` |
-| 持久化 | SQLite（业务）+ Tauri Store（轻量偏好） | 见 database 文档 |
+| HTTP | Axios | 封装在 `src/utils/http/`（Vben2 `RequestClient`）；`/api/*`、本地 Command 与外部 HTTP 都走 `requestClient`；接口函数放 `src/api/`；页面不得临时 `axios.create` |
+| 持久化 | PostgreSQL（业务，`sqlx`）+ Tauri Store（轻量偏好） | 数据库**不随包分发**，首启由 `/setup` 向导引导配置；见 database 文档 |
 | i18n | vue-i18n | 文案不写死在组件里（产品文案）；资源在 `src/locales/` |
 
 选型理由与边界见 [docs/architecture/overview.md](docs/architecture/overview.md)。
@@ -60,14 +61,17 @@ JLGit 是基于 **Tauri 2 + Vue 3 + TypeScript** 的现代 Git 桌面客户端�
 
 ```
 Vue → Router → View → Feature/Component
-  ├─ api → Axios requestClient（小驼峰地址）→ Tauri Command → Rust
-  └─ api → Axios requestClient（https URL）→ 外部 HTTP
+ ├─ api → Axios requestClient（/api/* ）→ 内嵌 Axum → Handler → Service → Repository → PostgreSQL
+ ├─ api → Axios requestClient（小驼峰地址）→ Tauri Command → Rust（Git / FS / 系统）
+ └─ api → Axios requestClient（https URL）→ 外部 HTTP
 ```
 
 - **UI 永不直接执行 Git**，永不直接拼 shell
-- **本地 Command 与外部 HTTP 都只在 `src/api/` 用 `requestClient` 声明**；禁止再包一层 1:1 的 `services` / `invokeCommand`
-- Command 是 Rust 唯一入口；页面不得直接 `invoke`，也不得临时创建 Axios 实例
-- **SQLite 存应用数据**；Git 对象仍由 Git 管理
+- **三条通道都只在 `src/api/` 用 `requestClient` 声明**；禁止再包一层 1:1 的 `services` / `invokeCommand`
+- 页面不得直接 `invoke`，也不得临时创建 Axios 实例
+- **新增数据类接口一律落在 `/api/*`**，不再加 Tauri Command；Command 只留 Git / FS / 系统能力与尚未迁移的域
+- Rust 侧分层不可越级：Handler 不写 SQL 也不放业务规则，Service 不感知 HTTP，SQL 只出现在 `repositories/`
+- **PostgreSQL 存应用数据**；Git 对象仍由 Git 管理
 - 非接口的东西（写 `document`、开子窗、Agent 循环）放 `hooks/` / `utils/`，不要塞进 `api/` 冒充接口
 
 分层职责：[docs/architecture/overview.md](docs/architecture/overview.md)
@@ -80,7 +84,7 @@ Vue → Router → View → Feature/Component
 2. **Readability First** — 命名清晰，函数单一职责
 3. **Modular Design** — 模块边界清晰，文件不宜膨胀（组件建议 ≤ 300 行）
 4. **Strong Typing** — 禁止 `any`；`unknown` 仅在边界解析后立即收窄
-5. **No Duplicate** — 重复超过两次必须抽象到 hooks / utils / services / api
+5. **No Duplicate** — 重复超过两次必须抽象到 hooks / utils / api
 6. **Composition over Inheritance** — Vue 用组合式 API
 7. **Explicit over Implicit** — 副作用、权限、路径校验必须显式
 8. **Convention over Configuration** — 目录与命名遵循本文与 structure 文档
@@ -121,8 +125,7 @@ src/
 | 页面私有 Hook | `views/<module>/hooks/useXxx.ts` | `views/repo/hooks/useGitStatus.ts` |
 | Store 文件 | 域名词，禁止 `use` 前缀 | `store/modules/locale.ts` |
 | Store 导出 | `useXxxStore`；setup 外用 `useXxxStoreWithOut()` | `useLocaleStore` |
-| Service 文件 | domain 分段 | `git.status.ts` |
-| API 文件 | 域名词 | `src/api/project.ts`、`src/api/deepseek.ts` |
+| API 文件 | 域名词或按能力拆分 | `src/api/project.ts`、`src/api/git/status.ts` |
 | Utils | camelCase 动词短语 | `formatDate` |
 | 类型 | PascalCase | `GitStatusResult` |
 | 路由 name | lowerCamelCase | `repoStatus` |
@@ -160,10 +163,20 @@ src/
 
 ## 8. Rust 硬规则
 
-- Command 按域拆分模块，禁止巨型 `lib.rs`
+- Command 与 Handler 按域拆分模块，禁止巨型 `lib.rs`
+- **分层不可越级**：`Router → Handler → Service → Repository`
+ - `Handler`：只做 HTTP 相关（取参、反序列化、状态码、套信封），禁止写业务分支与 SQL
+ - `Service`：业务规则与编排，禁止写 SQL、禁止感知 `axum` 类型
+ - `Repository`：唯一允许写 SQL 的层
+ - Command 是 Service 的另一个薄壳入口，同样不写业务规则
+- 内嵌服务**只能** bind `127.0.0.1`，端口用 `0` 让系统分配；禁止监听 `0.0.0.0`
+- `/api/*` 必须过 Bearer 校验；令牌每次启动生成，只存进程内存，禁止写日志或落盘
+- 错误统一用 `AppError`（语义 `code` + `message` + 可选 `details`），由 `IntoResponse` 单点转 HTTP；Handler 内禁止重复写错误处理
+- 新增语义码必须在 `AppError::status()` 登记状态码，否则会默默落到 500
 - 所有路径入参必须校验（存在性、是否在允许根下、规范化）
+- SQL 一律用参数占位（`$1`）；只有库名等无法参数化的位置可拼接，且必须先过白名单正则
 - **禁止**把用户字符串当 shell 脚本执行；Git 使用参数数组调用
-- 错误用可序列化结构返回前端（code + message），不泄漏内部路径细节到无害场景外
+- 迁移脚本只追加，不改已发布脚本（`sqlx` 校验和不匹配会拒绝启动）
 - 文件系统与 Git 操作只在 Rust 侧
 
 详见：[docs/architecture/tauri.md](docs/architecture/tauri.md)、[docs/development/security.md](docs/development/security.md)
@@ -173,15 +186,13 @@ src/
 ## 9. Git API
 
 ```
-UI / Hook / Store → src/api/git.ts → requestClient（小驼峰）→ Tauri Command → git CLI
+UI / Hook / Store → src/api/git → requestClient（小驼峰）→ Tauri Command → git CLI
 ```
 
-- 前端 Git **接口**只存在于 `src/api/`（与 project / DeepSeek 同一写法）
+- 前端 Git **接口**只存在于 `src/api/git/`（与 project / DeepSeek 同一写法）
 - Command 清单与契约：[docs/architecture/command.md](docs/architecture/command.md)
 - 执行模型与解析策略：[docs/architecture/git.md](docs/architecture/git.md)
 - 前端 API：[docs/api/git.md](docs/api/git.md)
-
-`src/services/git/` 是迁入 `api/` 之前的过渡，禁止再新增 1:1 `invokeCommand` 封装。
 
 ---
 
@@ -190,13 +201,13 @@ UI / Hook / Store → src/api/git.ts → requestClient（小驼峰）→ Tauri C
 优先级：
 
 ```
-Local State → Pinia → SQLite
+Local State → Pinia → PostgreSQL
 ```
 
 - 全局状态只放 `src/store`，只用 Pinia；不得再创建 `src/stores/`
 - Pinia 实例在 `src/store/index.ts` 经 `setupStore(app)` 注册
 - UI 瞬时状态用组件 `ref` / `reactive`
-- 需要跨启动持久化的业务数据进 SQLite
+- 需要跨启动持久化的业务数据进 PostgreSQL
 - 轻量偏好（窗口、主题键、语言）可用 persist 插件或 Tauri Store
 
 详见：[docs/development/state-management.md](docs/development/state-management.md)
@@ -223,7 +234,9 @@ Local State → Pinia → SQLite
 ## 12. Error Handling
 
 - 所有 Promise / `invoke` / Axios 请求必须处理失败
-- Service / api 层捕获并转换为领域错误；UI 用 antdv-next `message` / `notification` 或内联提示展示
+- api 层捕获并转换为领域错误；UI 用 antdv-next `message` / `notification` 或内联提示展示
+- `/api/*` 的失败由响应拦截器解信封转成同一套 `AppError`，因此两条通道的 `catch` 写法一致
+- 后端 `details` 里的原文（如 PostgreSQL 报错）在**排障类界面必须展示**，只显示 `message` 等于没提示
 - 禁止空 `catch`
 - 日志：开发期 `console` + Tauri log plugin；生产避免刷屏敏感信息
 
@@ -348,7 +361,7 @@ AI 修改代码时必须：
 1. 遵守本文与所链文档，不发明第二套架构
 2. 保持现有风格；不无关重构
 3. 不修改未请求的功能与文件
-4. 优先复用已有组件 / hooks / services
+4. 优先复用已有组件 / hooks / api
 5. 保持 TypeScript 类型完整
 6. 不引入不必要依赖（含 VxeTable、第二套 UI 库）；HTTP 只用已约定的 Axios 封装
 7. 改动范围尽可能小
@@ -398,6 +411,11 @@ AI 修改代码时必须：
 15. 在页面或布局中直接 `import` Lucide / morphicons（必须经 `@/components/Icon`）
 16. 把页面私有 `useXxx` / 工具函数堆在 `views/<module>/` 根目录（必须进 `hooks/` / `utils/`）
 17. 在页面或组件里临时 `axios.create` / 直接 `axios.get`；HTTP 必须走 `src/api/` + `requestClient`
+18. 让内嵌 Axum 监听 `0.0.0.0` 或固定端口，或让 `/api/*` 绕过 Bearer 校验
+19. 把服务令牌、数据库口令写进日志、文档、示例或导出包
+20. 在 Handler 里写 SQL 或业务规则，在 Service 里写 SQL 或引用 `axum` 类型
+21. 修改已发布的迁移脚本（只能追加新脚本）
+22. 新增数据类接口时再加 Tauri Command（应落在 `/api/*`）
 
 ---
 
@@ -410,8 +428,8 @@ AI 修改代码时必须：
 | [architecture/frontend](docs/architecture/frontend.md) | 前端分层 |
 | [architecture/tauri](docs/architecture/tauri.md) | Tauri / Rust |
 | [architecture/git](docs/architecture/git.md) | Git 执行模型 |
-| [architecture/database](docs/architecture/database.md) | SQLite |
-| [architecture/command](docs/architecture/command.md) | Command 清单 |
+| [architecture/database](docs/architecture/database.md) | PostgreSQL 与首启配置 |
+| [architecture/command](docs/architecture/command.md) | Command 清单与 HTTP 迁移状态 |
 | [development/coding-style](docs/development/coding-style.md) | 编码风格 |
 | [development/code-quality-tooling](docs/development/code-quality-tooling.md) | ESLint / Prettier / 提交前检查 |
 | [development/state-management](docs/development/state-management.md) | 状态 |
@@ -429,8 +447,9 @@ AI 修改代码时必须：
 | [product/releases](docs/product/releases.md) | 发布规范 |
 | [product/ai](docs/product/ai.md) | AI 能力（单仓/多仓鲸灵） |
 | [统一鲸灵设计](docs/superpowers/specs/2026-07-21-unified-jingling-agent-design.md) | AgentHost、插件壳、会话分桶 |
-| [api/project](docs/api/project.md) | ProjectService |
-| [api/git](docs/api/git.md) | GitService |
+| [api/project](docs/api/project.md) | 项目 / 分组 API |
+| [api/setup](docs/api/setup.md) | 首启配置向导 API |
+| [api/git](docs/api/git.md) | Git API |
 | [api/settings](docs/api/settings.md) | SettingsService |
 | [api/notification](docs/api/notification.md) | NotificationService |
 

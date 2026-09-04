@@ -23,7 +23,7 @@ import {
   getStatus,
   listBranches,
   listTree,
-} from "@/services/git";
+} from "@/api/git";
 
 import i18n from "@/i18n";
 import { isRecord, type AppError } from "@/types/error";

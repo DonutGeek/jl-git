@@ -58,10 +58,3 @@ export {
   writeCommitModelId,
 } from "./ai.models";
 export type { DeepSeekModelInfo } from "./ai.models";
-export {
-  deleteChatConversation,
-  listChatConversations,
-  reorderChatConversations,
-  upsertChatConversation,
-} from "./ai.chatPersist";
-export type { ChatScope } from "./ai.chatPersist";

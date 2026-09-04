@@ -1,0 +1,58 @@
+{
+  "title": "初始化配置",
+  "heading": "配置数据库",
+  "steps": {
+    "detect": "环境检测",
+    "connect": "连接配置",
+    "init": "初始化",
+    "done": "完成"
+  },
+  "actions": {
+    "back": "上一步",
+    "next": "下一步",
+    "recheck": "重新检测",
+    "test": "测试连接",
+    "init": "开始初始化",
+    "retry": "重试",
+    "enter": "进入 JLGit",
+    "download": "下载 PostgreSQL"
+  },
+  "detect": {
+    "title": "检测本机 PostgreSQL",
+    "success": "检测完成",
+    "port": "默认端口（{host}:{port}）",
+    "portReachable": "可连接",
+    "portUnreachable": "无法连接",
+    "psql": "psql 命令行",
+    "psqlMissing": "未在 PATH 中找到"
+  },
+  "form": {
+    "host": "主机",
+    "port": "端口",
+    "user": "用户名",
+    "password": "口令",
+    "database": "数据库名",
+    "passwordPlaceholder": "留空表示无口令",
+    "required": {
+      "host": "请填写主机地址",
+      "port": "请填写端口",
+      "user": "请填写用户名",
+      "database": "请填写数据库名"
+    },
+    "databasePattern": "只能包含字母、数字与下划线，且不能以数字开头"
+  },
+  "test": {
+    "success": "连接成功"
+  },
+  "init": {
+    "title": "创建数据库并写入表结构",
+    "running": "正在初始化…",
+    "success": "初始化完成"
+  },
+  "done": {
+    "title": "配置完成",
+    "subtitle": "数据库已连接，现在可以开始使用 JLGit。",
+    "saveFailed": "保存配置失败"
+  },
+  "backupRemoved": "切换到 PostgreSQL 后，备份与导入暂不可用，请使用 pg_dump / pg_restore。"
+}

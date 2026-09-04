@@ -6,12 +6,14 @@ const DEEPSEEK_MODELS_URL = "https://api.deepseek.com/models";
 const DEEPSEEK_BALANCE_URL = "https://api.deepseek.com/user/balance";
 const DEEPSEEK_CHAT_COMPLETIONS_URL = "https://api.deepseek.com/chat/completions";
 
+/** DeepSeek JSON 请求：自带 Key，不走应用登录态 */
 export interface DeepSeekJsonRequestOptions {
   apiKey: string;
   timeout?: number;
   signal?: AbortSignal;
 }
 
+/** 流式 chat 请求，body 为官方 chat/completions 入参 */
 export interface DeepSeekStreamRequestOptions extends DeepSeekJsonRequestOptions {
   body: unknown;
 }

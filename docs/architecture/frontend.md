@@ -91,10 +91,20 @@ await axios.get("/v1/models")
 
 例外：`utils/http` 统一 Axios（含 Tauri adapter）。页面只调用 `src/api/`。
 
-- 本地 Command：`src/api/` + 小驼峰地址，如 `requestClient.get("projectList")`、`requestClient.post("gitStatus", { path })`
-- 外部 HTTP：同一套 `requestClient`，完整 `https://` URL
-- 禁止为同一个 Command 再写 `services` 1:1 包装
+同一个 `requestClient` 按**地址形态**分流三条通道，调用方写法完全一致：
+
+| 地址 | 通道 | 示例 |
+|------|------|------|
+| `/api/…` | 内嵌 Axum HTTP | `requestClient.get("/api/setup/status")` |
+| 小驼峰 | Tauri Command（adapter 转 snake_case） | `requestClient.post("gitStatus", { path })` |
+| `https://…` | 外部 HTTP | `requestClient.post("https://api.deepseek.com/…")` |
+
+分流规则在 `utils/http/tauri-adapter.ts` 的 `isRemoteHttpRequest`；`/api/*` 的响应还会在拦截器里按信封形状解包（`utils/http/envelope.ts`），因此 `src/api/*` 拿到的是裸载荷，与 Command 通道一致。按**形状**而非接口清单判断，是为了不误伤 DeepSeek 这类返回官方原始结构的绝对 URL 请求。
+
+- **新增数据类接口一律用 `/api/*`**，不再加 Command
+- 禁止为同一个接口再写 `services` 1:1 包装
 - 非接口逻辑（主题写 DOM、开子窗、Agent 循环）放 `hooks/` / `utils/`
+- 服务端口与令牌在挂载前由 `utils/localServerBootstrap.ts` 经 `serverInfo` 取回，注入 `setBaseURL` 与 `configureHttpAuth`
 
 接口契约见 [api/](../api/git.md)。
 
@@ -107,7 +117,7 @@ await axios.get("/v1/models")
 | 输入框草稿 | Local state（`ref`） |
 | 当前选中文件路径 | Pinia（仓库会话） |
 | 主题偏好 | Store + persist / Tauri Store |
-| 已保存项目列表 | SQLite → 经 `src/api/project` 加载到 Store |
+| 已保存项目列表 | PostgreSQL → 经 `src/api/project` 加载到 Store |
 | `git status` 结果 | Pinia 缓存，以 Git 为准可刷新 |
 
 详见 [state-management](../development/state-management.md)。
@@ -131,7 +141,7 @@ await axios.get("/v1/models")
 - `Form` 必须绑 `:model` + `:rules`（无 `model` 时 `@finish` 不会触发）；主提交走 `@finish`，次按钮先 `validate()`
 - 瞬时状态（loading / picking）可留独立 `ref`，不要每个字段一个 `ref`
 - 字段错误展示在 `FormItem` 上，禁止用 `message.error` 代替必填校验
-- 提交时在 Service 前完成客户端校验；服务端（Rust）仍做路径与权限校验
+- 提交时在调用 api 前完成客户端校验；服务端（Rust）仍做路径与权限校验
 - **弹窗表单**：弹窗组件 `defineExpose({ open })`，父组件 `ref.open(payload)`；禁止外绑 `:open` / `mode`。二次确认走 `useModal().confirm()`。细则见 [ui-guidelines · 弹窗开合](../development/ui-guidelines.md#弹窗开合硬性)
 
 ---
@@ -139,7 +149,7 @@ await axios.get("/v1/models")
 ## 错误与反馈
 
 ```
-Service throw / Result
+api throw / Result
   → Hook catch
     → message / notification 或页面内 Alert
     → 可选写入 log

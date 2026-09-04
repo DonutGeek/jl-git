@@ -12,7 +12,7 @@ import { ScrollArea } from "@/components/ScrollArea";
 import { useMessage } from "@/hooks/web/useMessage";
 import { useModal } from "@/hooks/web/useModal";
 import { cn } from "@/lib/utils";
-import { deleteBranch, listBranches } from "@/services/git";
+import { deleteBranch, listBranches } from "@/api/git";
 import { toUserMessage } from "@/types/error";
 import type { GitBranch } from "@/types/git";
 import type { Project } from "@/types/project";

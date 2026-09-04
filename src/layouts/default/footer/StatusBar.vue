@@ -14,14 +14,14 @@ import { useAppUpdateChecker } from "@/hooks/core/useAppUpdateChecker";
 import { useTheme } from "@/hooks/setting/useTheme";
 import { useMessage } from "@/hooks/web/useMessage";
 import { cn } from "@/lib/utils";
-import { gitService } from "@/services/git";
+import { gitService } from "@/api/git";
 import {
   getAppInfo,
   getDiskSpace,
   listDiskVolumes,
   type SystemAppInfo,
   type SystemDiskSpace,
-} from "@/services/system/system.info";
+} from "@/api/system/system.info";
 import { checkAppUpdate, installPendingAppUpdate } from "@/services/system/system.updater";
 import { useAppUpdateStore } from "@/store/modules/appUpdate";
 import { useLocaleStore } from "@/store/modules/locale";

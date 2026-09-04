@@ -4,9 +4,9 @@ import { applyStorePatch } from "@/store/applyStorePatch";
 import { store } from "@/store";
 
 import i18n from "@/i18n";
-import { gitService } from "@/services/git";
-import { ensureGitIdentityBootstrapped } from "@/services/git/git.accounts";
-import { buildHistoryLogOptions } from "@/services/git/git.log";
+import { gitService } from "@/api/git";
+import { ensureGitIdentityBootstrapped } from "@/api/git/accounts";
+import { buildHistoryLogOptions } from "@/api/git/log";
 import type { AppError } from "@/types/error";
 import { toUserMessage } from "@/types/error";
 import type {

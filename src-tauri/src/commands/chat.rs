@@ -1,9 +1,12 @@
+//! 鲸灵会话 Command：薄壳，业务规则在 `services::chat`。
+
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
 use tauri::State;
 
-use crate::db::{self, ChatConversationRow, UpsertChatConversationInput};
 use crate::error::AppError;
+use crate::models::chat::{ChatConversationRow, UpsertChatConversationInput};
+use crate::services;
+use crate::state::AppState;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,38 +36,42 @@ pub struct ChatReorderInput {
 
 #[tauri::command]
 pub async fn chat_list_conversations(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     scope: String,
     project_id: Option<String>,
 ) -> Result<ChatConversationListResult, AppError> {
-    let conversations = db::list_chat_conversations(&pool, &scope, project_id.as_deref()).await?;
+    let pool = state.pool().await?;
+    let conversations = services::chat::list(&pool, &scope, project_id.as_deref()).await?;
     Ok(ChatConversationListResult { conversations })
 }
 
 #[tauri::command]
 pub async fn chat_upsert_conversation(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     input: UpsertChatConversationInput,
 ) -> Result<ChatConversationResult, AppError> {
-    let conversation = db::upsert_chat_conversation(&pool, input).await?;
+    let pool = state.pool().await?;
+    let conversation = services::chat::upsert(&pool, input).await?;
     Ok(ChatConversationResult { conversation })
 }
 
 #[tauri::command]
 pub async fn chat_delete_conversation(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     id: String,
 ) -> Result<OkResult, AppError> {
-    db::delete_chat_conversation(&pool, &id).await?;
+    let pool = state.pool().await?;
+    services::chat::delete(&pool, &id).await?;
     Ok(OkResult { ok: true })
 }
 
 #[tauri::command]
 pub async fn chat_reorder_conversations(
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     input: ChatReorderInput,
 ) -> Result<OkResult, AppError> {
-    db::reorder_chat_conversations(
+    let pool = state.pool().await?;
+    services::chat::reorder(
         &pool,
         &input.scope,
         input.project_id.as_deref(),

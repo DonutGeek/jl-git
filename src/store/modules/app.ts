@@ -329,7 +329,7 @@ export const useAppPrefsStore = defineStore("appPrefs", {
     setGitExtraPath(value) {
       set({ gitExtraPath: value, gitExtraPathMode: "custom", gitExtraPathAutoSeeded: true });
       notifyGlobalPreferenceChange("app-prefs");
-      void import("@/services/git/git.path")
+      void import("@/api/git/path")
         .then(({ setGitExtraPath: sync }) => sync(value))
         .catch((error: unknown) => {
           console.warn("同步 Git 额外 PATH 失败", error);
@@ -341,8 +341,7 @@ export const useAppPrefsStore = defineStore("appPrefs", {
       notifyGlobalPreferenceChange("app-prefs");
       void (async () => {
         try {
-          const { discoverNodeBin, setGitExtraPath: sync } =
-            await import("@/services/git/git.path");
+          const { discoverNodeBin, setGitExtraPath: sync } = await import("@/api/git/path");
           if (next === "custom") {
             await sync(get().gitExtraPath ?? "");
             return;
@@ -432,7 +431,7 @@ export function initAppPrefs(): void {
   const syncGitExtraPath = (): void => {
     void (async () => {
       try {
-        const { discoverNodeBin, setGitExtraPath: sync } = await import("@/services/git/git.path");
+        const { discoverNodeBin, setGitExtraPath: sync } = await import("@/api/git/path");
         const prefs = useAppPrefsStoreWithOut();
         const mode = prefs.gitExtraPathMode === "custom" ? "custom" : "auto";
 

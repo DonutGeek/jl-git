@@ -22,7 +22,7 @@
 **Files:**
 - Modify: `src-tauri/src/system.rs`（对称 `write_text_file`）
 - Modify: `src-tauri/src/commands/system.rs`、`src-tauri/src/lib.rs`
-- Modify: `src/services/system/system.write.ts` 或新建 `system.textFile.ts`
+- Modify: `src/api/system/system.write.ts` 或新建 `system.textFile.ts`
 - Modify: `docs/architecture/command.md`
 
 - [x] 实现读绝对路径文本，超限返回 `VALIDATION`

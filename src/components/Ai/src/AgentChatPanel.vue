@@ -8,13 +8,11 @@ import AgentMessageList from "./AgentMessageList.vue";
 import { useAgentModel } from "@/hooks/core/useAgentModel";
 import { useHasAgentApiKey } from "@/hooks/core/useHasAgentApiKey";
 import { useMessage } from "@/hooks/web/useMessage";
+import { deleteChatConversation, listChatConversations, upsertChatConversation } from "@/api/chat";
 import {
-  deleteChatConversation,
   formatDeepSeekModelShortLabel,
-  listChatConversations,
   modelSupportsThinking,
   streamJinglingReply,
-  upsertChatConversation,
 } from "@/services/ai";
 import { buildJlgitMeta } from "@/services/agent/agent.profile";
 import {

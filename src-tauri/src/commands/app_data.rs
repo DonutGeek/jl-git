@@ -1,9 +1,12 @@
+//! 应用数据 Command：薄壳，业务规则在 `services::app_data`。
+
 use serde::Deserialize;
-use sqlx::SqlitePool;
 use tauri::{AppHandle, Manager, State};
 
-use crate::db::{self, AppDataExportInput, AppDataImportResult, AppDataPaths, AppDataUsage};
 use crate::error::AppError;
+use crate::models::app_data::{AppDataPaths, AppDataUsage};
+use crate::services;
+use crate::state::AppState;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -15,12 +18,6 @@ pub struct RevealInput {
 #[serde(rename_all = "camelCase")]
 pub struct ClearInput {
     module: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ImportInput {
-    source_path: String,
 }
 
 #[derive(serde::Serialize)]
@@ -38,13 +35,13 @@ fn app_data_dir(app: &AppHandle) -> Result<std::path::PathBuf, AppError> {
 #[tauri::command]
 pub async fn app_data_paths(app: AppHandle) -> Result<AppDataPaths, AppError> {
     let dir = app_data_dir(&app)?;
-    Ok(db::resolve_paths(&dir))
+    Ok(services::app_data::resolve_paths(&dir))
 }
 
 #[tauri::command]
 pub async fn app_data_usage(app: AppHandle) -> Result<AppDataUsage, AppError> {
     let dir = app_data_dir(&app)?;
-    tauri::async_runtime::spawn_blocking(move || db::measure_usage(&dir))
+    tauri::async_runtime::spawn_blocking(move || services::app_data::measure_usage(&dir))
         .await
         .map_err(|error| {
             AppError::new("INTERNAL", "统计应用数据目录失败").with_details(error.to_string())
@@ -54,37 +51,31 @@ pub async fn app_data_usage(app: AppHandle) -> Result<AppDataUsage, AppError> {
 #[tauri::command]
 pub async fn app_data_reveal(app: AppHandle, input: RevealInput) -> Result<OkResult, AppError> {
     let dir = app_data_dir(&app)?;
-    db::reveal_target(&dir, input.target.trim())?;
+    services::app_data::reveal_target(&dir, input.target.trim())?;
     Ok(OkResult { ok: true })
 }
 
 #[tauri::command]
 pub async fn app_data_clear(
     app: AppHandle,
-    pool: State<'_, SqlitePool>,
+    state: State<'_, AppState>,
     input: ClearInput,
 ) -> Result<OkResult, AppError> {
     let dir = app_data_dir(&app)?;
-    db::clear_module(&pool, &dir, input.module.trim()).await?;
+    let pool = state.pool().await?;
+    services::app_data::clear_module(&pool, &dir, input.module.trim()).await?;
     Ok(OkResult { ok: true })
 }
 
+/// 备份导出依赖 SQLite `VACUUM INTO`，切换 PostgreSQL 后本阶段下线。
+/// 保留 Command 以便旧调用方拿到明确报错，而不是「命令不存在」。
 #[tauri::command]
-pub async fn app_data_export(
-    app: AppHandle,
-    pool: State<'_, SqlitePool>,
-    input: AppDataExportInput,
-) -> Result<OkResult, AppError> {
-    let dir = app_data_dir(&app)?;
-    db::export_backup(&pool, &dir, input).await?;
-    Ok(OkResult { ok: true })
+pub async fn app_data_export() -> Result<OkResult, AppError> {
+    Err(services::app_data::backup_unsupported())
 }
 
+/// 备份导入同上：恢复需要用 `pg_restore`，而非替换本地库文件。
 #[tauri::command]
-pub async fn app_data_import(
-    app: AppHandle,
-    input: ImportInput,
-) -> Result<AppDataImportResult, AppError> {
-    let dir = app_data_dir(&app)?;
-    db::import_backup(&dir, &input.source_path)
+pub async fn app_data_import() -> Result<OkResult, AppError> {
+    Err(services::app_data::backup_unsupported())
 }

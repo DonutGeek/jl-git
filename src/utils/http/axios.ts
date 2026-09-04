@@ -4,8 +4,9 @@ import type { AxiosInstance, AxiosResponse } from "axios";
 import { isAppError } from "@/types/error";
 
 import { AxiosCanceler } from "./axios-cancel";
-import { normalizeHttpError } from "./check-status";
-import { appAxiosAdapter, isRemoteHttpRequest } from "./tauri-adapter";
+import { getHttpErrorMessage, normalizeHttpError } from "./check-status";
+import { envelopeToAppError, isApiEnvelope } from "./envelope";
+import { appAxiosAdapter, isEnvelopeRequest, isRemoteHttpRequest } from "./tauri-adapter";
 import type { RequestClientOptions, RequestConfig, RequestOptions } from "./types";
 
 export class RequestClient {
@@ -22,6 +23,11 @@ export class RequestClient {
     });
 
     this.setupInterceptors();
+  }
+
+  /** 内嵌服务端口在启动时才确定，引导阶段注入 `http://127.0.0.1:<port>` */
+  setBaseURL(baseURL: string): void {
+    this.axios.defaults.baseURL = baseURL;
   }
 
   request<T, D = unknown>(
@@ -79,16 +85,43 @@ export class RequestClient {
         if ((response.config as typeof response.config & RequestOptions).cancelDuplicate) {
           this.canceler.remove(response.config);
         }
+
+        // 只对 /api/ 且形状匹配的响应解包，`src/api/*` 拿到的仍是裸载荷
+        if (isEnvelopeRequest(response.config) && isApiEnvelope(response.data)) {
+          const envelope = response.data;
+          if (envelope.code !== 0) {
+            return Promise.reject(envelopeToAppError(envelope, getHttpErrorMessage(envelope.code)));
+          }
+          response.data = envelope.data;
+        }
+
         return response;
       },
       async (error: unknown) => {
-        if (isAppError(error)) {
+        // AxiosError 也有 string 的 code / message，形状上同样满足 isAppError，
+        // 必须先排除，否则原始错误会短路掉下面的信封解包
+        if (!axios.isAxiosError(error) && isAppError(error)) {
           return Promise.reject(error);
         }
 
         const config = axios.isAxiosError(error) ? error.config : undefined;
         if (config && (config as typeof config & RequestOptions).cancelDuplicate) {
           this.canceler.remove(config);
+        }
+
+        // 非 2xx 也带信封：优先用后端的语义码与中文 message
+        if (axios.isAxiosError(error) && config && isEnvelopeRequest(config)) {
+          const payload: unknown = error.response?.data;
+          if (isApiEnvelope(payload)) {
+            const appError = envelopeToAppError(
+              payload,
+              getHttpErrorMessage(error.response?.status),
+            );
+            if (error.response?.status === 401) {
+              await this.options.onUnauthorized?.();
+            }
+            return Promise.reject(appError);
+          }
         }
 
         const normalizedError = normalizeHttpError(error);

@@ -7,7 +7,7 @@ import { redactSecrets } from "@/services/ai/ai.sanitize";
 import { getAgentSafetyRefusal } from "@/services/ai/ai.safety";
 import { getAgentSkillMode } from "@/services/ai/ai.skillMode";
 import { runAgentCodeToolLoop, shouldEnableAgentCodeTools } from "@/services/ai/ai.toolLoop";
-import { getGlobalIdentity } from "@/services/git/git.identity";
+import { getGlobalIdentity } from "@/api/git/identity";
 import { buildMultiAgentSystemPrompt } from "@/prompts/agent/multi";
 import { buildResumeSystemPrompt } from "@/prompts/resume";
 import { buildSkillCreatorSystemPrompt } from "@/prompts/skillCreator";

@@ -70,7 +70,12 @@ src/
 │       └── en/
 ├── api/                     # 后端接口：本地 Command + 外部 HTTP；按域拆分
 │   ├── project.ts
-│   ├── git.ts               # 目标：Git Command 与 project 同一写法
+│   ├── git/                 # Git / 工作区 FS Command
+│   ├── system/              # 打开外部程序、磁盘、读写文本等 Command
+│   ├── ssh.ts
+│   ├── chat.ts
+│   ├── data.ts
+│   ├── document.ts
 │   └── deepseek.ts
 ├── router/
 │   ├── index.ts             # setupRouter / 路由实例
@@ -114,8 +119,8 @@ src/
 | `views/<camelCase>/hooks` | **仅该页**的 `useXxx` 与请求生命周期 |
 | `views/<camelCase>/utils` | **仅该页**的无状态转换 / 导航函数 |
 | `hooks/<layer>` | 跨页面的组合式能力 |
-| `services` | Tauri IPC / 本地持久化（Git、FS、SQLite、窗口） |
-| `api` | 外部 HTTP 接口函数；只使用 `utils/http` 的 `requestClient` |
+| `api` | 本地 Command + 外部 HTTP 接口函数；只使用 `utils/http` 的 `requestClient` |
+| `services` | **非接口**编排：主题写 DOM、开子窗、Agent 循环、开机自启 / 更新插件。禁止再为 Command 写 1:1 包装 |
 | `utils/http` | Axios 单例、拦截器、错误归一；页面不得再 `axios.create` |
 | `store` | 跨树会话状态；目录名固定单数 |
 | `design` | Design Tokens、主题 CSS、编辑器主题桥接 |
@@ -123,7 +128,7 @@ src/
 | `types` | 跨模块共享类型 |
 | `utils` | 无副作用纯函数 |
 
-**新增文件前问：** 它属于哪个域？能否复用？走 Tauri（`services/`）还是 HTTP（`api/`）？是否应就近放进当前 `views/<module>/`？
+**新增文件前问：** 它属于哪个域？能否复用？走 `api/`（Command / HTTP）还是 `hooks/` / `utils/`（非接口）？是否应就近放进当前 `views/<module>/`？
 
 ### 就近分层（硬性，对齐 work-center）
 
@@ -154,10 +159,17 @@ src/
 
 见 [tauri.md](../architecture/tauri.md) 目录一节。要点：
 
-- `commands/` 按域
+- `server/` 内嵌 Axum 的生命周期、路由树、中间件、提取器
+- `handlers/` 按域，只处理 HTTP
+- `services/` 按域，业务规则与编排
+- `repositories/` 按域，唯一写 SQL 的层
+- `models/` 领域模型与响应信封
+- `state/` `AppState` 与 `Db` extractor
+- `error/` 统一 `AppError` 与 HTTP 映射
+- `commands/` 按域，Git / FS / 系统能力与未迁移域的薄壳
 - `git/` 执行与解析
-- `db/` 迁移与访问
-- `lib.rs` 保持瘦
+- `migrations/` `sqlx` 迁移脚本（只追加）
+- `lib.rs` 保持瘦：只做插件注册、启服务、托管状态与退出收尾
 
 ---
 

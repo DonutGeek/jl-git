@@ -29,7 +29,7 @@ import { useMessage } from "@/hooks/web/useMessage";
 import { useProjectStore } from "@/store/modules/project";
 
 import { checkProjectUniqueness, pickProjectDirectory } from "@/api/project";
-import { cloneRepository } from "@/services/git/git.clone";
+import { cloneRepository } from "@/api/git/clone";
 import { joinCloneDestPath, repoNameFromCloneUrl } from "@/utils/gitClonePath";
 
 import type { ProjectRemoteMatch, Workspace, WorkspaceGroupOpenPayload } from "@/types/project";

@@ -76,6 +76,6 @@ requestClient.post("projectAdd", { path });
 
 ## 非职责
 
-- 不执行 Git 查询（交给 Git services）
+- 不执行 Git 查询（交给 `src/api/git`）
 - 不渲染 UI
 - 不在前端把 DTO 改写成另一种领域模型

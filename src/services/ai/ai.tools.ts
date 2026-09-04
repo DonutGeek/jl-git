@@ -7,7 +7,7 @@ import {
   normalizeAgentRelativePath,
 } from "@/services/agent/agent.codePolicy";
 import { redactSecrets } from "@/services/ai/ai.sanitize";
-import { getFileSize, listDir, readWorktreeFile, searchCode } from "@/services/git";
+import { getFileSize, listDir, readWorktreeFile, searchCode } from "@/api/git";
 import { toUserMessage } from "@/types/error";
 
 export interface AgentCodeToolRepo {

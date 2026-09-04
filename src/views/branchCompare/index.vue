@@ -7,7 +7,7 @@ import { useI18n } from "vue-i18n";
 import { AppLoadingScreen } from "@/components/Common";
 import { BranchCompareWorkspace } from "@/components/Git";
 import { readRouteQuery, useChildWindowProject } from "@/hooks/web/useChildWindowProject";
-import { listBranches } from "@/services/git";
+import { listBranches } from "@/api/git";
 import { toUserMessage } from "@/types/error";
 import type { BranchCompareMode, GitBranch } from "@/types/git";
 

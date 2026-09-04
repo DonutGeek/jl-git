@@ -1,5 +1,5 @@
-import { ensureGitIdentityBootstrapped } from "@/services/git/git.accounts";
-import { syncLocalSshKeys } from "@/services/ssh/ssh.keys";
+import { ensureGitIdentityBootstrapped } from "@/api/git/accounts";
+import { syncLocalSshKeys } from "@/api/ssh";
 
 let bootstrapPromise: Promise<void> | null = null;
 let bootstrapped = false;

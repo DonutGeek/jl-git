@@ -34,10 +34,10 @@ AI 是 **辅助层**，不是 Git 的替代执行器。所有副作用（commit�
 ```
 UI（AiPanel / Commit 旁按钮）
   → AiService
-      → GitService.getStagedDiff
+      → getStagedDiff（src/api/git）
       → DeepSeek Chat Completions API
   → 用户确认
-      → GitService / 其他 Service
+      → src/api/git / 其他 api
 ```
 
 ```mermaid
@@ -45,10 +45,10 @@ flowchart LR
   Diff[Diff 摘要] --> AI[AiService]
   AI --> Out[建议文案]
   Out --> User[用户编辑确认]
-  User --> Git[GitService.commit]
+  User --> Git[api/git commit]
 ```
 
-- **不要**把 AI 逻辑塞进 `gitService`
+- **不要**把 AI 逻辑塞进 `src/api/git`
 - **不要**让模型返回的字符串直接当 shell
 
 ## 鲸灵：单仓 / 多仓
